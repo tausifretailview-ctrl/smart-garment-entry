@@ -73,6 +73,7 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   "user-rights": "user_rights",
   "audit-log": "audit_logs",
   "whatsapp-inbox": "whatsapp_inbox",
+  "bulk-whatsapp": "bulk_whatsapp",
 };
 
 export const getMenuPermissionForPath = (path: string) => {

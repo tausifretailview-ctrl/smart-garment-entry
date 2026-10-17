@@ -97,7 +97,8 @@ export function HeaderMenubar({
     can("recycle_bin") ||
     can("user_rights") ||
     hasSpecialPermission("audit_logs") ||
-    can("whatsapp_inbox");
+    can("whatsapp_inbox") ||
+    can("bulk_whatsapp");
 
   if (!showFile && !showView && !showSales && !showPurchase && !canAccessReportsHub && !showTools && !can("settings_view")) {
     return null;
@@ -516,6 +517,9 @@ export function HeaderMenubar({
               >
                 WhatsApp Inbox
               </MenubarItem>
+            )}
+            {can("bulk_whatsapp") && (
+              <MenubarItem onClick={() => orgNavigate("/bulk-whatsapp")}>Bulk WhatsApp</MenubarItem>
             )}
           </MenubarContent>
         </MenubarMenu>

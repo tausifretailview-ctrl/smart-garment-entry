@@ -33,27 +33,45 @@ const APP_EVENT_URL = process.env.APP_EVENT_URL ?? "";
 const APP_INBOUND_URL = process.env.APP_INBOUND_URL ?? "";
 const API_KEY = process.env.GATEWAY_API_KEY ?? "";
 const MAX_PER_DAY = Number(process.env.MAX_MSGS_PER_DAY ?? 300);
+/** Bulk WhatsApp: each user links their own number (session id "u_<userId>") with its own daily cap. */
+const MAX_BULK_PER_DAY = Number(process.env.MAX_BULK_MSGS_PER_DAY ?? 500);
 const MIN_GAP_MS = 2000;
 const MAX_GAP_MS = 5000;
-const ORG_ID_RE = /^[0-9a-fA-F-]{36}$/;
+/** Shop (bill) sessions are keyed by organization id; Bulk WhatsApp sessions by "u_" + user id. */
+const SESSION_ID_RE = /^(u_)?[0-9a-fA-F-]{36}$/;
+export const isUserSession = (id: string) => id.startsWith("u_");
 const logger = pino({ level: process.env.LOG_LEVEL ?? "warn" });
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const today = () => new Date().toISOString().slice(0, 10);
 
 /** Digits only; 10-digit numbers get India's 91 (same rule as the edge function). */
-function toJid(phone: string): string {
+export function toJid(phone: string): string {
   const digits = phone.replace(/\D/g, "");
   const full = digits.length === 10 ? `91${digits}` : digits;
   if (full.length < 10) throw new Error("Invalid phone number");
   return `${full}@s.whatsapp.net`;
 }
 
+/** Message content for bulk sends: text alone, or a poster/file with the text as its caption. */
+export interface BulkContent {
+  text: string;
+  media?: { buffer: Buffer; mimetype: string; filename: string; kind: "image" | "video" | "document" };
+}
+
+export type ReceiptStatus = "delivered" | "read";
+
 export class SessionManager {
   private sessions = new Map<string, Session>();
+  /** Delivery / read ticks for messages sent from Bulk WhatsApp sessions. */
+  onReceipt: ((sessionId: string, messageId: string, status: ReceiptStatus) => void) | null = null;
 
   private assertOrg(orgId: string) {
-    if (!ORG_ID_RE.test(orgId)) throw new Error("Invalid organization id");
+    if (!SESSION_ID_RE.test(orgId)) throw new Error("Invalid session id");
+  }
+
+  private dailyCap(id: string) {
+    return isUserSession(id) ? MAX_BULK_PER_DAY : MAX_PER_DAY;
   }
 
   private get(orgId: string): Session {
@@ -73,7 +91,8 @@ export class SessionManager {
   }
 
   private async notify(orgId: string, s: Session) {
-    if (!APP_EVENT_URL) return;
+    // Bulk WhatsApp sessions are not the shop's bill number: the page polls their status instead.
+    if (!APP_EVENT_URL || isUserSession(orgId)) return;
     try {
       await fetch(APP_EVENT_URL, {
         method: "POST",
@@ -94,7 +113,7 @@ export class SessionManager {
     if (!fs.existsSync(AUTH_DIR)) return;
     for (const orgId of fs.readdirSync(AUTH_DIR)) {
       // Only numbers that finished linking; an abandoned QR leaves no creds.json worth restoring.
-      if (!ORG_ID_RE.test(orgId) || !fs.existsSync(path.join(this.dir(orgId), "creds.json"))) continue;
+      if (!SESSION_ID_RE.test(orgId) || !fs.existsSync(path.join(this.dir(orgId), "creds.json"))) continue;
       await this.connect(orgId).catch((e) => logger.warn({ err: e }, "restore failed"));
     }
   }
@@ -124,6 +143,16 @@ export class SessionManager {
         if (type !== "notify") return;
         for (const m of messages) void this.forwardInbound(orgId, m);
       });
+      if (isUserSession(orgId)) {
+        // WhatsApp status: 3 = delivered (two grey ticks), 4 = read, 5 = played (voice/video seen).
+        sock.ev.on("messages.update", (updates) => {
+          for (const { key, update } of updates) {
+            const st = update.status;
+            if (!key.fromMe || !key.id || typeof st !== "number" || st < 3) continue;
+            this.onReceipt?.(orgId, key.id, st >= 4 ? "read" : "delivered");
+          }
+        });
+      }
       sock.ev.on("connection.update", async (update) => {
         const { connection, lastDisconnect, qr } = update;
         if (qr) {
@@ -181,7 +210,8 @@ export class SessionManager {
 
   /** Customer text replies go to the app (review "OK" → stars flow). Groups, status and own messages are skipped. */
   private async forwardInbound(orgId: string, m: WAMessage) {
-    if (!APP_INBOUND_URL || m.key.fromMe) return;
+    // Replies to bulk messages are not bill reviews: only the shop session feeds the review flow.
+    if (!APP_INBOUND_URL || m.key.fromMe || isUserSession(orgId)) return;
     const key = m.key as WAMessage["key"] & { senderPn?: string; remoteJidAlt?: string };
     let jid = key.remoteJid ?? "";
     if (jid.endsWith("@lid")) jid = key.senderPn || key.remoteJidAlt || "";
@@ -251,14 +281,26 @@ export class SessionManager {
     return s;
   }
 
+  isConnected(id: string): boolean {
+    const s = this.sessions.get(id);
+    return Boolean(s && s.status === "connected" && s.sock);
+  }
+
+  /** Messages this number can still send today (resets at 00:00 UTC). */
+  remainingToday(id: string): number {
+    const s = this.get(id);
+    if (s.day !== today()) return this.dailyCap(id);
+    return Math.max(0, this.dailyCap(id) - s.sentToday);
+  }
+
   /** Serialize sends per org with a random human-like gap and a daily cap (ban protection). */
-  private enqueue<T>(s: Session, job: () => Promise<T>): Promise<T> {
+  private enqueue<T>(s: Session, job: () => Promise<T>, cap = MAX_PER_DAY): Promise<T> {
     const run = async () => {
       if (s.day !== today()) {
         s.day = today();
         s.sentToday = 0;
       }
-      if (s.sentToday >= MAX_PER_DAY) throw new Error(`Daily send limit (${MAX_PER_DAY}) reached`);
+      if (s.sentToday >= cap) throw new Error(`Daily send limit (${cap}) reached`);
       const gap = MIN_GAP_MS + Math.random() * (MAX_GAP_MS - MIN_GAP_MS);
       const wait = s.lastSendAt + gap - Date.now();
       if (wait > 0) await sleep(wait);
@@ -300,6 +342,28 @@ export class SessionManager {
       });
       return res?.key?.id ?? null;
     });
+  }
+
+  /** One bulk message; the campaign runner waits its own (longer) random gap between calls. */
+  async sendBulk(id: string, phone: string, content: BulkContent): Promise<string | null> {
+    const s = this.ready(id);
+    const jid = toJid(phone);
+    return this.enqueue(
+      s,
+      async () => {
+        const { text, media } = content;
+        const msg = !media
+          ? { text }
+          : media.kind === "image"
+            ? { image: media.buffer, mimetype: media.mimetype, caption: text || undefined }
+            : media.kind === "video"
+              ? { video: media.buffer, mimetype: media.mimetype, caption: text || undefined }
+              : { document: media.buffer, mimetype: media.mimetype, fileName: media.filename, caption: text || undefined };
+        const res = await s.sock!.sendMessage(jid, msg);
+        return res?.key?.id ?? null;
+      },
+      this.dailyCap(id),
+    );
   }
 
   async checkNumber(orgId: string, phone: string): Promise<boolean> {
