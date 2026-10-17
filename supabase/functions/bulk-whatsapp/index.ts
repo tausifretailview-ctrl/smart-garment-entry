@@ -20,6 +20,19 @@ const MAX_GAP_MS = 20000;
 const CAMPAIGN_STATUSES = new Set(["running", "paused", "stopped", "completed", "failed"]);
 const RANK: Record<string, number> = { pending: 0, sent: 1, delivered: 2, read: 3 };
 
+/**
+ * Bulk sends can run on their own wa-gateway (a second Railway service) so promotions never share a
+ * server with shop bill sends. Without WA_BULK_GATEWAY_URL / WA_BULK_GATEWAY_KEY they use the bill one.
+ */
+function bulkGatewayConfig(): { url: string; key: string } | null {
+  const url = (Deno.env.get("WA_BULK_GATEWAY_URL") ?? "").trim().replace(/\/+$/, "");
+  const key = (Deno.env.get("WA_BULK_GATEWAY_KEY") ?? "").trim();
+  return url && key ? { url, key } : getGatewayConfig();
+}
+
+const bulkGateway = (path: string, init: { method?: string; body?: unknown } = {}) =>
+  gatewayRequest(path, init, bulkGatewayConfig());
+
 /** Digits only; 10-digit Indian numbers get 91, a leading trunk 0 is dropped. */
 function normalizePhone(raw: string): string | null {
   let d = String(raw ?? "").replace(/\D/g, "");
@@ -31,7 +44,7 @@ function normalizePhone(raw: string): string | null {
 /**
  * Bulk WhatsApp page backend. Browser actions (user JWT) link the user's own number on wa-gateway
  * (session "u_<userId>") and create / pause / resume / stop campaigns. wa-gateway posts per-number
- * results and delivery / read ticks back here with x-api-key = WA_GATEWAY_KEY.
+ * results and delivery / read ticks back here with x-api-key = that server's key (WA_BULK_GATEWAY_KEY or WA_GATEWAY_KEY).
  */
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -48,8 +61,10 @@ serve(async (req) => {
   const action = String(body.action ?? "");
 
   if (action.startsWith("gateway-")) {
-    const cfg = getGatewayConfig();
-    if (!cfg || req.headers.get("x-api-key") !== cfg.key) return json({ error: "Unauthorized" }, 401);
+    // Either server may report: the bulk one, or the bill one for campaigns started before a switch.
+    const keys = [bulkGatewayConfig()?.key, getGatewayConfig()?.key].filter(Boolean);
+    const sent = req.headers.get("x-api-key") ?? "";
+    if (!sent || !keys.includes(sent)) return json({ error: "Unauthorized" }, 401);
     return await handleGateway(admin, action, body);
   }
 
@@ -63,6 +78,10 @@ serve(async (req) => {
   if (!organizationId) return json({ error: "organizationId is required" }, 400);
   const access = await bulkAccess(admin, userId, organizationId);
   if (!access.allowed) return json({ error: "You do not have the Bulk WhatsApp right in this organization" }, 403);
+  if (action === "session-start" || action === "create" || action === "resume") {
+    const { data: org } = await admin.from("organizations").select("is_suspended").eq("id", organizationId).maybeSingle();
+    if (org?.is_suspended) return json({ error: "This account is suspended. Please contact Ezzy ERP." }, 403);
+  }
 
   const sessionId = `u_${userId}`;
   const sessionPath = `/sessions/${sessionId}`;
@@ -70,10 +89,10 @@ serve(async (req) => {
   if (action === "session-start" || action === "session-status" || action === "session-logout") {
     const result =
       action === "session-start"
-        ? await gatewayRequest(`${sessionPath}/start`, { method: "POST" })
+        ? await bulkGateway(`${sessionPath}/start`, { method: "POST" })
         : action === "session-status"
-          ? await gatewayRequest(`${sessionPath}/status`)
-          : await gatewayRequest(sessionPath, { method: "DELETE" });
+          ? await bulkGateway(`${sessionPath}/status`)
+          : await bulkGateway(sessionPath, { method: "DELETE" });
     if (!result.ok) return json({ error: result.data.error ?? "WhatsApp server error" }, result.status || 502);
     return json({ success: true, ...result.data });
   }
@@ -91,7 +110,7 @@ serve(async (req) => {
       return json({ error: "Campaign not found" }, 404);
     }
     if (["completed", "stopped", "failed"].includes(c.status)) return json({ success: true, status: c.status });
-    const result = await gatewayRequest(`/campaigns/${campaignId}/${action}`, { method: "POST" });
+    const result = await bulkGateway(`/campaigns/${campaignId}/${action}`, { method: "POST" });
     // The server forgets a campaign once it finishes. If its results never arrived, close it here.
     if (!result.ok && /not found/i.test(String(result.data.error ?? ""))) {
       const note = "Finished on the WhatsApp server, but its results did not reach the app";
@@ -162,7 +181,7 @@ async function createCampaign(
   if (!recipients.length) return json({ error: "Add at least one valid number" }, 400);
   if (recipients.length > MAX_RECIPIENTS) return json({ error: `At most ${MAX_RECIPIENTS} numbers per send` }, 400);
 
-  const status = await gatewayRequest(`/sessions/${sessionId}/status`);
+  const status = await bulkGateway(`/sessions/${sessionId}/status`);
   if (!status.ok || status.data.status !== "connected") {
     return json({ error: "Link your WhatsApp first (scan the QR on this page)" }, 400);
   }
@@ -204,7 +223,7 @@ async function createCampaign(
   const idByPos = new Map(ids.map((r) => [r.position, r.id]));
 
   const kind = mediaType?.startsWith("video/") ? "video" : mediaType?.startsWith("image/") ? "image" : "document";
-  const job = await gatewayRequest("/campaigns", {
+  const job = await bulkGateway("/campaigns", {
     method: "POST",
     body: {
       campaignId: campaign.id,

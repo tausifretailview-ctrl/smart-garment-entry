@@ -7,7 +7,10 @@ const b64url = (buf: Buffer) => buf.toString("base64").replace(/\+/g, "-").repla
 function realKeyPair() {
   const ecdh = createECDH("prime256v1");
   ecdh.generateKeys();
-  return { publicKey: b64url(ecdh.getPublicKey()), privateKey: b64url(ecdh.getPrivateKey()) };
+  // Node drops leading zero bytes of the private scalar (1 in 256 keys); VAPID tools pad it to 32.
+  const priv = ecdh.getPrivateKey();
+  const privateKey = Buffer.concat([Buffer.alloc(32 - priv.length), priv]);
+  return { publicKey: b64url(ecdh.getPublicKey()), privateKey: b64url(privateKey) };
 }
 
 describe("describeVapidKeyProblem", () => {
