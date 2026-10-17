@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
+import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
-import { FileSpreadsheet, ImagePlus, Loader2, MessagesSquare, Plus, Send, ShieldAlert, Trash2, X } from "lucide-react";
+import { CheckCheck, FileSpreadsheet, ImagePlus, Loader2, MessagesSquare, Plus, Send, ShieldAlert, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import type * as XLSXType from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { BulkWhatsAppLink } from "@/components/bulk-whatsapp/BulkWhatsAppLink";
-import { BulkWhatsAppReport } from "@/components/bulk-whatsapp/BulkWhatsAppReport";
+import { BulkWhatsAppReport, BulkWhatsAppStats } from "@/components/bulk-whatsapp/BulkWhatsAppReport";
 import { callBulkWhatsApp } from "@/components/bulk-whatsapp/bulkWhatsAppApi";
 import {
   estimateBulkMinutes,
@@ -155,31 +156,41 @@ export default function BulkWhatsApp() {
   if (!orgId) return null;
 
   return (
-    <div className="flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-full w-full gap-3">
-      <div>
-        <h1 className="text-xl font-bold text-emerald-700 tracking-tight flex items-center gap-2">
-          <MessagesSquare className="h-5 w-5" /> Bulk WhatsApp
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Send a message and poster from your own WhatsApp to many numbers, one by one, with delivery and read report
-        </p>
+    <div className="flex min-h-full w-full flex-col gap-3 bg-gradient-to-br from-slate-50 via-white to-emerald-50/40 px-2 py-3 sm:px-4">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md">
+          <MessagesSquare className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900">Bulk WhatsApp</h1>
+          <p className="text-xs text-slate-500 sm:text-sm">
+            Send a message and poster from your own WhatsApp to many numbers, one by one, with delivery and read report
+          </p>
+        </div>
       </div>
+
+      <BulkWhatsAppStats organizationId={orgId} />
 
       <BulkWhatsAppLink organizationId={orgId} onChange={setLinked} />
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <div className="rounded-xl border bg-white p-3 space-y-3">
-          <div className="font-semibold text-sm">1. Message</div>
-          <div className="space-y-1">
-            <Label className="text-xs">Name for the report (optional)</Label>
+        {/* Step 1: message */}
+        <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <StepTitle step={1} title="Message" hint="Text, customer name and poster" />
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-slate-600">Campaign name (for the report)</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Diwali offer" maxLength={120} />
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <Label className="text-xs">Message</Label>
-              <Button type="button" size="sm" variant="ghost" className="h-6 text-xs" onClick={insertName}>
-                <Plus className="h-3 w-3 mr-1" /> Customer name
-              </Button>
+              <Label className="text-xs font-medium text-slate-600">Message</Label>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] tabular-nums text-slate-400">{message.length}/4000</span>
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={insertName}>
+                  <Plus className="mr-1 h-3 w-3" /> Customer name
+                </Button>
+              </div>
             </div>
             <Textarea
               ref={messageRef}
@@ -187,14 +198,15 @@ export default function BulkWhatsApp() {
               onChange={(e) => setMessage(e.target.value)}
               rows={7}
               maxLength={4000}
+              className="text-sm leading-relaxed"
               placeholder={"Hi {name}, our Diwali sale starts today! Flat 30% off on all items."}
             />
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-[11px] text-slate-500">
               {"{name}"} becomes each customer's name (or "Customer" when there is none). *bold* and _italic_ work like in WhatsApp.
             </p>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Poster (photo, MP4 video or PDF, optional)</Label>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-slate-600">Poster (photo, MP4 video or PDF, optional)</Label>
             <input
               ref={mediaRef}
               type="file"
@@ -206,42 +218,62 @@ export default function BulkWhatsApp() {
               }}
             />
             {media ? (
-              <div className="flex items-center gap-3 rounded-md border p-2">
+              <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-2">
                 {mediaPreview ? (
-                  <img src={mediaPreview} alt="Poster" className="h-20 w-20 object-cover rounded" />
+                  <img src={mediaPreview} alt="Poster" className="h-16 w-16 rounded-md object-cover" />
                 ) : (
-                  <div className="h-20 w-20 rounded bg-slate-100 flex items-center justify-center text-xs text-slate-500">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-md bg-white text-xs font-semibold text-slate-500">
                     {media.type.includes("pdf") ? "PDF" : "Video"}
                   </div>
                 )}
-                <div className="min-w-0 flex-1 text-sm truncate">{media.name}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-slate-800">{media.name}</div>
+                  <div className="text-[11px] text-slate-500">{(media.size / (1024 * 1024)).toFixed(1)} MB</div>
+                </div>
                 <Button type="button" size="icon" variant="ghost" onClick={() => onMedia(null)}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
             ) : (
-              <Button type="button" variant="outline" size="sm" onClick={() => mediaRef.current?.click()}>
-                <ImagePlus className="h-4 w-4 mr-1" /> Attach poster
-              </Button>
+              <button
+                type="button"
+                onClick={() => mediaRef.current?.click()}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-200 py-4 text-sm font-medium text-slate-500 transition hover:border-emerald-300 hover:bg-emerald-50/50 hover:text-emerald-700"
+              >
+                <ImagePlus className="h-4 w-4" /> Attach poster
+              </button>
             )}
           </div>
           {(message.trim() || mediaPreview) && (
-            <div className="rounded-lg bg-[#e7ffdb] p-2 text-sm whitespace-pre-wrap max-w-sm shadow-sm">
-              {mediaPreview && <img src={mediaPreview} alt="" className="rounded mb-1 max-h-48 w-full object-cover" />}
-              {preview}
+            <div className="space-y-1">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Preview</div>
+              <div className="rounded-xl bg-[#efeae2] p-3">
+                <div className="ml-auto max-w-[85%] rounded-lg rounded-tr-none bg-[#d9fdd3] p-1.5 text-sm shadow-sm sm:max-w-sm">
+                  {mediaPreview && <img src={mediaPreview} alt="" className="mb-1 max-h-48 w-full rounded object-cover" />}
+                  <div className="whitespace-pre-wrap px-1 text-slate-800">{preview}</div>
+                  <div className="mt-0.5 flex items-center justify-end gap-1 px-1 text-[10px] text-slate-500">
+                    {format(new Date(), "hh:mm a")} <CheckCheck className="h-3 w-3 text-sky-500" />
+                  </div>
+                </div>
+              </div>
             </div>
           )}
-        </div>
+        </section>
 
-        <div className="rounded-xl border bg-white p-3 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="font-semibold text-sm">2. Numbers ({contacts.length})</div>
-            {contacts.length > 0 && (
-              <Button type="button" size="sm" variant="ghost" className="h-7 text-xs text-destructive" onClick={() => setContacts([])}>
-                <Trash2 className="h-3.5 w-3.5 mr-1" /> Clear all
-              </Button>
-            )}
-          </div>
+        {/* Step 2: numbers */}
+        <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <StepTitle
+            step={2}
+            title="Numbers"
+            hint={contacts.length ? `${contacts.length.toLocaleString("en-IN")} ready to send` : "Excel import or type"}
+            action={
+              contacts.length > 0 && (
+                <Button type="button" size="sm" variant="ghost" className="h-7 text-xs text-destructive" onClick={() => setContacts([])}>
+                  <Trash2 className="mr-1 h-3.5 w-3.5" /> Clear all
+                </Button>
+              )
+            }
+          />
           <input
             ref={excelRef}
             type="file"
@@ -253,61 +285,98 @@ export default function BulkWhatsApp() {
               e.target.value = "";
             }}
           />
-          <Button type="button" variant="outline" size="sm" onClick={() => excelRef.current?.click()}>
-            <FileSpreadsheet className="h-4 w-4 mr-1" /> Import Excel / CSV
-          </Button>
-          <p className="text-[11px] text-muted-foreground">
-            Excel with a Mobile column (and Name column if you want {"{name}"}). Duplicates are removed.
-          </p>
-          <div className="space-y-1">
-            <Label className="text-xs">Or type numbers, one per line (name optional)</Label>
+          <button
+            type="button"
+            onClick={() => excelRef.current?.click()}
+            className="flex w-full items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-left transition hover:border-emerald-300 hover:bg-emerald-50/50"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+              <FileSpreadsheet className="h-5 w-5" />
+            </span>
+            <span>
+              <span className="block text-sm font-semibold text-slate-800">Import Excel / CSV</span>
+              <span className="block text-[11px] text-slate-500">
+                A Mobile column (and Name if you use {"{name}"}). Duplicates are removed.
+              </span>
+            </span>
+          </button>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-slate-600">Or type numbers, one per line (name optional)</Label>
             <Textarea
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
               rows={3}
+              className="text-sm"
               placeholder={"9876543210\nRavi 9123456789"}
             />
             <Button type="button" size="sm" variant="secondary" onClick={onTypedAdd} disabled={!typed.trim()}>
-              <Plus className="h-4 w-4 mr-1" /> Add numbers
+              <Plus className="mr-1 h-4 w-4" /> Add numbers
             </Button>
           </div>
           {contacts.length > 0 && (
-            <div className="max-h-56 overflow-auto rounded-md border divide-y text-sm">
-              {contacts.slice(0, SHOWN_CONTACTS).map((c) => (
-                <div key={c.phone} className="flex items-center justify-between px-2 py-1">
-                  <span className="tabular-nums">{formatBulkPhone(c.phone)}</span>
-                  <span className="truncate text-muted-foreground mx-2 flex-1 text-right">{c.name ?? ""}</span>
-                  <button
-                    type="button"
-                    className="text-slate-400 hover:text-destructive"
-                    title="Remove"
-                    onClick={() => setContacts(contacts.filter((x) => x.phone !== c.phone))}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
+            <div className="max-h-64 overflow-auto rounded-lg border border-slate-200">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="sticky top-0 bg-slate-100 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    <th className="w-10 px-2 py-1.5">#</th>
+                    <th className="px-2 py-1.5">Mobile</th>
+                    <th className="px-2 py-1.5">Name</th>
+                    <th className="w-8" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {contacts.slice(0, SHOWN_CONTACTS).map((c, i) => (
+                    <tr key={c.phone} className="hover:bg-slate-50">
+                      <td className="px-2 py-1.5 tabular-nums text-slate-400">{i + 1}</td>
+                      <td className="whitespace-nowrap px-2 py-1.5 tabular-nums text-slate-800">{formatBulkPhone(c.phone)}</td>
+                      <td className="max-w-[160px] truncate px-2 py-1.5 text-slate-600">{c.name ?? ""}</td>
+                      <td className="px-2 py-1.5 text-right">
+                        <button
+                          type="button"
+                          className="text-slate-400 hover:text-destructive"
+                          title="Remove"
+                          onClick={() => setContacts(contacts.filter((x) => x.phone !== c.phone))}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
               {contacts.length > SHOWN_CONTACTS && (
-                <div className="px-2 py-1 text-xs text-muted-foreground">
-                  and {contacts.length - SHOWN_CONTACTS} more
+                <div className="border-t px-2 py-1.5 text-xs text-slate-500">
+                  and {(contacts.length - SHOWN_CONTACTS).toLocaleString("en-IN")} more
                 </div>
               )}
             </div>
           )}
-        </div>
+        </section>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      {/* Send bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-white p-3 shadow-sm">
+        <div className="text-sm">
+          {!linked ? (
+            <span className="font-medium text-amber-700">Link your WhatsApp above first</span>
+          ) : contacts.length ? (
+            <span className="text-slate-700">
+              <b className="tabular-nums">{contacts.length.toLocaleString("en-IN")}</b> numbers · about{" "}
+              <b className="tabular-nums">{estimateBulkMinutes(contacts.length)}</b> min
+            </span>
+          ) : (
+            <span className="text-slate-500">Add numbers to send</span>
+          )}
+        </div>
         <Button
           type="button"
-          className="bg-emerald-600 hover:bg-emerald-700"
+          className="h-10 bg-gradient-to-r from-emerald-600 to-teal-600 px-5 text-white shadow-sm hover:from-emerald-700 hover:to-teal-700"
           disabled={!canSend}
           onClick={() => setConfirmOpen(true)}
         >
-          {sending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
-          Send to {contacts.length} numbers
+          {sending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />}
+          Send to {contacts.length.toLocaleString("en-IN")} numbers
         </Button>
-        {!linked && <span className="text-xs text-amber-700">Link your WhatsApp above first</span>}
       </div>
 
       <Alert className="border-amber-200 bg-amber-50">
@@ -339,12 +408,29 @@ export default function BulkWhatsApp() {
                 void send();
               }}
             >
-              {sending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+              {sending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
               Start sending
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+function StepTitle({ step, title, hint, action }: { step: number; title: string; hint: string; action?: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-xs font-bold text-white shadow-sm">
+          {step}
+        </span>
+        <div>
+          <div className="text-base font-semibold leading-tight text-slate-900">{title}</div>
+          <div className="text-[11px] text-slate-500">{hint}</div>
+        </div>
+      </div>
+      {action}
     </div>
   );
 }
