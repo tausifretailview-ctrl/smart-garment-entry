@@ -35,6 +35,17 @@ Update later: `git pull && docker compose up -d --build`. Linked shops reconnect
 | POST | `/sessions/:orgId/send-text` | `{phone, message}` |
 | POST | `/sessions/:orgId/send-file` | `{phone, fileUrl, filename, caption}` |
 | POST | `/sessions/:orgId/check-number` | `{phone}` → `{exists}` |
+| POST | `/campaigns` | `{campaignId, sessionId: "u_<userId>", message, media?, minGapMs, maxGapMs, items: [{recipientId, phone, name}]}` |
+| GET | `/campaigns/:id` | – (progress) |
+| POST | `/campaigns/:id/pause` · `/resume` · `/stop` | – |
+
+## Bulk WhatsApp
+The Bulk WhatsApp page links each user's own number as session `u_<userId>` (same `/sessions/...`
+routes), separate from the shop's bill number. Campaigns are saved under `/data/campaigns` and sent
+one number at a time with a random 8–20 s gap and `MAX_BULK_MSGS_PER_DAY` per number (default 500;
+the rest continue the next day). Numbers not on WhatsApp are marked failed without a send. Per-number
+results, delivery and read ticks are posted to `APP_BULK_URL` (defaults to the `bulk-whatsapp`
+function next to `APP_EVENT_URL`). Replies to bulk messages are not forwarded to the review flow.
 
 Outgoing calls: connection changes → `APP_EVENT_URL` (whatsapp-gateway-proxy, `gateway-event`);
 customer text replies → `APP_INBOUND_URL` (whatsapp-webhook, `ezzy-gateway-inbound`, drives the

@@ -10,6 +10,7 @@ services:
       APP_EVENT_URL: ${SUPABASE_FUNCTIONS_URL:?https://<project>.supabase.co/functions/v1}/whatsapp-gateway-proxy
       APP_INBOUND_URL: ${SUPABASE_FUNCTIONS_URL}/whatsapp-webhook
       MAX_MSGS_PER_DAY: ${MAX_MSGS_PER_DAY:-300}
+      MAX_BULK_MSGS_PER_DAY: ${MAX_BULK_MSGS_PER_DAY:-500}
     volumes:
       - wa-data:/data
 

@@ -1383,6 +1383,16 @@ export function AppSidebar() {
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       )}
+                      {(isAdmin || isAdminPermissions || hasMenuAccess("bulk_whatsapp")) && (
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/bulk-whatsapp")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
+                            <NavLink to="/bulk-whatsapp" className="flex items-center gap-2 group">
+                              <MessageSquare className="h-4 w-4 sidebar-icon text-primary" />
+                              <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Bulk WhatsApp</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      )}
                     </SidebarMenuSub>
                   </SidebarMenuItem>
                 </SidebarMenu>

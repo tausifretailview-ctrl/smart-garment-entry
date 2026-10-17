@@ -81,6 +81,7 @@ const BACK_MAP: Record<string, string> = {
   "stock-reconciliation":     "stock-report",
   "whatsapp-inbox":           "/",
   "whatsapp-logs":            "/",
+  "bulk-whatsapp":            "/",
   // Dashboards → Home
   "pos-dashboard":            "/",
   "sales-invoice-dashboard":  "/",

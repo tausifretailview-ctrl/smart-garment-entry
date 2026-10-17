@@ -1,5 +1,6 @@
 import express, { type NextFunction, type Request, type Response } from "express";
 import { SessionManager } from "./sessions.js";
+import { CampaignRunner } from "./campaigns.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const API_KEY = process.env.GATEWAY_API_KEY ?? "";
@@ -9,8 +10,10 @@ if (!API_KEY) {
 }
 
 const sessions = new SessionManager();
+const campaigns = new CampaignRunner(sessions);
 const app = express();
-app.use(express.json({ limit: "1mb" }));
+// Bulk campaigns carry every number and its message in one request.
+app.use(express.json({ limit: "8mb" }));
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   if (req.path === "/health") return next();
@@ -64,7 +67,21 @@ app.post("/sessions/:orgId/check-number", wrap(async (req, res) => {
   res.json({ success: true, exists });
 }));
 
+// ---- Bulk WhatsApp campaigns (sessions "u_<userId>") ----
+app.post("/campaigns", wrap(async (req, res) => {
+  res.json({ success: true, ...campaigns.create(req.body ?? {}) });
+}));
+
+app.get("/campaigns/:id", wrap(async (req, res) => {
+  res.json({ success: true, ...campaigns.get(req.params.id) });
+}));
+
+app.post("/campaigns/:id/:action(pause|resume|stop)", wrap(async (req, res) => {
+  const action = req.params.action as "pause" | "resume" | "stop";
+  res.json({ success: true, ...campaigns.setStatus(req.params.id, action) });
+}));
+
 app.listen(PORT, () => {
   console.log(`wa-gateway listening on :${PORT}`);
-  void sessions.restoreAll();
+  void sessions.restoreAll().then(() => campaigns.restoreAll());
 });
