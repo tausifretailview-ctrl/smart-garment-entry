@@ -8,6 +8,7 @@ import makeWASocket, {
   useMultiFileAuthState,
   type WAMessage,
   type WASocket,
+  type proto,
 } from "@whiskeysockets/baileys";
 
 export type SessionStatus = "connected" | "connecting" | "qr" | "disconnected" | "logged_out";
@@ -25,6 +26,17 @@ interface Session {
   retries: number;
   /** Set by logout so a closing socket never reconnects. */
   stopped: boolean;
+  /** Recently sent messages, so WhatsApp retry requests can be answered (else "Waiting for this message"). */
+  sent: Map<string, proto.IMessage>;
+}
+
+const SENT_CACHE_SIZE = 3000;
+
+function remember(s: Session, res: WAMessage | undefined) {
+  const id = res?.key?.id;
+  if (!id || !res?.message) return;
+  s.sent.set(id, res.message);
+  if (s.sent.size > SENT_CACHE_SIZE) s.sent.delete(s.sent.keys().next().value as string);
 }
 
 const AUTH_DIR = process.env.AUTH_DIR ?? "./data/sessions";
@@ -80,6 +92,7 @@ export class SessionManager {
       s = {
         sock: null, status: "disconnected", qr: null, number: null, starting: false,
         sentToday: 0, day: today(), lastSendAt: 0, queue: Promise.resolve(), retries: 0, stopped: false,
+        sent: new Map(),
       };
       this.sessions.set(orgId, s);
     }
@@ -136,6 +149,8 @@ export class SessionManager {
         browser: ["Ezzy ERP", "Chrome", "1.0"],
         markOnlineOnConnect: false,
         syncFullHistory: false,
+        // A recipient's phone that cannot decrypt the first copy asks for it again; answer from the cache.
+        getMessage: async (key) => (key.id ? s.sent.get(key.id) : undefined),
       });
       s.sock = sock;
       sock.ev.on("creds.update", saveCreds);
@@ -320,6 +335,7 @@ export class SessionManager {
     const jid = toJid(phone);
     return this.enqueue(s, async () => {
       const res = await s.sock!.sendMessage(jid, { text: message });
+      remember(s, res);
       return res?.key?.id ?? null;
     });
   }
@@ -340,6 +356,7 @@ export class SessionManager {
         fileName: filename,
         caption,
       });
+      remember(s, res);
       return res?.key?.id ?? null;
     });
   }
@@ -360,7 +377,8 @@ export class SessionManager {
               ? { video: media.buffer, mimetype: media.mimetype, caption: text || undefined }
               : { document: media.buffer, mimetype: media.mimetype, fileName: media.filename, caption: text || undefined };
         const res = await s.sock!.sendMessage(jid, msg);
-        return res?.key?.id ?? null;
+        remember(s, res);
+      return res?.key?.id ?? null;
       },
       this.dailyCap(id),
     );
