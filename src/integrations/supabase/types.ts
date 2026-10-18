@@ -1038,6 +1038,42 @@ export type Database = {
           },
         ]
       }
+      bulk_whatsapp_optouts: {
+        Row: {
+          created_at: string
+          organization_id: string
+          phone: string
+          source: string
+        }
+        Insert: {
+          created_at?: string
+          organization_id: string
+          phone: string
+          source?: string
+        }
+        Update: {
+          created_at?: string
+          organization_id?: string
+          phone?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_whatsapp_optouts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_whatsapp_optouts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       bulk_whatsapp_recipients: {
         Row: {
           campaign_id: string
@@ -11845,6 +11881,10 @@ export type Database = {
       get_trial_balance_aggregates: {
         Args: { p_as_of_date: string; p_org_id: string }
         Returns: Json
+      }
+      get_user_admin_manager_org_ids: {
+        Args: { p_user_id: string }
+        Returns: string[]
       }
       get_user_organization_ids: {
         Args: { user_id: string }
