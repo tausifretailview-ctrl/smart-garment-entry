@@ -22,6 +22,7 @@ import {
   warnSettlementPathMismatch,
 } from "@/utils/saleSettlement";
 import { partyDebtorNetFromRpcRow } from "@/utils/customerAccountFacets";
+import { totalFromShortPage } from "@/utils/dashboardShortPageCount";
 import { invalidateAndRefetchWithQueryFn } from "@/utils/refetchQueriesWithFn";
 
 export const INVOICE_DASHBOARD_SALES_SELECT =
@@ -1006,15 +1007,27 @@ export async function fetchInvoiceDashboardPage(
   const searchResolution = await resolveInvoiceSearch(client, filters);
 
   // Match export/unified fetch: range before search filters (not range after .or()).
-  const [totalCount, dataResult] = await Promise.all([
-    countFilteredInvoiceSales(client, filters, searchResolution),
-    (async () => {
-      let query: any = buildFilteredSalesQuery(client, filters, select).range(from, to);
-      query = applyResolvedInvoiceSearch(query, searchResolution);
-      return query;
-    })(),
-  ]);
-  const { data, error } = await dataResult;
+  const fetchPageRows = async () => {
+    let query: any = buildFilteredSalesQuery(client, filters, select).range(from, to);
+    query = applyResolvedInvoiceSearch(query, searchResolution);
+    return query;
+  };
+  let totalCount: number;
+  let dataResult: any;
+  if (searchResolution) {
+    // Most searches fit on one page: skip the count query unless the page is full.
+    dataResult = await fetchPageRows();
+    if (dataResult.error) throw dataResult.error;
+    totalCount =
+      totalFromShortPage(from, dataResult.data?.length ?? 0, options.pageSize) ??
+      (await countFilteredInvoiceSales(client, filters, searchResolution));
+  } else {
+    [totalCount, dataResult] = await Promise.all([
+      countFilteredInvoiceSales(client, filters, searchResolution),
+      fetchPageRows(),
+    ]);
+  }
+  const { data, error } = dataResult;
   if (error) throw error;
 
   const pageRows = data || [];

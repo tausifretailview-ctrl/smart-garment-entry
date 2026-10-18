@@ -33,6 +33,7 @@ import {
 import { getSaleReportGrossAmount, getSaleReportNetAmount } from "@/utils/cashierReportUtils";
 import { saleBillFigures } from "@/utils/saleBillFigures";
 import { withDashboardTimeout } from "@/utils/withDashboardTimeout";
+import { totalFromShortPage } from "@/utils/dashboardShortPageCount";
 
 /** Calendar bounds for server queries from period chip + date inputs (fixes persisted single-day monthly). */
 
@@ -1273,19 +1274,31 @@ export async function fetchPosDashboardPage(
     "POS dashboard search resolution",
   );
 
-  const [totalCount, dataResult] = await Promise.all([
-    countFilteredPosSales(client, filters, searchResolution),
-    (async () => {
-      let query: any = buildPosDashboardBaseQuery(
-        client,
-        filters,
-        POS_DASHBOARD_SALES_SELECT,
-      ).range(from, to);
-      query = applyResolvedPosSearch(query, searchResolution);
-      return query;
-    })(),
-  ]);
-  const { data, error } = await dataResult;
+  const fetchPageRows = async () => {
+    let query: any = buildPosDashboardBaseQuery(
+      client,
+      filters,
+      POS_DASHBOARD_SALES_SELECT,
+    ).range(from, to);
+    query = applyResolvedPosSearch(query, searchResolution);
+    return query;
+  };
+  let totalCount: number;
+  let dataResult: any;
+  if (searchResolution) {
+    // Most searches fit on one page: skip the count query unless the page is full.
+    dataResult = await fetchPageRows();
+    if (dataResult.error) throw dataResult.error;
+    totalCount =
+      totalFromShortPage(from, dataResult.data?.length ?? 0, options.pageSize) ??
+      (await countFilteredPosSales(client, filters, searchResolution));
+  } else {
+    [totalCount, dataResult] = await Promise.all([
+      countFilteredPosSales(client, filters, searchResolution),
+      fetchPageRows(),
+    ]);
+  }
+  const { data, error } = dataResult;
   if (error) throw error;
 
   const pageRows = data || [];
