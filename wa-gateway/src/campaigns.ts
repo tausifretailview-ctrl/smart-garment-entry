@@ -73,7 +73,48 @@ export class CampaignRunner {
     sessions.onReceipt = (_sessionId, messageId, status) => {
       this.receipts.push({ messageId, status, at: new Date().toISOString() });
     };
+    sessions.onOptOut = (sessionId, phone, subscribe) => void this.optOut(sessionId, phone, subscribe);
     setInterval(() => void this.flushReceipts(), 5000);
+  }
+
+  /**
+   * STOP: the app records the unsubscribe and this number is dropped from campaigns still sending.
+   * START undoes it. Either way the customer gets a one-line confirmation.
+   */
+  private async optOut(sessionId: string, phone: string, subscribe: boolean) {
+    await this.post({ action: "gateway-optout", sessionId, phone, subscribe, at: new Date().toISOString() });
+    if (!subscribe) {
+      for (const job of this.jobs.values()) {
+        if (job.sessionId !== sessionId) continue;
+        let changed = false;
+        for (const item of job.items) {
+          if (item.done || item.phone !== phone) continue;
+          item.done = true;
+          changed = true;
+          void this.post({
+            action: "gateway-result",
+            campaignId: job.campaignId,
+            recipientId: item.recipientId,
+            status: "skipped",
+            messageId: null,
+            error: "Unsubscribed",
+            at: new Date().toISOString(),
+          }, job.reportUrl);
+        }
+        if (changed) this.save(job);
+      }
+    }
+    try {
+      await this.sessions.sendText(
+        sessionId,
+        phone,
+        subscribe
+          ? "You are subscribed again. Reply STOP anytime to stop these messages."
+          : "You are unsubscribed. You will not get these offer messages again. Reply START to subscribe again.",
+      );
+    } catch (e) {
+      logger.warn({ err: e }, "opt-out confirmation failed");
+    }
   }
 
   private file(id: string) {

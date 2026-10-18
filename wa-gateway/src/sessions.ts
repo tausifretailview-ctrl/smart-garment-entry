@@ -86,6 +86,14 @@ const MAX_GAP_MS = 5000;
 /** Shop (bill) sessions are keyed by organization id; Bulk WhatsApp sessions by "u_" + user id. */
 const SESSION_ID_RE = /^(u_)?[0-9a-fA-F-]{36}$/;
 export const isUserSession = (id: string) => id.startsWith("u_");
+
+/** A reply to a bulk message that unsubscribes ("stop") or subscribes again ("start"); null for anything else. */
+export function optOutKeyword(text: string): "stop" | "start" | null {
+  const t = text.trim().toLowerCase().replace(/[^a-z\u0900-\u097f ]+/g, "").replace(/\s+/g, " ").trim();
+  if (["stop", "unsubscribe", "opt out", "optout", "stop offers", "stop messages", "band", "band karo", "बंद"].includes(t)) return "stop";
+  if (["start", "subscribe", "resume", "start offers"].includes(t)) return "start";
+  return null;
+}
 const logger = pino({ level: process.env.LOG_LEVEL ?? "warn" });
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -111,6 +119,8 @@ export class SessionManager {
   private sessions = new Map<string, Session>();
   /** Delivery / read ticks for messages sent from Bulk WhatsApp sessions. */
   onReceipt: ((sessionId: string, messageId: string, status: ReceiptStatus) => void) | null = null;
+  /** A customer replied STOP / START to a bulk number. */
+  onOptOut: ((sessionId: string, phone: string, subscribe: boolean) => void) | null = null;
 
   private assertOrg(orgId: string) {
     if (!SESSION_ID_RE.test(orgId)) throw new Error("Invalid session id");
@@ -260,10 +270,13 @@ export class SessionManager {
     }
   }
 
-  /** Customer text replies go to the app (review "OK" → stars flow). Groups, status and own messages are skipped. */
+  /**
+   * Customer text replies go to the app: on a shop number they feed the review "OK" → stars flow; on a
+   * bulk number only STOP / START (unsubscribe) counts. Groups, status and own messages are skipped.
+   */
   private async forwardInbound(orgId: string, m: WAMessage) {
-    // Replies to bulk messages are not bill reviews: only the shop session feeds the review flow.
-    if (!APP_INBOUND_URL || m.key.fromMe || isUserSession(orgId)) return;
+    if (m.key.fromMe) return;
+    if (!isUserSession(orgId) && !APP_INBOUND_URL) return;
     const key = m.key as WAMessage["key"] & { senderPn?: string; remoteJidAlt?: string };
     let jid = key.remoteJid ?? "";
     if (jid.endsWith("@lid")) jid = key.senderPn || key.remoteJidAlt || "";
@@ -277,6 +290,11 @@ export class SessionManager {
       ""
     ).trim();
     if (!text) return;
+    if (isUserSession(orgId)) {
+      const kw = optOutKeyword(text);
+      if (kw) this.onOptOut?.(orgId, jid.split("@")[0], kw === "start");
+      return;
+    }
     try {
       await fetch(APP_INBOUND_URL, {
         method: "POST",

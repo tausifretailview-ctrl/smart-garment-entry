@@ -48,6 +48,17 @@ export async function callBulkWhatsApp<T = Record<string, unknown>>(
   return (data ?? {}) as T;
 }
 
+/** Customers of this shop who replied STOP to a bulk message. */
+export async function fetchOptOutCount(organizationId: string): Promise<number> {
+  const { count, error } = await db
+    .from("bulk_whatsapp_optouts")
+    .select("phone", { count: "exact", head: true })
+    .eq("organization_id", organizationId);
+  // Before the unsubscribe SQL is run the table does not exist: show nothing rather than an error.
+  if (error) return 0;
+  return count ?? 0;
+}
+
 export const CAMPAIGN_LIST_LIMIT = 100;
 
 /** Counts only (no message text), so the live refresh stays small. */
