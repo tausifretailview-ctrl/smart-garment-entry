@@ -293,7 +293,9 @@ function TabPageFallback({
       if (cancelled || !serverEntry) return;
       // Never auto-reload over an unsaved bill; the Refresh app button stays available.
       if (hasUnsavedEntryWork()) return;
-      if (claimNewerBuildReload(serverEntry)) void reloadAppWithUpdateCheck();
+      if (claimNewerBuildReload(serverEntry)) {
+        void reloadAppWithUpdateCheck("page was stuck loading and a newer version was on the server");
+      }
     });
     return () => {
       cancelled = true;
