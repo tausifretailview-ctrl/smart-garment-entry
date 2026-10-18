@@ -343,8 +343,19 @@ function posCartGridColumns(
   const mrpCol = showMrpColumn ? " 96px" : "";
   const salesmanCol = showSalesmanColumn ? " minmax(112px, 148px)" : "";
   const purchaseCodeCol = showPurchaseCodeColumn ? " 68px" : "";
-  return `36px ${barcodeColPx}px minmax(120px, 1fr)${purchaseCodeCol} 52px 64px${salesmanCol} 56px${mrpCol} 68px 72px 96px 110px 118px`;
+  return `36px ${barcodeColPx}px minmax(120px, 1fr)${purchaseCodeCol} 52px 64px${salesmanCol} 56px${mrpCol} 68px 92px 96px 110px 118px`;
 }
+
+/** Discount boxes: no spinner arrows, mouse wheel or ArrowUp/Down nudging (cashiers changed discounts by mistake). */
+const POS_PLAIN_NUMBER_CLASS =
+  "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
+const posPlainNumberProps = {
+  inputMode: "decimal" as const,
+  onWheel: (e: React.WheelEvent<HTMLInputElement>) => e.currentTarget.blur(),
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
+  },
+};
 
 /** Default POS service price from variant master (MRP, else sale price from product entry). */
 function resolveServiceVariantDefaultMrp(variant: {
@@ -8452,10 +8463,11 @@ export default function POSSales() {
                           <div>
                             <Input
                               type="number"
+                              {...posPlainNumberProps}
                               value={item.discountPercent || ""}
                               onChange={(e) => updateDiscountPercent(index, parseFloat(e.target.value) || 0)}
                               placeholder="0"
-                              className="h-8 text-sm w-full text-center bg-muted/30 border-border/60"
+                              className={`h-8 text-sm w-full text-center bg-muted/30 border-border/60 px-1.5 ${POS_PLAIN_NUMBER_CLASS}`}
                               min="0"
                               max="100"
                               step="0.01"
@@ -8478,7 +8490,8 @@ export default function POSSales() {
                               }
                               onChange={(e) => updateDiscountAmount(index, parseFloat(e.target.value) || 0)}
                               placeholder="0"
-                              className="h-8 text-sm w-full text-right bg-muted/30 border-border/60"
+                              {...posPlainNumberProps}
+                              className={`h-8 text-sm w-full text-right bg-muted/30 border-border/60 ${POS_PLAIN_NUMBER_CLASS}`}
                               min="0"
                               step="0.01"
                             />
@@ -8798,7 +8811,8 @@ export default function POSSales() {
                   </Button>
                   <Input 
                     type="number"
-                    className="w-24 h-10 bg-white text-foreground text-center text-lg font-semibold rounded-l-none border-0" 
+                    {...posPlainNumberProps}
+                    className={`w-24 h-10 bg-white text-foreground text-center text-lg font-semibold rounded-l-none border-0 ${POS_PLAIN_NUMBER_CLASS}`}
                     value={flatDiscountValue === 0 ? "" : String(flatDiscountValue)}
                     placeholder=""
                     step="1"
