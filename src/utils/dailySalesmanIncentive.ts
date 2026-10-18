@@ -11,7 +11,7 @@ export type DailyIncentiveBracket = {
   sort_order?: number;
 };
 
-/** Extra ₹ once per bill. The highest min the bill reaches wins. */
+/** ₹ once per bill, paid instead of that bill's per-piece amount. The highest min the bill reaches wins. */
 export type DailyIncentiveBillSlab = {
   min_bill_amount: number;
   incentive_amount: number;
@@ -203,20 +203,7 @@ export function aggregateDailySalesmanIncentive(params: {
   const byName = new Map<string, Acc>();
   const itemsBySale = new Map<string, SaleItemForDailyIncentive[]>();
 
-  for (const item of params.items) {
-    const sale = saleById.get(item.sale_id);
-    if (!sale) continue;
-    const qty = Number(item.quantity) || 0;
-    if (qty <= 0) continue;
-    const name = resolveEffectiveLineSalesman(item.salesman, sale.salesman);
-    if (!name) continue;
-
-    const saleItems = itemsBySale.get(item.sale_id) || [];
-    saleItems.push(item);
-    itemsBySale.set(item.sale_id, saleItems);
-    const lineNet = lineNetForDailyIncentive(item);
-    const lineIncentive = incentiveForLineItem(lineNet, qty, params.brackets);
-
+  const accFor = (name: string): Acc => {
     const emp = findEmployeeBySalesmanName(params.employees, name);
     const existing = byName.get(name) || {
       employee_id: emp?.id ?? null,
@@ -226,13 +213,26 @@ export function aggregateDailySalesmanIncentive(params: {
       lineIncentive: 0,
       billIncentive: 0,
     };
-    existing.qty += qty;
-    existing.net += lineNet;
-    existing.lineIncentive += lineIncentive;
     if (!existing.employee_id && emp) existing.employee_id = emp.id;
     byName.set(name, existing);
+    return existing;
+  };
+
+  for (const item of params.items) {
+    const sale = saleById.get(item.sale_id);
+    if (!sale) continue;
+    const qty = Number(item.quantity) || 0;
+    if (qty <= 0) continue;
+    const name = resolveEffectiveLineSalesman(item.salesman, sale.salesman);
+    if (!name) continue;
+    const saleItems = itemsBySale.get(item.sale_id) || [];
+    saleItems.push(item);
+    itemsBySale.set(item.sale_id, saleItems);
   }
 
+  // A bill that earns a slab pays the slab only: its pieces get no per-piece
+  // incentive but still count toward the day quantity gate.
+  const slabBillIds = new Set<string>();
   if (billSlabs.length > 0) {
     for (const sale of saleById.values()) {
       const lines = itemsBySale.get(sale.id) || [];
@@ -243,18 +243,23 @@ export function aggregateDailySalesmanIncentive(params: {
       if (!owner) continue;
       const bonus = billSlabIncentive(Number(sale.net_amount) || 0, billSlabs);
       if (bonus <= 0) continue;
-      const emp = findEmployeeBySalesmanName(params.employees, owner);
-      const existing = byName.get(owner) || {
-        employee_id: emp?.id ?? null,
-        employee_name: owner,
-        qty: 0,
-        net: 0,
-        lineIncentive: 0,
-        billIncentive: 0,
-      };
-      existing.billIncentive += bonus;
-      if (!existing.employee_id && emp) existing.employee_id = emp.id;
-      byName.set(owner, existing);
+      slabBillIds.add(sale.id);
+      accFor(owner).billIncentive += bonus;
+    }
+  }
+
+  for (const [saleId, lines] of itemsBySale) {
+    const sale = saleById.get(saleId)!;
+    for (const item of lines) {
+      const qty = Number(item.quantity) || 0;
+      const name = resolveEffectiveLineSalesman(item.salesman, sale.salesman);
+      const lineNet = lineNetForDailyIncentive(item);
+      const acc = accFor(name);
+      acc.qty += qty;
+      acc.net += lineNet;
+      if (!slabBillIds.has(saleId)) {
+        acc.lineIncentive += incentiveForLineItem(lineNet, qty, params.brackets);
+      }
     }
   }
 
@@ -352,5 +357,5 @@ export function describeDailyIncentiveRules(config: {
         `≥₹${Number(slab.min_bill_amount).toLocaleString("en-IN")} → ₹${Number(slab.incentive_amount).toLocaleString("en-IN")}`,
     )
     .join(", ");
-  return `${gate} ${piece} Extra once per bill (one salesman on the bill): ${slabText}. The highest matching bill slab is used. The day quantity gate applies to the total.`;
+  return `${gate} ${piece} Once per bill (one salesman on the bill): ${slabText}. The highest matching bill slab is used, and that bill's pieces get no per-piece amount (they still count toward the day quantity). The day quantity gate applies to the total.`;
 }
