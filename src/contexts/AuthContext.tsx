@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { storeOrgSlug } from "@/lib/orgSlug";
 import { hideAppBootSplash } from "@/lib/appBootSplash";
 import { isElectronShell } from "@/lib/electronShell";
+import { flushScreenTimeOnLogout } from "@/hooks/useScreenTimeTracking";
 import { toast } from "sonner";
 import { clearAuthRefreshLatest, isAuthRateLimitError, PROACTIVE_REFRESH_WITHIN_SEC } from "@/lib/authRefreshGuard";
 
@@ -517,7 +518,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (orgSlug) {
       storeOrgSlug(orgSlug); // persist to all layers including cookie
     }
-    
+
+    // Save the last screen as "logged out" while the session can still write.
+    await flushScreenTimeOnLogout().catch(() => {});
+
     // Use local scope so signing out in one Chrome tab/device does NOT
     // revoke refresh tokens for other open tabs/devices (which would
     // cause them to auto-logout while the user is still working).

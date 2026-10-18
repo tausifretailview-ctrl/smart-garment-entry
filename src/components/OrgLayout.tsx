@@ -84,6 +84,7 @@ import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { formatDocumentTitle } from "@/lib/pageTitles";
 import { setCloudUsageRoutePath } from "@/lib/cloudUsageDiagnostics";
+import { useScreenTimeTracking } from "@/hooks/useScreenTimeTracking";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, RefreshCw } from "lucide-react";
 
@@ -215,6 +216,13 @@ export const OrgLayout = () => {
   useEffect(() => {
     setCloudUsageRoutePath(resolvedCurrentPath || currentPath || "");
   }, [resolvedCurrentPath, currentPath]);
+
+  // Activity Log → Logins & screen time.
+  const screenTimeOrgId =
+    isOrgSynced && currentOrganization?.slug === orgSlug && currentOrganization?.organization_type !== "whatsapp"
+      ? currentOrganization?.id
+      : undefined;
+  useScreenTimeTracking(screenTimeOrgId, user?.id, currentPath);
 
   const isEntryPage = isEntryTabPath(currentPath);
   const isCacheableEntryActive = isCacheableEntryTabPath(currentPath);
