@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { CalendarIcon, Check, ChevronsUpDown, Coins, Printer } from "lucide-react";
+import { CalendarIcon, Check, ChevronsUpDown, Coins, Printer, UserPlus } from "lucide-react";
 import { AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -17,7 +17,14 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
-import { AdvanceBookingReceipt } from "@/components/AdvanceBookingReceipt";
+import {
+  AdvanceBookingReceipt,
+  AdvanceReceiptPaperSelect,
+  advanceReceiptPageStyle,
+  initialAdvanceReceiptPaper,
+  type AdvanceReceiptPaper,
+} from "@/components/AdvanceBookingReceipt";
+import { QuickAddCustomerDialog } from "@/components/mobile/QuickAddCustomerDialog";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
 
@@ -42,10 +49,11 @@ export function AddAdvanceBookingDialog({
   const [advanceDate, setAdvanceDate] = useState<Date>(new Date());
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
   const [customerSearchTerm, setCustomerSearchTerm] = useState("");
+  const [showQuickAddCustomer, setShowQuickAddCustomer] = useState(false);
 
   // Print state
   const [showPrintPrompt, setShowPrintPrompt] = useState(false);
-  const [printPaperSize, setPrintPaperSize] = useState<"A4" | "A5">("A5");
+  const [printPaperSize, setPrintPaperSize] = useState<AdvanceReceiptPaper>("A5");
   const [savedAdvanceData, setSavedAdvanceData] = useState<any>(null);
   const printRef = useRef<HTMLDivElement>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -54,8 +62,10 @@ export function AddAdvanceBookingDialog({
   const { currentOrganization } = useOrganization();
   const { data: settings } = useSettings();
 
+  const printPageStyle = advanceReceiptPageStyle(printPaperSize);
   const handlePrint = useReactToPrint({
     contentRef: printRef,
+    ...(printPageStyle ? { pageStyle: printPageStyle } : {}),
     documentTitle: `Advance-${savedAdvanceData?.advanceNumber || "Receipt"}`,
     onAfterPrint: () => {
       setShowPrintPrompt(false);
@@ -216,6 +226,7 @@ export function AddAdvanceBookingDialog({
         transactionId: (paymentMethod === "upi" || paymentMethod === "bank_transfer") ? transactionId : undefined,
         description: description || undefined,
       });
+      setPrintPaperSize(initialAdvanceReceiptPaper(settings));
       setShowPrintPrompt(true);
     } catch (error: any) {
       const msg = error?.message || "Unknown error while saving advance.";
@@ -227,6 +238,18 @@ export function AddAdvanceBookingDialog({
       }
       setSaveError(msg);
     }
+  };
+
+  const handleQuickAddCustomerSuccess = async (newCustomerId: string) => {
+    const { data } = await supabase
+      .from("customers")
+      .select("id, customer_name, phone")
+      .eq("id", newCustomerId)
+      .maybeSingle();
+    setCustomerId(newCustomerId);
+    if (data) setSelectedCustomerData(data);
+    setCustomerSearchOpen(false);
+    setCustomerSearchTerm("");
   };
 
   const companyDetails = {
@@ -267,15 +290,7 @@ export function AddAdvanceBookingDialog({
 
             <div className="space-y-2">
               <Label>Paper Size</Label>
-              <Select value={printPaperSize} onValueChange={(v) => setPrintPaperSize(v as "A4" | "A5")}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="A5">A5 (Half Page)</SelectItem>
-                  <SelectItem value="A4">A4 (Full Page)</SelectItem>
-                </SelectContent>
-              </Select>
+              <AdvanceReceiptPaperSelect value={printPaperSize} onChange={setPrintPaperSize} />
             </div>
           </div>
 
@@ -344,7 +359,18 @@ export function AddAdvanceBookingDialog({
 
           {/* Customer Selection */}
           <div className="space-y-2">
-            <Label>Customer *</Label>
+            <div className="flex items-center justify-between">
+              <Label>Customer *</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-primary"
+                onClick={() => setShowQuickAddCustomer(true)}
+              >
+                <UserPlus className="h-4 w-4 mr-1" /> New Customer
+              </Button>
+            </div>
             <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen} modal>
               <PopoverTrigger asChild>
                 <Button
@@ -367,7 +393,22 @@ export function AddAdvanceBookingDialog({
                     onValueChange={setCustomerSearchTerm}
                   />
                   <CommandList className="max-h-[min(280px,50vh)]">
-                    <CommandEmpty>No customer found.</CommandEmpty>
+                    <CommandEmpty>
+                      <div className="space-y-2">
+                        <p>No customer found.</p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setCustomerSearchOpen(false);
+                            setShowQuickAddCustomer(true);
+                          }}
+                        >
+                          <UserPlus className="h-4 w-4 mr-1" /> Create new customer
+                        </Button>
+                      </div>
+                    </CommandEmpty>
                     <CommandGroup>
                       {customers
                         ?.map((customer) => (
@@ -484,6 +525,12 @@ export function AddAdvanceBookingDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <QuickAddCustomerDialog
+      open={showQuickAddCustomer}
+      onOpenChange={setShowQuickAddCustomer}
+      onSuccess={handleQuickAddCustomerSuccess}
+    />
 
     {/* Blocking error dialog — user MUST acknowledge */}
     <Dialog open={!!saveError} onOpenChange={(o) => { if (!o) setSaveError(null); }}>
