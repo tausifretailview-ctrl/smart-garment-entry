@@ -3,6 +3,7 @@ import {
   allocateMixPaymentToBill,
   capPaymentModesToSettled,
   clampMixPaymentModeAmount,
+  mixPaymentCreditDue,
 } from "./mixPaymentAllocation";
 
 describe("clampMixPaymentModeAmount", () => {
@@ -78,5 +79,17 @@ describe("capPaymentModesToSettled", () => {
         settledPaid: 4500,
       }),
     ).toEqual({ cash: 4500, card: 0, upi: 0 });
+  });
+});
+
+describe("mixPaymentCreditDue", () => {
+  it("ignores paise left by a sale return (not credit)", () => {
+    expect(mixPaymentCreditDue(1154.76, 1154)).toBe(0);
+    expect(mixPaymentCreditDue(1154.76, 1154.76)).toBe(0);
+  });
+
+  it("keeps a real credit balance of ₹1 or more", () => {
+    expect(mixPaymentCreditDue(1154.76, 1000)).toBe(154.76);
+    expect(mixPaymentCreditDue(1000, 999)).toBe(1);
   });
 });

@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Banknote, CreditCard, Smartphone, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { clampMixPaymentModeAmount } from "@/utils/mixPaymentAllocation";
+import { clampMixPaymentModeAmount, mixPaymentCreditDue } from "@/utils/mixPaymentAllocation";
 
 export type MixPaymentInitialBreakdown = {
   cashAmount?: number;
@@ -80,8 +80,8 @@ export function MixPaymentDialog({
   );
   const payableBill = Math.max(0, billAmount);
   const totalPaid = cashAmount + cardAmount + upiAmount + bankAmount + financeAmount;
-  const creditBalance = isRefundMode ? 0 : Math.max(0, payableBill - totalPaid);
-  const balanceAmount = isRefundMode ? 0 : Math.max(0, payableBill - totalPaid);
+  const creditBalance = isRefundMode ? 0 : mixPaymentCreditDue(payableBill, totalPaid);
+  const balanceAmount = creditBalance;
   const exceedsBill = !isRefundMode && totalPaid > payableBill + 0.001;
 
   // On close: clear. On open (normal mode): restore saved mix tender from initialBreakdown (edit POS / revisit).

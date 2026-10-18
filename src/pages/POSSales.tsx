@@ -271,6 +271,7 @@ import {
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { MixPaymentDialog } from "@/components/MixPaymentDialog";
+import { MIX_CREDIT_MIN_RUPEE } from "@/utils/mixPaymentAllocation";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
 import { MrpTierSelectionDialog, toMrpTierSelectionChoices } from "@/components/MrpTierSelectionDialog";
 import { QuickServiceProductDialog } from "@/components/QuickServiceProductDialog";
@@ -5217,9 +5218,10 @@ export default function POSSales() {
       refundAmount: Math.abs(Number(paymentData.refundAmount) || 0),
     };
     posSaveBegin("mix-path");
-    // Customer name required only when mix payment leaves a credit balance on the bill
+    // Customer name required only when mix payment leaves a credit balance on the bill.
+    // Paise left by a sale return (under ₹1) are not credit; the bill still settles.
     const mixCreditAmount = Math.max(0, Number(paymentData.creditAmount) || 0);
-    if (mixCreditAmount > 0.01 && !hasNamedPosCustomer()) {
+    if (mixCreditAmount >= MIX_CREDIT_MIN_RUPEE && !hasNamedPosCustomer()) {
       showCustomerNameRequiredWindow("mix_credit");
       return;
     }

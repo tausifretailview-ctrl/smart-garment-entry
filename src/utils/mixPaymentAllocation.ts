@@ -19,6 +19,19 @@ export function clampMixPaymentModeAmount(
   return round2(Math.min(raw, maxAllowed));
 }
 
+/**
+ * Pay Later balance left by a Mix Payment. Under ₹1 is paise, not credit: a sale
+ * return with paise (₹845.24) leaves a net like ₹1,154.76, the cashier collects
+ * ₹1,154, and the DB settlement tolerance (₹1) marks that bill paid anyway. Treating
+ * the ₹0.76 as credit asked walk-in customers for a name for no reason.
+ */
+export const MIX_CREDIT_MIN_RUPEE = 1;
+
+export function mixPaymentCreditDue(payableBill: number, totalPaid: number): number {
+  const due = round2(Math.max(0, (Number(payableBill) || 0) - (Number(totalPaid) || 0)));
+  return due < MIX_CREDIT_MIN_RUPEE ? 0 : due;
+}
+
 export type MixPaymentTenderInput = {
   billAmount: number;
   cashAmount: number;
