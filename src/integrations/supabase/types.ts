@@ -8087,6 +8087,150 @@ export type Database = {
           },
         ]
       }
+      stock_transfer_items: {
+        Row: {
+          barcode: string | null
+          color: string | null
+          created_at: string
+          created_in_destination: boolean
+          from_variant_id: string
+          id: string
+          line_value: number
+          product_name: string | null
+          qty: number
+          size: string | null
+          to_variant_id: string
+          transfer_id: string
+          unit_cost: number
+        }
+        Insert: {
+          barcode?: string | null
+          color?: string | null
+          created_at?: string
+          created_in_destination?: boolean
+          from_variant_id: string
+          id?: string
+          line_value?: number
+          product_name?: string | null
+          qty: number
+          size?: string | null
+          to_variant_id: string
+          transfer_id: string
+          unit_cost?: number
+        }
+        Update: {
+          barcode?: string | null
+          color?: string | null
+          created_at?: string
+          created_in_destination?: boolean
+          from_variant_id?: string
+          id?: string
+          line_value?: number
+          product_name?: string | null
+          qty?: number
+          size?: string | null
+          to_variant_id?: string
+          transfer_id?: string
+          unit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_transfer_items_from_variant_id_fkey"
+            columns: ["from_variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_items_to_variant_id_fkey"
+            columns: ["to_variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfer_items_transfer_id_fkey"
+            columns: ["transfer_id"]
+            isOneToOne: false
+            referencedRelation: "stock_transfers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_transfers: {
+        Row: {
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string | null
+          from_organization_id: string
+          id: string
+          notes: string | null
+          to_organization_id: string
+          total_qty: number
+          total_value: number
+          transfer_date: string
+          transfer_number: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          from_organization_id: string
+          id?: string
+          notes?: string | null
+          to_organization_id: string
+          total_qty?: number
+          total_value?: number
+          transfer_date?: string
+          transfer_number: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          from_organization_id?: string
+          id?: string
+          notes?: string | null
+          to_organization_id?: string
+          total_qty?: number
+          total_value?: number
+          transfer_date?: string
+          transfer_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_transfers_from_organization_id_fkey"
+            columns: ["from_organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfers_from_organization_id_fkey"
+            columns: ["from_organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "stock_transfers_to_organization_id_fkey"
+            columns: ["to_organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_transfers_to_organization_id_fkey"
+            columns: ["to_organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       student_balance_audit: {
         Row: {
           academic_year_id: string | null
@@ -10420,6 +10564,10 @@ export type Database = {
         Args: { p_reference_id: string; p_variant_id: string }
         Returns: boolean
       }
+      _stock_transfer_net_for_variant: {
+        Args: { p_variant_id: string }
+        Returns: number
+      }
       _supplier_invoice_serial_parts: {
         Args: { inv: string }
         Returns: Record<string, unknown>
@@ -10543,6 +10691,7 @@ export type Database = {
         Args: { p_bill_id: string; p_reason?: string }
         Returns: Json
       }
+      cancel_stock_transfer: { Args: { p_transfer_id: string }; Returns: Json }
       canonicalize_product_brand: { Args: { p_brand: string }; Returns: string }
       check_barcode_duplicate: {
         Args: {
@@ -10623,6 +10772,15 @@ export type Database = {
       }
       create_organization: {
         Args: { p_name: string; p_user_id?: string }
+        Returns: Json
+      }
+      create_stock_transfer: {
+        Args: {
+          p_from_organization_id: string
+          p_items: Json
+          p_notes?: string
+          p_to_organization_id: string
+        }
         Returns: Json
       }
       customer_page_get: {
@@ -11523,6 +11681,14 @@ export type Database = {
       get_sales_summary: {
         Args: { p_end_date: string; p_org_id: string; p_start_date: string }
         Returns: Json
+      }
+      get_sibling_shops: {
+        Args: { p_organization_id: string }
+        Returns: {
+          id: string
+          name: string
+          slug: string
+        }[]
       }
       get_slow_moving_stock: {
         Args: { p_days_threshold?: number; p_org_id: string }
