@@ -87,6 +87,8 @@ export interface ProfitAggregateRow {
   qtyReturned: number;
   /** Absolute ₹ of return lines in the period. Informational only — not netted into netSales/profit. */
   returnAmount: number;
+  /** Distinct sale bills in the group (set on the date-wise tab only). */
+  billCount?: number;
 }
 
 export interface ProfitDataset {
@@ -741,22 +743,23 @@ export function aggregateForTab(
         tertiary: l.customerName,
       }));
     case "date-wise": {
-      // One row per calendar day × product — brand/qty/profit for that day.
+      // One row per calendar day — that day's totals across all bills and products.
       const rows = aggregateBy(lines, (l) => {
         const date = dayKey(l.saleDate);
-        const productKey = l.productId || l.productName;
-        return {
-          key: `${date}::${productKey}`,
-          label: l.productName,
-          secondary: date,
-          tertiary: l.brand,
-        };
+        return { key: date, label: date, secondary: date };
       });
-      rows.sort((a, b) => {
-        const dateCmp = String(b.secondary || "").localeCompare(String(a.secondary || ""));
-        if (dateCmp !== 0) return dateCmp;
-        return b.grossProfit - a.grossProfit;
-      });
+      const billsByDay = new Map<string, Set<string>>();
+      for (const l of lines) {
+        if (l.sign === -1) continue;
+        const bill = l.saleId || l.saleNumber;
+        if (!bill) continue;
+        const date = dayKey(l.saleDate);
+        let set = billsByDay.get(date);
+        if (!set) billsByDay.set(date, (set = new Set()));
+        set.add(bill);
+      }
+      for (const row of rows) row.billCount = billsByDay.get(row.key)?.size ?? 0;
+      rows.sort((a, b) => b.key.localeCompare(a.key));
       return rows;
     }
     case "customer-wise":
