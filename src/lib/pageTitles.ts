@@ -36,6 +36,7 @@ export const PAGE_TITLE_CONFIG: Record<string, { label: string; icon: string }> 
   "bulk-product-update": { label: "Bulk Update", icon: "Layers" },
   "stock-settlement": { label: "Stock Settlement", icon: "Package" },
   "stock-adjustment": { label: "Stock Adjustment", icon: "Package" },
+  "stock-transfer": { label: "Stock Transfer", icon: "Package" },
   "stock-report": { label: "Stock Report", icon: "BarChart3" },
   "stock-summary": { label: "Stock Summary", icon: "Package" },
   "stock-ageing": { label: "Stock Ageing", icon: "BarChart3" },
