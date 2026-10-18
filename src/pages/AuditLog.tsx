@@ -19,13 +19,7 @@ import { CalendarIcon, Download, FileText, RefreshCw } from "lucide-react";
 import { addDays, format, startOfDay, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   ACTIVITY_CATEGORIES,
   activityAmount,
@@ -41,6 +35,7 @@ import {
   type ActivityLogRow,
   type ActivityTone,
 } from "@/utils/activityLog";
+import { UserScreenTimeReport } from "@/components/audit/UserScreenTimeReport";
 
 const PAGE_SIZE = 200;
 const ALL_OPERATORS = "all";
@@ -66,6 +61,7 @@ export default function AuditLog() {
   const { session } = useAuth();
   const orgId = currentOrganization?.id;
 
+  const [view, setView] = useState<"activity" | "screen-time">("activity");
   const [category, setCategory] = useState<string>("all");
   const [operatorId, setOperatorId] = useState<string>(ALL_OPERATORS);
   const [search, setSearch] = useState("");
@@ -235,205 +231,224 @@ export default function AuditLog() {
             <div>
               <h1 className="text-3xl font-bold text-foreground">Activity Log</h1>
               <p className="text-sm text-muted-foreground">
-                Who edited or deleted invoices, gave discounts, recorded payments or changed credit notes, and when.
+                {view === "activity"
+                  ? "Who edited or deleted invoices, gave discounts, recorded payments or changed credit notes, and when."
+                  : "When each user logged in and out, which screens they used, and how long they were working."}
               </p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={handleExport} variant="outline" size="sm" disabled={visibleLogs.length === 0}>
-              <Download className="h-4 w-4 mr-2" />
-              Export CSV
-            </Button>
-            <Button onClick={() => void loadFirstPage()} variant="outline" size="sm">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-          </div>
-        </div>
-
-        {/* Activity chips */}
-        <div className="mb-4 flex flex-wrap gap-2">
-          {ACTIVITY_CATEGORIES.map((c) => (
-            <Button
-              key={c.id}
-              variant={category === c.id ? "default" : "outline"}
-              size="sm"
-              onClick={() => setCategory(c.id)}
-            >
-              {c.label}
-            </Button>
-          ))}
-        </div>
-
-        {/* Filters */}
-        <Card className="mb-4">
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              <div>
-                <Label>From</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-left font-normal">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {format(dateFrom, "dd MMM yyyy")}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={dateFrom}
-                      onSelect={(d) => d && setDateFrom(startOfDay(d))}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              <div>
-                <Label>To</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-left font-normal">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {format(dateTo, "dd MMM yyyy")}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={dateTo}
-                      onSelect={(d) => d && setDateTo(startOfDay(d))}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              <div>
-                <Label>Operator</Label>
-                <Select value={operatorId} onValueChange={setOperatorId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All operators" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL_OPERATORS}>All operators</SelectItem>
-                    {operators.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label>Activity</Label>
-                <Select value={category} onValueChange={setCategory}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ACTIVITY_CATEGORIES.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label>Search</Label>
-                <Input
-                  placeholder="Bill no., customer, operator"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="mt-3">
-              <Button onClick={handleClearFilters} variant="ghost" size="sm">
-                Clear filters
+          {view === "activity" && (
+            <div className="flex gap-2">
+              <Button onClick={handleExport} variant="outline" size="sm" disabled={visibleLogs.length === 0}>
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
+              <Button onClick={() => void loadFirstPage()} variant="outline" size="sm">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {visibleLogs.length} {visibleLogs.length === 1 ? "entry" : "entries"}
-              {hasMore ? " (more available)" : ""}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="text-center py-8 text-muted-foreground">Loading activity…</div>
-            ) : visibleLogs.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">No activity for these filters</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="whitespace-nowrap">Date & time</TableHead>
-                      <TableHead>Operator</TableHead>
-                      <TableHead>Activity</TableHead>
-                      <TableHead>Document</TableHead>
-                      <TableHead>Party</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead>What changed</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {visibleLogs.map((log) => {
-                      const { label, tone } = describeActivity(log);
-                      const amount = activityAmount(log);
-                      return (
-                        <TableRow
-                          key={log.id}
-                          className="cursor-pointer"
-                          onClick={() => setSelectedLog(log)}
-                        >
-                          <TableCell className="whitespace-nowrap text-sm">
-                            {format(new Date(log.created_at), "dd MMM yyyy, hh:mm:ss a")}
-                          </TableCell>
-                          <TableCell className="text-sm">{log.user_email || "System"}</TableCell>
-                          <TableCell>
-                            <Badge variant={TONE_BADGE[tone]} className="whitespace-nowrap">
-                              {label}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-sm whitespace-nowrap">
-                            {activityDocumentNumber(log) ?? "—"}
-                          </TableCell>
-                          <TableCell className="text-sm max-w-[200px] truncate">
-                            {activityParty(log) ?? "—"}
-                          </TableCell>
-                          <TableCell className="text-sm text-right whitespace-nowrap">
-                            {amount == null ? "—" : fmtMoney(amount)}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground max-w-md truncate">
-                            {activityChangeSummary(log)}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+        <div className="mb-4 inline-flex rounded-md border p-1 gap-1">
+          <Button size="sm" variant={view === "activity" ? "default" : "ghost"} onClick={() => setView("activity")}>
+            Edits & deletes
+          </Button>
+          <Button
+            size="sm"
+            variant={view === "screen-time" ? "default" : "ghost"}
+            onClick={() => setView("screen-time")}
+          >
+            Logins & screen time
+          </Button>
+        </div>
 
-            {!loading && hasMore && (
-              <div className="mt-4 flex justify-center">
-                <Button variant="outline" size="sm" onClick={() => void loadMore()} disabled={loadingMore}>
-                  {loadingMore ? "Loading…" : "Load more"}
+        {view === "screen-time" && orgId ? (
+          <UserScreenTimeReport orgId={orgId} operators={operators} />
+        ) : (
+          <>
+            {/* Activity chips */}
+            <div className="mb-4 flex flex-wrap gap-2">
+              {ACTIVITY_CATEGORIES.map((c) => (
+                <Button
+                  key={c.id}
+                  variant={category === c.id ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setCategory(c.id)}
+                >
+                  {c.label}
                 </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              ))}
+            </div>
+
+            {/* Filters */}
+            <Card className="mb-4">
+              <CardContent className="pt-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                  <div>
+                    <Label>From</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start text-left font-normal">
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {format(dateFrom, "dd MMM yyyy")}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={dateFrom}
+                          onSelect={(d) => d && setDateFrom(startOfDay(d))}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div>
+                    <Label>To</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start text-left font-normal">
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {format(dateTo, "dd MMM yyyy")}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={dateTo}
+                          onSelect={(d) => d && setDateTo(startOfDay(d))}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div>
+                    <Label>Operator</Label>
+                    <Select value={operatorId} onValueChange={setOperatorId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="All operators" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={ALL_OPERATORS}>All operators</SelectItem>
+                        {operators.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label>Activity</Label>
+                    <Select value={category} onValueChange={setCategory}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ACTIVITY_CATEGORIES.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label>Search</Label>
+                    <Input
+                      placeholder="Bill no., customer, operator"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-3">
+                  <Button onClick={handleClearFilters} variant="ghost" size="sm">
+                    Clear filters
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  {visibleLogs.length} {visibleLogs.length === 1 ? "entry" : "entries"}
+                  {hasMore ? " (more available)" : ""}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="text-center py-8 text-muted-foreground">Loading activity…</div>
+                ) : visibleLogs.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">No activity for these filters</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="whitespace-nowrap">Date & time</TableHead>
+                          <TableHead>Operator</TableHead>
+                          <TableHead>Activity</TableHead>
+                          <TableHead>Document</TableHead>
+                          <TableHead>Party</TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
+                          <TableHead>What changed</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {visibleLogs.map((log) => {
+                          const { label, tone } = describeActivity(log);
+                          const amount = activityAmount(log);
+                          return (
+                            <TableRow key={log.id} className="cursor-pointer" onClick={() => setSelectedLog(log)}>
+                              <TableCell className="whitespace-nowrap text-sm">
+                                {format(new Date(log.created_at), "dd MMM yyyy, hh:mm:ss a")}
+                              </TableCell>
+                              <TableCell className="text-sm">{log.user_email || "System"}</TableCell>
+                              <TableCell>
+                                <Badge variant={TONE_BADGE[tone]} className="whitespace-nowrap">
+                                  {label}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-sm whitespace-nowrap">
+                                {activityDocumentNumber(log) ?? "—"}
+                              </TableCell>
+                              <TableCell className="text-sm max-w-[200px] truncate">
+                                {activityParty(log) ?? "—"}
+                              </TableCell>
+                              <TableCell className="text-sm text-right whitespace-nowrap">
+                                {amount == null ? "—" : fmtMoney(amount)}
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground max-w-md truncate">
+                                {activityChangeSummary(log)}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+
+                {!loading && hasMore && (
+                  <div className="mt-4 flex justify-center">
+                    <Button variant="outline" size="sm" onClick={() => void loadMore()} disabled={loadingMore}>
+                      {loadingMore ? "Loading…" : "Load more"}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
 
         <Dialog open={!!selectedLog} onOpenChange={(open) => !open && setSelectedLog(null)}>
           <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">

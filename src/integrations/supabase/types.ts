@@ -8892,6 +8892,66 @@ export type Database = {
         }
         Relationships: []
       }
+      user_screen_time: {
+        Row: {
+          active_seconds: number
+          app_session_id: string
+          created_at: string
+          device: string | null
+          ended_reason: string | null
+          id: string
+          last_seen_at: string
+          organization_id: string
+          screen: string
+          started_at: string
+          user_email: string | null
+          user_id: string
+        }
+        Insert: {
+          active_seconds?: number
+          app_session_id: string
+          created_at?: string
+          device?: string | null
+          ended_reason?: string | null
+          id: string
+          last_seen_at: string
+          organization_id: string
+          screen: string
+          started_at: string
+          user_email?: string | null
+          user_id: string
+        }
+        Update: {
+          active_seconds?: number
+          app_session_id?: string
+          created_at?: string
+          device?: string | null
+          ended_reason?: string | null
+          id?: string
+          last_seen_at?: string
+          organization_id?: string
+          screen?: string
+          started_at?: string
+          user_email?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_screen_time_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_screen_time_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       voucher_entries: {
         Row: {
           category: string | null
@@ -12148,6 +12208,10 @@ export type Database = {
           p_success?: boolean
         }
         Returns: Json
+      }
+      record_user_screen_time: {
+        Args: { p_org_id: string; p_rows: Json }
+        Returns: number
       }
       record_online_payment_receipt: {
         Args: {
