@@ -99,7 +99,7 @@ export function DailyIncentiveSettingsCard({
         <div>
           <p className="text-sm font-semibold text-foreground">Incentive settings</p>
           <p className="text-xs text-muted-foreground">
-            ₹ per piece after the day’s minimum quantity. On a bill, the highest matching slab is added once.
+            ₹ per piece after the day’s minimum quantity. A bill that reaches a slab gets that slab once instead of the per-piece amount.
           </p>
         </div>
         <div className="flex items-center gap-2">

@@ -338,7 +338,7 @@ describe("Rehmani NX bill slabs", () => {
     expect(billIncentiveOwner(null, ["RAHUL", "AMIT"])).toBe("");
   });
 
-  it("pays ₹10 per piece after 5 pieces, plus the bill slab", () => {
+  it("pays the bill slab instead of ₹10 per piece on slab bills", () => {
     const rows = aggregateDailySalesmanIncentive({
       incentiveDateYmd: "2026-10-05",
       sales: [
@@ -357,7 +357,58 @@ describe("Rehmani NX bill slabs", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].total_qty).toBe(6);
     expect(rows[0].is_eligible).toBe(true);
-    expect(rows[0].incentive_amount).toBe(6 * 10 + 100 + 200);
+    expect(rows[0].incentive_amount).toBe(100 + 200);
+  });
+
+  it("₹15,000 bill pays ₹200 only; a small bill the same day still pays ₹10 per piece", () => {
+    const rows = aggregateDailySalesmanIncentive({
+      incentiveDateYmd: "2026-10-18",
+      sales: [
+        { id: "big", salesman: "RAHUL", net_amount: 15000, sale_date: "2026-10-18" },
+        { id: "small", salesman: "RAHUL", net_amount: 3000, sale_date: "2026-10-18" },
+      ],
+      items: [
+        { sale_id: "big", quantity: 4, line_total: 15000 },
+        { sale_id: "small", quantity: 2, line_total: 3000 },
+      ],
+      employees: [{ id: "e1", employee_name: "RAHUL" }],
+      qtyThreshold: 5,
+      brackets: REHMANI_BRACKETS,
+      billSlabs: REHMANI_SLABS,
+    });
+    expect(rows[0].total_qty).toBe(6);
+    expect(rows[0].is_eligible).toBe(true);
+    expect(rows[0].incentive_amount).toBe(200 + 2 * 10);
+  });
+
+  it("slab bill pieces still count toward the day minimum", () => {
+    const rows = aggregateDailySalesmanIncentive({
+      incentiveDateYmd: "2026-10-18",
+      sales: [{ id: "big", salesman: "RAHUL", net_amount: 15000, sale_date: "2026-10-18" }],
+      items: [{ sale_id: "big", quantity: 5, line_total: 15000 }],
+      employees: [{ id: "e1", employee_name: "RAHUL" }],
+      qtyThreshold: 5,
+      brackets: REHMANI_BRACKETS,
+      billSlabs: REHMANI_SLABS,
+    });
+    expect(rows[0].is_eligible).toBe(true);
+    expect(rows[0].incentive_amount).toBe(200);
+  });
+
+  it("mixed-salesman bill gets no slab, so its pieces keep ₹10 each", () => {
+    const rows = aggregateDailySalesmanIncentive({
+      incentiveDateYmd: "2026-10-18",
+      sales: [{ id: "mix", salesman: "RAHUL", net_amount: 20000, sale_date: "2026-10-18" }],
+      items: [
+        { sale_id: "mix", quantity: 5, line_total: 10000, salesman: "RAHUL" },
+        { sale_id: "mix", quantity: 5, line_total: 10000, salesman: "AMIT" },
+      ],
+      employees: [],
+      qtyThreshold: 5,
+      brackets: REHMANI_BRACKETS,
+      billSlabs: REHMANI_SLABS,
+    });
+    expect(rows.map((r) => r.incentive_amount)).toEqual([50, 50]);
   });
 
   it("pays nothing when the day quantity is under 5", () => {
