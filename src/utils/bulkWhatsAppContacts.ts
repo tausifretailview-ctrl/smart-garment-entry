@@ -127,3 +127,48 @@ export function fillBulkMessage(message: string, name: string | null): string {
 export function estimateBulkMinutes(count: number): number {
   return Math.max(1, Math.round((count * 17) / 60));
 }
+
+/** Shop links added under a bulk message. QR-linked numbers cannot send real buttons, so these go as tappable links. */
+export interface BulkLinks {
+  instagram: string;
+  call: string;
+  location: string;
+  enquire: string;
+}
+
+export const EMPTY_BULK_LINKS: BulkLinks = { instagram: "", call: "", location: "", enquire: "" };
+
+const ENQUIRE_TEXT = "Hi, I want to know more about your offer";
+
+/** "@shop", "shop" or a full URL → https://instagram.com/shop; null when nothing usable. */
+export function instagramLink(raw: string): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  if (/^https?:\/\//i.test(v)) return v;
+  if (/^(www\.)?instagram\.com\//i.test(v)) return `https://${v.replace(/^www\./i, "")}`;
+  const handle = v.replace(/^@/, "");
+  return /^[\w.]{1,30}$/.test(handle) ? `https://instagram.com/${handle}` : null;
+}
+
+/** A Google Maps link as pasted, or an address turned into a Maps search link. */
+export function locationLink(raw: string): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  if (/^https?:\/\//i.test(v)) return v;
+  if (/^(maps\.app\.goo\.gl|goo\.gl|(www\.)?google\.[a-z.]+\/maps)/i.test(v)) return `https://${v}`;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(v)}`;
+}
+
+/** Lines for the links that are filled in, in a fixed order. Invalid phone numbers are left out. */
+export function buildBulkLinkLines(links: BulkLinks): string[] {
+  const lines: string[] = [];
+  const call = normalizeBulkPhone(links.call);
+  if (call) lines.push(`📞 *Call now:* ${formatBulkPhone(call)}`);
+  const enquire = normalizeBulkPhone(links.enquire);
+  if (enquire) lines.push(`💬 *Enquire now:* https://wa.me/${enquire}?text=${encodeURIComponent(ENQUIRE_TEXT)}`);
+  const loc = locationLink(links.location);
+  if (loc) lines.push(`📍 *Shop location:* ${loc}`);
+  const insta = instagramLink(links.instagram);
+  if (insta) lines.push(`📸 *Follow us on Instagram:* ${insta}`);
+  return lines;
+}

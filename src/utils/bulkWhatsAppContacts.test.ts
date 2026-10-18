@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildBulkLinkLines,
   fillBulkMessage,
   formatBulkPhone,
+  instagramLink,
+  locationLink,
   mergeContacts,
   normalizeBulkPhone,
   parseContactSheet,
@@ -78,5 +81,30 @@ describe("mergeContacts / fillBulkMessage", () => {
   it("fills {name}", () => {
     expect(fillBulkMessage("Hi {name}, sale!", "Ravi")).toBe("Hi Ravi, sale!");
     expect(fillBulkMessage("Hi { Name }", null)).toBe("Hi Customer");
+  });
+});
+
+describe("buildBulkLinkLines", () => {
+  it("adds only the filled links, as tappable WhatsApp text", () => {
+    const lines = buildBulkLinkLines({
+      instagram: "@shubharamb",
+      call: "98765 43210",
+      location: "Andheri West, Mumbai",
+      enquire: "9876543210",
+    });
+    expect(lines).toEqual([
+      "📞 *Call now:* +91 98765 43210",
+      "💬 *Enquire now:* https://wa.me/919876543210?text=Hi%2C%20I%20want%20to%20know%20more%20about%20your%20offer",
+      "📍 *Shop location:* https://www.google.com/maps/search/?api=1&query=Andheri%20West%2C%20Mumbai",
+      "📸 *Follow us on Instagram:* https://instagram.com/shubharamb",
+    ]);
+  });
+
+  it("keeps pasted links and skips bad numbers", () => {
+    expect(
+      buildBulkLinkLines({ instagram: "instagram.com/abc", call: "123", location: "https://maps.app.goo.gl/x", enquire: "" }),
+    ).toEqual(["📍 *Shop location:* https://maps.app.goo.gl/x", "📸 *Follow us on Instagram:* https://instagram.com/abc"]);
+    expect(instagramLink("bad handle!")).toBeNull();
+    expect(locationLink("")).toBeNull();
   });
 });

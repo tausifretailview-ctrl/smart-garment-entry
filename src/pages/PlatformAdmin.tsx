@@ -37,6 +37,8 @@ import { CloudUsageWidget } from "@/components/dashboard/CloudUsageWidget";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
+const WHATSAPP_SITE_URL = ((import.meta.env.VITE_WHATSAPP_SITE_URL as string | undefined)?.trim() || "").replace(/\/+$/, "");
+
 const ORG_PAGE_SIZE = 12;
 
 interface Organization {
@@ -46,7 +48,8 @@ interface Organization {
   subscription_tier: string;
   enabled_features: string[];
   created_at: string;
-  organization_number: number;
+  /** NULL for WhatsApp-only shops: they never print barcodes, so they take no barcode series. */
+  organization_number: number | null;
   organization_type?: "business" | "school" | "whatsapp";
 }
 
@@ -566,7 +569,7 @@ export default function PlatformAdmin() {
       const { data, error } = await supabase
         .from("organizations")
         .select("*")
-        .order("organization_number", { ascending: false });
+        .order("created_at", { ascending: false });
       
       if (error) throw error;
       return data as Organization[];
@@ -648,7 +651,7 @@ export default function PlatformAdmin() {
       setSelectedFeatures([]);
       setCustomSlug("");
       setIsSlugAvailable(null);
-      // Newest orgs are first (descending organization_number) — stay on page 1
+      // Newest orgs are first (descending created_at) — stay on page 1
       setOrgPage(1);
       queryClient.invalidateQueries({ queryKey: ["platform-organizations"] });
     },
@@ -1189,7 +1192,7 @@ export default function PlatformAdmin() {
                       </RadioGroup>
                       {orgType === "whatsapp" && (
                         <p className="text-xs text-muted-foreground">
-                          Bulk WhatsApp site only, no ERP. Add the shop's user as usual; they log in on the WhatsApp site.
+                          Bulk WhatsApp site only, no ERP and no barcode series. Add the shop's user as usual; they log in on the WhatsApp site.
                         </p>
                       )}
                     </div>
@@ -1239,9 +1242,11 @@ export default function PlatformAdmin() {
                     <CardHeader>
                       <CardTitle className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="font-mono">
-                            #{org.organization_number}
-                          </Badge>
+                          {org.organization_number != null && (
+                            <Badge variant="outline" className="font-mono">
+                              #{org.organization_number}
+                            </Badge>
+                          )}
                           <span>{org.name}</span>
                         </div>
                         <div className="flex items-center gap-1">
@@ -1263,23 +1268,46 @@ export default function PlatformAdmin() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Barcode Series:</span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium font-mono">
-                            {org.organization_number >= 10 
-                              ? `${org.organization_number}0001001` 
-                              : `${org.organization_number}0001001`}
-                          </span>
-                          <Badge variant="outline" className="text-xs">
-                            {org.organization_number >= 10 ? '9-digit' : '8-digit'}
-                          </Badge>
+                      {org.organization_type === "whatsapp" ? (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Barcode Series:</span>
+                          <span className="text-xs text-muted-foreground">None (WhatsApp only)</span>
                         </div>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Login Slug:</span>
-                        <span className="font-medium font-mono text-xs">/{org.slug}</span>
-                      </div>
+                      ) : (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Barcode Series:</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium font-mono">{`${org.organization_number}0001001`}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {(org.organization_number ?? 0) >= 10 ? "9-digit" : "8-digit"}
+                            </Badge>
+                          </div>
+                        </div>
+                      )}
+                      {org.organization_type === "whatsapp" && WHATSAPP_SITE_URL ? (
+                        <div className="flex items-center justify-between gap-2 text-sm">
+                          <span className="shrink-0 text-muted-foreground">Login Link:</span>
+                          <button
+                            type="button"
+                            className="truncate font-mono text-xs font-medium text-emerald-700 hover:underline"
+                            title="Copy login link"
+                            onClick={() => {
+                              const link = `${WHATSAPP_SITE_URL}/${org.slug}`;
+                              void navigator.clipboard?.writeText(link).then(
+                                () => toast.success("Login link copied"),
+                                () => toast.message(link),
+                              );
+                            }}
+                          >
+                            {WHATSAPP_SITE_URL.replace(/^https?:\/\//, "")}/{org.slug}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Login Slug:</span>
+                          <span className="font-medium font-mono text-xs">/{org.slug}</span>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Users:</span>
                         <span className="font-medium">{orgMembers.length}</span>
@@ -1458,7 +1486,7 @@ export default function PlatformAdmin() {
                         <SelectContent>
                           {organizations.map((org) => (
                             <SelectItem key={org.id} value={org.id}>
-                              #{org.organization_number} - {org.name}
+                              {org.organization_number != null ? `#${org.organization_number} - ` : ""}{org.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
