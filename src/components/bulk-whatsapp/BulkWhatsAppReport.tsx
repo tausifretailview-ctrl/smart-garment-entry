@@ -76,6 +76,7 @@ function StatCard({
   icon,
   tone,
   loading,
+  className,
 }: {
   label: string;
   value: string;
@@ -83,9 +84,10 @@ function StatCard({
   icon: ReactNode;
   tone: string;
   loading?: boolean;
+  className?: string;
 }) {
   return (
-    <div className={cn("relative overflow-hidden rounded-xl px-4 py-3 text-white shadow-sm", tone)}>
+    <div className={cn("relative overflow-hidden rounded-xl px-4 py-3 text-white shadow-sm", tone, className)}>
       <div className="pointer-events-none absolute -right-4 -top-4 h-20 w-20 rounded-full bg-white/10" />
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-white/85">{label}</span>
@@ -162,6 +164,7 @@ export function BulkWhatsAppStats({ organizationId }: { organizationId: string }
         icon={<XCircle className="h-5 w-5" />}
         tone="bg-gradient-to-br from-rose-500 to-red-600"
         loading={loading}
+        className="col-span-2 sm:col-span-1"
       />
     </div>
   );
@@ -341,6 +344,58 @@ function CampaignDetail({ campaign, onClose }: { campaign: BulkCampaign; onClose
   );
 }
 
+function CampaignActions({
+  c,
+  busy,
+  onControl,
+}: {
+  c: BulkCampaign;
+  busy: boolean;
+  onControl: (c: BulkCampaign, action: "pause" | "resume" | "stop") => void;
+}) {
+  if (!isLive(c)) return null;
+  return (
+    <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+      {c.status === "running" ? (
+        <Button size="icon" variant="outline" className="h-7 w-7" title="Pause" disabled={busy} onClick={() => onControl(c, "pause")}>
+          <Pause className="h-3.5 w-3.5" />
+        </Button>
+      ) : (
+        <Button size="icon" variant="outline" className="h-7 w-7" title="Resume" disabled={busy} onClick={() => onControl(c, "resume")}>
+          <Play className="h-3.5 w-3.5" />
+        </Button>
+      )}
+      <Button size="icon" variant="outline" className="h-7 w-7 text-destructive" title="Stop" disabled={busy} onClick={() => onControl(c, "stop")}>
+        <Square className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  );
+}
+
+function StatusCell({ c }: { c: BulkCampaign }) {
+  const done = c.sent_count + c.failed_count;
+  const live = isLive(c);
+  const badge = CAMPAIGN_BADGE[c.status];
+  return (
+    <>
+      <Pill className={badge.className}>
+        <span className={cn("h-1.5 w-1.5 rounded-full", badge.dot)} />
+        {badge.label}
+        {live ? ` ${done}/${c.total_count}` : ""}
+      </Pill>
+      {live && c.total_count > 0 && (
+        <div className="mt-1.5 h-1.5 w-32 overflow-hidden rounded-full bg-slate-200">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-blue-500 to-emerald-500 transition-all"
+            style={{ width: `${Math.min(100, (done / c.total_count) * 100)}%` }}
+          />
+        </div>
+      )}
+      {c.status_note ? <div className="mt-1 max-w-[220px] text-[11px] text-amber-700">{c.status_note}</div> : null}
+    </>
+  );
+}
+
 /** Past and running bulk sends with live counts; click one for the per-number report. */
 export function BulkWhatsAppReport({ organizationId, userId }: { organizationId: string; userId: string | undefined }) {
   const queryClient = useQueryClient();
@@ -384,90 +439,106 @@ export function BulkWhatsAppReport({ organizationId, userId }: { organizationId:
           <p className="text-sm text-slate-500">No bulk messages sent yet</p>
         </div>
       ) : (
-        <div className="max-h-[560px] overflow-auto">
-          <table className="w-full min-w-[880px] text-sm">
-            <thead>
-              <tr>
-                <th className={TH}>Campaign</th>
-                <th className={TH}>Sent from</th>
-                <th className={TH}>Status</th>
-                <th className={cn(TH, "text-right")}>Total</th>
-                <th className={cn(TH, "text-right")}>Sent</th>
-                <th className={cn(TH, "text-right")}>Delivered</th>
-                <th className={cn(TH, "text-right")}>Read</th>
-                <th className={cn(TH, "text-right")}>Failed</th>
-                <th className={cn(TH, "w-24")} />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {q.data.map((c) => {
-                const done = c.sent_count + c.failed_count;
-                const live = isLive(c);
-                const badge = CAMPAIGN_BADGE[c.status];
-                return (
-                  <tr
-                    key={c.id}
-                    className="cursor-pointer odd:bg-white even:bg-slate-50/60 hover:bg-emerald-50/70"
-                    onClick={() => setOpenId(c.id)}
-                  >
-                    <td className={TD}>
-                      <div className="font-semibold text-slate-900">{c.name}</div>
+        <>
+          {/* Phones: one card per campaign instead of a wide table. */}
+          <ul className="divide-y divide-slate-100 sm:hidden">
+            {q.data.map((c) => (
+              <li key={c.id}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setOpenId(c.id)}
+                  onKeyDown={(e) => e.key === "Enter" && setOpenId(c.id)}
+                  className="space-y-2.5 px-4 py-3 active:bg-emerald-50/70"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold text-slate-900">{c.name}</div>
                       <div className="text-xs text-slate-500">
                         {fmtDate(c.created_at)}, {fmtTime(c.created_at)}
+                        {c.sender_number ? ` · ${formatBulkPhone(c.sender_number)}` : ""}
+                        {c.user_id !== userId ? " · Other user" : ""}
                       </div>
-                    </td>
-                    <td className={cn(TD, "whitespace-nowrap")}>
-                      <div className="tabular-nums text-slate-700">{c.sender_number ? formatBulkPhone(c.sender_number) : "–"}</div>
-                      {c.user_id !== userId ? <div className="text-[11px] text-slate-400">Other user</div> : null}
-                    </td>
-                    <td className={cn(TD, "min-w-[150px]")}>
-                      <Pill className={badge.className}>
-                        <span className={cn("h-1.5 w-1.5 rounded-full", badge.dot)} />
-                        {badge.label}
-                        {live ? ` ${done}/${c.total_count}` : ""}
-                      </Pill>
-                      {live && c.total_count > 0 && (
-                        <div className="mt-1.5 h-1.5 w-32 overflow-hidden rounded-full bg-slate-200">
-                          <div
-                            className="h-full rounded-full bg-gradient-to-r from-blue-500 to-emerald-500 transition-all"
-                            style={{ width: `${Math.min(100, (done / c.total_count) * 100)}%` }}
-                          />
+                    </div>
+                    <CampaignActions c={c} busy={busyId === c.id} onControl={(x, a) => void control(x, a)} />
+                  </div>
+                  <div>
+                    <StatusCell c={c} />
+                  </div>
+                  <div className="grid grid-cols-5 gap-1 rounded-lg bg-slate-50 px-2 py-1.5 text-center">
+                    {(
+                      [
+                        ["Total", c.total_count, "text-slate-800"],
+                        ["Sent", c.sent_count, "text-blue-600"],
+                        ["Deliv.", c.delivered_count, "text-sky-600"],
+                        ["Read", c.read_count, "text-emerald-600"],
+                        ["Failed", c.failed_count, c.failed_count ? "text-red-600" : "text-slate-300"],
+                      ] as const
+                    ).map(([label, value, tone]) => (
+                      <div key={label}>
+                        <div className={cn("text-sm font-bold tabular-nums", tone)}>{num(value)}</div>
+                        <div className="text-[10px] uppercase tracking-wide text-slate-400">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden max-h-[560px] overflow-auto sm:block">
+            <table className="w-full min-w-[880px] text-sm">
+              <thead>
+                <tr>
+                  <th className={TH}>Campaign</th>
+                  <th className={TH}>Sent from</th>
+                  <th className={TH}>Status</th>
+                  <th className={cn(TH, "text-right")}>Total</th>
+                  <th className={cn(TH, "text-right")}>Sent</th>
+                  <th className={cn(TH, "text-right")}>Delivered</th>
+                  <th className={cn(TH, "text-right")}>Read</th>
+                  <th className={cn(TH, "text-right")}>Failed</th>
+                  <th className={cn(TH, "w-24")} />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {q.data.map((c) => {
+                  return (
+                    <tr
+                      key={c.id}
+                      className="cursor-pointer odd:bg-white even:bg-slate-50/60 hover:bg-emerald-50/70"
+                      onClick={() => setOpenId(c.id)}
+                    >
+                      <td className={TD}>
+                        <div className="font-semibold text-slate-900">{c.name}</div>
+                        <div className="text-xs text-slate-500">
+                          {fmtDate(c.created_at)}, {fmtTime(c.created_at)}
                         </div>
-                      )}
-                      {c.status_note ? <div className="mt-1 max-w-[220px] text-[11px] text-amber-700">{c.status_note}</div> : null}
-                    </td>
-                    <td className={cn(NUM, "text-slate-800")}>{num(c.total_count)}</td>
-                    <td className={cn(NUM, "text-blue-600")}>{num(c.sent_count)}</td>
-                    <td className={cn(NUM, "text-sky-600")}>{num(c.delivered_count)}</td>
-                    <td className={NUM}>
-                      <div className="text-emerald-600">{num(c.read_count)}</div>
-                      <div className="text-[11px] font-normal text-slate-400">{pct(c.read_count, c.sent_count)}</div>
-                    </td>
-                    <td className={cn(NUM, c.failed_count ? "text-red-600" : "text-slate-300")}>{num(c.failed_count)}</td>
-                    <td className={cn(TD, "whitespace-nowrap")} onClick={(e) => e.stopPropagation()}>
-                      {live && (
-                        <div className="flex justify-end gap-1">
-                          {c.status === "running" ? (
-                            <Button size="icon" variant="outline" className="h-7 w-7" title="Pause" disabled={busyId === c.id} onClick={() => void control(c, "pause")}>
-                              <Pause className="h-3.5 w-3.5" />
-                            </Button>
-                          ) : (
-                            <Button size="icon" variant="outline" className="h-7 w-7" title="Resume" disabled={busyId === c.id} onClick={() => void control(c, "resume")}>
-                              <Play className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                          <Button size="icon" variant="outline" className="h-7 w-7 text-destructive" title="Stop" disabled={busyId === c.id} onClick={() => void control(c, "stop")}>
-                            <Square className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      </td>
+                      <td className={cn(TD, "whitespace-nowrap")}>
+                        <div className="tabular-nums text-slate-700">{c.sender_number ? formatBulkPhone(c.sender_number) : "–"}</div>
+                        {c.user_id !== userId ? <div className="text-[11px] text-slate-400">Other user</div> : null}
+                      </td>
+                      <td className={cn(TD, "min-w-[150px]")}>
+                        <StatusCell c={c} />
+                      </td>
+                      <td className={cn(NUM, "text-slate-800")}>{num(c.total_count)}</td>
+                      <td className={cn(NUM, "text-blue-600")}>{num(c.sent_count)}</td>
+                      <td className={cn(NUM, "text-sky-600")}>{num(c.delivered_count)}</td>
+                      <td className={NUM}>
+                        <div className="text-emerald-600">{num(c.read_count)}</div>
+                        <div className="text-[11px] font-normal text-slate-400">{pct(c.read_count, c.sent_count)}</div>
+                      </td>
+                      <td className={cn(NUM, c.failed_count ? "text-red-600" : "text-slate-300")}>{num(c.failed_count)}</td>
+                      <td className={cn(TD, "whitespace-nowrap")}>
+                        <CampaignActions c={c} busy={busyId === c.id} onControl={(x, a) => void control(x, a)} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
       {open && <CampaignDetail campaign={open} onClose={() => setOpenId(null)} />}
     </div>

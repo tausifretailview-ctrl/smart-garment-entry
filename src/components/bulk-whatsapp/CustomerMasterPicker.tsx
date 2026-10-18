@@ -112,7 +112,7 @@ export function CustomerMasterPicker({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search name or mobile"
-              className="pl-8"
+              className="no-uppercase pl-8"
             />
           </div>
           <Button type="button" variant="outline" size="sm" className="h-9" onClick={toggleAllFiltered} disabled={!filtered.length}>

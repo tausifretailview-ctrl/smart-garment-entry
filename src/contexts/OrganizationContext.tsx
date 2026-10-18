@@ -11,7 +11,7 @@ interface Organization {
   subscription_tier: "free" | "basic" | "professional" | "enterprise";
   enabled_features: string[];
   settings: Record<string, any>;
-  organization_type: "business" | "school";
+  organization_type: "business" | "school" | "whatsapp";
   organization_number: number;
   is_suspended?: boolean;
   suspension_reason?: string | null;
