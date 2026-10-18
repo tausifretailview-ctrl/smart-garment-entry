@@ -102,6 +102,8 @@ const SALES_PRODUCT_CELL =
   "py-2.5 px-4 align-middle text-sm font-semibold text-foreground bg-blue-50/40 dark:bg-blue-950/20 whitespace-nowrap";
 const SALES_DETAIL_CELL = "py-2.5 px-4 align-middle text-sm text-foreground whitespace-nowrap";
 const SALES_QTY_CELL = "py-2.5 px-4 align-middle text-sm font-semibold text-right tabular-nums text-foreground";
+/** Whole-rupee display: line totals carry paise drift (e.g. 4,499.997) from GST/discount splits. */
+const rupees = (n: number) => Math.round(Number(n) || 0).toLocaleString("en-IN");
 const SALES_AMOUNT_CELL = "py-2.5 px-4 align-middle text-sm font-bold text-right tabular-nums text-primary";
 
 /** Empty for column-visibility + cell display: null/undefined/"" / whitespace / "-" / "None". */
@@ -1066,8 +1068,8 @@ export default function ItemWiseSalesReport() {
           base["Size"] = item.size || "";
         }
         base["Total Qty"] = item.total_qty;
-        base["Purchase Value"] = item.purchase_value.toFixed(2);
-        base["Sale Value"] = item.sale_value.toFixed(2);
+        base["Purchase Value"] = Math.round(item.purchase_value);
+        base["Sale Value"] = Math.round(item.sale_value);
         return base;
       });
       const ws = XLSX.utils.json_to_sheet(exportData);
@@ -1117,7 +1119,7 @@ export default function ItemWiseSalesReport() {
         "Customer Name": item.customer_name,
         Brand: item.brand,
         "Total Qty": item.total_qty,
-        "Total Amount": item.total_amount.toFixed(2),
+        "Total Amount": Math.round(item.total_amount),
       }));
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
@@ -1133,7 +1135,7 @@ export default function ItemWiseSalesReport() {
         Size: item.size,
         "Qty Sold": item.total_qty,
         "Stock Qty": item.stock_qty,
-        "Total Amount": item.total_amount.toFixed(2),
+        "Total Amount": Math.round(item.total_amount),
       }));
       const ws = XLSX.utils.json_to_sheet(exportData);
       const wb = XLSX.utils.book_new();
@@ -1167,9 +1169,9 @@ export default function ItemWiseSalesReport() {
   const salesKpiItems = useMemo(
     () => [
       { label: "Total Qty Sold", value: summary.totalQty.toLocaleString("en-IN"), gradient: "bg-gradient-to-br from-blue-500 to-blue-600" },
-      { label: "Total Sales", value: `₹${summary.totalAmount.toLocaleString("en-IN")}`, gradient: "bg-gradient-to-br from-emerald-500 to-emerald-600" },
+      { label: "Total Sales", value: `₹${rupees(summary.totalAmount)}`, gradient: "bg-gradient-to-br from-emerald-500 to-emerald-600" },
       { label: "Unique Products", value: summary.uniqueProducts.toLocaleString("en-IN"), gradient: "bg-gradient-to-br from-violet-500 to-violet-600" },
-      { label: "Avg Sale Price", value: `₹${summary.avgPrice.toFixed(2)}`, gradient: "bg-gradient-to-br from-amber-500 to-amber-600" },
+      { label: "Avg Sale Price", value: `₹${rupees(summary.avgPrice)}`, gradient: "bg-gradient-to-br from-amber-500 to-amber-600" },
     ],
     [summary],
   );
@@ -1480,7 +1482,7 @@ export default function ItemWiseSalesReport() {
                               )}
                               <TableCell className={SALES_QTY_CELL}>{item.total_qty.toLocaleString("en-IN")}</TableCell>
                               <TableCell className={SALES_QTY_CELL}>{item.stock_qty.toLocaleString("en-IN")}</TableCell>
-                              <TableCell className={SALES_AMOUNT_CELL}>₹{item.total_amount.toLocaleString("en-IN")}</TableCell>
+                              <TableCell className={SALES_AMOUNT_CELL}>₹{rupees(item.total_amount)}</TableCell>
                             </TableRow>
                           ));
                     })()}
@@ -1491,7 +1493,7 @@ export default function ItemWiseSalesReport() {
                         <TableCell colSpan={itemWiseLeadingColSpan} className="py-3 text-sm font-bold text-teal-700">Grand Total</TableCell>
                         <TableCell className={cn(SALES_QTY_CELL, "py-3 text-base font-bold")}>{itemWiseTotals.total_qty.toLocaleString()}</TableCell>
                         <TableCell className={cn(SALES_QTY_CELL, "py-3 text-base font-bold text-muted-foreground")}>{emptySalesPlaceholder()}</TableCell>
-                        <TableCell className={cn(SALES_AMOUNT_CELL, "py-3 text-base font-bold")}>₹{itemWiseTotals.total_amount.toLocaleString("en-IN")}</TableCell>
+                        <TableCell className={cn(SALES_AMOUNT_CELL, "py-3 text-base font-bold")}>₹{rupees(itemWiseTotals.total_amount)}</TableCell>
                       </TableRow>
                     </TableFooter>
                   )}
@@ -1694,7 +1696,7 @@ export default function ItemWiseSalesReport() {
                                 </TableCell>
                                 <TableCell className={SALES_DETAIL_CELL}>{item.brand}</TableCell>
                                 <TableCell className={SALES_QTY_CELL}>{item.total_qty.toLocaleString("en-IN")}</TableCell>
-                                <TableCell className={SALES_AMOUNT_CELL}>₹{item.total_amount.toLocaleString("en-IN")}</TableCell>
+                                <TableCell className={SALES_AMOUNT_CELL}>₹{rupees(item.total_amount)}</TableCell>
                               </TableRow>
                             );
                           })}
@@ -1726,7 +1728,7 @@ export default function ItemWiseSalesReport() {
                           {brandWiseData.reduce((s, r) => s + r.total_qty, 0).toLocaleString()}
                         </TableCell>
                         <TableCell className="py-3 text-right text-sm font-bold tabular-nums text-primary">
-                          ₹{brandWiseData.reduce((s, r) => s + r.total_amount, 0).toLocaleString()}
+                          ₹{rupees(brandWiseData.reduce((s, r) => s + r.total_amount, 0))}
                         </TableCell>
                       </TableRow>
                     </TableFooter>
@@ -1836,8 +1838,8 @@ export default function ItemWiseSalesReport() {
                                 </>
                               )}
                               <TableCell className={SALES_QTY_CELL}>{row.total_qty}</TableCell>
-                              <TableCell className={SALES_DETAIL_CELL + " text-right tabular-nums"}>{row.purchase_value.toFixed(2)}</TableCell>
-                              <TableCell className={SALES_AMOUNT_CELL}>{row.sale_value.toFixed(2)}</TableCell>
+                              <TableCell className={SALES_DETAIL_CELL + " text-right tabular-nums"}>{rupees(row.purchase_value)}</TableCell>
+                              <TableCell className={SALES_AMOUNT_CELL}>{rupees(row.sale_value)}</TableCell>
                             </TableRow>
                           ))}
                           {totalPages > 1 && (
@@ -1865,8 +1867,8 @@ export default function ItemWiseSalesReport() {
                       <TableRow className="hover:bg-slate-100">
                         <TableCell colSpan={saleDetailsFooterLeadingColSpan} className="py-3 text-sm font-bold text-teal-700">Grand Total</TableCell>
                         <TableCell className="py-3 text-right text-sm font-bold tabular-nums">{saleDetailsTotals.total_qty.toLocaleString()}</TableCell>
-                        <TableCell className="py-3 text-right text-sm font-bold tabular-nums">{saleDetailsTotals.purchase_value.toFixed(2)}</TableCell>
-                        <TableCell className="py-3 text-right text-sm font-bold tabular-nums text-primary">₹{saleDetailsTotals.sale_value.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</TableCell>
+                        <TableCell className="py-3 text-right text-sm font-bold tabular-nums">{rupees(saleDetailsTotals.purchase_value)}</TableCell>
+                        <TableCell className="py-3 text-right text-sm font-bold tabular-nums text-primary">₹{rupees(saleDetailsTotals.sale_value)}</TableCell>
                       </TableRow>
                     </TableFooter>
                   )}
