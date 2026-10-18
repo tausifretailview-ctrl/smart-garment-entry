@@ -6840,6 +6840,9 @@ export default function BarcodePrinting() {
     })();
   };
 
+  // Standard tab with Layout & Style collapsed: product list fills the page height
+  const standardListFillsPage = activeBarTab === "standard" && !layoutStyleOpen && labelItems.length > 0;
+
   return (
     <div
       className={cn(entryPageShellClass, "barcode-printing-page bg-slate-50 dark:bg-background flex flex-col min-h-0 h-full w-full max-w-none")}
@@ -7096,14 +7099,16 @@ export default function BarcodePrinting() {
       {/* Results Table */}
       {labelItems.length > 0 && (
         <div className={cn(
-          "barcode-products-panel border rounded-md overflow-hidden shrink-0 flex flex-col",
-          activeBarTab === "designer"
-            ? "max-h-[32vh]"
-            : activeBarTab === "precision"
-              ? "max-h-[42vh]"
-              : showCustomizeFields
-                ? "max-h-[30vh]"
-                : "max-h-[28vh]",
+          "barcode-products-panel border rounded-md overflow-hidden flex flex-col",
+          standardListFillsPage
+            ? "flex-1 min-h-0"
+            : activeBarTab === "designer"
+              ? "shrink-0 max-h-[32vh]"
+              : activeBarTab === "precision"
+                ? "shrink-0 max-h-[42vh]"
+                : showCustomizeFields
+                  ? "shrink-0 max-h-[30vh]"
+                  : "shrink-0 max-h-[28vh]",
         )}>
           <div className="bg-slate-900 text-white px-3 py-2 border-b flex items-center justify-between gap-2">
             <p className="text-sm font-semibold tabular-nums">
@@ -7229,7 +7234,11 @@ export default function BarcodePrinting() {
             }
           }
         }}
-        className="w-full flex-1 min-h-0 flex flex-col"
+        className={cn(
+          "w-full flex flex-col",
+          // Layout & Style closed → tabs sit at the bottom and the product list takes the page
+          standardListFillsPage ? "shrink-0" : "flex-1 min-h-0",
+        )}
       >
         <TabsList className="barcode-print-tabs mb-1 h-10 shrink-0 w-full justify-start rounded-lg bg-slate-200/80 dark:bg-muted p-1">
           <TabsTrigger value="standard" className="text-sm font-bold px-4 py-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm">

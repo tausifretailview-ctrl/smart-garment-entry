@@ -83,3 +83,6 @@ verify_jwt = false
 
 [functions.whatsapp-gateway-proxy]
 verify_jwt = false
+
+[functions.bulk-whatsapp]
+verify_jwt = false

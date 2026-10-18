@@ -104,6 +104,34 @@ function getOrgPathSegment(pathname: string, orgSlug?: string): string {
   return pathname.replace(/^\//, "");
 }
 
+const WHATSAPP_SITE_URL = (import.meta.env.VITE_WHATSAPP_SITE_URL as string | undefined)?.trim() || "";
+
+function WhatsAppOnlyNotice() {
+  return (
+    <div className="fixed inset-0 z-[99998] flex items-center justify-center bg-background p-6">
+      <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+        <div className="space-y-1">
+          <h1 className="text-lg font-semibold text-foreground">This account is for Ezzy WhatsApp</h1>
+          <p className="text-sm text-muted-foreground">
+            Your shop uses only Bulk WhatsApp. Please sign in on the WhatsApp site with the same email and password.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {WHATSAPP_SITE_URL && (
+            <Button onClick={() => window.location.assign(WHATSAPP_SITE_URL)}>Open WhatsApp site</Button>
+          )}
+          <Button
+            variant="outline"
+            onClick={() => void supabase.auth.signOut({ scope: "local" }).finally(() => window.location.reload())}
+          >
+            Sign out
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Login page — lazy so OrgAuth/Zod stay out of erpBootstrap; gate handles deploy-skew. */
 function OrgAuthChunk() {
   return (
@@ -831,6 +859,11 @@ export const OrgLayout = () => {
 
   if (!isOrgSynced) {
     return <AppBootSplash message="Preparing workspace…" />;
+  }
+
+  // WhatsApp-only shops have no ERP: send them to the separate Bulk WhatsApp site.
+  if (currentOrganization?.organization_type === "whatsapp") {
+    return <WhatsAppOnlyNotice />;
   }
 
   // Window tabs need a fixed viewport height chain so dashboard panes scroll inside <main>.

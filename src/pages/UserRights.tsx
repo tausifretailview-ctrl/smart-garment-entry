@@ -143,6 +143,7 @@ const menuStructure = [
       { id: "barcode_printing_settings", name: "Barcode Printing" },
       { id: "whatsapp_logs", name: "WhatsApp Logs" },
       { id: "whatsapp_inbox", name: "WhatsApp Inbox" },
+      { id: "bulk_whatsapp", name: "Bulk WhatsApp" },
       { id: "recycle_bin", name: "Recycle Bin" },
       { id: "user_rights", name: "User Rights" },
       { id: "stock_adjustment", name: "Stock Adjustment" },

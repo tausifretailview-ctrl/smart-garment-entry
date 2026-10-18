@@ -178,6 +178,7 @@ const SalesmanOrders = lazyWithRetry(() => import("./pages/salesman/SalesmanOrde
 const SalesmanOutstanding = lazyWithRetry(() => import("./pages/salesman/SalesmanOutstanding"));
 const WhatsAppLogs = lazyWithRetry(() => import("./pages/WhatsAppLogs"));
 const WhatsAppInbox = lazyWithRetry(() => import("./pages/WhatsAppInbox"));
+const BulkWhatsApp = lazyWithRetry(() => import("./pages/BulkWhatsApp"));
 const MobileMoreMenu = lazyWithRetry(() => import("./pages/mobile/MobileMoreMenu"));
 const MobileReportsHub = lazyWithRetry(() => import("./pages/mobile/MobileReportsHub"));
 const MobileSalesHub = lazyWithRetry(() => import("./pages/mobile/MobileSalesHub"));
@@ -1812,6 +1813,20 @@ const App = () => {
                           <WhatsAppInbox />
                         </FullScreenLayout>
                       </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Bulk WhatsApp (each user's own linked number) */}
+                <Route
+                  path="bulk-whatsapp"
+                  element={
+                    <ProtectedRoute>
+                      <MenuPermissionRoute permission="bulk_whatsapp" allowOrgAdmin>
+                        <Layout>
+                          <BulkWhatsApp />
+                        </Layout>
+                      </MenuPermissionRoute>
                     </ProtectedRoute>
                   }
                 />

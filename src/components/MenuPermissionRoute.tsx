@@ -9,12 +9,14 @@ import { Button } from "@/components/ui/button";
 interface MenuPermissionRouteProps {
   permission: string;
   children: ReactNode;
+  /** Org admins always pass, even with custom User Rights saved (new pages they never ticked). */
+  allowOrgAdmin?: boolean;
 }
 
 /** Fail-open if org/permissions hang (common on slow mobile / APK WebView). */
 const PERMISSIONS_WAIT_MS = 12_000;
 
-export const MenuPermissionRoute = ({ permission, children }: MenuPermissionRouteProps) => {
+export const MenuPermissionRoute = ({ permission, children, allowOrgAdmin }: MenuPermissionRouteProps) => {
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const { currentOrganization, organizationRole, loading: orgLoading } = useOrganization();
   const { permissions, hasMenuAccess, loading: permissionsLoading } = useUserPermissions();
@@ -56,7 +58,8 @@ export const MenuPermissionRoute = ({ permission, children }: MenuPermissionRout
   }
 
   const isAdminWithoutCustomRights = organizationRole === "admin" && permissions === null;
-  const isAllowed = isAdminWithoutCustomRights || hasMenuAccess(permission);
+  const isAllowed =
+    isAdminWithoutCustomRights || (allowOrgAdmin && organizationRole === "admin") || hasMenuAccess(permission);
 
   if (!isAllowed) {
     const slug = orgSlug || currentOrganization?.slug || localStorage.getItem("selectedOrgSlug");

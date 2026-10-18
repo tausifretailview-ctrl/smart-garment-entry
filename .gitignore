@@ -17,6 +17,7 @@ node_modules
 dist
 dist-ssr
 dist-customer
+dist-whatsapp
 *.local
 .env.test
 

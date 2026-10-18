@@ -30,8 +30,10 @@ export function getGatewayConfig(): { url: string; key: string } | null {
 export async function gatewayRequest(
   path: string,
   init: { method?: string; body?: unknown } = {},
+  /** Another wa-gateway (e.g. the separate bulk server); defaults to WA_GATEWAY_URL / WA_GATEWAY_KEY. */
+  config?: { url: string; key: string } | null,
 ): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
-  const cfg = getGatewayConfig();
+  const cfg = config === undefined ? getGatewayConfig() : config;
   if (!cfg) {
     return {
       ok: false,

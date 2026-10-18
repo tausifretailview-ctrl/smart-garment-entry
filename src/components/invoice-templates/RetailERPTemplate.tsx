@@ -320,7 +320,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
   // Retail ERP: list/MRP in Rate, net in Amount.
   // Gurukrupa: cashier unit price in Rate (POS edit unit price must not reprint old sale_price).
-  const billedUnitRate = isGurukrupa;
+  // Real Tast (Bill of Supply): Rate is the billed unit price, so an edited POS
+  // price prints as typed instead of the old MRP above it.
+  const billedUnitRate = isGurukrupa || isRealTast;
   /** Gurukrupa: list/MRP in Rate + SP (net unit after discount); line total in Amount. */
   const getDisplayBaseRate = (item: InvoiceItem) =>
     isGurukrupa

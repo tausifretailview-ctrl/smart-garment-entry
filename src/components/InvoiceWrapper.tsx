@@ -65,6 +65,11 @@ import {
 import { organizationBankAccountsQueryKey } from '@/hooks/useOrganizationBankAccounts';
 import { formatInvoiceProductDescription, type InvoiceDescriptionSequence } from '@/utils/invoiceProductDescription';
 import { applyPrintFirmToSettings, type PrintFirm } from '@/utils/secondFirm';
+import {
+  needsInvoiceCustomerAddressLookup,
+  normalizeInvoicePhone,
+  pickInvoiceCustomerAddress,
+} from '@/utils/invoiceCustomerAddressFallback';
 
 interface InvoiceItem {
   sr: number;
@@ -347,7 +352,46 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       },
     });
 
-    if (!settings || (descriptionQueryEnabled && descriptionPartsLoading)) {
+    // Old bills (and bills of customers quick-added on Sale Bill) carry no address copy;
+    // print the address saved later in Customer Master. Laser formats only, not thermal.
+    const addressLookupTemplate = props.template || settings?.sale_settings?.invoice_template || '';
+    const addressLookupPaper = props.format || settings?.sale_settings?.invoice_paper_format || '';
+    const addressLookupMobile = normalizeInvoicePhone(props.customerMobile);
+    const addressLookupEnabled =
+      !!settings &&
+      !!orgId &&
+      addressLookupPaper !== 'thermal' &&
+      addressLookupPaper !== 'thermal-receipt' &&
+      !isThermal80mmInvoiceTemplate(addressLookupTemplate) &&
+      needsInvoiceCustomerAddressLookup(props.customerName, props.customerAddress);
+    const { data: masterCustomerAddress = '', isLoading: masterAddressLoading } = useQuery({
+      queryKey: ['invoice-customer-address', orgId, addressLookupMobile, (props.customerName || '').trim().toUpperCase()],
+      enabled: addressLookupEnabled,
+      staleTime: 60_000,
+      queryFn: async () => {
+        let query = supabase
+          .from('customers')
+          .select('customer_name, phone, address')
+          .eq('organization_id', orgId!)
+          .is('deleted_at', null)
+          .limit(10);
+        query = addressLookupMobile
+          ? query.ilike('phone', `%${addressLookupMobile}`)
+          : query.ilike('customer_name', (props.customerName || '').trim());
+        const { data, error } = await query;
+        if (error) throw error;
+        return pickInvoiceCustomerAddress(data ?? [], props.customerName, props.customerMobile);
+      },
+    });
+    const customerAddress = (props.customerAddress || '').trim()
+      ? props.customerAddress
+      : masterCustomerAddress || props.customerAddress;
+
+    if (
+      !settings ||
+      (descriptionQueryEnabled && descriptionPartsLoading) ||
+      (addressLookupEnabled && masterAddressLoading)
+    ) {
       return (
         <div ref={ref} data-invoice-loading="true" style={{ padding: '20px', textAlign: 'center' }}>
           Loading...
@@ -579,7 +623,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           : props.date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
       
       customerName: props.customerName,
-      customerAddress: props.customerAddress,
+      customerAddress,
       customerMobile: props.customerMobile,
       customerGSTIN: props.customerGSTIN,
       customerTransportDetails: props.customerTransportDetails,
@@ -972,7 +1016,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             date={props.date}
             customerName={props.customerName}
             customerPhone={props.customerMobile}
-            customerAddress={props.customerAddress}
+            customerAddress={customerAddress}
             items={props.items.map((item, idx) => ({
               sr: idx + 1,
               particulars: item.particulars,

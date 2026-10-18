@@ -957,6 +957,140 @@ export type Database = {
           },
         ]
       }
+      bulk_whatsapp_campaigns: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          delivered_count: number
+          failed_count: number
+          id: string
+          media_name: string | null
+          media_type: string | null
+          media_url: string | null
+          message: string
+          name: string
+          organization_id: string
+          read_count: number
+          sender_number: string | null
+          sent_count: number
+          status: string
+          status_note: string | null
+          total_count: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          delivered_count?: number
+          failed_count?: number
+          id?: string
+          media_name?: string | null
+          media_type?: string | null
+          media_url?: string | null
+          message?: string
+          name: string
+          organization_id: string
+          read_count?: number
+          sender_number?: string | null
+          sent_count?: number
+          status?: string
+          status_note?: string | null
+          total_count?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          delivered_count?: number
+          failed_count?: number
+          id?: string
+          media_name?: string | null
+          media_type?: string | null
+          media_url?: string | null
+          message?: string
+          name?: string
+          organization_id?: string
+          read_count?: number
+          sender_number?: string | null
+          sent_count?: number
+          status?: string
+          status_note?: string | null
+          total_count?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_whatsapp_campaigns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_whatsapp_campaigns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      bulk_whatsapp_recipients: {
+        Row: {
+          campaign_id: string
+          delivered_at: string | null
+          error: string | null
+          id: string
+          name: string | null
+          organization_id: string
+          phone: string
+          position: number
+          read_at: string | null
+          sent_at: string | null
+          status: string
+          wa_message_id: string | null
+        }
+        Insert: {
+          campaign_id: string
+          delivered_at?: string | null
+          error?: string | null
+          id?: string
+          name?: string | null
+          organization_id: string
+          phone: string
+          position: number
+          read_at?: string | null
+          sent_at?: string | null
+          status?: string
+          wa_message_id?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          delivered_at?: string | null
+          error?: string | null
+          id?: string
+          name?: string | null
+          organization_id?: string
+          phone?: string
+          position?: number
+          read_at?: string | null
+          sent_at?: string | null
+          status?: string
+          wa_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_whatsapp_recipients_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "bulk_whatsapp_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       category_quantity_tier_pricing: {
         Row: {
           category: string
@@ -11818,6 +11952,10 @@ export type Database = {
           p_payment_method?: string
         }
         Returns: string
+      }
+      refresh_bulk_whatsapp_counts: {
+        Args: { p_campaign_id: string }
+        Returns: undefined
       }
       release_sale_credit: { Args: { p_sale_id: string }; Returns: Json }
       repair_customer_floating_adjustments: {

@@ -118,6 +118,38 @@ describe("Retail ERP page total matches printed line amounts", () => {
     expect(html).not.toContain("99.97");
   });
 
+  it("real-tast prints the edited POS unit price in Rate, not the higher MRP", () => {
+    const item = { ...line(1, 1, 2650), mrp: 2750, sp: 2650 };
+    const html = renderToStaticMarkup(
+      createElement(RetailERPTemplate, {
+        businessName: "BIN HANIF",
+        address: "Mumbai",
+        mobile: "8879873678",
+        invoiceNumber: "POS/26-27/3",
+        invoiceDate: new Date("2026-10-17T12:00:00+05:30"),
+        customerName: "AAMAN",
+        items: [item],
+        subtotal: 2650,
+        // POS passes the MRP-to-price gap as discount.
+        discount: 100,
+        taxableAmount: 2650,
+        cgstAmount: 0,
+        sgstAmount: 0,
+        igstAmount: 0,
+        totalTax: 0,
+        roundOff: 0,
+        grandTotal: 2650,
+        taxType: "no_gst",
+        variant: "real-tast",
+        format: "a4",
+        paymentMethod: "cash",
+      }) as ReactElement,
+    );
+    expect(html).toContain("2,650.00");
+    expect(html).not.toContain("2,750.00");
+    expect(html).not.toContain("- ₹100.00");
+  });
+
   it("allocates a ₹50 bill discount and the page total matches those shaved lines", () => {
     const count = 21;
     const grosses = Array.from({ length: count }, () => 100);

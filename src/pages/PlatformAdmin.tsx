@@ -47,7 +47,7 @@ interface Organization {
   enabled_features: string[];
   created_at: string;
   organization_number: number;
-  organization_type?: "business" | "school";
+  organization_type?: "business" | "school" | "whatsapp";
 }
 
 interface User {
@@ -480,7 +480,7 @@ export default function PlatformAdmin() {
   
   const [orgName, setOrgName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
-  const [orgType, setOrgType] = useState<"business" | "school">("business");
+  const [orgType, setOrgType] = useState<"business" | "school" | "whatsapp">("business");
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [customSlug, setCustomSlug] = useState("");
   const [isCheckingSlug, setIsCheckingSlug] = useState(false);
@@ -1171,8 +1171,8 @@ export default function PlatformAdmin() {
                       <Label>Organization Type *</Label>
                       <RadioGroup 
                         value={orgType} 
-                        onValueChange={(value) => setOrgType(value as "business" | "school")}
-                        className="flex gap-4"
+                        onValueChange={(value) => setOrgType(value as "business" | "school" | "whatsapp")}
+                        className="flex flex-wrap gap-4"
                       >
                         <div className="flex items-center space-x-2">
                           <RadioGroupItem value="business" id="type-business" />
@@ -1182,7 +1182,16 @@ export default function PlatformAdmin() {
                           <RadioGroupItem value="school" id="type-school" />
                           <Label htmlFor="type-school" className="cursor-pointer font-normal">School ERP</Label>
                         </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="whatsapp" id="type-whatsapp" />
+                          <Label htmlFor="type-whatsapp" className="cursor-pointer font-normal">WhatsApp only</Label>
+                        </div>
                       </RadioGroup>
+                      {orgType === "whatsapp" && (
+                        <p className="text-xs text-muted-foreground">
+                          Bulk WhatsApp site only, no ERP. Add the shop's user as usual; they log in on the WhatsApp site.
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label>Enabled Features</Label>
@@ -1236,8 +1245,15 @@ export default function PlatformAdmin() {
                           <span>{org.name}</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <Badge variant={org.organization_type === "school" ? "default" : "secondary"}>
-                            {org.organization_type === "school" ? "🎓 School" : "Business"}
+                          <Badge
+                            variant={org.organization_type === "school" ? "default" : "secondary"}
+                            className={org.organization_type === "whatsapp" ? "bg-emerald-600 text-white hover:bg-emerald-600" : undefined}
+                          >
+                            {org.organization_type === "school"
+                              ? "🎓 School"
+                              : org.organization_type === "whatsapp"
+                                ? "WhatsApp only"
+                                : "Business"}
                           </Badge>
                         </div>
                       </CardTitle>
