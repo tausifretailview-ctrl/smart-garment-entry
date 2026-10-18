@@ -390,6 +390,9 @@ interface PosProductRow {
 /** Barcodes currently going through searchAndAddProduct (prevents Enter + debounce double-add). */
 const posSearchAndAddInFlight = new Set<string>();
 
+/** POS dropdown: wait this long after the last keystroke before searching again. */
+const POS_PRODUCT_SEARCH_TYPING_PAUSE_MS = 250;
+
 function posVariantBaseQuery(orgId: string) {
   return supabase
     .from('product_variants')
@@ -1320,6 +1323,7 @@ export default function POSSales() {
   const mobileERP = useMobileERP();
   const showEmiOption = usePosEmiOption();
   const dropdownDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const productSearchWasOpenRef = useRef(false);
   const productSearchSeqRef = useRef(0);
 
   const clearPosBarcodeSubmitTimers = useCallback(() => {
@@ -2770,10 +2774,17 @@ export default function POSSales() {
     const term = searchInput.trim();
 
     if (!openProductSearch || term.length < 2 || !currentOrganization?.id) {
+      productSearchWasOpenRef.current = false;
       setProductSearchResults([]);
       setIsProductSearchLoading(false);
       return;
     }
+
+    // Opening the dropdown already waited 300 ms (handleBarcodeInputChange), so the
+    // first search runs at once. While it stays open, wait for a typing pause so
+    // "shirt" is one search, not one per letter.
+    const justOpened = !productSearchWasOpenRef.current;
+    productSearchWasOpenRef.current = true;
 
     const requestSeq = ++productSearchSeqRef.current;
     setIsProductSearchLoading(true);
@@ -3069,17 +3080,26 @@ export default function POSSales() {
       setProductSearchResults(formatted);
     };
 
-    withJwtRetry(() => runSearch())
-      .catch((error) => {
-        if (requestSeq !== productSearchSeqRef.current) return;
-        console.error('POS product search failed:', error);
-        setProductSearchResults([]);
-      })
-      .finally(() => {
-        if (requestSeq === productSearchSeqRef.current) {
-          setIsProductSearchLoading(false);
-        }
-      });
+    const startSearch = () => {
+      withJwtRetry(() => runSearch())
+        .catch((error) => {
+          if (requestSeq !== productSearchSeqRef.current) return;
+          console.error('POS product search failed:', error);
+          setProductSearchResults([]);
+        })
+        .finally(() => {
+          if (requestSeq === productSearchSeqRef.current) {
+            setIsProductSearchLoading(false);
+          }
+        });
+    };
+
+    if (justOpened) {
+      startSearch();
+      return;
+    }
+    const typingPauseTimer = setTimeout(startSearch, POS_PRODUCT_SEARCH_TYPING_PAUSE_MS);
+    return () => clearTimeout(typingPauseTimer);
   }, [openProductSearch, searchInput, selectedProductType, currentOrganization?.id]);
 
   useEffect(() => {
