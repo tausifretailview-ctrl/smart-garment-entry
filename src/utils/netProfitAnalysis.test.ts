@@ -285,7 +285,7 @@ describe("aggregateForTab", () => {
     expect(goods?.netSales).toBe(400);
   });
 
-  it("date-wise groups by day × product with brand detail", () => {
+  it("date-wise groups one row per day with bill count", () => {
     const rows = aggregateForTab(
       [
         line({
@@ -305,9 +305,9 @@ describe("aggregateForTab", () => {
           totalCOGS: 40,
           grossSales: 120,
           qty: 1,
-          productId: "shirt-1",
-          productName: "SHIRT-H/S",
-          brand: "StyleWear",
+          productId: "pant-1",
+          productName: "PANT",
+          brand: "DenimCo",
           saleDate: "2026-08-08T15:00:00",
           saleId: "s-b",
           saleNumber: "POS/2",
@@ -328,13 +328,12 @@ describe("aggregateForTab", () => {
 
     expect(rows).toHaveLength(2);
     // Newer date first
-    expect(rows[0].secondary).toBe("2026-08-08");
-    expect(rows[0].label).toBe("SHIRT-H/S");
-    expect(rows[0].tertiary).toBe("StyleWear");
+    expect(rows[0].label).toBe("2026-08-08");
+    expect(rows[0].billCount).toBe(2);
     expect(rows[0].itemsSold).toBe(3);
     expect(rows[0].netSales).toBe(500);
-    expect(rows[1].secondary).toBe("2026-08-07");
-    expect(rows[1].label).toBe("PANT");
+    expect(rows[1].label).toBe("2026-08-07");
+    expect(rows[1].billCount).toBe(1);
   });
 
   it("filtered tab totals stay consistent across dimensions", () => {

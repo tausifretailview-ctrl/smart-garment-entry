@@ -282,7 +282,7 @@ function ProfitBreakdownTable({
                         tableCellClass,
                         col.align === "right" && "text-right",
                         col.key === "label" && "font-semibold",
-                        (col.key === "items" || col.key === "qty" || col.key === "returnedQty") &&
+                        (col.key === "items" || col.key === "qty" || col.key === "returnedQty" || col.key === "bills") &&
                           "net-profit-print-num",
                         col.accent === "red" && "text-red-600 dark:text-red-400",
                       )}
@@ -323,6 +323,13 @@ function ProfitBreakdownTable({
                   return (
                     <TableCell key={col.key} className={cn(tableCellClass, "text-right font-bold net-profit-print-num")}>
                       {totals.itemsSold}
+                    </TableCell>
+                  );
+                }
+                if (col.key === "bills") {
+                  return (
+                    <TableCell key={col.key} className={cn(tableCellClass, "text-right font-bold net-profit-print-num")}>
+                      {rows.reduce((s, r) => s + (r.billCount ?? 0), 0)}
                     </TableCell>
                   );
                 }
@@ -466,9 +473,8 @@ export default function NetProfitAnalysis() {
         base["Date"] = r.secondary || "";
         base["Customer"] = r.tertiary || "";
       } else if (activeTab === "date-wise") {
-        base["Date"] = r.secondary || "";
-        base["Product"] = r.label;
-        base["Brand"] = r.tertiary || "";
+        base["Date"] = r.label;
+        base["Bills"] = r.billCount ?? 0;
       } else if (activeTab === "product-wise") {
         base["Product"] = r.label;
         base["Brand"] = r.secondary || "";
@@ -603,9 +609,8 @@ export default function NetProfitAnalysis() {
       ];
     } else if (activeTab === "date-wise") {
       labelCols = [
-        { header: "Date", width: 16, align: "left", get: (r) => r.secondary || "-" },
-        { header: "Product", width: 30, align: "left", get: (r) => r.label },
-        { header: "Brand", width: 18, align: "left", get: (r) => r.tertiary || "-" },
+        { header: "Date", width: 22, align: "left", get: (r) => r.label },
+        { header: "Bills", width: 12, align: "right", get: (r) => String(r.billCount ?? 0) },
       ];
     } else if (activeTab === "product-wise") {
       labelCols = [
@@ -742,7 +747,13 @@ export default function NetProfitAnalysis() {
     doc.setFontSize(6.5);
 
     const totalsCells: string[] = [
-      ...labelCols.map((_, i) => (i === 0 ? "TOTAL" : "")),
+      ...labelCols.map((c, i) =>
+        i === 0
+          ? "TOTAL"
+          : c.header === "Bills"
+            ? String(filteredRows.reduce((s, r) => s + (r.billCount ?? 0), 0))
+            : "",
+      ),
       String(activeTotals.itemsSold),
       ...(showReturnColumns ? [String(activeTotals.qtyReturned)] : []),
       formatPdfAmount(activeTotals.grossSales),
@@ -867,9 +878,8 @@ export default function NetProfitAnalysis() {
     }
     if (activeTab === "date-wise") {
       return [
-        { key: "date", header: "Date", get: (r) => r.secondary || "-" },
-        { key: "label", header: "Product", get: (r) => r.label },
-        { key: "brand", header: "Brand", get: (r) => r.tertiary || "-" },
+        { key: "label", header: "Date", get: (r) => r.label },
+        { key: "bills", header: "Bills", align: "right", get: (r) => r.billCount ?? 0 },
         ...moneyCols,
       ];
     }
@@ -900,7 +910,7 @@ export default function NetProfitAnalysis() {
         : activeTab === "bill-wise"
           ? "SEARCH BILL NO, CUSTOMER..."
           : activeTab === "date-wise"
-            ? "SEARCH DATE, PRODUCT, BRAND..."
+            ? "SEARCH DATE (YYYY-MM-DD)..."
             : activeTab === "customer-wise"
               ? "SEARCH CUSTOMER..."
               : activeTab === "salesman-wise"
@@ -915,7 +925,7 @@ export default function NetProfitAnalysis() {
         : activeTab === "bill-wise"
           ? "bills"
           : activeTab === "date-wise"
-            ? "date × product rows"
+            ? "days"
             : activeTab === "customer-wise"
               ? "customers"
               : activeTab === "salesman-wise"
