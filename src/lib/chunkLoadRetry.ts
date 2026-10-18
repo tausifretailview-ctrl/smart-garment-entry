@@ -1,5 +1,6 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 import { hasUnsavedEntryWork } from "@/lib/unsavedWorkGuard";
+import { noteReloadReason } from "@/lib/reloadReason";
 
 /** Legacy counter key — cleared on boot; superseded by one-shot session flag. */
 const SKEW_RELOAD_KEY = "skew_reload_count";
@@ -394,6 +395,9 @@ export function attemptSkewRecoveryReload(chunkUrl?: string | null): boolean {
     sessionStorage.setItem(CHUNK_RECOVERY_RELOADED_KEY, "1");
     // Keep legacy key in sync for older diagnostics / mid-rollout tabs.
     sessionStorage.setItem(SKEW_RELOAD_KEY, "1");
+    noteReloadReason(
+      `new version deployed; this tab's old file was missing${chunkUrl ? ` (${chunkUrl})` : ""}`,
+    );
     void purgeStaleAppCaches(chunkUrl).finally(() => {
       window.location.reload();
     });
@@ -415,6 +419,7 @@ function reloadDocumentBypassingCache(): void {
 
 /** Manual Refresh on a chunk-miss screen. Always hits the network. */
 export function hardReloadAfterChunkMiss(): void {
+  noteReloadReason("Refresh button on a page that failed to load");
   void purgeStaleAppCaches().finally(() => {
     try {
       reloadDocumentBypassingCache();
@@ -462,6 +467,7 @@ export function attemptStaleChunkRecovery(error: unknown): boolean {
     if (sessionStorage.getItem(CHUNK_URL_RECOVERY_KEY) === url) return false;
     sessionStorage.setItem(CHUNK_URL_RECOVERY_KEY, url);
     chunkReloadStarted = true;
+    noteReloadReason(`page file failed to load, retrying it once (${url})`);
     void purgeStaleAppCaches(url).finally(() => {
       try {
         reloadDocumentBypassingCache();

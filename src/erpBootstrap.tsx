@@ -12,7 +12,9 @@ import { ensurePosAppSession } from "@/lib/posCartPersistence";
 import { initScrollWheelFix } from "@/lib/scrollWheel";
 import { initAppTheme } from "@/lib/appTheme";
 import { initMainThreadViolationProbe } from "@/lib/mainThreadViolationProbe";
+import { recordPageLoad } from "@/lib/reloadReason";
 
+recordPageLoad();
 recoverElectronOAuthErrorPage();
 initMainThreadViolationProbe();
 

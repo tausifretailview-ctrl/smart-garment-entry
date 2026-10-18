@@ -1,6 +1,7 @@
 import { isElectronShell } from "@/lib/electronShell";
 import { readPosCartSnapshot } from "@/lib/posCartPersistence";
 import { hasUnsavedEntryWork } from "@/lib/unsavedWorkGuard";
+import { noteReloadReason } from "@/lib/reloadReason";
 
 type ElectronReloadApi = {
   isElectron?: boolean;
@@ -106,8 +107,11 @@ async function clearServiceWorkerAndCaches(): Promise<void> {
  * Manual refresh from the header — fetches the latest web build from the server.
  * Desktop installer updates are checked on startup and via Help → Check for Updates.
  */
-export async function reloadAppWithUpdateCheck(): Promise<void> {
+export async function reloadAppWithUpdateCheck(
+  reason = "Refresh / Reload button",
+): Promise<void> {
   const api = getElectronAPI();
+  noteReloadReason(reason);
 
   if (isElectronShell()) {
     await clearServiceWorkerAndCaches();
@@ -215,7 +219,7 @@ export function startSilentUpdateWhenSafe(
       } catch (error) {
         console.warn("Silent update beforeReload failed:", error);
       }
-      await reloadAppWithUpdateCheck();
+      await reloadAppWithUpdateCheck("new version installed while the tab was hidden (silent update)");
     } catch (error) {
       console.warn("Silent update reload failed:", error);
     } finally {

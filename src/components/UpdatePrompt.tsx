@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRegisterSW } from "virtual:pwa-register/react";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, X } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -45,6 +44,40 @@ function snoozeUpdatePrompt(): void {
 }
 
 /**
+ * Registers /sw.js ourselves instead of `virtual:pwa-register`. Its prompt mode
+ * calls window.location.reload() the moment a new worker takes control when that
+ * worker was found more than 60s after page load (workbox "external" worker). The
+ * worker uses skipWaiting + clientsClaim, so every open tab reloaded within
+ * seconds of each deploy — POS cart, open purchase bill and all — with nothing
+ * in the console. Now a takeover only flags "update ready" and the silent
+ * hidden-tab reload / banner below decides when to reload.
+ */
+function useServiceWorkerUpdated(): boolean {
+  const [updated, setUpdated] = useState(false);
+
+  useEffect(() => {
+    if (!import.meta.env.PROD || !("serviceWorker" in navigator)) return;
+    const hadController = Boolean(navigator.serviceWorker.controller);
+
+    const onControllerChange = () => {
+      // First install on this browser also fires controllerchange (clientsClaim) — not an update.
+      if (hadController) setUpdated(true);
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+
+    navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch((error) => {
+      console.error("SW registration error:", error);
+    });
+
+    return () => {
+      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+    };
+  }, []);
+
+  return updated;
+}
+
+/**
  * Prompt-mode PWA update — silent reload when idle/hidden; banner after fallback.
  * Installed (standalone) PWAs check for SW updates more often and surface the
  * banner sooner so shops do not sit on a dead precache after deploy.
@@ -60,14 +93,7 @@ export function UpdatePrompt() {
   orgIdRef.current = currentOrganization?.id;
   const standalone = isStandalonePwa();
 
-  const {
-    needRefresh: [needRefresh],
-    updateServiceWorker,
-  } = useRegisterSW({
-    onRegisterError(error) {
-      console.error("SW registration error:", error);
-    },
-  });
+  const needRefresh = useServiceWorkerUpdated();
 
   // Installed PWA: poll SW updates often + on every focus so deploys do not leave a waiting worker all day.
   useEffect(() => {
@@ -121,33 +147,19 @@ export function UpdatePrompt() {
         setSnoozed(isUpdateSnoozed());
         setAllowBanner(true);
       },
-      beforeReload: async () => {
-        try {
-          await updateServiceWorker(true);
-        } catch (error) {
-          console.warn("Service worker activate failed:", error);
-        }
-      },
     });
 
     return () => session.stop();
-  }, [needRefresh, updateToken, updateServiceWorker, standalone]);
+  }, [needRefresh, updateToken, standalone]);
 
   const handleReload = useCallback(async () => {
     if (reloading) return;
     if (!confirmReloadIfPosCartBusy(currentOrganization?.id)) return;
 
     setReloading(true);
-    try {
-      // Activate waiting worker when possible; may not reload on all browsers.
-      await updateServiceWorker(true);
-    } catch (error) {
-      console.warn("Service worker activate failed:", error);
-    }
-
     // Always hard-reload with cache bust — fixes "Reload clicked but nothing happens".
-    await reloadAppWithUpdateCheck();
-  }, [currentOrganization?.id, reloading, updateServiceWorker]);
+    await reloadAppWithUpdateCheck("Update available banner → Reload");
+  }, [currentOrganization?.id, reloading]);
 
   const handleLater = useCallback(() => {
     snoozeUpdatePrompt();

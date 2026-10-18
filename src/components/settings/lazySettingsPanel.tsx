@@ -37,7 +37,9 @@ function SettingsPanelLoading() {
     let cancelled = false;
     void newerServerEntryScript().then((serverEntry) => {
       if (cancelled || !serverEntry || hasUnsavedEntryWork()) return;
-      if (claimNewerBuildReload(serverEntry)) void reloadAppWithUpdateCheck();
+      if (claimNewerBuildReload(serverEntry)) {
+        void reloadAppWithUpdateCheck("page was stuck loading and a newer version was on the server");
+      }
     });
     return () => {
       cancelled = true;

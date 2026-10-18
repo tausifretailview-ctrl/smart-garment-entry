@@ -154,6 +154,16 @@
             }),
             8000
           ).then(function () {
+            try {
+              localStorage.setItem(
+                "ezzy_reload_pending",
+                JSON.stringify({
+                  at: new Date().toISOString(),
+                  reason: "app files failed to load at startup (boot guard)" + (failedUrl ? " " + failedUrl : ""),
+                  path: location.pathname + location.search,
+                })
+              );
+            } catch (e) {}
             location.reload();
           });
         }
