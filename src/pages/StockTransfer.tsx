@@ -110,7 +110,7 @@ const StockTransfer = () => {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<TransferRow | null>(null);
 
-  const { data: siblings = [], isLoading: siblingsLoading } = useQuery({
+  const { data: siblings = [], isLoading: siblingsLoading, isError: siblingsError } = useQuery({
     queryKey: ["sibling-shops", orgId],
     enabled: !!orgId,
     queryFn: async (): Promise<SiblingShop[]> => {
@@ -328,9 +328,14 @@ const StockTransfer = () => {
         <TabsContent value="new" className="space-y-4">
           {!isAdmin ? (
             <Card className="p-4 text-sm text-muted-foreground">Only the shop owner/admin can transfer stock.</Card>
+          ) : siblingsError ? (
+            <Card className="p-4 text-sm text-muted-foreground">
+              Stock Transfer is not set up on the database yet. Run the stock transfer SQL once, then reload this page.
+            </Card>
           ) : !siblingsLoading && siblings.length === 0 ? (
             <Card className="p-4 text-sm text-muted-foreground">
-              No other shop found. Stock can be sent to another shop where your login is also admin.
+              No other shop found for this login. In the other shop, open Organization Management, use Add Existing User with
+              this login's email as Admin, then reload this page and pick the shop under "To shop".
             </Card>
           ) : (
             <>
