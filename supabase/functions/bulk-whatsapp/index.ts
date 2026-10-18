@@ -181,6 +181,22 @@ async function createCampaign(
   if (!recipients.length) return json({ error: "Add at least one valid number" }, 400);
   if (recipients.length > MAX_RECIPIENTS) return json({ error: `At most ${MAX_RECIPIENTS} numbers per send` }, 400);
 
+  // Customers who replied STOP to this shop are never sent bulk messages.
+  const optedOut = new Set<string>();
+  for (let i = 0; i < recipients.length; i += 500) {
+    const { data } = await admin
+      .from("bulk_whatsapp_optouts")
+      .select("phone")
+      .eq("organization_id", organizationId)
+      .in("phone", recipients.slice(i, i + 500).map((r) => r.phone));
+    for (const row of data ?? []) optedOut.add(row.phone);
+  }
+  if (optedOut.size) {
+    const keep = recipients.filter((r) => !optedOut.has(r.phone));
+    if (!keep.length) return json({ error: "All these numbers have unsubscribed (replied STOP)" }, 400);
+    recipients.splice(0, recipients.length, ...keep);
+  }
+
   const status = await bulkGateway(`/sessions/${sessionId}/status`);
   if (!status.ok || status.data.status !== "connected") {
     return json({ error: "Link your WhatsApp first (scan the QR on this page)" }, 400);
@@ -246,7 +262,7 @@ async function createCampaign(
     await setCampaignStatus(admin, campaign.id, "failed", err);
     return json({ error: err }, job.status || 502);
   }
-  return json({ success: true, campaignId: campaign.id, total: recipients.length });
+  return json({ success: true, campaignId: campaign.id, total: recipients.length, unsubscribed: optedOut.size });
 }
 
 async function setCampaignStatus(admin: SupabaseClient, campaignId: string, status: string, note: string | null) {
@@ -270,10 +286,11 @@ async function handleGateway(admin: SupabaseClient, action: string, body: Record
     const campaignId = String(body.campaignId ?? "");
     const recipientId = String(body.recipientId ?? "");
     const sent = body.status === "sent";
+    const skipped = body.status === "skipped";
     const { error } = await admin
       .from("bulk_whatsapp_recipients")
       .update({
-        status: sent ? "sent" : "failed",
+        status: sent ? "sent" : skipped ? "skipped" : "failed",
         wa_message_id: body.messageId ? String(body.messageId) : null,
         error: sent ? null : String(body.error ?? "Send failed").slice(0, 300),
         sent_at: sent ? String(body.at ?? new Date().toISOString()) : null,
@@ -318,6 +335,41 @@ async function handleGateway(admin: SupabaseClient, action: string, body: Record
     }
     for (const id of touched) await admin.rpc("refresh_bulk_whatsapp_counts", { p_campaign_id: id });
     return json({ success: true, updated: touched.size });
+  }
+
+  if (action === "gateway-optout") {
+    // Session "u_<userId>": the unsubscribe applies to every shop this user sent bulk messages to that number from.
+    const sessionId = String(body.sessionId ?? "");
+    const userId = sessionId.startsWith("u_") ? sessionId.slice(2) : "";
+    const phone = normalizePhone(String(body.phone ?? ""));
+    if (!userId || !phone) return json({ error: "sessionId and phone are required" }, 400);
+    const { data: campaigns } = await admin
+      .from("bulk_whatsapp_campaigns")
+      .select("id")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(500);
+    const campaignIds = (campaigns ?? []).map((c) => c.id);
+    if (!campaignIds.length) return json({ success: true, organizations: 0 });
+    const { data: hits } = await admin
+      .from("bulk_whatsapp_recipients")
+      .select("organization_id")
+      .eq("phone", phone)
+      .in("campaign_id", campaignIds)
+      .limit(50);
+    const orgIds = [...new Set((hits ?? []).map((h) => h.organization_id as string))];
+    if (!orgIds.length) return json({ success: true, organizations: 0 });
+    if (body.subscribe === true) {
+      await admin.from("bulk_whatsapp_optouts").delete().eq("phone", phone).in("organization_id", orgIds);
+    } else {
+      await admin
+        .from("bulk_whatsapp_optouts")
+        .upsert(orgIds.map((organization_id) => ({ organization_id, phone, source: "reply" })), {
+          onConflict: "organization_id,phone",
+          ignoreDuplicates: true,
+        });
+    }
+    return json({ success: true, organizations: orgIds.length });
   }
 
   if (action === "gateway-campaign") {

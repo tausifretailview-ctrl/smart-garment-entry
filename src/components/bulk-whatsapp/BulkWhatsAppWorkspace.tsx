@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { format } from "date-fns";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCheck, FileSpreadsheet, ImagePlus, Loader2, MessagesSquare, Plus, Send, ShieldAlert, Trash2, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import type * as XLSXType from "xlsx";
@@ -23,7 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { BulkWhatsAppLink } from "./BulkWhatsAppLink";
 import { BulkWhatsAppReport, BulkWhatsAppStats } from "./BulkWhatsAppReport";
-import { callBulkWhatsApp } from "./bulkWhatsAppApi";
+import { callBulkWhatsApp, fetchOptOutCount } from "./bulkWhatsAppApi";
 import { CustomerMasterPicker } from "./CustomerMasterPicker";
 import {
   estimateBulkMinutes,
@@ -42,6 +42,8 @@ const MAX_CONTACTS = 5000;
 const MAX_MEDIA_BYTES = 16 * 1024 * 1024;
 const MEDIA_ACCEPT = "image/jpeg,image/png,image/webp,video/mp4,application/pdf";
 const SHOWN_CONTACTS = 200;
+/** Added under the message so customers know how to stop bulk messages (STOP is handled by the WhatsApp server). */
+const STOP_LINE = "Reply STOP to stop these messages";
 
 /**
  * The whole Bulk WhatsApp screen: link, compose, numbers, send and report. Used by the ERP page
@@ -70,6 +72,13 @@ export function BulkWhatsAppWorkspace({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  const [addStopLine, setAddStopLine] = useState(true);
+  const optOuts = useQuery({
+    queryKey: ["bulk-whatsapp-optouts", orgId],
+    queryFn: () => fetchOptOutCount(orgId),
+    enabled: Boolean(orgId),
+    staleTime: 60_000,
+  });
   const messageRef = useRef<HTMLTextAreaElement>(null);
   const excelRef = useRef<HTMLInputElement>(null);
   const mediaRef = useRef<HTMLInputElement>(null);
@@ -128,7 +137,8 @@ export function BulkWhatsAppWorkspace({
     setMessage(`${message.slice(0, at)}{name}${message.slice(at)}`);
   };
 
-  const preview = useMemo(() => fillBulkMessage(message, contacts[0]?.name ?? "Ravi"), [message, contacts]);
+  const outgoing = addStopLine ? (message.trim() ? `${message.trimEnd()}\n\n_${STOP_LINE}_` : `_${STOP_LINE}_`) : message;
+  const preview = useMemo(() => fillBulkMessage(outgoing, contacts[0]?.name ?? "Ravi"), [outgoing, contacts]);
   const canSend = linked && contacts.length > 0 && (message.trim() !== "" || media !== null) && !sending;
 
   const send = async () => {
@@ -145,15 +155,16 @@ export function BulkWhatsAppWorkspace({
         if (error) throw new Error(`Poster upload failed: ${error.message}`);
         mediaUrl = supabase.storage.from("bulk-whatsapp-media").getPublicUrl(path).data.publicUrl;
       }
-      const res = await callBulkWhatsApp<{ total?: number }>(orgId, "create", {
+      const res = await callBulkWhatsApp<{ total?: number; unsubscribed?: number }>(orgId, "create", {
         name: name.trim(),
-        message,
+        message: outgoing,
         mediaUrl,
         mediaType: media?.type ?? null,
         mediaName: media?.name ?? null,
         recipients: contacts,
       });
-      toast.success(`Sending to ${res.total ?? contacts.length} numbers. You can close this page; it keeps sending.`);
+      const skipped = res.unsubscribed ? ` ${res.unsubscribed} unsubscribed ${res.unsubscribed === 1 ? "number was" : "numbers were"} left out.` : "";
+      toast.success(`Sending to ${res.total ?? contacts.length} numbers.${skipped} You can close this page; it keeps sending.`);
       setContacts([]);
       setName("");
       await queryClient.invalidateQueries({ queryKey: ["bulk-whatsapp-campaigns", orgId] });
@@ -221,6 +232,17 @@ export function BulkWhatsAppWorkspace({
             <p className="text-[11px] text-slate-500">
               {"{name}"} becomes each customer's name (or "Customer" when there is none). *bold* and _italic_ work like in WhatsApp.
             </p>
+            <label className="flex cursor-pointer items-start gap-2 rounded-lg bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={addStopLine}
+                onChange={(e) => setAddStopLine(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-emerald-600"
+              />
+              <span>
+                Add <b>"{STOP_LINE}"</b> at the end. Customers who reply STOP are never sent bulk messages again (START undoes it).
+              </span>
+            </label>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-slate-600">Poster (photo, MP4 video or PDF, optional)</Label>
@@ -332,7 +354,10 @@ export function BulkWhatsAppWorkspace({
               </span>
             </button>
           </div>
-          <p className="text-[11px] text-slate-500">Duplicate numbers are removed automatically.</p>
+          <p className="text-[11px] text-slate-500">
+            Duplicate numbers are removed automatically.
+            {optOuts.data ? ` ${optOuts.data.toLocaleString("en-IN")} unsubscribed ${optOuts.data === 1 ? "customer is" : "customers are"} always left out.` : ""}
+          </p>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-slate-600">Or type numbers, one per line (name optional)</Label>
             <Textarea
