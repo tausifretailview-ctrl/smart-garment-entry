@@ -32,6 +32,19 @@ function slabsFromConfig(slabs: DailyIncentiveBillSlab[], starterSlabs: boolean)
     }));
 }
 
+/** Supabase errors are plain objects, not Error, so read message/code directly. */
+function incentiveSaveErrorText(err: unknown): string {
+  const e = (err ?? {}) as { message?: string; code?: string; details?: string };
+  if (e.code === "42P01" || /does not exist/i.test(e.message ?? "")) {
+    return "Bill slab table is missing on the server. Run the daily incentive SQL, then save again.";
+  }
+  if (e.code === "42501" || /row-level security|permission denied/i.test(e.message ?? "")) {
+    return "Your login is not allowed to change these settings.";
+  }
+  const text = [e.message, e.details].filter(Boolean).join(" ");
+  return text || "Save failed";
+}
+
 export function DailyIncentiveSettingsCard({
   organizationId,
   isEnabled,
@@ -85,7 +98,7 @@ export function DailyIncentiveSettingsCard({
     } catch (err) {
       toast({
         title: "Could not save incentive settings",
-        description: err instanceof Error ? err.message : "Save failed",
+        description: incentiveSaveErrorText(err),
         variant: "destructive",
       });
     } finally {
