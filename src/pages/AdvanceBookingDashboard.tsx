@@ -22,7 +22,13 @@ import { toast } from "sonner";
 import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
-import { AdvanceBookingReceipt } from "@/components/AdvanceBookingReceipt";
+import {
+  AdvanceBookingReceipt,
+  AdvanceReceiptPaperSelect,
+  advanceReceiptPageStyle,
+  initialAdvanceReceiptPaper,
+  type AdvanceReceiptPaper,
+} from "@/components/AdvanceBookingReceipt";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { useSettings } from "@/hooks/useSettings";
 import { useSearchParams } from "react-router-dom";
@@ -138,15 +144,17 @@ export default function AdvanceBookingDashboard() {
    const [editTransactionId, setEditTransactionId] = useState("");
    const openCustomerAccount = useOpenCustomerAccount();
    const [printAdvance, setPrintAdvance] = useState<any>(null);
-   const [printPaperSize, setPrintPaperSize] = useState<"A4" | "A5">("A5");
+   const [printPaperSize, setPrintPaperSize] = useState<AdvanceReceiptPaper>("A5");
    const [printDialogOpen, setPrintDialogOpen] = useState(false);
    const dashPrintRef = useRef<HTMLDivElement>(null);
    const { data: settings } = useSettings();
    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
+   const dashPrintPageStyle = advanceReceiptPageStyle(printPaperSize);
    const handleDashPrint = useReactToPrint({
      contentRef: dashPrintRef,
+     ...(dashPrintPageStyle ? { pageStyle: dashPrintPageStyle } : {}),
      documentTitle: `Advance-${printAdvance?.advance_number || "Receipt"}`,
      onAfterPrint: () => {
        setPrintDialogOpen(false);
@@ -156,6 +164,7 @@ export default function AdvanceBookingDashboard() {
 
    const openPrintDialog = (adv: any) => {
      setPrintAdvance(adv);
+     setPrintPaperSize(initialAdvanceReceiptPaper(settings));
      setPrintDialogOpen(true);
    };
 
@@ -982,13 +991,7 @@ export default function AdvanceBookingDashboard() {
                </div>
                <div className="space-y-2">
                  <Label>Paper Size</Label>
-                 <Select value={printPaperSize} onValueChange={(v) => setPrintPaperSize(v as "A4" | "A5")}>
-                   <SelectTrigger><SelectValue /></SelectTrigger>
-                   <SelectContent>
-                     <SelectItem value="A5">A5 (Half Page)</SelectItem>
-                     <SelectItem value="A4">A4 (Full Page)</SelectItem>
-                   </SelectContent>
-                 </Select>
+                 <AdvanceReceiptPaperSelect value={printPaperSize} onChange={setPrintPaperSize} />
                </div>
              </div>
            )}

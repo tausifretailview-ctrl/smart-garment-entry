@@ -1,5 +1,86 @@
 import { forwardRef } from "react";
 import { format } from "date-fns";
+import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
+import {
+  getPosDocumentPrintPageStyle,
+  resolvePosBillFormatFromSaleSettings,
+  resolvePosThermalPaper,
+} from "@/utils/invoicePrintFormat";
+import { getThermalReceiptPageStyleFragment } from "@/utils/thermalReceiptPrintDocument";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+export type AdvanceReceiptPaper = "A4" | "A5" | PosThermalPaper;
+
+export const isThermalAdvancePaper = (paper: AdvanceReceiptPaper): paper is PosThermalPaper =>
+  paper === "80mm" || paper === "58mm";
+
+/** Shops whose POS bill is thermal get the thermal roll by default (Settings → POS paper width). */
+export function defaultAdvanceReceiptPaper(settings: unknown): AdvanceReceiptPaper {
+  const s = settings as {
+    sale_settings?: Parameters<typeof resolvePosBillFormatFromSaleSettings>[0];
+    bill_barcode_settings?: { direct_print_pos_paper?: string } | null;
+  } | null | undefined;
+  if (!s) return "A5";
+  if (resolvePosBillFormatFromSaleSettings(s.sale_settings ?? null) !== "thermal") return "A5";
+  return resolvePosThermalPaper(s.bill_barcode_settings?.direct_print_pos_paper);
+}
+
+const PAPER_STORAGE_KEY = "ezzy.advanceReceiptPaper";
+const PAPERS: AdvanceReceiptPaper[] = ["A4", "A5", "80mm", "58mm"];
+
+/** Last paper picked on this device, else the shop default. */
+export function initialAdvanceReceiptPaper(settings: unknown): AdvanceReceiptPaper {
+  try {
+    const saved = localStorage.getItem(PAPER_STORAGE_KEY) as AdvanceReceiptPaper | null;
+    if (saved && PAPERS.includes(saved)) return saved;
+  } catch {
+    // storage unavailable
+  }
+  return defaultAdvanceReceiptPaper(settings);
+}
+
+export function rememberAdvanceReceiptPaper(paper: AdvanceReceiptPaper): void {
+  try {
+    localStorage.setItem(PAPER_STORAGE_KEY, paper);
+  } catch {
+    // storage unavailable
+  }
+}
+
+export function AdvanceReceiptPaperSelect({
+  value,
+  onChange,
+}: {
+  value: AdvanceReceiptPaper;
+  onChange: (paper: AdvanceReceiptPaper) => void;
+}) {
+  return (
+    <Select
+      value={value}
+      onValueChange={(v) => {
+        const paper = v as AdvanceReceiptPaper;
+        rememberAdvanceReceiptPaper(paper);
+        onChange(paper);
+      }}
+    >
+      <SelectTrigger>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="80mm">Thermal 80mm (Receipt Printer)</SelectItem>
+        <SelectItem value="58mm">Thermal 58mm (Receipt Printer)</SelectItem>
+        <SelectItem value="A5">A5 (Half Page)</SelectItem>
+        <SelectItem value="A4">A4 (Full Page)</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+}
+
+/** react-to-print `pageStyle` for thermal rolls; A4/A5 keep the library default. */
+export function advanceReceiptPageStyle(paper: AdvanceReceiptPaper): string | undefined {
+  if (!isThermalAdvancePaper(paper)) return undefined;
+  return getPosDocumentPrintPageStyle("thermal", paper, getThermalReceiptPageStyleFragment(paper));
+}
 
 interface AdvanceReceiptData {
   advanceNumber: string;
@@ -24,7 +105,7 @@ interface CompanyDetails {
 interface AdvanceBookingReceiptProps {
   data: AdvanceReceiptData;
   company: CompanyDetails;
-  paperSize: "A4" | "A5";
+  paperSize: AdvanceReceiptPaper;
 }
 
 const paymentMethodLabel = (method: string) => {
@@ -64,6 +145,10 @@ export const AdvanceBookingReceipt = forwardRef<HTMLDivElement, AdvanceBookingRe
   ({ data, company, paperSize }, ref) => {
     const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const isA5 = paperSize === "A5";
+
+    if (isThermalAdvancePaper(paperSize)) {
+      return <AdvanceThermalReceipt ref={ref} data={data} company={company} paper={paperSize} />;
+    }
 
     return (
       <div ref={ref} className="invoice-print-source-screen">
@@ -231,3 +316,120 @@ export const AdvanceBookingReceipt = forwardRef<HTMLDivElement, AdvanceBookingRe
 );
 
 AdvanceBookingReceipt.displayName = "AdvanceBookingReceipt";
+
+const AdvanceThermalReceipt = forwardRef<
+  HTMLDivElement,
+  { data: AdvanceReceiptData; company: CompanyDetails; paper: PosThermalPaper }
+>(({ data, company, paper }, ref) => {
+  const is58 = paper === "58mm";
+  const contentWidth = is58 ? "52mm" : "72mm";
+  const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const base: React.CSSProperties = {
+    width: contentWidth,
+    maxWidth: contentWidth,
+    padding: is58 ? "2mm 1mm 2mm 2mm" : "2mm 2mm 2mm 4mm",
+    backgroundColor: "white",
+    fontFamily: "'Courier New', Courier, monospace",
+    fontSize: is58 ? "11px" : "13px",
+    lineHeight: 1.45,
+    color: "#000",
+    fontWeight: 700,
+    boxSizing: "border-box",
+    overflow: "hidden",
+    WebkitPrintColorAdjust: "exact",
+    printColorAdjust: "exact",
+  };
+  const center: React.CSSProperties = { textAlign: "center", width: "100%" };
+  const row: React.CSSProperties = { display: "flex", justifyContent: "space-between", width: "100%", gap: "4px" };
+  const dblLine: React.CSSProperties = { borderTop: "2px solid #000", margin: "3px 0" };
+  const dashLine: React.CSSProperties = { borderTop: "1px dashed #000", margin: "3px 0" };
+  const right: React.CSSProperties = { textAlign: "right", wordBreak: "break-word" };
+
+  return (
+    <div ref={ref} className={`invoice-print-source-screen${is58 ? " thermal-paper-58" : ""}`}>
+      <div
+        className={`thermal-print-80mm thermal-receipt-container advance-thermal-receipt${is58 ? " thermal-paper-58" : ""}`}
+        style={base}
+        data-print-format="thermal"
+        data-thermal-paper={paper}
+      >
+        <div style={dblLine} />
+        <div style={{ ...center, marginBottom: "4px" }}>
+          <div style={{ fontWeight: 900, fontSize: is58 ? "14px" : "16px", textTransform: "uppercase", wordBreak: "break-word" }}>
+            {company.businessName}
+          </div>
+          {company.address && (
+            <div style={{ fontSize: "11px", lineHeight: 1.3, wordBreak: "break-word", marginTop: "2px" }}>{company.address}</div>
+          )}
+          {company.phone && <div style={{ fontSize: "11px" }}>Ph: {company.phone}</div>}
+          {company.gstNumber && <div style={{ fontSize: "11px", fontWeight: 900 }}>GSTIN: {company.gstNumber}</div>}
+        </div>
+        <div style={dblLine} />
+
+        <div style={{ ...center, fontWeight: 900, fontSize: is58 ? "13px" : "15px", letterSpacing: "0.5px", margin: "2px 0" }}>
+          ADVANCE RECEIPT
+        </div>
+        <div style={dashLine} />
+
+        <div style={row}>
+          <span>Receipt No</span>
+          <span style={right}>{data.advanceNumber}</span>
+        </div>
+        <div style={row}>
+          <span>Date</span>
+          <span style={right}>{data.advanceDate ? format(new Date(data.advanceDate), "dd/MM/yyyy") : "-"}</span>
+        </div>
+        <div style={row}>
+          <span>Customer</span>
+          <span style={right}>{data.customerName}</span>
+        </div>
+        {data.customerPhone && (
+          <div style={row}>
+            <span>Mobile</span>
+            <span style={right}>{data.customerPhone}</span>
+          </div>
+        )}
+        <div style={dashLine} />
+
+        <div style={row}>
+          <span>Payment Mode</span>
+          <span style={right}>{paymentMethodLabel(data.paymentMethod)}</span>
+        </div>
+        {data.chequeNumber && (
+          <div style={row}>
+            <span>Cheque No</span>
+            <span style={right}>{data.chequeNumber}</span>
+          </div>
+        )}
+        {data.transactionId && (
+          <div style={row}>
+            <span>Txn ID</span>
+            <span style={right}>{data.transactionId}</span>
+          </div>
+        )}
+        {data.description && (
+          <div style={{ wordBreak: "break-word", marginTop: "2px" }}>Note: {data.description}</div>
+        )}
+        <div style={dblLine} />
+
+        <div style={{ ...row, fontWeight: 900, fontSize: is58 ? "14px" : "17px", margin: "2px 0" }}>
+          <span>ADVANCE</span>
+          <span>₹{fmt(data.amount)}</span>
+        </div>
+        <div style={dblLine} />
+        <div style={{ fontSize: "11px", wordBreak: "break-word" }}>{numberToWords(data.amount)}</div>
+        <div style={dashLine} />
+
+        <div style={{ ...row, marginTop: "24px", fontSize: "11px" }}>
+          <span style={{ borderTop: "1px solid #000", paddingTop: "2px" }}>Customer Sign</span>
+          <span style={{ borderTop: "1px solid #000", paddingTop: "2px" }}>Authorised Sign</span>
+        </div>
+        <div style={{ ...center, marginTop: "8px", fontSize: "11px" }}>Thank you!</div>
+        <div style={dblLine} />
+      </div>
+    </div>
+  );
+});
+
+AdvanceThermalReceipt.displayName = "AdvanceThermalReceipt";
