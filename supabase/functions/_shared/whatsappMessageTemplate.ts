@@ -34,8 +34,9 @@ export function resolveWhatsAppTemplateDbType(templateType: string): string {
   return t;
 }
 
+/** Whole rupees, like the printed bill total (₹800.4 → ₹800). */
 function formatInr(value: unknown): string {
-  const num = Number(value ?? 0);
+  const num = Math.round(Number(value ?? 0) || 0);
   return `₹${num.toLocaleString("en-IN")}`;
 }
 
@@ -201,7 +202,7 @@ export function buildWappConnectInvoiceFallbackCaption(
   const customer = String(saleData.customer_name || "Customer");
   const invoiceNo = String(saleData.sale_number || saleData.invoice_number || "invoice");
   const amount = saleData.net_amount ?? saleData.amount ?? 0;
-  const amountText = `₹${Number(amount).toLocaleString("en-IN")}`;
+  const amountText = formatInr(amount);
   const dateText = formatDateIn(saleData.sale_date || saleData.invoice_date);
   const shop = String(saleData.organization_name || orgName || "Our store");
 

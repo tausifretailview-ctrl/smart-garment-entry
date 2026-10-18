@@ -1430,7 +1430,7 @@ export const useSaveSale = () => {
               month: 'short',
               year: 'numeric'
             });
-            const formattedAmount = `${Number(saleData.netAmount).toLocaleString('en-IN')}`;
+            const formattedAmount = `${Math.round(Number(saleData.netAmount) || 0).toLocaleString('en-IN')}`;
 
             // Build message text (used as fallback if no template)
             const messageText = `Hello ${resolveWhatsAppCustomerName(saleData.customerName)},\n\nYour invoice ${saleNumber} has been created.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\n\nThank you for your business!\n${companyName}`;
