@@ -37,8 +37,10 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import type { SearchableSelectOption } from "@/components/ui/searchable-select";
 import { parseItemWiseUserFilter } from "@/utils/itemWiseSalesUserFilter";
+import { buildSupplierWiseSales, fetchSaleItemSuppliers } from "@/utils/saleItemSupplier";
 
 type PeriodType = "daily" | "monthly" | "quarterly" | "yearly" | "all" | "custom";
+type ItemWiseTab = "itemwise" | "customerwise" | "brandwise" | "saledetails" | "supplierwise";
 
 interface SaleItemData {
   barcode: string | null;
@@ -196,7 +198,10 @@ export default function ItemWiseSalesReport() {
   const [selectedCustomer, setSelectedCustomer] = useState<string>("all");
   const [selectedColor, setSelectedColor] = useState<string>("all");
   const [selectedUser, setSelectedUser] = useState<string>("all");
-  const [activeTab, setActiveTab] = useState<"itemwise" | "customerwise" | "brandwise" | "saledetails">("itemwise");
+  const [activeTab, setActiveTab] = useState<ItemWiseTab>("itemwise");
+  const [supplierLevel, setSupplierLevel] = useState<"product" | "variant">("product");
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [expandedSupplier, setExpandedSupplier] = useState<string | null>(null);
   const [saleDetailsGroupBy, setSaleDetailsGroupBy] = useState<"product_name" | "brand" | "category" | "department" | "barcode">("product_name");
   const [saleDetailsSearch, setSaleDetailsSearch] = useState("");
   const [saleDetailsPage, setSaleDetailsPage] = useState(1);
@@ -839,6 +844,74 @@ export default function ItemWiseSalesReport() {
       .sort((a, b) => b.total_amount - a.total_amount);
   }, [saleItems, selectedBrand, selectedCategory, selectedDepartment, selectedColor, searchQuery]);
 
+  // Supplier per sold item = supplier of its latest purchase bill (barcode/size first, then product).
+  // Only fetched once the Supplier tab is opened.
+  const {
+    data: supplierLookup,
+    isLoading: supplierLookupLoading,
+    isError: supplierLookupError,
+    isPlaceholderData: supplierLookupStale,
+  } = useQuery({
+    queryKey: ["item-wise-sales-suppliers", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer, selectedUser, saleItems.length],
+    queryFn: () => fetchSaleItemSuppliers(saleItems, currentOrganization!.id),
+    enabled: !!currentOrganization?.id && activeTab === "supplierwise" && !isFetching && saleItems.length > 0,
+    ...REPORT_CACHE,
+  });
+
+  // Supplier-wise aggregation with its products ranked by qty sold
+  const supplierWiseData = useMemo(() => {
+    // Previous period's lookup would mislabel new items as "no purchase" until the refetch lands.
+    if (!supplierLookup || supplierLookupStale) return [];
+    const lines = saleItems.filter((item: any) => {
+      const lineColor = item.color || item.products?.color || null;
+      if (selectedBrand !== "all" && !filterTextEquals(item.products?.brand, selectedBrand)) return false;
+      if (selectedCategory !== "all" && !filterTextEquals(item.products?.category, selectedCategory)) return false;
+      if (selectedDepartment !== "all" && !filterTextEquals(item.products?.style, selectedDepartment)) return false;
+      if (selectedColor !== "all" && !filterTextEquals(lineColor, selectedColor)) return false;
+      if (
+        searchQuery.trim() &&
+        !multiTokenMatch(
+          searchQuery,
+          item.product_name,
+          item.barcode,
+          item.products?.brand,
+          item.products?.category,
+          item.products?.style,
+          lineColor,
+          item.size,
+        )
+      ) {
+        return false;
+      }
+      return true;
+    });
+    let rows = buildSupplierWiseSales(lines, supplierLookup, supplierLevel);
+    if (supplierSearch.trim()) {
+      rows = rows.filter((r) => multiTokenMatch(supplierSearch, r.supplier_name));
+    }
+    return rows;
+  }, [saleItems, supplierLookup, supplierLookupStale, supplierLevel, supplierSearch, selectedBrand, selectedCategory, selectedDepartment, selectedColor, searchQuery]);
+
+  const supplierTotals = useMemo(() => ({
+    total_qty: supplierWiseData.reduce((s, r) => s + r.total_qty, 0),
+    total_amount: supplierWiseData.reduce((s, r) => s + r.total_amount, 0),
+    products: supplierWiseData.reduce((s, r) => s + r.products.length, 0),
+  }), [supplierWiseData]);
+
+  // Product columns shown in the supplier drill-down: setting on + some value present
+  const supplierProductCols = useMemo(() => {
+    const all = supplierWiseData.flatMap((r) => r.products);
+    const hasValue = (getter: (p: (typeof all)[number]) => string) => all.some((p) => !isBlankSalesField(getter(p)));
+    return {
+      barcode: supplierLevel === "variant" && hasValue((p) => p.barcode),
+      brand: showBrand && hasValue((p) => p.brand),
+      category: showCategory && hasValue((p) => p.category),
+      style: showStyle && hasValue((p) => p.style),
+      color: showColor && hasValue((p) => p.color),
+      size: showSize && hasValue((p) => p.size),
+    };
+  }, [supplierWiseData, supplierLevel, showBrand, showCategory, showStyle, showColor, showSize]);
+
   // Summary via RPC (single JSON instead of client-side aggregation; skipped when range is chunked)
   const { data: rpcSummary } = useQuery({
     queryKey: ["item-sales-summary-rpc", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer],
@@ -1001,6 +1074,44 @@ export default function ItemWiseSalesReport() {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Sale Details");
       XLSX.writeFile(wb, `sale-details-${saleDetailsGroupBy}-${format(dateRange.from, "yyyy-MM-dd")}.xlsx`);
+    } else if (activeTab === "supplierwise") {
+      const exportRows: any[] = [];
+      supplierWiseData.forEach((row, i) => {
+        exportRows.push({
+          "Sr No": i + 1,
+          Supplier: row.supplier_name,
+          "Product Name": "",
+          ...(supplierProductCols.barcode ? { Barcode: "" } : {}),
+          [fieldLabels.brand]: "",
+          [fieldLabels.category]: "",
+          [fieldLabels.style]: "",
+          [fieldLabels.color]: "",
+          Size: "",
+          "Qty Sold": row.total_qty,
+          "Sale Value": Math.round(row.total_amount),
+          "Share %": supplierTotals.total_amount > 0 ? Number(((row.total_amount / supplierTotals.total_amount) * 100).toFixed(1)) : 0,
+        });
+        row.products.forEach((p) => {
+          exportRows.push({
+            "Sr No": "",
+            Supplier: "",
+            "Product Name": p.product_name,
+            ...(supplierProductCols.barcode ? { Barcode: p.barcode } : {}),
+            [fieldLabels.brand]: p.brand,
+            [fieldLabels.category]: p.category,
+            [fieldLabels.style]: p.style,
+            [fieldLabels.color]: p.color,
+            Size: p.size,
+            "Qty Sold": p.qty,
+            "Sale Value": Math.round(p.amount),
+            "Share %": "",
+          });
+        });
+      });
+      const ws = XLSX.utils.json_to_sheet(exportRows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Supplier-wise Sales");
+      XLSX.writeFile(wb, `supplier-wise-sales-${format(dateRange.from, "yyyy-MM-dd")}.xlsx`);
     } else if (activeTab === "brandwise") {
       const exportData = brandWiseData.map((item) => ({
         "Customer Name": item.customer_name,
@@ -1292,12 +1403,13 @@ export default function ItemWiseSalesReport() {
         </CardContent>
       </Card>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "itemwise" | "customerwise" | "brandwise" | "saledetails")} className="flex min-h-0 flex-1 flex-col">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ItemWiseTab)} className="flex min-h-0 flex-1 flex-col">
         <TabsList className="h-9 bg-slate-100 p-1 rounded-md shrink-0 w-fit print:hidden">
           <TabsTrigger value="itemwise" className="rounded text-sm font-semibold px-3 data-[state=active]:bg-white data-[state=active]:text-blue-700">Item-wise</TabsTrigger>
           <TabsTrigger value="customerwise" className="rounded text-sm font-semibold px-3 data-[state=active]:bg-white data-[state=active]:text-blue-700">Customer-wise</TabsTrigger>
           <TabsTrigger value="brandwise" className="rounded text-sm font-semibold px-3 data-[state=active]:bg-white data-[state=active]:text-blue-700">Brand-wise</TabsTrigger>
           <TabsTrigger value="saledetails" className="rounded text-sm font-semibold px-3 data-[state=active]:bg-white data-[state=active]:text-blue-700">Product Wise Sale</TabsTrigger>
+          <TabsTrigger value="supplierwise" className="rounded text-sm font-semibold px-3 data-[state=active]:bg-white data-[state=active]:text-blue-700">Supplier-wise</TabsTrigger>
         </TabsList>
 
         <TabsContent value="itemwise" className="mt-2 flex-1 min-h-0 flex flex-col focus-visible:outline-none data-[state=inactive]:hidden">
@@ -1760,6 +1872,145 @@ export default function ItemWiseSalesReport() {
                   )}
                 </Table>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="supplierwise" className="mt-2 flex-1 min-h-0 flex flex-col focus-visible:outline-none data-[state=inactive]:hidden">
+          <Card className="rounded-lg border border-slate-200 shadow-sm flex-1 min-h-0 flex flex-col overflow-hidden">
+            <CardHeader className="py-2 px-3 shrink-0 border-b border-slate-100 bg-white space-y-2">
+              <CardTitle className="text-sm font-semibold text-slate-700">
+                Supplier-wise Sale ({supplierWiseData.length.toLocaleString("en-IN")} suppliers, {supplierTotals.products.toLocaleString("en-IN")} {supplierLevel === "product" ? "products" : "items"})
+              </CardTitle>
+              <div className="flex flex-col md:flex-row gap-2 print:hidden">
+                <Select value={supplierLevel} onValueChange={(v) => setSupplierLevel(v as "product" | "variant")}>
+                  <SelectTrigger className="h-10 w-full md:w-56 border-slate-200 bg-slate-50 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="product">Products (sizes together)</SelectItem>
+                    <SelectItem value="variant">Barcode / size wise</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search supplier..."
+                    value={supplierSearch}
+                    onChange={(e) => setSupplierSearch(e.target.value)}
+                    className="h-10 pl-10 pr-9 no-uppercase border-slate-200 bg-slate-50 focus:bg-white text-sm"
+                  />
+                  {supplierSearch && (
+                    <button type="button" onClick={() => setSupplierSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-muted">
+                      <X className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground print:hidden">
+                Supplier = the supplier on the item's latest purchase bill. Tap a supplier to see its products, most sold first.
+              </p>
+            </CardHeader>
+            <CardContent className="p-0 flex-1 min-h-0 flex flex-col">
+              {(() => {
+                const detailCols = [
+                  supplierProductCols.barcode && { key: "barcode" as const, label: "Barcode" },
+                  supplierProductCols.brand && { key: "brand" as const, label: fieldLabels.brand },
+                  supplierProductCols.category && { key: "category" as const, label: fieldLabels.category },
+                  supplierProductCols.style && { key: "style" as const, label: fieldLabels.style },
+                  supplierProductCols.color && { key: "color" as const, label: fieldLabels.color },
+                  supplierProductCols.size && { key: "size" as const, label: "Size" },
+                ].filter(Boolean) as { key: "barcode" | "brand" | "category" | "style" | "color" | "size"; label: string }[];
+                const colSpan = 5 + detailCols.length;
+                const loading = isLoading || isFetching || supplierLookupLoading || supplierLookupStale;
+                return (
+                  <div className={SALES_TABLE_SCROLL}>
+                    <Table className="w-full min-w-max [&_td]:px-4 [&_th]:px-4">
+                      <TableHeader className="sticky top-0 z-10">
+                        <TableRow className={SALES_VASY_HEAD_ROW}>
+                          <TableHead className={cn("w-14", SALES_VASY_TH)}>#</TableHead>
+                          <TableHead className={SALES_VASY_TH}>Supplier / Product</TableHead>
+                          {detailCols.map((c) => (
+                            <TableHead key={c.key} className={SALES_VASY_TH}>{c.label}</TableHead>
+                          ))}
+                          <TableHead className={cn("w-[110px] text-right", SALES_VASY_TH)}>Qty Sold</TableHead>
+                          <TableHead className={cn("w-[130px] text-right", SALES_VASY_TH)}>Sale Value (₹)</TableHead>
+                          <TableHead className={cn("w-[90px] text-right", SALES_VASY_TH)}>Share %</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {loading && supplierWiseData.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={colSpan} className="text-center py-8 text-muted-foreground">
+                              Loading supplier data...
+                            </TableCell>
+                          </TableRow>
+                        ) : isError || supplierLookupError ? (
+                          <TableRow>
+                            <TableCell colSpan={colSpan} className="text-center py-8 text-destructive">
+                              Failed to load data. Try a smaller date range.
+                            </TableCell>
+                          </TableRow>
+                        ) : supplierWiseData.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={colSpan} className="text-center py-8 text-muted-foreground">
+                              No sales data found for the selected period
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          supplierWiseData.map((row, index) => {
+                            const open = expandedSupplier === row.key;
+                            const share = supplierTotals.total_amount > 0 ? (row.total_amount / supplierTotals.total_amount) * 100 : 0;
+                            return (
+                              <React.Fragment key={row.key}>
+                                <TableRow
+                                  className={cn(SALES_BODY_ROW, "cursor-pointer", index % 2 === 0 ? "" : "bg-muted/20")}
+                                  onClick={() => setExpandedSupplier(open ? null : row.key)}
+                                >
+                                  <TableCell className="font-mono text-sm text-muted-foreground">{index + 1}</TableCell>
+                                  <TableCell className="text-sm font-semibold text-primary">
+                                    <span className="mr-1 text-xs print:hidden">{open ? "▼" : "▶"}</span>
+                                    {row.supplier_name}
+                                    <span className="ml-2 text-xs font-normal text-muted-foreground">({row.products.length})</span>
+                                  </TableCell>
+                                  {detailCols.map((c) => <TableCell key={c.key} />)}
+                                  <TableCell className={SALES_QTY_CELL}>{row.total_qty.toLocaleString("en-IN")}</TableCell>
+                                  <TableCell className={SALES_AMOUNT_CELL}>₹{Math.round(row.total_amount).toLocaleString("en-IN")}</TableCell>
+                                  <TableCell className="text-right text-sm font-semibold tabular-nums text-muted-foreground">{share.toFixed(1)}%</TableCell>
+                                </TableRow>
+                                {row.products.map((p, pi) => (
+                                  <TableRow key={p.key} className={cn("bg-muted/10 hover:bg-muted/30", open ? "" : "hidden print:table-row")}>
+                                    <TableCell className="pl-8 font-mono text-xs text-muted-foreground">{pi + 1}</TableCell>
+                                    <TableCell className="pl-8 text-sm font-bold text-foreground">{p.product_name}</TableCell>
+                                    {detailCols.map((c) => (
+                                      <TableCell key={c.key} className="text-sm">{displaySalesField(p[c.key])}</TableCell>
+                                    ))}
+                                    <TableCell className={SALES_QTY_CELL}>{p.qty.toLocaleString("en-IN")}</TableCell>
+                                    <TableCell className={SALES_AMOUNT_CELL}>₹{Math.round(p.amount).toLocaleString("en-IN")}</TableCell>
+                                    <TableCell className="text-right text-xs tabular-nums text-muted-foreground">
+                                      {row.total_qty > 0 ? `${((p.qty / row.total_qty) * 100).toFixed(1)}% qty` : "-"}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </React.Fragment>
+                            );
+                          })
+                        )}
+                      </TableBody>
+                      {supplierWiseData.length > 0 && (
+                        <TableFooter className={SALES_VASY_FOOTER}>
+                          <TableRow className="hover:bg-slate-100">
+                            <TableCell colSpan={2 + detailCols.length} className="py-3 text-sm font-bold text-teal-700">Grand Total</TableCell>
+                            <TableCell className="py-3 text-right text-sm font-bold tabular-nums">{supplierTotals.total_qty.toLocaleString("en-IN")}</TableCell>
+                            <TableCell className="py-3 text-right text-sm font-bold tabular-nums text-primary">₹{Math.round(supplierTotals.total_amount).toLocaleString("en-IN")}</TableCell>
+                            <TableCell className="py-3 text-right text-sm font-bold">100%</TableCell>
+                          </TableRow>
+                        </TableFooter>
+                      )}
+                    </Table>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
         </TabsContent>
