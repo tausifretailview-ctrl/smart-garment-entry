@@ -10,6 +10,7 @@ import {
   Pause,
   Play,
   RefreshCcw,
+  Search,
   Send,
   Square,
   XCircle,
@@ -18,6 +19,7 @@ import { toast } from "sonner";
 import type * as XLSXType from "xlsx";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { formatBulkPhone } from "@/utils/bulkWhatsAppContacts";
@@ -396,13 +398,58 @@ function StatusCell({ c }: { c: BulkCampaign }) {
   );
 }
 
+type CampaignSort = "newest" | "oldest" | "name-asc" | "name-desc";
+
+const SORT_LABEL: Record<CampaignSort, string> = {
+  newest: "Date: newest first",
+  oldest: "Date: oldest first",
+  "name-asc": "Campaign name: A to Z",
+  "name-desc": "Campaign name: Z to A",
+};
+
 /** Past and running bulk sends with live counts; click one for the per-number report. */
-export function BulkWhatsAppReport({ organizationId, userId }: { organizationId: string; userId: string | undefined }) {
+export function BulkWhatsAppReport({
+  organizationId,
+  userId,
+  fullPage = false,
+}: {
+  organizationId: string;
+  userId: string | undefined;
+  /** Reports page: taller table plus search, date range and sort. */
+  fullPage?: boolean;
+}) {
   const queryClient = useQueryClient();
   const [openId, setOpenId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [sort, setSort] = useState<CampaignSort>("newest");
   const q = useBulkCampaigns(organizationId);
   const open = q.data?.find((c) => c.id === openId) ?? null;
+  const filtersOn = Boolean(search.trim() || from || to) || sort !== "newest";
+  const rows = useMemo(() => {
+    const list = q.data ?? [];
+    if (!fullPage) return list;
+    const needle = search.trim().toLowerCase();
+    // Dates compare as local yyyy-MM-dd strings, the same form the date inputs give.
+    const day = (iso: string) => format(new Date(iso), "yyyy-MM-dd");
+    const kept = list.filter(
+      (c) =>
+        (!needle || c.name.toLowerCase().includes(needle) || (c.sender_number ?? "").includes(needle)) &&
+        (!from || day(c.created_at) >= from) &&
+        (!to || day(c.created_at) <= to),
+    );
+    const byDate = (a: BulkCampaign, b: BulkCampaign) => a.created_at.localeCompare(b.created_at);
+    const byName = (a: BulkCampaign, b: BulkCampaign) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }) || -byDate(a, b);
+    const cmp: Record<CampaignSort, (a: BulkCampaign, b: BulkCampaign) => number> = {
+      newest: (a, b) => -byDate(a, b),
+      oldest: byDate,
+      "name-asc": byName,
+      "name-desc": (a, b) => -byName(a, b),
+    };
+    return [...kept].sort(cmp[sort]);
+  }, [q.data, fullPage, search, from, to, sort]);
 
   const control = async (c: BulkCampaign, action: "pause" | "resume" | "stop") => {
     if (action === "stop" && !window.confirm(`Stop "${c.name}"? Numbers not sent yet will be skipped.`)) return;
@@ -422,13 +469,63 @@ export function BulkWhatsAppReport({ organizationId, userId }: { organizationId:
       <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
         <div>
           <div className="text-base font-semibold text-slate-900">Delivery report</div>
-          <div className="text-xs text-slate-500">Tap a campaign to see every number's status</div>
+          <div className="text-xs text-slate-500">
+            Tap a campaign to see every number's status
+            {fullPage && q.data?.length ? ` · ${num(rows.length)} of ${num(q.data.length)}` : ""}
+          </div>
         </div>
         <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => void q.refetch()} disabled={q.isFetching}>
           <RefreshCcw className={cn("h-4 w-4", q.isFetching && "animate-spin")} />
           Refresh
         </Button>
       </div>
+      {fullPage && (
+        <div className="grid gap-2 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_150px_150px_220px_auto]">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search campaign name"
+              className="no-uppercase h-9 bg-white pl-8 text-sm"
+            />
+          </div>
+          <label className="flex items-center gap-1.5 text-xs text-slate-500">
+            From
+            <Input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} className="h-9 bg-white text-sm" />
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-slate-500">
+            To
+            <Input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} className="h-9 bg-white text-sm" />
+          </label>
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as CampaignSort)}
+            className="h-9 rounded-md border border-input bg-white px-2 text-sm"
+            aria-label="Sort"
+          >
+            {(Object.keys(SORT_LABEL) as CampaignSort[]).map((k) => (
+              <option key={k} value={k}>
+                {SORT_LABEL[k]}
+              </option>
+            ))}
+          </select>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-9"
+            disabled={!filtersOn}
+            onClick={() => {
+              setSearch("");
+              setFrom("");
+              setTo("");
+              setSort("newest");
+            }}
+          >
+            Clear
+          </Button>
+        </div>
+      )}
       {q.isLoading ? (
         <div className="flex justify-center p-6">
           <Loader2 className="h-5 w-5 animate-spin" />
@@ -438,11 +535,13 @@ export function BulkWhatsAppReport({ organizationId, userId }: { organizationId:
           <Megaphone className="mx-auto mb-2 h-8 w-8 text-slate-300" />
           <p className="text-sm text-slate-500">No bulk messages sent yet</p>
         </div>
+      ) : !rows.length ? (
+        <div className="px-4 py-10 text-center text-sm text-slate-500">No campaigns match these filters</div>
       ) : (
         <>
           {/* Phones: one card per campaign instead of a wide table. */}
           <ul className="divide-y divide-slate-100 sm:hidden">
-            {q.data.map((c) => (
+            {rows.map((c) => (
               <li key={c.id}>
                 <div
                   role="button"
@@ -485,7 +584,7 @@ export function BulkWhatsAppReport({ organizationId, userId }: { organizationId:
               </li>
             ))}
           </ul>
-          <div className="hidden max-h-[560px] overflow-auto sm:block">
+          <div className={cn("hidden overflow-auto sm:block", fullPage ? "max-h-[calc(100dvh-16rem)]" : "max-h-[560px]")}>
             <table className="w-full min-w-[880px] text-sm">
               <thead>
                 <tr>
@@ -501,7 +600,7 @@ export function BulkWhatsAppReport({ organizationId, userId }: { organizationId:
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {q.data.map((c) => {
+                {rows.map((c) => {
                   return (
                     <tr
                       key={c.id}

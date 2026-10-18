@@ -1,7 +1,24 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { format } from "date-fns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCheck, FileSpreadsheet, ImagePlus, Loader2, MessagesSquare, Plus, Send, ShieldAlert, Trash2, Users, X } from "lucide-react";
+import {
+  CheckCheck,
+  FileSpreadsheet,
+  FileText,
+  ImagePlus,
+  Instagram,
+  Loader2,
+  MapPin,
+  MessageCircle,
+  MessagesSquare,
+  Phone,
+  Plus,
+  Send,
+  ShieldAlert,
+  Trash2,
+  Users,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import type * as XLSXType from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,6 +43,8 @@ import { BulkWhatsAppReport, BulkWhatsAppStats } from "./BulkWhatsAppReport";
 import { callBulkWhatsApp, fetchOptOutCount } from "./bulkWhatsAppApi";
 import { CustomerMasterPicker } from "./CustomerMasterPicker";
 import {
+  buildBulkLinkLines,
+  EMPTY_BULK_LINKS,
   estimateBulkMinutes,
   fillBulkMessage,
   formatBulkPhone,
@@ -33,6 +52,7 @@ import {
   parseContactSheet,
   parseTypedContacts,
   type BulkContact,
+  type BulkLinks,
 } from "@/utils/bulkWhatsAppContacts";
 
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
@@ -44,21 +64,40 @@ const MEDIA_ACCEPT = "image/jpeg,image/png,image/webp,video/mp4,application/pdf"
 const SHOWN_CONTACTS = 200;
 /** Added under the message so customers know how to stop bulk messages (STOP is handled by the WhatsApp server). */
 const STOP_LINE = "Reply STOP to stop these messages";
+const linksKey = (orgId: string) => `bulk_whatsapp_links_${orgId}`;
+
+/** Shop links are kept per shop in this browser so they are filled in next time. */
+function readLinks(orgId: string): BulkLinks {
+  try {
+    const raw = localStorage.getItem(linksKey(orgId));
+    return raw ? { ...EMPTY_BULK_LINKS, ...(JSON.parse(raw) as Partial<BulkLinks>) } : EMPTY_BULK_LINKS;
+  } catch {
+    return EMPTY_BULK_LINKS;
+  }
+}
+
+export type BulkWhatsAppView = "all" | "send" | "reports";
 
 /**
  * The whole Bulk WhatsApp screen: link, compose, numbers, send and report. Used by the ERP page
- * and by the separate WhatsApp-only site (which has no Customer Master).
+ * and by the separate WhatsApp-only site (which has no Customer Master and shows send and reports
+ * as separate pages through `view`).
  */
 export function BulkWhatsAppWorkspace({
   organizationId: orgId,
   userId,
   showCustomerMaster = true,
   showTitle = true,
+  view = "all",
+  onOpenReports,
 }: {
   organizationId: string;
   userId: string | undefined;
   showCustomerMaster?: boolean;
   showTitle?: boolean;
+  view?: BulkWhatsAppView;
+  /** Site only: where "see report" points after a send. */
+  onOpenReports?: () => void;
 }) {
   const queryClient = useQueryClient();
 
@@ -73,6 +112,14 @@ export function BulkWhatsAppWorkspace({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [addStopLine, setAddStopLine] = useState(true);
+  const [links, setLinks] = useState<BulkLinks>(() => readLinks(orgId));
+  useEffect(() => {
+    try {
+      localStorage.setItem(linksKey(orgId), JSON.stringify(links));
+    } catch {
+      /* private mode: links are typed again next time */
+    }
+  }, [orgId, links]);
   const optOuts = useQuery({
     queryKey: ["bulk-whatsapp-optouts", orgId],
     queryFn: () => fetchOptOutCount(orgId),
@@ -137,7 +184,11 @@ export function BulkWhatsAppWorkspace({
     setMessage(`${message.slice(0, at)}{name}${message.slice(at)}`);
   };
 
-  const outgoing = addStopLine ? (message.trim() ? `${message.trimEnd()}\n\n_${STOP_LINE}_` : `_${STOP_LINE}_`) : message;
+  const linkLines = useMemo(() => buildBulkLinkLines(links), [links]);
+  const outgoing = useMemo(() => {
+    const blocks = [message.trimEnd(), linkLines.join("\n"), addStopLine ? `_${STOP_LINE}_` : ""].filter((b) => b.trim());
+    return blocks.join("\n\n");
+  }, [message, linkLines, addStopLine]);
   const preview = useMemo(() => fillBulkMessage(outgoing, contacts[0]?.name ?? "Ravi"), [outgoing, contacts]);
   const canSend = linked && contacts.length > 0 && (message.trim() !== "" || media !== null) && !sending;
 
@@ -164,7 +215,9 @@ export function BulkWhatsAppWorkspace({
         recipients: contacts,
       });
       const skipped = res.unsubscribed ? ` ${res.unsubscribed} unsubscribed ${res.unsubscribed === 1 ? "number was" : "numbers were"} left out.` : "";
-      toast.success(`Sending to ${res.total ?? contacts.length} numbers.${skipped} You can close this page; it keeps sending.`);
+      toast.success(`Sending to ${res.total ?? contacts.length} numbers.${skipped} You can close this page; it keeps sending.`, {
+        action: onOpenReports ? { label: "See report", onClick: onOpenReports } : undefined,
+      });
       setContacts([]);
       setName("");
       await queryClient.invalidateQueries({ queryKey: ["bulk-whatsapp-campaigns", orgId] });
@@ -194,9 +247,12 @@ export function BulkWhatsAppWorkspace({
 
       <BulkWhatsAppStats organizationId={orgId} />
 
+      {view !== "reports" && (
+      <>
       <BulkWhatsAppLink organizationId={orgId} onChange={setLinked} />
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid min-w-0 items-start gap-3 2xl:grid-cols-2">
         {/* Step 1: message */}
         <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <StepTitle step={1} title="Message" hint="Text, customer name and poster" />
@@ -244,6 +300,7 @@ export function BulkWhatsAppWorkspace({
               </span>
             </label>
           </div>
+          <LinksEditor links={links} onChange={setLinks} />
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-slate-600">Poster (photo, MP4 video or PDF, optional)</Label>
             <input
@@ -283,20 +340,6 @@ export function BulkWhatsAppWorkspace({
               </button>
             )}
           </div>
-          {(message.trim() || mediaPreview) && (
-            <div className="space-y-1">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Preview</div>
-              <div className="rounded-xl bg-[#efeae2] p-3">
-                <div className="ml-auto max-w-[85%] rounded-lg rounded-tr-none bg-[#d9fdd3] p-1.5 text-sm shadow-sm sm:max-w-sm">
-                  {mediaPreview && <img src={mediaPreview} alt="" className="mb-1 max-h-48 w-full rounded object-cover" />}
-                  <div className="whitespace-pre-wrap px-1 text-slate-800">{preview}</div>
-                  <div className="mt-0.5 flex items-center justify-end gap-1 px-1 text-[10px] text-slate-500">
-                    {format(new Date(), "hh:mm a")} <CheckCheck className="h-3 w-3 text-sky-500" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </section>
 
         {/* Step 2: numbers */}
@@ -412,41 +455,47 @@ export function BulkWhatsAppWorkspace({
         </section>
       </div>
 
-      {/* Send bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-white p-3 shadow-sm">
-        <div className="text-sm">
-          {!linked ? (
-            <span className="font-medium text-amber-700">Link your WhatsApp above first</span>
-          ) : contacts.length ? (
-            <span className="text-slate-700">
-              <b className="tabular-nums">{contacts.length.toLocaleString("en-IN")}</b> numbers · about{" "}
-              <b className="tabular-nums">{estimateBulkMinutes(contacts.length)}</b> min
-            </span>
-          ) : (
-            <span className="text-slate-500">Add numbers to send</span>
-          )}
-        </div>
-        <Button
-          type="button"
-          className="h-10 bg-gradient-to-r from-emerald-600 to-teal-600 px-5 text-white shadow-sm hover:from-emerald-700 hover:to-teal-700"
-          disabled={!canSend}
-          onClick={() => setConfirmOpen(true)}
-        >
-          {sending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />}
-          Send to {contacts.length.toLocaleString("en-IN")} numbers
-        </Button>
+        <aside className="space-y-3 lg:sticky lg:top-20">
+          <MessagePreview text={preview} media={media} mediaPreview={mediaPreview} />
+
+          <div className="space-y-2.5 rounded-xl border border-emerald-200 bg-white p-3 shadow-sm">
+            <div className="text-sm">
+              {!linked ? (
+                <span className="font-medium text-amber-700">Link your WhatsApp above first</span>
+              ) : contacts.length ? (
+                <span className="text-slate-700">
+                  <b className="tabular-nums">{contacts.length.toLocaleString("en-IN")}</b> numbers · about{" "}
+                  <b className="tabular-nums">{estimateBulkMinutes(contacts.length)}</b> min
+                </span>
+              ) : (
+                <span className="text-slate-500">Add numbers to send</span>
+              )}
+            </div>
+            <Button
+              type="button"
+              className="h-10 w-full bg-gradient-to-r from-emerald-600 to-teal-600 px-5 text-white shadow-sm hover:from-emerald-700 hover:to-teal-700"
+              disabled={!canSend}
+              onClick={() => setConfirmOpen(true)}
+            >
+              {sending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />}
+              Send to {contacts.length.toLocaleString("en-IN")} numbers
+            </Button>
+          </div>
+
+          <Alert className="border-amber-200 bg-amber-50">
+            <ShieldAlert className="h-4 w-4 text-amber-700" />
+            <AlertDescription className="text-xs text-amber-900">
+              Messages go one by one with a random 8 to 20 second gap, up to 500 per number per day (the rest continue
+              the next day). WhatsApp may block numbers that send bulk messages, especially to people who have not saved
+              your number.
+            </AlertDescription>
+          </Alert>
+        </aside>
       </div>
+      </>
+      )}
 
-      <Alert className="border-amber-200 bg-amber-50">
-        <ShieldAlert className="h-4 w-4 text-amber-700" />
-        <AlertDescription className="text-xs text-amber-900">
-          Messages go one by one with a random 8 to 20 second gap, up to 500 per number per day (the rest continue
-          the next day). WhatsApp may block numbers that send bulk messages, especially to people who have not saved
-          your number.
-        </AlertDescription>
-      </Alert>
-
-      <BulkWhatsAppReport organizationId={orgId} userId={userId} />
+      {view !== "send" && <BulkWhatsAppReport organizationId={orgId} userId={userId} fullPage={view === "reports"} />}
 
       {showCustomerMaster && (
         <CustomerMasterPicker
@@ -463,7 +512,7 @@ export function BulkWhatsAppWorkspace({
             <AlertDialogTitle>Send to {contacts.length} numbers?</AlertDialogTitle>
             <AlertDialogDescription>
               This takes about {estimateBulkMinutes(contacts.length)} minutes. It keeps sending even if you close this
-              page or the browser. You can pause or stop it from the report below.
+              page or the browser. You can pause or stop it from the delivery report.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -500,4 +549,103 @@ function StepTitle({ step, title, hint, action }: { step: number; title: string;
       {action}
     </div>
   );
+}
+
+const LINK_FIELDS: { key: keyof BulkLinks; label: string; placeholder: string; icon: ReactNode; tone: string }[] = [
+  { key: "call", label: "Call now", placeholder: "Shop mobile, e.g. 9876543210", icon: <Phone className="h-3.5 w-3.5" />, tone: "bg-sky-100 text-sky-700" },
+  { key: "enquire", label: "Enquire now", placeholder: "WhatsApp number for enquiries", icon: <MessageCircle className="h-3.5 w-3.5" />, tone: "bg-emerald-100 text-emerald-700" },
+  { key: "location", label: "Shop location", placeholder: "Google Maps link or shop address", icon: <MapPin className="h-3.5 w-3.5" />, tone: "bg-red-100 text-red-700" },
+  { key: "instagram", label: "Instagram", placeholder: "@yourshop or Instagram link", icon: <Instagram className="h-3.5 w-3.5" />, tone: "bg-pink-100 text-pink-700" },
+];
+
+/** Call / enquire / location / Instagram lines added under the message (filled ones only). */
+function LinksEditor({ links, onChange }: { links: BulkLinks; onChange: (next: BulkLinks) => void }) {
+  return (
+    <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2.5">
+      <div>
+        <div className="text-xs font-semibold text-slate-700">Buttons and links (optional)</div>
+        <p className="text-[11px] text-slate-500">
+          Filled ones are added under the message as links customers can tap. WhatsApp does not allow real buttons on
+          numbers linked by QR code.
+        </p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {LINK_FIELDS.map((f) => (
+          <div key={f.key} className="space-y-1">
+            <Label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
+              <span className={cn("flex h-5 w-5 items-center justify-center rounded-md", f.tone)}>{f.icon}</span>
+              {f.label}
+            </Label>
+            <div className="relative">
+              <Input
+                value={links[f.key]}
+                onChange={(e) => onChange({ ...links, [f.key]: e.target.value })}
+                placeholder={f.placeholder}
+                maxLength={300}
+                className="no-uppercase h-8 pr-7 text-xs"
+              />
+              {links[f.key] && (
+                <button
+                  type="button"
+                  title="Clear"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                  onClick={() => onChange({ ...links, [f.key]: "" })}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** WhatsApp-style chat preview of the first customer's message. */
+function MessagePreview({ text, media, mediaPreview }: { text: string; media: File | null; mediaPreview: string | null }) {
+  const empty = !text.trim() && !media;
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center gap-2 bg-[#075e54] px-3 py-2 text-white">
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20">
+          <Users className="h-4 w-4" />
+        </span>
+        <div className="leading-tight">
+          <div className="text-sm font-semibold">Preview</div>
+          <div className="text-[10px] text-white/75">How the first customer sees it</div>
+        </div>
+      </div>
+      <div className="min-h-[220px] overflow-auto bg-[#efeae2] p-3 lg:max-h-[calc(100dvh-22rem)]">
+        {empty ? (
+          <p className="pt-16 text-center text-xs text-slate-500">Write a message or attach a poster to see the preview</p>
+        ) : (
+          <div className="ml-auto max-w-[92%] rounded-lg rounded-tr-none bg-[#d9fdd3] p-1.5 text-sm shadow-sm">
+            {mediaPreview ? (
+              <img src={mediaPreview} alt="" className="mb-1 w-full rounded object-cover" />
+            ) : media ? (
+              <div className="mb-1 flex items-center gap-2 rounded bg-white/70 p-2 text-xs text-slate-700">
+                <FileText className="h-5 w-5 shrink-0 text-slate-500" />
+                <span className="truncate">{media.name}</span>
+              </div>
+            ) : null}
+            <div className="whitespace-pre-wrap break-words px-1 text-slate-800">{renderWhatsAppText(text)}</div>
+            <div className="mt-0.5 flex items-center justify-end gap-1 px-1 text-[10px] text-slate-500">
+              {format(new Date(), "hh:mm a")} <CheckCheck className="h-3 w-3 text-sky-500" />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** *bold*, _italic_ and links shown roughly as WhatsApp shows them. */
+function renderWhatsAppText(text: string): ReactNode[] {
+  return text.split(/(\*[^*\n]+\*|_[^_\n]+_|https?:\/\/\S+)/g).map((part, i) => {
+    if (/^\*[^*\n]+\*$/.test(part)) return <b key={i}>{part.slice(1, -1)}</b>;
+    if (/^_[^_\n]+_$/.test(part)) return <i key={i}>{part.slice(1, -1)}</i>;
+    if (/^https?:\/\//.test(part)) return <span key={i} className="break-all text-sky-700 underline">{part}</span>;
+    return part;
+  });
 }
