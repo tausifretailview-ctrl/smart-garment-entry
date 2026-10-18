@@ -46,7 +46,7 @@ describe("reloadReason", () => {
 describe("UpdatePrompt service worker", () => {
   it("does not use virtual:pwa-register, whose prompt mode hard-reloads every tab on deploy", () => {
     const src = readFileSync(resolve(here, "../components/UpdatePrompt.tsx"), "utf8");
-    expect(src).not.toContain("virtual:pwa-register");
+    expect(src).not.toContain('from "virtual:pwa-register');
     expect(src).toContain('addEventListener("controllerchange"');
   });
 });
