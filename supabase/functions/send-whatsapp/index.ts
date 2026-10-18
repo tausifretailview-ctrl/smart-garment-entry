@@ -191,7 +191,7 @@ function buildTemplateParams(
         return '';
       case 'amount':
         const amount = saleData.net_amount || saleData.amount || 0;
-        return Number(amount).toLocaleString('en-IN');
+        return Math.round(Number(amount) || 0).toLocaleString('en-IN');
       case 'gross_amount':
         return Number(saleData.gross_amount || 0).toLocaleString('en-IN');
       case 'discount':

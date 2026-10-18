@@ -143,3 +143,15 @@ describe("points and shop links on the bill message", () => {
     )).toBe(true);
   });
 });
+
+describe("amounts in whole rupees", () => {
+  it("rounds a bill net with paise (₹800.4 → ₹800, ₹1,154.76 → ₹1,155)", () => {
+    const template = "Amount: {amount}\nPaid: {paid_amount}";
+    expect(applyWhatsAppTemplatePlaceholders(template, { net_amount: 800.4, paid_amount: 800.4 }, "Shop")).toBe(
+      "Amount: ₹800\nPaid: ₹800",
+    );
+    expect(applyWhatsAppTemplatePlaceholders("Amount: {amount}", { net_amount: 1154.76 }, "Shop")).toBe(
+      "Amount: ₹1,155",
+    );
+  });
+});

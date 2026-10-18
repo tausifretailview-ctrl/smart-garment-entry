@@ -24,8 +24,9 @@ _Please visit again._
 
 👉 Reply *OK* to save our number and get your bill updates.`;
 
+/** Whole rupees, like the printed bill total (₹800.4 → ₹800). */
 function formatInr(value: unknown): string {
-  const num = Number(value ?? 0);
+  const num = Math.round(Number(value ?? 0) || 0);
   return `₹${num.toLocaleString("en-IN")}`;
 }
 
@@ -144,7 +145,7 @@ export function applyWhatsAppTemplatePlaceholders(
     outstanding_amount: formatInr(outstanding),
     paid_amount: formatInr(paidAmount),
     pending_amount: formatInr(pending),
-    cn_adjusted: cnAdjusted > 0.005 ? formatInr(cnAdjusted) : "",
+    cn_adjusted: cnAdjusted >= 0.5 ? formatInr(cnAdjusted) : "",
     invoice_link: String(saleData.invoice_link || ""),
     invoice_items: String(saleData.invoice_items || ""),
     customer_page_link: String(saleData.customer_page_link || ""),

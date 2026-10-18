@@ -153,13 +153,13 @@ export const useWhatsAppTemplates = () => {
       .replace(/{customer_name}/g, invoice.customer_name || "Customer")
       .replace(/{invoice_number}/g, invoice.sale_number)
       .replace(/{invoice_date}/g, format(new Date(invoice.sale_date), "dd MMM yyyy"))
-      .replace(/{amount}/g, `₹${Number(invoice.net_amount).toLocaleString("en-IN")}`)
+      .replace(/{amount}/g, `₹${Math.round(Number(invoice.net_amount) || 0).toLocaleString("en-IN")}`)
       .replace(/{payment_status}/g, invoice.payment_status)
       .replace(/{invoice_items}/g, items || "")
       .replace(/{invoice_link}/g, extraData?.invoiceLink || "")
       .replace(/{organization_name}/g, extraData?.organizationName || "")
-      .replace(/{paid_amount}/g, `₹${Number(paidAmount).toLocaleString("en-IN")}`)
-      .replace(/{pending_amount}/g, `₹${Number(pendingAmount).toLocaleString("en-IN")}`)
+      .replace(/{paid_amount}/g, `₹${Math.round(Number(paidAmount) || 0).toLocaleString("en-IN")}`)
+      .replace(/{pending_amount}/g, `₹${Math.round(Number(pendingAmount) || 0).toLocaleString("en-IN")}`)
       .replace(/{due_date}/g, invoice.due_date ? format(new Date(invoice.due_date), "dd MMM yyyy") : "Not specified")
       .replace(/{social_links}/g, socialLinksText)
       .replace(/{instagram_link}/g, settings?.instagram_link || "")
@@ -170,7 +170,7 @@ export const useWhatsAppTemplates = () => {
       .replace(/{outstanding_amount}/g, `₹${Math.round(Number(outstandingAmount)).toLocaleString("en-IN")}`)
       .replace(/{points_earned}/g, invoice.points_earned?.toString() || "0")
       .replace(/{points_redeemed}/g, invoice.points_redeemed?.toString() || "0")
-      .replace(/{points_discount}/g, `₹${Number(invoice.points_discount || 0).toLocaleString("en-IN")}`)
+      .replace(/{points_discount}/g, `₹${Math.round(Number(invoice.points_discount || 0) || 0).toLocaleString("en-IN")}`)
       .replace(/{points_balance}/g, invoice.points_balance?.toString() || "0")
       .replace(/{points_info}/g, pointsText);
 
@@ -206,7 +206,7 @@ export const useWhatsAppTemplates = () => {
 
 ${orgName ? `🏢 ${orgName} has generated the following invoice for your order.\n` : ""}🔢 Invoice No: ${invoice.sale_number}
 📅 Date: ${format(new Date(invoice.sale_date), "dd MMM yyyy")}
-💰 Invoice Amount: ₹${Number(invoice.net_amount).toLocaleString("en-IN")}
+💰 Invoice Amount: ₹${Math.round(Number(invoice.net_amount) || 0).toLocaleString("en-IN")}
 ${(invoice.sale_return_adjust || 0) > 0.005 ? `🔁 CN Adjusted: ₹${Number(invoice.sale_return_adjust).toLocaleString("en-IN")}\n` : ""}⏳ Payment Status: ${invoice.payment_status}
 📊 Outstanding Balance: ₹${Math.round(Number(outstandingAmount)).toLocaleString("en-IN")}
 ${invoiceLink ? `\n🔗 View / Download Invoice:\n${invoiceLink}\n` : ""}
@@ -238,7 +238,7 @@ ${invoiceLink ? `\n🔗 View / Download Invoice:\n${invoiceLink}\n` : ""}
 Your order details:
 Invoice: ${invoice.sale_number}
 Date: ${format(new Date(invoice.sale_date), "dd MMM yyyy")}
-Amount: ₹${Number(invoice.net_amount).toLocaleString("en-IN")}
+Amount: ₹${Math.round(Number(invoice.net_amount) || 0).toLocaleString("en-IN")}
 ${paymentInfo}
 ${invoice.delivery_status ? `Delivery Status: ${deliveryStatusText}` : ""}
 ${pointsText ? `\n${pointsText}` : ""}
@@ -254,7 +254,7 @@ Thank you for your business!`;
       .replace(/{customer_name}/g, quotation.customer_name || "Customer")
       .replace(/{quotation_number}/g, quotation.quotation_number)
       .replace(/{quotation_date}/g, format(new Date(quotation.quotation_date), "dd MMM yyyy"))
-      .replace(/{amount}/g, `₹${Number(quotation.net_amount).toLocaleString("en-IN")}`)
+      .replace(/{amount}/g, `₹${Math.round(Number(quotation.net_amount) || 0).toLocaleString("en-IN")}`)
       .replace(/{valid_until}/g, quotation.valid_until ? format(new Date(quotation.valid_until), "dd MMM yyyy") : "Not specified")
       .replace(/{status}/g, quotation.status)
       .replace(/{quotation_items}/g, items || "");
@@ -270,7 +270,7 @@ Thank you for your interest! 📝
 Here is your quotation:
 📋 Quotation No: ${quotation.quotation_number}
 📅 Date: ${format(new Date(quotation.quotation_date), "dd MMM yyyy")}
-💰 Total Amount: ₹${Number(quotation.net_amount).toLocaleString("en-IN")}
+💰 Total Amount: ₹${Math.round(Number(quotation.net_amount) || 0).toLocaleString("en-IN")}
 📅 Valid Until: ${quotation.valid_until ? format(new Date(quotation.valid_until), "dd MMM yyyy") : "Not specified"}
 
 ${items || ""}
@@ -288,7 +288,7 @@ Thank you!`;
       .replace(/{customer_name}/g, order.customer_name || "Customer")
       .replace(/{order_number}/g, order.order_number)
       .replace(/{order_date}/g, format(new Date(order.order_date), "dd MMM yyyy"))
-      .replace(/{amount}/g, `₹${Number(order.net_amount).toLocaleString("en-IN")}`)
+      .replace(/{amount}/g, `₹${Math.round(Number(order.net_amount) || 0).toLocaleString("en-IN")}`)
       .replace(/{status}/g, order.status)
       .replace(/{expected_delivery}/g, order.expected_delivery_date ? format(new Date(order.expected_delivery_date), "dd MMM yyyy") : "To be confirmed")
       .replace(/{order_items}/g, items || "");
@@ -305,7 +305,7 @@ Customer: ${order.customer_name}
 *Items:*
 ${items || ""}
 
-*Total: ₹${Number(order.net_amount).toLocaleString("en-IN")}*
+*Total: ₹${Math.round(Number(order.net_amount) || 0).toLocaleString("en-IN")}*
 
 Thank you for your order!`;
   };
