@@ -1,7 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
 import { DASHBOARD_MANUAL_REFRESH_OPTIONS, DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
+import { fetchErpDashboardStatsAfterSr } from "@/utils/saleReturnAdjustTotal";
 import { fetchTotalCustomerCount } from "@/utils/salePartyCustomerMaster";
 
 /** Default monthly range — matches Index.tsx initial dateRange. */
@@ -23,13 +23,7 @@ export function prefetchMainDashboardQueries(
   void queryClient.prefetchQuery({
     queryKey,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_erp_dashboard_stats", {
-        p_org_id: organizationId,
-        p_start_date: startDate,
-        p_end_date: endDate,
-      });
-      if (error) throw error;
-      return data;
+      return fetchErpDashboardStatsAfterSr(organizationId, startDate, endDate);
     },
     staleTime: 30_000,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,

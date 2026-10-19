@@ -49,6 +49,6 @@ describe("premium mobile theme stays opt-in", () => {
     expect(shell).toMatch(/className="ez-shell/);
     expect(home).toMatch(/setHeroPeriod/);
     expect(home).toMatch(/This month/);
-    expect(home).toMatch(/p_start_date: statsStart/);
+    expect(home).toMatch(/fetchErpDashboardStatsAfterSr<ErpDashboardStats>\(orgId, statsStart, statsEnd\)/);
   });
 });
