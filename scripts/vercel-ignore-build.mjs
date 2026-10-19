@@ -8,8 +8,9 @@
  *   node ../scripts/vercel-ignore-build.mjs whatsapp  (whatsapp-app/vercel.json)
  *
  * Rules:
- * - Preview builds (PR branches) are skipped. GitHub CI is the build gate. Put "[preview]" in the
- *   commit message to get a preview anyway.
+ * - Preview builds (PR branches) are skipped. GitHub CI is the build gate. Each vercel.json also sets
+ *   git.deploymentEnabled so only main deploys from git; this check is the backstop. For a one-off
+ *   preview, deploy the branch from the Vercel dashboard with "[preview]" in its commit message.
  * - ERP production builds always run.
  * - Customer / WhatsApp production builds run only when a file their bundle uses changed since the
  *   last deployed commit (files found by following imports from the site's entry).
