@@ -294,6 +294,14 @@ function saveProductSuggestionCache(orgId: string, cache: ProductSuggestionCache
   }
 }
 
+/**
+ * Last suggestion refresh per shop for this app session. Opening Add Product
+ * again within the window reuses the saved list (new entries are appended on
+ * save) instead of re-reading products + up to 5,000 variant rows.
+ */
+const SUGGESTION_REFRESH_MS = 10 * 60 * 1000;
+const suggestionsRefreshedAt = new Map<string, number>();
+
 function appendUniqueSorted(list: string[], value: string | null | undefined): string[] {
   const trimmed = value?.trim();
   if (!trimmed) return list;
@@ -1421,9 +1429,11 @@ export const ProductEntryDialog = ({
   }, [open, currentOrganization?.id]);
 
   // Fetch unique categories, brands, HSN codes, and styles from existing products
-  const fetchPreviousValues = async () => {
+  const fetchPreviousValues = async (force = false) => {
     if (!currentOrganization) return;
     const orgId = currentOrganization.id;
+    const lastRefresh = suggestionsRefreshedAt.get(orgId);
+    if (!force && lastRefresh !== undefined && Date.now() - lastRefresh < SUGGESTION_REFRESH_MS) return;
     const cached = loadProductSuggestionCache(orgId);
     let anyFailed = false;
 
@@ -1500,6 +1510,8 @@ export const ProductEntryDialog = ({
     }
 
     setPreviousValuesError(anyFailed ? "Couldn't load suggestions" : null);
+    if (anyFailed) suggestionsRefreshedAt.delete(orgId);
+    else suggestionsRefreshedAt.set(orgId, Date.now());
 
     const merged: ProductSuggestionCache = {
       productNames: uniqueProductNames,
@@ -3665,7 +3677,7 @@ export const ProductEntryDialog = ({
                       <button
                         type="button"
                         className="underline font-medium"
-                        onClick={() => void fetchPreviousValues()}
+                        onClick={() => void fetchPreviousValues(true)}
                       >
                         Retry
                       </button>
@@ -3735,7 +3747,7 @@ export const ProductEntryDialog = ({
                           <button
                             type="button"
                             className="underline font-medium"
-                            onClick={() => void fetchPreviousValues()}
+                            onClick={() => void fetchPreviousValues(true)}
                           >
                             Retry
                           </button>
@@ -3919,7 +3931,7 @@ export const ProductEntryDialog = ({
                             <button
                               type="button"
                               className="underline font-medium"
-                              onClick={() => void fetchPreviousValues()}
+                              onClick={() => void fetchPreviousValues(true)}
                             >
                               Retry
                             </button>
