@@ -48,7 +48,7 @@ export type OfflineCatalogIndex = {
 };
 
 /** Row POS may sell: live variant of an active, not-deleted product. */
-export function isSellableCatalogRow(row: OfflineCatalogRow | null | undefined): row is OfflineCatalogRow {
+export function isSellableCatalogRow(row: OfflineCatalogRow | null | undefined): boolean {
   if (!row?.id || !row.products) return false;
   if (row.deleted_at) return false;
   if (row.active === false) return false;
