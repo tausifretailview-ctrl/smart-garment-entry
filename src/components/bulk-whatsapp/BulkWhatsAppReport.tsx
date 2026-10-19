@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  ArrowLeft,
   CalendarClock,
   CheckCheck,
   Copy,
@@ -22,7 +23,7 @@ import {
 import { toast } from "sonner";
 import type * as XLSXType from "xlsx";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -309,7 +310,7 @@ function CampaignDetail({
     <div className="rounded-xl bg-[#efeae2] p-2.5">
       <div className="rounded-lg rounded-tl-none bg-white p-1.5 text-xs shadow-sm">
         {isImage && msg.data.media_url && (
-          <img src={msg.data.media_url} alt="" className="mb-1 max-h-32 w-full rounded object-cover" />
+          <img src={msg.data.media_url} alt="" className="mb-1 max-h-48 w-full rounded object-contain" />
         )}
         {!isImage && msg.data.media_url && (
           <div className="mb-1 rounded bg-slate-100 px-2 py-1.5 text-xs text-slate-600">
@@ -321,164 +322,176 @@ function CampaignDetail({
     </div>
   );
 
+  const actionButtons = (
+    <div className="flex flex-wrap items-center gap-2">
+      {!live && retryable > 0 && (
+        <Button size="sm" className="h-8 bg-emerald-600 text-white hover:bg-emerald-700" disabled={resending} onClick={() => void resendFailed()}>
+          {resending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-1 h-4 w-4" />}
+          Send again to {num(retryable)} failed
+        </Button>
+      )}
+      {onReuse && msg.data && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8"
+          onClick={() => {
+            onReuse(msg.data!);
+            onClose();
+          }}
+        >
+          <Copy className="mr-1 h-4 w-4" /> Use this message again
+        </Button>
+      )}
+      {hasMessage && (
+        <Button size="sm" variant="outline" className="h-8" onClick={() => setShowMessage((v) => !v)}>
+          <Eye className="mr-1 h-4 w-4" /> {showMessage ? "Hide message" : "Show message"}
+        </Button>
+      )}
+      <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={() => void exportExcel()} disabled={!rows.length}>
+        <Download className="mr-1 h-4 w-4" /> Excel{filter !== "all" || reason ? " (this list)" : ""}
+      </Button>
+    </div>
+  );
+
+  // Full page (not a popup) so the number list gets the whole width; Back or Esc returns to the list.
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="flex max-h-[92vh] max-w-6xl flex-col gap-3">
-        <DialogHeader>
-          <DialogTitle className="flex flex-wrap items-center gap-2 text-lg">
-            {campaign.name}
-            <Pill className={CAMPAIGN_BADGE[campaign.status].className}>
-              <span className={cn("h-1.5 w-1.5 rounded-full", CAMPAIGN_BADGE[campaign.status].dot)} />
-              {CAMPAIGN_BADGE[campaign.status].label}
-            </Pill>
-          </DialogTitle>
-          <p className="text-xs text-slate-500">
-            {fmtDate(campaign.created_at)}, {fmtTime(campaign.created_at)}
-            {campaign.sender_number ? ` · from ${formatBulkPhone(campaign.sender_number)}` : ""}
-            {startsAt && startsAt.getTime() > Date.now() ? ` · starts ${fmtDate(startsAt.toISOString())}, ${fmtTime(startsAt.toISOString())}` : ""}
-          </p>
-          {(onReuse || (!live && retryable > 0)) && (
-            <div className="flex flex-wrap gap-2 pt-1">
-              {!live && retryable > 0 && (
-                <Button size="sm" className="h-8 bg-emerald-600 text-white hover:bg-emerald-700" disabled={resending} onClick={() => void resendFailed()}>
-                  {resending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-1 h-4 w-4" />}
-                  Send again to {num(retryable)} failed
-                </Button>
-              )}
-              {onReuse && msg.data && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8"
-                  onClick={() => {
-                    onReuse(msg.data!);
-                    onClose();
-                  }}
-                >
-                  <Copy className="mr-1 h-4 w-4" /> Use this message again
-                </Button>
-              )}
-            </div>
-          )}
-        </DialogHeader>
-
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-          <FilterTile label="Total" value={campaign.total_count} tone="text-slate-800" active={filter === "all" && !reason} onClick={() => pick("all")} />
-          <FilterTile label="Sent" value={campaign.sent_count} tone="text-blue-600" active={filter === "sent"} onClick={() => pick("sent")} />
-          <FilterTile label="Delivered" value={campaign.delivered_count} tone="text-sky-600" active={filter === "delivered"} onClick={() => pick("delivered")} />
-          <FilterTile label="Read" value={campaign.read_count} tone="text-emerald-600" active={filter === "read"} onClick={() => pick("read")} />
-          <FilterTile label="Failed" value={campaign.failed_count} tone="text-red-600" active={filter === "failed" && !reason} onClick={() => pick("failed")} />
-          <FilterTile label="Waiting" value={pending} tone="text-slate-500" active={filter === "pending"} onClick={() => pick("pending")} />
-        </div>
-
-        {failures.length > 0 && (
-          <div className="rounded-xl border border-red-200 bg-red-50/60 p-3">
-            <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-red-800">
-              <AlertTriangle className="h-4 w-4" />
-              Why {num(campaign.failed_count)} {campaign.failed_count === 1 ? "number" : "numbers"} failed
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {failures.map(({ reason: r, count }) => (
-                <button
-                  key={r.label}
-                  type="button"
-                  title={r.hint}
-                  onClick={() => {
-                    setFilter("failed");
-                    setReason(reason === r.label ? null : r.label);
-                  }}
-                  className={cn(
-                    "rounded-lg border bg-white px-2.5 py-1.5 text-left text-xs shadow-sm transition hover:border-red-300",
-                    reason === r.label ? "border-red-500 ring-2 ring-red-500/20" : "border-red-100",
-                  )}
-                >
-                  <span className="font-semibold text-red-700">{r.label}</span>
-                  <span className="ml-1.5 rounded-full bg-red-100 px-1.5 py-0.5 font-bold tabular-nums text-red-700">{count}</span>
-                  <span className="mt-0.5 block max-w-[260px] text-[11px] leading-snug text-slate-500">{r.hint}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-slate-500">
-            Read shows only when the customer has blue ticks on; otherwise it stays Delivered.
-          </p>
-          <div className="flex items-center gap-2">
-            {hasMessage && (
-              <Button size="sm" variant="outline" className="h-8 lg:hidden" onClick={() => setShowMessage((v) => !v)}>
-                <Eye className="mr-1 h-4 w-4" /> {showMessage ? "Hide message" : "Show message"}
-              </Button>
-            )}
-            <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={() => void exportExcel()} disabled={!rows.length}>
-              <Download className="mr-1 h-4 w-4" /> Excel{filter !== "all" || reason ? " (this list)" : ""}
+      <DialogContent className="flex h-[100dvh] max-h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 bg-slate-50 p-0 shadow-none">
+        <header className="shrink-0 border-b border-slate-200 bg-white px-3 py-2.5 pr-12 shadow-sm sm:px-5 sm:pr-14">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-3 gap-y-2">
+            <Button size="sm" variant="outline" className="h-8 gap-1 px-2.5" onClick={onClose}>
+              <ArrowLeft className="h-4 w-4" /> Back
             </Button>
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="flex flex-wrap items-center gap-2 text-lg font-semibold leading-tight text-slate-900">
+                {campaign.name}
+                <Pill className={CAMPAIGN_BADGE[campaign.status].className}>
+                  <span className={cn("h-1.5 w-1.5 rounded-full", CAMPAIGN_BADGE[campaign.status].dot)} />
+                  {CAMPAIGN_BADGE[campaign.status].label}
+                </Pill>
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-500">
+                {fmtDate(campaign.created_at)}, {fmtTime(campaign.created_at)}
+                {campaign.sender_number ? ` · from ${formatBulkPhone(campaign.sender_number)}` : ""}
+                {startsAt && startsAt.getTime() > Date.now() ? ` · starts ${fmtDate(startsAt.toISOString())}, ${fmtTime(startsAt.toISOString())}` : ""}
+              </DialogDescription>
+            </div>
+            {actionButtons}
           </div>
-        </div>
-        {showMessage && <div className="lg:hidden">{preview}</div>}
+        </header>
 
-        <div className={cn("grid min-h-0 flex-1 gap-3", hasMessage && "lg:grid-cols-[minmax(0,1fr)_260px]")}>
-          <div className="min-h-[240px] overflow-auto rounded-xl border border-slate-200">
-            {q.isLoading ? (
-              <div className="flex justify-center p-6">
-                <Loader2 className="h-5 w-5 animate-spin" />
-              </div>
-            ) : (
-              <table className="w-full min-w-[760px] text-sm">
-                <thead>
-                  <tr>
-                    <th className={cn(TH, "w-12")}>#</th>
-                    <th className={TH}>Name</th>
-                    <th className={TH}>Mobile</th>
-                    <th className={TH}>Status</th>
-                    <th className={TH}>Reason</th>
-                    <th className={TH}>Sent</th>
-                    <th className={TH}>Delivered</th>
-                    <th className={TH}>Read</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {rows.map((r) => {
-                    const why = describeBulkFailure(r.error);
-                    return (
-                      <tr key={r.id} className="odd:bg-white even:bg-slate-50/60">
-                        <td className={cn(TD, "tabular-nums text-slate-500")}>{r.position}</td>
-                        <td className={cn(TD, "font-medium text-slate-800")}>{r.name ?? "–"}</td>
-                        <td className={cn(TD, "whitespace-nowrap tabular-nums")}>{formatBulkPhone(r.phone)}</td>
-                        <td className={TD}>
-                          <Pill className={RECIPIENT_BADGE[r.status].className}>{RECIPIENT_BADGE[r.status].label}</Pill>
-                        </td>
-                        <td className={cn(TD, "max-w-[240px]")}>
-                          {why ? (
-                            <div title={r.error ?? undefined}>
-                              <div className={cn("text-xs font-semibold", r.status === "failed" ? "text-red-700" : "text-slate-600")}>
-                                {why.label}
-                              </div>
-                              <div className="text-[11px] leading-snug text-slate-500">{why.hint}</div>
-                            </div>
-                          ) : (
-                            <span className="text-slate-300">–</span>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-7xl space-y-3 px-3 py-4 sm:px-5">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+              <FilterTile label="Total" value={campaign.total_count} tone="text-slate-800" active={filter === "all" && !reason} onClick={() => pick("all")} />
+              <FilterTile label="Sent" value={campaign.sent_count} tone="text-blue-600" active={filter === "sent"} onClick={() => pick("sent")} />
+              <FilterTile label="Delivered" value={campaign.delivered_count} tone="text-sky-600" active={filter === "delivered"} onClick={() => pick("delivered")} />
+              <FilterTile label="Read" value={campaign.read_count} tone="text-emerald-600" active={filter === "read"} onClick={() => pick("read")} />
+              <FilterTile label="Failed" value={campaign.failed_count} tone="text-red-600" active={filter === "failed" && !reason} onClick={() => pick("failed")} />
+              <FilterTile label="Waiting" value={pending} tone="text-slate-500" active={filter === "pending"} onClick={() => pick("pending")} />
+            </div>
+
+            {(failures.length > 0 || showMessage) && (
+              <div className={cn("grid gap-3", failures.length > 0 && showMessage && "lg:grid-cols-[minmax(0,1fr)_320px]")}>
+                {failures.length > 0 && (
+                  <div className="rounded-xl border border-red-200 bg-red-50/60 p-3">
+                    <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-red-800">
+                      <AlertTriangle className="h-4 w-4" />
+                      Why {num(campaign.failed_count)} {campaign.failed_count === 1 ? "number" : "numbers"} failed
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {failures.map(({ reason: r, count }) => (
+                        <button
+                          key={r.label}
+                          type="button"
+                          title={r.hint}
+                          onClick={() => {
+                            setFilter("failed");
+                            setReason(reason === r.label ? null : r.label);
+                          }}
+                          className={cn(
+                            "rounded-lg border bg-white px-2.5 py-1.5 text-left text-xs shadow-sm transition hover:border-red-300",
+                            reason === r.label ? "border-red-500 ring-2 ring-red-500/20" : "border-red-100",
                           )}
-                        </td>
-                        <td className={cn(TD, "whitespace-nowrap text-xs text-slate-600")}>{fmt(r.sent_at)}</td>
-                        <td className={cn(TD, "whitespace-nowrap text-xs text-slate-600")}>{fmt(r.delivered_at)}</td>
-                        <td className={cn(TD, "whitespace-nowrap text-xs text-slate-600")}>{fmt(r.read_at)}</td>
-                      </tr>
-                    );
-                  })}
-                  {!rows.length && (
-                    <tr>
-                      <td colSpan={8} className="py-8 text-center text-slate-500">
-                        No numbers here
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                        >
+                          <span className="font-semibold text-red-700">{r.label}</span>
+                          <span className="ml-1.5 rounded-full bg-red-100 px-1.5 py-0.5 font-bold tabular-nums text-red-700">{count}</span>
+                          <span className="mt-0.5 block max-w-[300px] text-[11px] leading-snug text-slate-500">{r.hint}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {showMessage && <div className={cn(!failures.length && "max-w-sm")}>{preview}</div>}
+              </div>
             )}
+
+            <p className="text-xs text-slate-500">
+              Showing {num(rows.length)} of {num(q.data?.length ?? campaign.total_count)} numbers. Read shows only when the
+              customer has blue ticks on; otherwise it stays Delivered.
+            </p>
+
+            <div className="max-h-[calc(100dvh-8rem)] min-h-[240px] overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+              {q.isLoading ? (
+                <div className="flex justify-center p-6">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                </div>
+              ) : (
+                <table className="w-full min-w-[900px] text-sm">
+                  <thead>
+                    <tr>
+                      <th className={cn(TH, "w-12")}>#</th>
+                      <th className={TH}>Name</th>
+                      <th className={TH}>Mobile</th>
+                      <th className={TH}>Status</th>
+                      <th className={cn(TH, "w-[32%]")}>Reason</th>
+                      <th className={TH}>Sent</th>
+                      <th className={TH}>Delivered</th>
+                      <th className={TH}>Read</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {rows.map((r) => {
+                      const why = describeBulkFailure(r.error);
+                      return (
+                        <tr key={r.id} className="odd:bg-white even:bg-slate-50/60">
+                          <td className={cn(TD, "tabular-nums text-slate-500")}>{r.position}</td>
+                          <td className={cn(TD, "font-medium text-slate-800")}>{r.name ?? "–"}</td>
+                          <td className={cn(TD, "whitespace-nowrap tabular-nums")}>{formatBulkPhone(r.phone)}</td>
+                          <td className={TD}>
+                            <Pill className={RECIPIENT_BADGE[r.status].className}>{RECIPIENT_BADGE[r.status].label}</Pill>
+                          </td>
+                          <td className={TD}>
+                            {why ? (
+                              <div title={r.error ?? undefined}>
+                                <span className={cn("text-xs font-semibold", r.status === "failed" ? "text-red-700" : "text-slate-600")}>
+                                  {why.label}
+                                </span>
+                                <span className="text-[11px] leading-snug text-slate-500"> · {why.hint}</span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-300">–</span>
+                            )}
+                          </td>
+                          <td className={cn(TD, "whitespace-nowrap text-xs text-slate-600")}>{fmt(r.sent_at)}</td>
+                          <td className={cn(TD, "whitespace-nowrap text-xs text-slate-600")}>{fmt(r.delivered_at)}</td>
+                          <td className={cn(TD, "whitespace-nowrap text-xs text-slate-600")}>{fmt(r.read_at)}</td>
+                        </tr>
+                      );
+                    })}
+                    {!rows.length && (
+                      <tr>
+                        <td colSpan={8} className="py-8 text-center text-slate-500">
+                          No numbers here
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
-          {hasMessage && <div className="hidden min-h-0 overflow-auto lg:block">{preview}</div>}
         </div>
       </DialogContent>
     </Dialog>
