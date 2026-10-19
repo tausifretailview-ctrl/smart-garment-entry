@@ -229,8 +229,10 @@ function instagramUrl(value: string): string {
   const v = value.trim();
   if (!v) return "";
   // Instagram addresses are case-insensitive; "HTTPS://WWW.INSTAGRAM.COM/SHOP" reads badly.
-  if (/^https?:\/\//i.test(v)) return /instagram\.com/i.test(v) ? v.toLowerCase() : v;
-  if (/instagram\.com\//i.test(v)) return `https://${v.replace(/^\/+/, "").toLowerCase()}`;
+  // Only the address part: share links carry a case-sensitive token (?igsh=…, ?stkn=…).
+  const lowerPath = (u: string) => u.replace(/^[^?#]*/, (part) => part.toLowerCase());
+  if (/^https?:\/\//i.test(v)) return /instagram\.com/i.test(v) ? lowerPath(v) : v;
+  if (/instagram\.com\//i.test(v)) return `https://${lowerPath(v.replace(/^\/+/, ""))}`;
   const handle = v.replace(/^@/, "").replace(/\/+$/, "");
   return /^[A-Za-z0-9._]+$/.test(handle) ? `https://instagram.com/${handle}` : "";
 }
@@ -249,6 +251,26 @@ export function appendSocialLinkLines(message: string, googleReviewLink: string,
   return `${message.trimEnd()}${sep}${lines.join("\n")}`;
 }
 
+/**
+ * Instagram / website / Google review links for WhatsApp bills. Settings > WhatsApp
+ * saves them in whatsapp_api_settings.social_links; Settings > Bill & Barcode saves the
+ * same links in settings.bill_barcode_settings. Use whichever the shop filled.
+ */
+export function mergeShopSocialLinks(
+  socialLinks: unknown,
+  billBarcodeSettings: unknown,
+): { instagram: string; website: string; google_review: string; facebook: string } {
+  const social = (socialLinks && typeof socialLinks === "object" ? socialLinks : {}) as Record<string, unknown>;
+  const bill = (billBarcodeSettings && typeof billBarcodeSettings === "object" ? billBarcodeSettings : {}) as Record<string, unknown>;
+  const pick = (...values: unknown[]) => values.map((v) => String(v ?? "").trim()).find(Boolean) ?? "";
+  return {
+    instagram: pick(social.instagram, bill.instagram_link),
+    website: pick(social.website, bill.website_link),
+    google_review: pick(social.google_review, social.google_review_link, bill.google_review_link),
+    facebook: pick(social.facebook),
+  };
+}
+
 /** Load Sales Invoice template from DB and fill placeholders for WappConnect PDF caption. */
 export async function buildSalesInvoiceWhatsAppCaption(
   organizationId: string,
@@ -264,7 +286,7 @@ export async function buildSalesInvoiceWhatsAppCaption(
       .maybeSingle(),
     supabase
       .from("settings")
-      .select("business_name, address, mobile_number, sale_settings")
+      .select("business_name, address, mobile_number, sale_settings, bill_barcode_settings")
       .eq("organization_id", organizationId)
       .maybeSingle(),
     supabase
@@ -274,7 +296,10 @@ export async function buildSalesInvoiceWhatsAppCaption(
       .maybeSingle(),
   ]);
 
-  const social = ((wa as { social_links?: unknown } | null)?.social_links ?? {}) as Record<string, unknown>;
+  const social = mergeShopSocialLinks(
+    (wa as { social_links?: unknown } | null)?.social_links,
+    (shop as { bill_barcode_settings?: unknown } | null)?.bill_barcode_settings,
+  );
   const saleSettings = ((shop as { sale_settings?: unknown } | null)?.sale_settings ?? {}) as Record<string, unknown>;
   const points = await loadBillPoints(saleData, saleSettings);
 
@@ -284,7 +309,7 @@ export async function buildSalesInvoiceWhatsAppCaption(
     organization_address: saleData.organization_address || shop?.address || "",
     organization_phone: saleData.organization_phone || shop?.mobile_number || "",
     instagram_link: saleData.instagram_link || saleData.instagram || social.instagram || "",
-    google_review_link: saleData.google_review_link || social.google_review || social.google_review_link || "",
+    google_review_link: saleData.google_review_link || social.google_review || "",
     website_link: saleData.website_link || social.website || "",
     points_earned: saleData.points_earned ?? points?.earned ?? 0,
     points_balance: saleData.points_balance ?? points?.balance ?? 0,
