@@ -1,18 +1,23 @@
-/** Mobile screen look — "classic" (current shadcn/theme-color screens) vs
+/** Mobile screen look — "classic" (older shadcn/theme-color screens) vs
  *  "premium" (Ezzy dark-shell redesign, `.ez` scope). Presentation only —
  *  does not affect data, queries or the desktop app. */
 export type MobileUiTheme = "classic" | "premium";
+
+/** Look for users who never picked one. A saved "classic" choice is kept. */
+export const DEFAULT_MOBILE_UI_THEME: MobileUiTheme = "premium";
 
 export const MOBILE_UI_THEME_KEY = "ezzyerp:mobile-ui-theme";
 
 const CHANGE_EVENT = "ezzyerp:mobile-ui-theme-change";
 
 export function getMobileUiTheme(): MobileUiTheme {
-  if (typeof window === "undefined") return "classic";
+  if (typeof window === "undefined") return DEFAULT_MOBILE_UI_THEME;
   try {
-    return localStorage.getItem(MOBILE_UI_THEME_KEY) === "premium" ? "premium" : "classic";
+    const saved = localStorage.getItem(MOBILE_UI_THEME_KEY);
+    if (saved === "premium" || saved === "classic") return saved;
+    return DEFAULT_MOBILE_UI_THEME;
   } catch {
-    return "classic";
+    return DEFAULT_MOBILE_UI_THEME;
   }
 }
 
