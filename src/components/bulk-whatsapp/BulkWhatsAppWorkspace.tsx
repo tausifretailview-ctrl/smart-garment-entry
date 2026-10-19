@@ -206,7 +206,7 @@ export function BulkWhatsAppWorkspace({
         if (error) throw new Error(`Poster upload failed: ${error.message}`);
         mediaUrl = supabase.storage.from("bulk-whatsapp-media").getPublicUrl(path).data.publicUrl;
       }
-      const res = await callBulkWhatsApp<{ total?: number; unsubscribed?: number }>(orgId, "create", {
+      const res = await callBulkWhatsApp<{ total?: number; unsubscribed?: number; alreadySent?: number }>(orgId, "create", {
         name: name.trim(),
         message: outgoing,
         mediaUrl,
@@ -214,7 +214,10 @@ export function BulkWhatsAppWorkspace({
         mediaName: media?.name ?? null,
         recipients: contacts,
       });
-      const skipped = res.unsubscribed ? ` ${res.unsubscribed} unsubscribed ${res.unsubscribed === 1 ? "number was" : "numbers were"} left out.` : "";
+      let skipped = res.unsubscribed ? ` ${res.unsubscribed} unsubscribed ${res.unsubscribed === 1 ? "number was" : "numbers were"} left out.` : "";
+      if (res.alreadySent) {
+        skipped += ` ${res.alreadySent} ${res.alreadySent === 1 ? "number" : "numbers"} are still getting this message from a campaign that is sending, so ${res.alreadySent === 1 ? "it was" : "they were"} left out.`;
+      }
       toast.success(`Sending to ${res.total ?? contacts.length} numbers.${skipped} You can close this page; it keeps sending.`, {
         action: onOpenReports ? { label: "See report", onClick: onOpenReports } : undefined,
       });
