@@ -4135,6 +4135,9 @@ const PurchaseEntry = () => {
       const product = v.products as any;
       let barcode = v.barcode || "";
       let skuId = v.id;
+      // This size's own prices go with its MRP; product defaults may be an older tier.
+      const tierPurPrice = Number(v.pur_price) || product.default_pur_price || 0;
+      const tierSalePrice = Number(v.sale_price) || product.default_sale_price || 0;
       
       // Universal / manufacturer barcode: keep the same code. Generated series: new SKU.
       if (shouldReuseExistingBarcodeOnPurchaseSelect({
@@ -4151,8 +4154,8 @@ const PurchaseEntry = () => {
           product_id: productId,
           size: v.size,
           color: v.color,
-          pur_price: product.default_pur_price,
-          sale_price: product.default_sale_price,
+          pur_price: tierPurPrice,
+          sale_price: tierSalePrice,
           mrp: v.mrp,
         });
         if (!result) return;
@@ -4166,8 +4169,8 @@ const PurchaseEntry = () => {
         product_name: product.product_name,
         size: v.size,
         qty: 1,
-        pur_price: product.default_pur_price || 0,
-        sale_price: product.default_sale_price || 0,
+        pur_price: tierPurPrice,
+        sale_price: tierSalePrice,
         mrp: v.mrp || 0,
         gst_per: product.purchase_gst_percent || product.gst_per || 0,
         hsn_code: product.hsn_code || "",

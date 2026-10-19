@@ -7,9 +7,14 @@
  *   1. what the user typed for the previous new size of this colour (so one MRP typed
  *      for a new colour carries to its next sizes),
  *   2. explicit defaults passed to the grid,
- *   3. this colour's existing sizes,
- *   4. the product defaults, then any other size of the product.
+ *   3. one existing size of this colour, else of the product (in Purchase the grid
+ *      only holds the MRP tier picked in search), so Pur / Sale / MRP come as a set,
+ *   4. the product defaults.
  * MRP falls back to the sale price only when no size of the product has an MRP.
+ *
+ * KS Footwear AT28: a new colour took Pur/Sale from the product defaults (old MRP 429
+ * tier: 248.82 / 308.88) but MRP from the grid's sizes (489), instead of the 489
+ * tier's own 283.62 / 342. Product defaults carry no MRP, so they go last.
  */
 
 type PricedSize = {
@@ -36,6 +41,13 @@ function firstPositiveOf(rows: PricedSize[], key: keyof PricedSize): number {
   return firstPositive(...rows.map((row) => row[key]));
 }
 
+/** First size with a sale price (else an MRP): its prices belong to one tier. */
+function priceSource(rows: PricedSize[]): PricedSize | undefined {
+  return (
+    rows.find((row) => Number(row.sale_price) > 0) ?? rows.find((row) => Number(row.mrp) > 0)
+  );
+}
+
 export function sizeGridNewSizePrices(args: {
   /** Sizes of the colour the new size is added to (empty for a brand-new colour). */
   colorVariants: PricedSize[];
@@ -50,24 +62,28 @@ export function sizeGridNewSizePrices(args: {
   productSalePrice?: number | null;
 }): SizeGridNewSizePrices {
   const previous = args.addedSizes?.[args.addedSizes.length - 1];
+  const source = priceSource(args.colorVariants) ?? priceSource(args.allVariants);
 
   const pur_price = firstPositive(
     previous?.pur_price,
     args.defaultPurPrice,
+    source?.pur_price,
     firstPositiveOf(args.colorVariants, "pur_price"),
-    args.productPurPrice,
     firstPositiveOf(args.allVariants, "pur_price"),
+    args.productPurPrice,
   );
   const sale_price = firstPositive(
     previous?.sale_price,
     args.defaultSalePrice,
+    source?.sale_price,
     firstPositiveOf(args.colorVariants, "sale_price"),
-    args.productSalePrice,
     firstPositiveOf(args.allVariants, "sale_price"),
+    args.productSalePrice,
   );
   const mrp = firstPositive(
     previous?.mrp,
     args.defaultMrp,
+    source?.mrp,
     firstPositiveOf(args.colorVariants, "mrp"),
     firstPositiveOf(args.allVariants, "mrp"),
     sale_price,
