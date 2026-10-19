@@ -1,12 +1,19 @@
 {
   "id": "/",
-  "name": "Ezzy WhatsApp",
-  "short_name": "Ezzy WhatsApp",
+  "name": "Ezzy Bulk Sender by Ezzy ERP",
+  "short_name": "Ezzy Bulk",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#f8fafc",
-  "theme_color": "#059669",
-  "description": "Send WhatsApp promotions from your own number, with delivery and read report.",
-  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+  "theme_color": "#1e293b",
+  "description": "Ezzy ERP bulk messaging for shops: send offers to your customers from your own number, with delivery and read report.",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
 }

@@ -85,13 +85,13 @@ export function Dashboard({
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
-      <header className="sticky top-0 z-30 bg-gradient-to-r from-emerald-700 via-emerald-600 to-teal-600 text-white shadow-md">
+      <header className="sticky top-0 z-30 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-900 text-white shadow-md">
         <div className="flex items-center justify-between gap-3 px-3 py-2.5 sm:px-5">
           <div className="flex min-w-0 items-center gap-2.5">
             <img src="/icon.svg" alt="" className="h-9 w-9 shrink-0 rounded-xl ring-2 ring-white/30" />
             <div className="min-w-0">
-              <div className="text-base font-bold leading-tight tracking-tight">Ezzy WhatsApp</div>
-              <div className="flex items-center gap-1 truncate text-xs text-emerald-50/90">
+              <div className="text-base font-bold leading-tight tracking-tight">Ezzy Bulk Sender</div>
+              <div className="flex items-center gap-1 truncate text-xs text-slate-300">
                 <Store className="h-3 w-3 shrink-0" />
                 {shops.length > 1 ? (
                   <select
@@ -112,7 +112,7 @@ export function Dashboard({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="hidden max-w-[220px] truncate text-xs text-emerald-50/90 sm:inline">{email}</span>
+            <span className="hidden max-w-[220px] truncate text-xs text-slate-300 sm:inline">{email}</span>
             <Button
               size="sm"
               variant="secondary"
