@@ -216,7 +216,7 @@ export function BulkWhatsAppWorkspace({
       });
       let skipped = res.unsubscribed ? ` ${res.unsubscribed} unsubscribed ${res.unsubscribed === 1 ? "number was" : "numbers were"} left out.` : "";
       if (res.alreadySent) {
-        skipped += ` ${res.alreadySent} ${res.alreadySent === 1 ? "number" : "numbers"} already got this message today, so ${res.alreadySent === 1 ? "it was" : "they were"} left out.`;
+        skipped += ` ${res.alreadySent} ${res.alreadySent === 1 ? "number" : "numbers"} are still getting this message from a campaign that is sending, so ${res.alreadySent === 1 ? "it was" : "they were"} left out.`;
       }
       toast.success(`Sending to ${res.total ?? contacts.length} numbers.${skipped} You can close this page; it keeps sending.`, {
         action: onOpenReports ? { label: "See report", onClick: onOpenReports } : undefined,
