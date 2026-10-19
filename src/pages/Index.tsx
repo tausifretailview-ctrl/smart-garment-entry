@@ -22,6 +22,7 @@ import {
   STORED_NET_CAPTION,
   fetchNetProfitKpis,
 } from "@/utils/netProfitKpis";
+import { fetchErpDashboardStatsAfterSr } from "@/utils/saleReturnAdjustTotal";
 import { isStatementTimeout } from "@/utils/statementTimeout";
 import { PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { DashboardSkeleton, MetricCardSkeleton } from "@/components/ui/skeletons";
@@ -409,14 +410,9 @@ const DesktopDashboard = () => {
     queryFn: async () => {
       if (!currentOrganization) return null;
       
-      const { data, error } = await supabase.rpc('get_erp_dashboard_stats', {
-        p_org_id: currentOrganization.id,
-        p_start_date: startDate,
-        p_end_date: endDate,
-      });
-      if (error) throw error;
+      const stats = await fetchErpDashboardStatsAfterSr<DashStats>(currentOrganization.id, startDate, endDate);
       setLastUpdated(new Date());
-      return data as DashStats;
+      return stats;
     },
     enabled: metricsQueryEnabled,
     ...DASHBOARD_MANUAL_REFRESH_OPTIONS,

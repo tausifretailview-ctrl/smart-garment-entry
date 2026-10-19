@@ -17,6 +17,7 @@ import {
   STORED_NET_CAPTION,
   fetchNetProfitKpis,
 } from "@/utils/netProfitKpis";
+import { fetchErpDashboardStatsAfterSr } from "@/utils/saleReturnAdjustTotal";
 import { localDayBounds, saleRowCalendarYmd, todayLocalYmd } from "@/lib/localDayBounds";
 import { MOBILE_HOME_SALE_TYPES, MOBILE_SALES_PATH, MOBILE_REPORTS_PATH } from "@/lib/mobileShell";
 import { useEffect, useState } from "react";
@@ -135,15 +136,9 @@ export const OwnerDashboard = () => {
     queryKey: ["owner-erp-dashboard-stats", orgId, statsStart, statsEnd],
     queryFn: async () => {
       if (!orgId) return null;
-      return withMobileQueryTimeout(async () => {
-        const { data, error } = await supabase.rpc("get_erp_dashboard_stats", {
-          p_org_id: orgId,
-          p_start_date: statsStart,
-          p_end_date: statsEnd,
-        });
-        if (error) throw error;
-        return data as ErpDashboardStats;
-      });
+      return withMobileQueryTimeout(() =>
+        fetchErpDashboardStatsAfterSr<ErpDashboardStats>(orgId, statsStart, statsEnd),
+      );
     },
     enabled: kpisEnabled,
     staleTime: BALANCE_STALE_MS,
