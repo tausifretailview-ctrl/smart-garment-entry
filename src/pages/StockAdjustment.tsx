@@ -216,7 +216,9 @@ const StockAdjustment = () => {
     setVariants((prev) =>
       prev.map((v) => {
         if (v.id === variantId) {
-          return { ...v, newStockQty: numValue, stockQtyChanged: true };
+          // Opening moves with stock so Stock Reconciliation (opening + bills) still matches.
+          const linkedOpening = v.opening_qty + (numValue - v.stock_qty);
+          return { ...v, newStockQty: numValue, calculatedStock: numValue, newOpeningQty: linkedOpening, stockQtyChanged: true };
         }
         return v;
       })
@@ -265,7 +267,9 @@ const StockAdjustment = () => {
     setVariants((prev) =>
       prev.map((v) => {
         if (v.selected) {
-          return { ...v, newStockQty: numValue, stockQtyChanged: true };
+          // Opening moves with stock so Stock Reconciliation (opening + bills) still matches.
+          const linkedOpening = v.opening_qty + (numValue - v.stock_qty);
+          return { ...v, newStockQty: numValue, calculatedStock: numValue, newOpeningQty: linkedOpening, stockQtyChanged: true };
         }
         return v;
       })
@@ -295,18 +299,16 @@ const StockAdjustment = () => {
 
       // Update each variant
       for (const v of changedVariants) {
-        const openingDiff = v.newOpeningQty - v.opening_qty;
+        // Opening and stock always move together (see handleStockChange / handleOpeningChange),
+        // so one movement records the whole change.
         const finalStockQty = v.stockQtyChanged ? v.newStockQty : v.calculatedStock;
-        // The opening movement already carries openingDiff; log only the rest so
-        // the movements add up to the real stock change.
-        const stockAfterOpening = v.stock_qty + openingDiff;
-        const stockDiff = finalStockQty - stockAfterOpening;
-        
-        // Update variant opening_qty and stock_qty
+        const finalOpeningQty = v.opening_qty + (finalStockQty - v.stock_qty);
+        const stockDiff = finalStockQty - v.stock_qty;
+
         const { error: updateError } = await supabase
           .from("product_variants")
           .update({
-            opening_qty: v.newOpeningQty,
+            opening_qty: finalOpeningQty,
             stock_qty: finalStockQty,
             updated_at: new Date().toISOString(),
           })
@@ -314,29 +316,7 @@ const StockAdjustment = () => {
 
         if (updateError) throw updateError;
 
-        // Create stock movement for audit trail
-        if (openingDiff !== 0) {
-          const { error: movementError } = await supabase
-            .from("stock_movements")
-            .insert({
-              variant_id: v.id,
-              organization_id: currentOrganization.id,
-              movement_type: "reconciliation",
-              quantity: openingDiff,
-              notes: `Stock Adjustment: opening qty ${v.opening_qty} → ${v.newOpeningQty}`,
-              user_id: userId,
-              bill_number: `ADJ-${format(new Date(), "yyyyMMdd-HHmmss")}`,
-            });
-
-          if (movementError) {
-            throw new Error(
-              `Stock movement insert failed (movement_type=reconciliation, qty=${openingDiff}): ${movementError.message}`
-            );
-          }
-        }
-
-        // Create stock movement for direct stock adjustment
-        if (v.stockQtyChanged && stockDiff !== 0) {
+        if (stockDiff !== 0) {
           const { error: movementError } = await supabase
             .from("stock_movements")
             .insert({
@@ -344,9 +324,9 @@ const StockAdjustment = () => {
               organization_id: currentOrganization.id,
               movement_type: "reconciliation",
               quantity: stockDiff,
-              notes: `Stock Adjustment: stock qty ${stockAfterOpening} → ${finalStockQty}`,
+              notes: `Stock Adjustment: stock ${v.stock_qty} → ${finalStockQty}, opening ${v.opening_qty} → ${finalOpeningQty}`,
               user_id: userId,
-              bill_number: `STK-${format(new Date(), "yyyyMMdd-HHmmss")}`,
+              bill_number: `ADJ-${format(new Date(), "yyyyMMdd-HHmmss")}`,
             });
 
           if (movementError) {
@@ -362,7 +342,7 @@ const StockAdjustment = () => {
     onSuccess: (count) => {
       toast({
         title: "Stock Adjusted Successfully",
-        description: `Updated opening quantity for ${count} item(s)`,
+        description: `Updated stock and opening qty for ${count} item(s)`,
       });
       queryClient.invalidateQueries({ queryKey: ["stock-adjustment-variants"] });
       if (currentOrganization?.id) {
@@ -638,7 +618,7 @@ const StockAdjustment = () => {
         {/* Save Button */}
         <div className="flex justify-between items-center pt-4 border-t">
           <div className="text-sm text-muted-foreground">
-            Changing opening qty moves stock by the same qty. Saved changes show as Stock Adjustment in Product Tracking and product history.
+            Opening qty and stock qty move together, so Stock Reconciliation stays matched. Saved changes show as Stock Adjustment in Product Tracking and product history.
           </div>
           <Button
             size="lg"
