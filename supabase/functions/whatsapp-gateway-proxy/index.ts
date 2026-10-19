@@ -84,7 +84,8 @@ serve(async (req) => {
       required_role: role,
     });
     if (ok === true) {
-      return await handleControl(supabaseAdmin, action, organizationId);
+      const phone = body.phone ? String(body.phone).slice(0, 20) : undefined;
+      return await handleControl(supabaseAdmin, action, organizationId, phone);
     }
   }
   return json({ error: "Not authorized for this organization" }, 403);
@@ -94,11 +95,13 @@ async function handleControl(
   supabaseAdmin: SupabaseClient,
   action: string,
   organizationId: string,
+  /** Optional: link by 8-character code typed on the phone instead of scanning the QR. */
+  phone?: string,
 ): Promise<Response> {
   const base = `/sessions/${encodeURIComponent(organizationId)}`;
   let result;
   if (action === "start") {
-    result = await gatewayRequest(`${base}/start`, { method: "POST" });
+    result = await gatewayRequest(`${base}/start`, { method: "POST", body: phone ? { phone } : undefined });
   } else if (action === "status") {
     result = await gatewayRequest(`${base}/status`);
   } else if (action === "logout") {

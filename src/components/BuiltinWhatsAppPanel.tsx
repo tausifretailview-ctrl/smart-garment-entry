@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { getEdgeFunctionErrorMessage } from "@/utils/edgeFunctionError";
+import { WhatsAppLinkMethods, type LinkMethod } from "@/components/whatsapp/WhatsAppLinkMethods";
 
 type GatewayStatus = "connected" | "connecting" | "qr" | "disconnected" | "logged_out";
 
@@ -15,6 +16,7 @@ interface ControlResponse {
   success?: boolean;
   status?: GatewayStatus;
   qr?: string | null;
+  pairingCode?: string | null;
   connectedNumber?: string | null;
   error?: string;
 }
@@ -24,7 +26,7 @@ const POLL_MS = 3000;
 const STATUS_LABELS: Record<GatewayStatus, string> = {
   connected: "Connected",
   connecting: "Connecting…",
-  qr: "Waiting for scan",
+  qr: "Waiting for scan or code",
   disconnected: "Not connected",
   logged_out: "Not connected",
 };
@@ -36,6 +38,8 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
   const orgId = currentOrganization?.id;
   const [status, setStatus] = useState<GatewayStatus | null>(null);
   const [qr, setQr] = useState<string | null>(null);
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [method, setMethod] = useState<LinkMethod>("qr");
   const [number, setNumber] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,9 +47,9 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const call = useCallback(
-    async (action: "start" | "status" | "logout"): Promise<ControlResponse> => {
+    async (action: "start" | "status" | "logout", phone?: string): Promise<ControlResponse> => {
       const { data, error } = await supabase.functions.invoke("whatsapp-gateway-proxy", {
-        body: { action, organizationId: orgId },
+        body: { action, organizationId: orgId, ...(phone ? { phone } : {}) },
       });
       if (error) throw new Error(await getEdgeFunctionErrorMessage(error, data, "Gateway request failed"));
       return (data ?? {}) as ControlResponse;
@@ -56,6 +60,7 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
   const apply = useCallback((res: ControlResponse) => {
     setStatus(res.status ?? null);
     setQr(res.qr ?? null);
+    setPairingCode(res.pairingCode ?? null);
     setNumber(res.connectedNumber ?? null);
   }, []);
 
@@ -94,7 +99,7 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
             void onLinked();
           }
           // The server stops making QR codes after a while without a scan.
-          else toast.info("QR code expired. Click Connect WhatsApp to get a new one.");
+          else toast.info("The QR code / link code expired. Get a new one to try again.");
           return;
         }
       } catch {
@@ -108,13 +113,14 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
     };
   }, [polling, orgId, call, apply, onLinked]);
 
-  const run = async (action: "start" | "logout") => {
+  const run = async (action: "start" | "logout", phone?: string) => {
     setBusy(true);
     try {
-      const res = await call(action);
+      const res = await call(action, phone);
       if (action === "logout") {
         setStatus("logged_out");
         setQr(null);
+        setPairingCode(null);
         setNumber(null);
         setPolling(false);
         void queryClient.invalidateQueries({ queryKey: ["whatsapp-api-settings"] });
@@ -144,7 +150,7 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
         <AlertDescription className="text-sm space-y-1">
           <p>
             Click Connect WhatsApp, then on the shop phone open WhatsApp → Settings → Linked devices → Link a
-            device and scan the QR below. Bills, reminders and offers then go from your own number, with no
+            device and scan the QR below (or use Link with phone number to type a code instead). Bills, reminders and offers then go from your own number, with no
             per-message charge.
           </p>
           <p className="text-xs text-muted-foreground">
@@ -168,7 +174,15 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
           {connected ? `Connected${number ? ` · +${number}` : ""}` : status ? STATUS_LABELS[status] ?? status : "Checking…"}
         </Badge>
         {!connected && (
-          <Button type="button" size="sm" disabled={busy || !orgId} onClick={() => void run("start")}>
+          <Button
+            type="button"
+            size="sm"
+            disabled={busy || !orgId}
+            onClick={() => {
+              setMethod("qr");
+              void run("start");
+            }}
+          >
             {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <QrCode className="h-4 w-4 mr-2" />}
             {qr ? "Refresh QR" : "Connect WhatsApp"}
           </Button>
@@ -197,11 +211,16 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
         <p className="text-xs text-muted-foreground">Last known status: {lastStatus}</p>
       )}
 
-      {!connected && qr && (
-        <div className="inline-block rounded-md border bg-white p-3">
-          <img src={qr} alt="WhatsApp link QR code" className="h-56 w-56" />
-          <p className="mt-2 text-center text-xs text-muted-foreground">Waiting for scan…</p>
-        </div>
+      {!connected && status && orgId && (
+        <WhatsAppLinkMethods
+          method={method}
+          onMethodChange={setMethod}
+          qr={qr}
+          pairingCode={pairingCode}
+          busy={busy}
+          onRequestCode={(phone) => void run("start", phone)}
+          qrHint="Click Connect WhatsApp to get the QR code, or link with the shop's phone number instead."
+        />
       )}
     </div>
   );

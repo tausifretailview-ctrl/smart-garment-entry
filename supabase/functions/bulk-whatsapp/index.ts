@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { gatewayRequest, getGatewayConfig } from "../_shared/builtinGatewaySend.ts";
+import { gatewayBaseUrl, gatewayRequest, getGatewayConfig } from "../_shared/builtinGatewaySend.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,7 +25,7 @@ const RANK: Record<string, number> = { pending: 0, sent: 1, delivered: 2, read: 
  * server with shop bill sends. Without WA_BULK_GATEWAY_URL / WA_BULK_GATEWAY_KEY they use the bill one.
  */
 function bulkGatewayConfig(): { url: string; key: string } | null {
-  const url = (Deno.env.get("WA_BULK_GATEWAY_URL") ?? "").trim().replace(/\/+$/, "");
+  const url = gatewayBaseUrl(Deno.env.get("WA_BULK_GATEWAY_URL"));
   const key = (Deno.env.get("WA_BULK_GATEWAY_KEY") ?? "").trim();
   return url && key ? { url, key } : getGatewayConfig();
 }
@@ -89,7 +89,11 @@ serve(async (req) => {
   if (action === "session-start" || action === "session-status" || action === "session-logout") {
     const result =
       action === "session-start"
-        ? await bulkGateway(`${sessionPath}/start`, { method: "POST" })
+        ? await bulkGateway(`${sessionPath}/start`, {
+            method: "POST",
+            // Optional: link by 8-character code typed on the phone instead of scanning the QR.
+            body: body.phone ? { phone: String(body.phone).slice(0, 20) } : undefined,
+          })
         : action === "session-status"
           ? await bulkGateway(`${sessionPath}/status`)
           : await bulkGateway(sessionPath, { method: "DELETE" });
