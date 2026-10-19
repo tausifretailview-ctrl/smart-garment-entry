@@ -169,6 +169,8 @@ async function createCampaign(
   const mediaUrl = body.mediaUrl ? String(body.mediaUrl) : null;
   const mediaType = body.mediaType ? String(body.mediaType) : null;
   const mediaName = body.mediaName ? String(body.mediaName).slice(0, 120) : null;
+  // Videos: the WhatsApp server re-encodes to 480p (small) or 720p (medium); original sends the file as is.
+  const videoQuality = body.videoQuality === "small" || body.videoQuality === "original" ? body.videoQuality : "medium";
   if (mediaUrl && !mediaUrl.startsWith("https://")) return json({ error: "Poster link must be https" }, 400);
   if (!message.trim() && !mediaUrl) return json({ error: "Type a message or attach a poster" }, 400);
 
@@ -265,7 +267,15 @@ async function createCampaign(
       message,
       minGapMs: MIN_GAP_MS,
       maxGapMs: MAX_GAP_MS,
-      media: mediaUrl ? { url: mediaUrl, mimetype: mediaType ?? "image/jpeg", filename: mediaName ?? "poster", kind } : null,
+      media: mediaUrl
+        ? {
+          url: mediaUrl,
+          mimetype: mediaType ?? "image/jpeg",
+          filename: mediaName ?? "poster",
+          kind,
+          quality: kind === "video" ? videoQuality : undefined,
+        }
+        : null,
       items: recipients.map((r, i) => ({
         recipientId: idByPos.get(i + 1),
         phone: r.phone,

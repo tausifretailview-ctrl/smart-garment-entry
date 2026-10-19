@@ -60,7 +60,16 @@ const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("
 
 const MAX_CONTACTS = 5000;
 const MAX_MEDIA_BYTES = 16 * 1024 * 1024;
-const MEDIA_ACCEPT = "image/jpeg,image/png,image/webp,video/mp4,application/pdf";
+/** Videos made Small / Medium on the WhatsApp server may start bigger; it sends the smaller copy. */
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+const MEDIA_ACCEPT = "image/jpeg,image/png,image/webp,video/mp4,video/quicktime,application/pdf";
+
+type VideoQuality = "small" | "medium" | "original";
+const VIDEO_QUALITIES: { id: VideoQuality; label: string; hint: string }[] = [
+  { id: "small", label: "Small", hint: "480p, quickest to send and download" },
+  { id: "medium", label: "Medium", hint: "720p, clear and light (best)" },
+  { id: "original", label: "Original", hint: "As uploaded, MP4 up to 16 MB" },
+];
 const SHOWN_CONTACTS = 200;
 /** Added under the message so customers know how to stop bulk messages (STOP is handled by the WhatsApp server). */
 const STOP_LINE = "Reply STOP to stop these messages";
@@ -75,6 +84,9 @@ function readLinks(orgId: string): BulkLinks {
     return EMPTY_BULK_LINKS;
   }
 }
+
+/** Original means WhatsApp gets the file as uploaded: only for MP4s that fit its 16 MB size. */
+const canSendOriginal = (file: File) => file.type === "video/mp4" && file.size <= MAX_MEDIA_BYTES;
 
 export type BulkWhatsAppView = "all" | "send" | "reports";
 
@@ -106,6 +118,7 @@ export function BulkWhatsAppWorkspace({
   const [message, setMessage] = useState("");
   const [media, setMedia] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  const [videoQuality, setVideoQuality] = useState<VideoQuality>("medium");
   const [contacts, setContacts] = useState<BulkContact[]>([]);
   const [typed, setTyped] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -170,10 +183,12 @@ export function BulkWhatsAppWorkspace({
 
   const onMedia = (file: File | null) => {
     if (mediaPreview) URL.revokeObjectURL(mediaPreview);
-    if (file && file.size > MAX_MEDIA_BYTES) {
-      toast.error("File is too large (max 16 MB)");
+    const isVideo = Boolean(file?.type.startsWith("video/"));
+    if (file && file.size > (isVideo ? MAX_VIDEO_BYTES : MAX_MEDIA_BYTES)) {
+      toast.error(isVideo ? "Video is too large (max 50 MB)" : "File is too large (max 16 MB)");
       file = null;
     }
+    if (file && isVideo && !canSendOriginal(file)) setVideoQuality((q) => (q === "original" ? "medium" : q));
     setMedia(file);
     setMediaPreview(file && file.type.startsWith("image/") ? URL.createObjectURL(file) : null);
   };
@@ -203,7 +218,13 @@ export function BulkWhatsAppWorkspace({
         const { error } = await supabase.storage
           .from("bulk-whatsapp-media")
           .upload(path, media, { contentType: media.type, upsert: false });
-        if (error) throw new Error(`Poster upload failed: ${error.message}`);
+        if (error) {
+          throw new Error(
+            media.size > MAX_MEDIA_BYTES && /size|large/i.test(error.message)
+              ? "Videos over 16 MB need the new storage setting (SQL from the update). For now pick a video under 16 MB."
+              : `Poster upload failed: ${error.message}`,
+          );
+        }
         mediaUrl = supabase.storage.from("bulk-whatsapp-media").getPublicUrl(path).data.publicUrl;
       }
       const res = await callBulkWhatsApp<{ total?: number; unsubscribed?: number; alreadySent?: number }>(orgId, "create", {
@@ -212,6 +233,7 @@ export function BulkWhatsAppWorkspace({
         mediaUrl,
         mediaType: media?.type ?? null,
         mediaName: media?.name ?? null,
+        videoQuality: media?.type.startsWith("video/") ? videoQuality : null,
         recipients: contacts,
       });
       let skipped = res.unsubscribed ? ` ${res.unsubscribed} unsubscribed ${res.unsubscribed === 1 ? "number was" : "numbers were"} left out.` : "";
@@ -305,7 +327,7 @@ export function BulkWhatsAppWorkspace({
           </div>
           <LinksEditor links={links} onChange={setLinks} />
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-slate-600">Poster (photo, MP4 video or PDF, optional)</Label>
+            <Label className="text-xs font-medium text-slate-600">Poster (photo, video or PDF, optional)</Label>
             <input
               ref={mediaRef}
               type="file"
@@ -333,7 +355,36 @@ export function BulkWhatsAppWorkspace({
                   <X className="h-4 w-4" />
                 </Button>
               </div>
-            ) : (
+            ) : null}
+            {media?.type.startsWith("video/") && (
+              <div className="space-y-1">
+                <div className="text-[11px] font-medium text-slate-600">Video size sent to customers</div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {VIDEO_QUALITIES.map((v) => {
+                    const disabled = v.id === "original" && !canSendOriginal(media);
+                    return (
+                      <button
+                        key={v.id}
+                        type="button"
+                        disabled={disabled}
+                        title={disabled ? "Original works only for MP4 videos up to 16 MB" : v.hint}
+                        onClick={() => setVideoQuality(v.id)}
+                        className={cn(
+                          "rounded-lg border px-2 py-1.5 text-left transition disabled:cursor-not-allowed disabled:opacity-40",
+                          videoQuality === v.id
+                            ? "border-emerald-500 bg-emerald-50 ring-2 ring-emerald-500/20"
+                            : "border-slate-200 bg-white hover:border-emerald-300",
+                        )}
+                      >
+                        <div className="text-xs font-semibold text-slate-800">{v.label}</div>
+                        <div className="text-[10px] leading-snug text-slate-500">{v.hint}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {media ? null : (
               <button
                 type="button"
                 onClick={() => mediaRef.current?.click()}

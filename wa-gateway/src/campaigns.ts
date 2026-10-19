@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import pino from "pino";
 import { type BulkContent, type ReceiptStatus, type SessionManager } from "./sessions.js";
+import { removeCampaignVideos, shrinkVideo, type VideoQuality } from "./video.js";
 
 /**
  * Bulk WhatsApp campaigns. Each job is saved on the volume and sent one number at a time with a
@@ -23,6 +24,8 @@ interface CampaignMedia {
   mimetype: string;
   filename: string;
   kind: "image" | "video" | "document";
+  /** Videos only: re-encode to 480p / 720p before sending. Missing = send as uploaded. */
+  quality?: VideoQuality;
 }
 
 interface CampaignJob {
@@ -40,6 +43,7 @@ interface CampaignJob {
 
 const AUTH_DIR = process.env.AUTH_DIR ?? "./data/sessions";
 const CAMPAIGN_DIR = process.env.CAMPAIGN_DIR ?? path.join(path.dirname(AUTH_DIR), "campaigns");
+const VIDEO_DIR = path.join(CAMPAIGN_DIR, "videos");
 const API_KEY = process.env.GATEWAY_API_KEY ?? "";
 /** Defaults to the bulk-whatsapp function next to whatsapp-gateway-proxy, so no new setting is needed. */
 const APP_BULK_URL = process.env.APP_BULK_URL || bulkUrlFrom(process.env.APP_EVENT_URL || process.env.APP_INBOUND_URL);
@@ -55,6 +59,8 @@ function bulkUrlFrom(other: string | undefined): string {
 const ID_RE = /^[0-9a-fA-F-]{36}$/;
 const MAX_ITEMS = 5000;
 const MAX_MEDIA_BYTES = 16 * 1024 * 1024;
+/** A video that is made smaller may start bigger than WhatsApp's 16 MB. */
+const MAX_VIDEO_SOURCE_BYTES = 50 * 1024 * 1024;
 const logger = pino({ level: process.env.LOG_LEVEL ?? "warn" });
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -208,7 +214,8 @@ export class CampaignRunner {
       const url = new URL(String(m.url));
       if (url.protocol !== "https:") throw new Error("Media URL must be https");
       const kind = m.kind === "video" || m.kind === "document" ? m.kind : "image";
-      media = { url: url.toString(), mimetype: String(m.mimetype ?? "image/jpeg"), filename: String(m.filename ?? "poster"), kind };
+      const quality = kind === "video" && (m.quality === "small" || m.quality === "medium") ? m.quality : undefined;
+      media = { url: url.toString(), mimetype: String(m.mimetype ?? "image/jpeg"), filename: String(m.filename ?? "poster"), kind, quality };
     }
     if (!media && items.every((i) => !i.text.trim())) throw new Error("Message or poster is required");
     const minGapMs = Math.max(3000, Number(input.minGapMs ?? 8000));
@@ -259,6 +266,7 @@ export class CampaignRunner {
     this.jobs.delete(job.campaignId);
     this.media.delete(job.campaignId);
     fs.rmSync(this.file(job.campaignId), { force: true });
+    removeCampaignVideos(VIDEO_DIR, job.campaignId);
   }
 
   /** One worker per linked number: its campaigns go out in the order they were created. */
@@ -281,6 +289,19 @@ export class CampaignRunner {
     if (!job.media) return undefined;
     const cached = this.media.get(job.campaignId);
     if (cached) return cached;
+    if (job.media.kind === "video" && job.media.quality) {
+      const file = await shrinkVideo({
+        url: job.media.url,
+        quality: job.media.quality,
+        dir: VIDEO_DIR,
+        id: job.campaignId,
+        maxSourceBytes: MAX_VIDEO_SOURCE_BYTES,
+      });
+      // A file path: Baileys reads it from disk and caches the upload under this path.
+      const small = { url: file, mimetype: "video/mp4", filename: job.media.filename, kind: "video" as const };
+      this.media.set(job.campaignId, small);
+      return small;
+    }
     const resp = await fetch(job.media.url);
     // Only the headers are needed here; Baileys downloads the file itself on the first send.
     await resp.body?.cancel().catch(() => undefined);
@@ -319,6 +340,8 @@ export class CampaignRunner {
       waitingNote = null;
 
       let media: BulkContent["media"];
+      const encoding = job.media?.kind === "video" && job.media.quality && !this.media.has(job.campaignId);
+      if (encoding) this.report(job, "Making the video smaller before sending");
       try {
         media = await this.loadMedia(job);
       } catch (e) {
@@ -327,6 +350,9 @@ export class CampaignRunner {
         this.finish(job);
         continue;
       }
+      if (encoding) this.report(job, null);
+      // Paused or stopped while the video was being made smaller.
+      if (job.status !== "running") continue;
 
       const item = job.items.find((i) => !i.done);
       if (!item) {

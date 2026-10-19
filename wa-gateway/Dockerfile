@@ -9,7 +9,8 @@ COPY src ./src
 RUN npm run build
 
 FROM node:20-alpine
-RUN apk add --no-cache git
+# ffmpeg makes campaign videos Small (480p) / Medium (720p) before sending.
+RUN apk add --no-cache git ffmpeg
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json ./
