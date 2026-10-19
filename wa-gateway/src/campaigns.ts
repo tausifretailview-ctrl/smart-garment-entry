@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import pino from "pino";
-import { type BulkContent, type ReceiptStatus, type SessionManager } from "./sessions.js";
+import { type BulkContent, type InboxEvent, type ReceiptStatus, type SessionManager } from "./sessions.js";
 import { removeCampaignVideos, shrinkVideo, type VideoQuality } from "./video.js";
 
 /**
@@ -68,6 +68,8 @@ const MAX_VIDEO_SOURCE_BYTES = 50 * 1024 * 1024;
 const logger = pino({ level: process.env.LOG_LEVEL ?? "warn" });
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** A chat the app said is not a bulk customer is not reported again for this long. */
+const INBOX_IGNORE_MS = 30 * 60 * 1000;
 
 /** {name} → the contact's name, or "Customer" when the number has no name. */
 const fillName = (message: string, name: string) => message.replace(/\{\s*name\s*\}/gi, name.trim() || "Customer");
@@ -78,6 +80,8 @@ export class CampaignRunner {
   private timers = new Map<string, NodeJS.Timeout>();
   private media = new Map<string, BulkContent["media"]>();
   private receipts: { messageId: string; status: ReceiptStatus; at: string }[] = [];
+  /** "sessionId:phone" → until when: chats with people who never got a bulk message (friends, family). */
+  private inboxIgnore = new Map<string, number>();
 
   constructor(private sessions: SessionManager) {
     console.log(`Bulk WhatsApp results go to ${APP_BULK_URL || "(not set)"}`);
@@ -85,6 +89,7 @@ export class CampaignRunner {
       this.receipts.push({ messageId, status, at: new Date().toISOString() });
     };
     sessions.onOptOut = (sessionId, phone, subscribe) => void this.optOut(sessionId, phone, subscribe);
+    sessions.onInbox = (sessionId, event) => void this.inbox(sessionId, event);
     setInterval(() => void this.flushReceipts(), 5000);
   }
 
@@ -125,6 +130,33 @@ export class CampaignRunner {
       );
     } catch (e) {
       logger.warn({ err: e }, "opt-out confirmation failed");
+    }
+  }
+
+  /**
+   * Messages in a bulk number's chats go to the app's Inbox. The app keeps only chats with customers
+   * this number sent bulk messages to; for anyone else it answers tracked: false and their chat is
+   * skipped for a while, so a shop's personal chats do not reach the app again and again.
+   */
+  private async inbox(sessionId: string, event: InboxEvent) {
+    const key = `${sessionId}:${event.phone}`;
+    const until = this.inboxIgnore.get(key);
+    if (until && until > Date.now()) return;
+    const url = this.lastReportUrl || APP_BULK_URL;
+    if (!url) return;
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": API_KEY },
+        body: JSON.stringify({ action: "gateway-inbox", sessionId, ...event }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { tracked?: boolean };
+      if (res.ok && data.tracked === false) {
+        this.inboxIgnore.set(key, Date.now() + INBOX_IGNORE_MS);
+        if (this.inboxIgnore.size > 5000) this.inboxIgnore.delete(this.inboxIgnore.keys().next().value as string);
+      }
+    } catch (e) {
+      logger.warn({ err: e }, "inbox forward failed");
     }
   }
 
@@ -410,6 +442,8 @@ export class CampaignRunner {
           error = "Not on WhatsApp";
         } else {
           messageId = await this.sessions.sendBulk(sessionId, item.phone, { text: item.text, media });
+          // Now a bulk customer: their reply belongs in the Inbox even if an earlier chat was skipped.
+          this.inboxIgnore.delete(`${sessionId}:${item.phone}`);
           status = "sent";
         }
       } catch (e) {
