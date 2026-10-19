@@ -2,6 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "cd .. && npm ci",
   "buildCommand": "cd .. && npm run build:customer && rm -rf customer-app/dist && cp -r dist-customer customer-app/dist && mv customer-app/dist/customer.html customer-app/dist/index.html",
+  "git": { "deploymentEnabled": { "**": false, "main": true } },
+  "ignoreCommand": "node ../scripts/vercel-ignore-build.mjs customer",
   "outputDirectory": "dist",
   "framework": null,
   "rewrites": [
