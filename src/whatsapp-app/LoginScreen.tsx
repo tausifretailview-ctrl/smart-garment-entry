@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const FEATURES = [
-  { icon: QrCode, text: "Link your own WhatsApp number with a QR scan" },
+  { icon: QrCode, text: "Link your own business number once" },
   { icon: Megaphone, text: "Send offers and posters to all your customers" },
   { icon: Send, text: "Messages go one by one, safely spaced" },
   { icon: CheckCheck, text: "See who received and read every message" },
@@ -40,20 +40,20 @@ export function LoginScreen() {
 
   return (
     <div className="grid min-h-[100dvh] lg:grid-cols-2">
-      <div className="relative hidden overflow-hidden bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 p-12 text-white lg:flex lg:flex-col lg:justify-between">
+      <div className="relative hidden overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 p-12 text-white lg:flex lg:flex-col lg:justify-between">
         <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-white/10" />
         <div className="pointer-events-none absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-white/5" />
         <div className="relative flex items-center gap-3">
           <img src="/icon.svg" alt="" className="h-11 w-11 rounded-xl shadow-lg" />
-          <span className="text-xl font-bold tracking-tight">Ezzy WhatsApp</span>
+          <span className="text-xl font-bold tracking-tight">Ezzy Bulk Sender</span>
         </div>
         <div className="relative space-y-6">
           <h1 className="max-w-md text-4xl font-bold leading-tight tracking-tight">
-            WhatsApp promotions from your own number
+            Offers to all your customers, from your own number
           </h1>
           <ul className="space-y-3">
             {FEATURES.map(({ icon: Icon, text }) => (
-              <li key={text} className="flex items-center gap-3 text-emerald-50">
+              <li key={text} className="flex items-center gap-3 text-slate-200">
                 <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15">
                   <Icon className="h-4 w-4" />
                 </span>
@@ -62,14 +62,16 @@ export function LoginScreen() {
             ))}
           </ul>
         </div>
-        <p className="relative text-sm text-emerald-100/80">by Ezzy ERP</p>
+        <p className="relative text-sm text-slate-300">
+          by Ezzy ERP. WhatsApp is a trademark of WhatsApp LLC; this service is not made by or affiliated with WhatsApp or Meta.
+        </p>
       </div>
 
       <div className="flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-emerald-50 px-4 py-10">
         <form onSubmit={(e) => void submit(e)} className="w-full max-w-sm space-y-6">
           <div className="flex flex-col items-center gap-3 text-center lg:hidden">
             <img src="/icon.svg" alt="" className="h-14 w-14 rounded-2xl shadow-md" />
-            <span className="text-xl font-bold tracking-tight text-slate-900">Ezzy WhatsApp</span>
+            <span className="text-xl font-bold tracking-tight text-slate-900">Ezzy Bulk Sender</span>
           </div>
           <div className="space-y-1">
             <h2 className="text-2xl font-bold tracking-tight text-slate-900">Sign in</h2>
@@ -124,6 +126,9 @@ export function LoginScreen() {
             </Button>
           </div>
           <p className="text-center text-xs text-slate-500">Forgot your password? Ask your Ezzy ERP admin to reset it.</p>
+          <p className="text-center text-[11px] leading-snug text-slate-400 lg:hidden">
+            An Ezzy ERP service. Not made by or affiliated with WhatsApp or Meta.
+          </p>
         </form>
       </div>
     </div>

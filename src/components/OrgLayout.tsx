@@ -112,14 +112,14 @@ function WhatsAppOnlyNotice() {
     <div className="fixed inset-0 z-[99998] flex items-center justify-center bg-background p-6">
       <div className="flex max-w-sm flex-col items-center gap-4 text-center">
         <div className="space-y-1">
-          <h1 className="text-lg font-semibold text-foreground">This account is for Ezzy WhatsApp</h1>
+          <h1 className="text-lg font-semibold text-foreground">This account is for Ezzy Bulk Sender</h1>
           <p className="text-sm text-muted-foreground">
-            Your shop uses only Bulk WhatsApp. Please sign in on the WhatsApp site with the same email and password.
+            Your shop uses only Bulk WhatsApp. Please sign in on the Ezzy Bulk Sender site with the same email and password.
           </p>
         </div>
         <div className="flex gap-2">
           {WHATSAPP_SITE_URL && (
-            <Button onClick={() => window.location.assign(WHATSAPP_SITE_URL)}>Open WhatsApp site</Button>
+            <Button onClick={() => window.location.assign(WHATSAPP_SITE_URL)}>Open Ezzy Bulk Sender</Button>
           )}
           <Button
             variant="outline"
