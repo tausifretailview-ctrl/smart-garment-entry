@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getEdgeFunctionErrorMessage } from "@/utils/edgeFunctionError";
+import type { SentHistoryRow } from "@/utils/bulkWhatsAppHistory";
 
 export type LinkStatus = "connected" | "connecting" | "qr" | "disconnected" | "logged_out";
 
@@ -131,4 +132,28 @@ export async function fetchRecipients(campaignId: string): Promise<BulkRecipient
     out.push(...((data ?? []) as BulkRecipient[]));
     if (!data || data.length < 1000) return out;
   }
+}
+
+/**
+ * Every number of these campaigns that got (or is still getting) the message, for the Customer
+ * Master picker's "Not sent yet" filter. Failed and skipped numbers are left out.
+ */
+export async function fetchSentHistory(campaignIds: string[]): Promise<SentHistoryRow[]> {
+  const out: SentHistoryRow[] = [];
+  for (let i = 0; i < campaignIds.length; i += 50) {
+    const ids = campaignIds.slice(i, i + 50);
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await db
+        .from("bulk_whatsapp_recipients")
+        .select("phone, campaign_id, status, sent_at")
+        .in("campaign_id", ids)
+        .in("status", ["pending", "sent", "delivered", "read"])
+        .order("id", { ascending: true })
+        .range(from, from + 999);
+      if (error) throw error;
+      out.push(...((data ?? []) as SentHistoryRow[]));
+      if (!data || data.length < 1000) break;
+    }
+  }
+  return out;
 }

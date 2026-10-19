@@ -1,16 +1,22 @@
 import { useMemo, useState } from "react";
+import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Loader2, Search, Users } from "lucide-react";
+import { Check, Loader2, Search, Send, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { formatBulkPhone, normalizeBulkPhone, type BulkContact } from "@/utils/bulkWhatsAppContacts";
+import { lastSendByPhone } from "@/utils/bulkWhatsAppHistory";
+import { CAMPAIGN_LIST_LIMIT, fetchSentHistory, useBulkCampaigns } from "./bulkWhatsAppApi";
 
 const BATCH = 1000;
 const MAX_CUSTOMERS = 20000;
 const SHOWN_ROWS = 300;
+
+/** "new" = never got a bulk message (the default, so each batch goes to fresh customers). */
+type SentFilter = "new" | "sent" | "all";
 
 interface PickRow extends BulkContact {
   id: string;
@@ -38,7 +44,11 @@ async function fetchCustomerContacts(organizationId: string): Promise<PickRow[]>
   return [...byPhone.values()];
 }
 
-/** Choose Customer Master customers for a bulk send; search, select all matching, add. */
+/**
+ * Choose Customer Master customers for a bulk send; search, select all matching, add. Each customer
+ * shows the last campaign that reached them, and the list opens on "Not sent yet" so shops can
+ * work through their customers batch by batch without repeating anyone.
+ */
 export function CustomerMasterPicker({
   organizationId,
   open,
@@ -52,20 +62,37 @@ export function CustomerMasterPicker({
 }) {
   const [search, setSearch] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [sentFilter, setSentFilter] = useState<SentFilter>("new");
   const q = useQuery({
     queryKey: ["bulk-whatsapp-customer-contacts", organizationId],
     queryFn: () => fetchCustomerContacts(organizationId),
     enabled: open,
     staleTime: 5 * 60 * 1000,
   });
+  const campaigns = useBulkCampaigns(organizationId).data;
+  // Changes whenever a campaign is added or sends more, so a just-finished batch shows as sent.
+  const historyKey = campaigns
+    ? `${campaigns.length}:${campaigns[0]?.id ?? ""}:${campaigns.reduce((n, c) => n + c.sent_count + c.failed_count, 0)}`
+    : "";
+  const history = useQuery({
+    queryKey: ["bulk-whatsapp-sent-history", organizationId, historyKey],
+    queryFn: async () => lastSendByPhone(await fetchSentHistory(campaigns!.map((c) => c.id)), campaigns!),
+    enabled: open && Boolean(campaigns),
+    staleTime: 60 * 1000,
+  });
+  const sentMap = history.data;
 
   const all = q.data ?? [];
+  const sentCount = useMemo(() => (sentMap ? all.filter((c) => sentMap.has(c.phone)).length : 0), [all, sentMap]);
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
-    if (!s) return all;
     const digits = s.replace(/\D/g, "");
-    return all.filter((c) => (c.name ?? "").toLowerCase().includes(s) || (digits.length >= 3 && c.phone.includes(digits)));
-  }, [all, search]);
+    return all.filter(
+      (c) =>
+        (sentFilter === "all" || !sentMap || (sentFilter === "sent") === sentMap.has(c.phone)) &&
+        (!s || (c.name ?? "").toLowerCase().includes(s) || (digits.length >= 3 && c.phone.includes(digits))),
+    );
+  }, [all, search, sentFilter, sentMap]);
   const allFilteredPicked = filtered.length > 0 && filtered.every((c) => picked.has(c.phone));
 
   const toggle = (phone: string) =>
@@ -88,6 +115,7 @@ export function CustomerMasterPicker({
     onAdd(all.filter((c) => picked.has(c.phone)).map(({ phone, name }) => ({ phone, name })));
     setPicked(new Set());
     setSearch("");
+    setSentFilter("new");
     onOpenChange(false);
   };
 
@@ -101,9 +129,45 @@ export function CustomerMasterPicker({
           <p className="text-xs text-slate-500">
             {q.isLoading
               ? "Loading customers…"
-              : `${all.length.toLocaleString("en-IN")} customers with a mobile number`}
+              : `${all.length.toLocaleString("en-IN")} customers with a mobile number${
+                  sentMap ? ` · ${sentCount.toLocaleString("en-IN")} already got a bulk message` : ""
+                }`}
           </p>
         </DialogHeader>
+
+        <div className="flex flex-wrap items-center gap-1 rounded-lg bg-slate-100 p-1 text-sm">
+          {(
+            [
+              ["new", "Not sent yet", all.length - sentCount],
+              ["sent", "Already sent", sentCount],
+              ["all", "All", all.length],
+            ] as const
+          ).map(([key, label, count]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setSentFilter(key)}
+              className={cn(
+                "flex-1 rounded-md px-3 py-1.5 font-medium transition",
+                sentFilter === key ? "bg-white text-emerald-700 shadow-sm" : "text-slate-600 hover:text-slate-900",
+              )}
+            >
+              {label}
+              {sentMap || key === "all" ? <span className="ml-1 tabular-nums text-slate-400">({count.toLocaleString("en-IN")})</span> : null}
+            </button>
+          ))}
+        </div>
+        {history.isLoading && open && (
+          <p className="-mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+            <Loader2 className="h-3 w-3 animate-spin" /> Checking who already got a message…
+          </p>
+        )}
+        {sentMap && campaigns && campaigns.length >= CAMPAIGN_LIST_LIMIT && (
+          <p className="-mt-1 text-xs text-slate-500">Checked against your last {CAMPAIGN_LIST_LIMIT} campaigns.</p>
+        )}
+        {history.isError && (
+          <p className="-mt-1 text-xs text-amber-700">Could not check earlier campaigns, so all customers are shown.</p>
+        )}
 
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[200px] flex-1">
@@ -128,11 +192,14 @@ export function CustomerMasterPicker({
           ) : q.isError ? (
             <p className="p-6 text-center text-sm text-destructive">Could not load customers. Please try again.</p>
           ) : !filtered.length ? (
-            <p className="p-6 text-center text-sm text-slate-500">No customers found</p>
+            <p className="p-6 text-center text-sm text-slate-500">
+              {sentFilter === "new" && sentMap && !search.trim() ? "Every customer has already got a bulk message" : "No customers found"}
+            </p>
           ) : (
             <ul className="divide-y divide-slate-100">
               {filtered.slice(0, SHOWN_ROWS).map((c) => {
                 const on = picked.has(c.phone);
+                const last = sentMap?.get(c.phone);
                 return (
                   <li key={c.phone}>
                     <button
@@ -148,7 +215,24 @@ export function CustomerMasterPicker({
                       >
                         {on && <Check className="h-3 w-3" />}
                       </span>
-                      <span className="min-w-0 flex-1 truncate font-medium text-slate-800">{c.name ?? "–"}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium text-slate-800">{c.name ?? "–"}</span>
+                        {last && (
+                          <span
+                            className={cn(
+                              "mt-0.5 inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                              last.queued ? "bg-amber-50 text-amber-700" : "bg-sky-50 text-sky-700",
+                            )}
+                            title={`Last bulk message: ${last.campaignName}${last.times > 1 ? ` (reached ${last.times} times)` : ""}`}
+                          >
+                            <Send className="h-3 w-3 shrink-0" />
+                            <span className="truncate">
+                              {last.queued ? "Sending now" : format(new Date(last.at), "dd MMM")} · {last.campaignName}
+                            </span>
+                            {last.times > 1 && <span className="shrink-0 tabular-nums">· {last.times}×</span>}
+                          </span>
+                        )}
+                      </span>
                       <span className="whitespace-nowrap tabular-nums text-slate-600">{formatBulkPhone(c.phone)}</span>
                     </button>
                   </li>
