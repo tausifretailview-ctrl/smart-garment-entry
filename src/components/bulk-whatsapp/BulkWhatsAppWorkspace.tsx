@@ -119,6 +119,7 @@ export function BulkWhatsAppWorkspace({
   view = "all",
   onOpenReports,
   onOpenSend,
+  previewTopClass = "lg:top-20",
 }: {
   organizationId: string;
   userId: string | undefined;
@@ -129,6 +130,8 @@ export function BulkWhatsAppWorkspace({
   onOpenReports?: () => void;
   /** Site only: back to the send page after "Use this message again" in Reports. */
   onOpenSend?: () => void;
+  /** How far below the top the message preview sticks: the site has a top bar, the ERP page has none. */
+  previewTopClass?: string;
 }) {
   const queryClient = useQueryClient();
 
@@ -620,7 +623,7 @@ export function BulkWhatsAppWorkspace({
         </section>
       </div>
 
-        <aside className="space-y-3 lg:sticky lg:top-20">
+        <aside className={cn("space-y-3 lg:sticky", previewTopClass)}>
           <MessagePreview
             text={preview}
             mediaName={attachment?.name ?? null}
