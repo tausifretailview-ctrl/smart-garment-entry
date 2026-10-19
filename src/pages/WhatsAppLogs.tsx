@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, subDays, startOfDay, endOfDay } from "date-fns";
+import { format, subDays, startOfDay, endOfDay, parse, isValid } from "date-fns";
 import { FullScreenLayout } from "@/components/FullScreenLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -81,6 +81,9 @@ const getWappConnectLogDetails = (providerResponse?: Record<string, unknown> | n
   return { endpoint, requestUrl };
 };
 
+type LogRange = "1" | "yesterday" | "7" | "30" | "date" | "range";
+const LOG_FETCH_LIMIT = 1000;
+
 const WhatsAppLogs = () => {
   const { fetchMessageLogs, retryMessage, isRetrying } = useWhatsAppAPI();
   
@@ -89,23 +92,44 @@ const WhatsAppLogs = () => {
   const [providerFilter, setProviderFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLog, setSelectedLog] = useState<WhatsAppLog | null>(null);
-  const [logRangeDays, setLogRangeDays] = useState<"1" | "7" | "30">("7");
+  const [logRange, setLogRange] = useState<LogRange>("7");
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const [pickedDate, setPickedDate] = useState(todayStr);
+  const [rangeFrom, setRangeFrom] = useState(format(subDays(new Date(), 6), 'yyyy-MM-dd'));
+  const [rangeTo, setRangeTo] = useState(todayStr);
 
-  // Fetch logs with date filter (default: last 7 days — single-day filter hid yesterday's sends)
+  // Local-day bounds for the chosen range (default: last 7 days — single-day default hid yesterday's sends)
+  const { dateStart, dateEnd } = useMemo(() => {
+    const now = new Date();
+    const day = (v: string) => parse(v, 'yyyy-MM-dd', new Date());
+    let from: Date;
+    let to: Date;
+    if (logRange === 'date' && isValid(day(pickedDate))) {
+      from = to = day(pickedDate);
+    } else if (logRange === 'range' && isValid(day(rangeFrom)) && isValid(day(rangeTo))) {
+      from = day(rangeFrom);
+      to = day(rangeTo);
+      if (from > to) [from, to] = [to, from];
+    } else if (logRange === 'yesterday') {
+      from = to = subDays(now, 1);
+    } else {
+      const days = logRange === '30' ? 30 : logRange === '1' ? 1 : 7;
+      from = subDays(now, days - 1);
+      to = now;
+    }
+    return { dateStart: startOfDay(from).toISOString(), dateEnd: endOfDay(to).toISOString() };
+  }, [logRange, pickedDate, rangeFrom, rangeTo]);
+
   const { data: logs, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['whatsapp-logs', statusFilter, typeFilter, providerFilter, logRangeDays],
-    queryFn: () => {
-      const days = Number(logRangeDays);
-      const dateStart = startOfDay(subDays(new Date(), days - 1)).toISOString();
-      const dateEnd = endOfDay(new Date()).toISOString();
-      return fetchMessageLogs({
+    queryKey: ['whatsapp-logs', statusFilter, typeFilter, dateStart, dateEnd],
+    queryFn: () =>
+      fetchMessageLogs({
         status: statusFilter,
         templateType: typeFilter,
-        limit: 500,
+        limit: LOG_FETCH_LIMIT,
         startDate: dateStart,
         endDate: dateEnd,
-      });
-    },
+      }),
   });
 
   // Calculate stats from the fetched logs for the selected date
@@ -206,7 +230,7 @@ const WhatsAppLogs = () => {
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "WhatsApp Logs");
-    XLSX.writeFile(wb, `WhatsApp_Logs_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    XLSX.writeFile(wb, `WhatsApp_Logs_${format(new Date(dateStart), 'yyyy-MM-dd')}_to_${format(new Date(dateEnd), 'yyyy-MM-dd')}.xlsx`);
     toast.success("Logs exported successfully");
   };
 
@@ -307,16 +331,50 @@ const WhatsAppLogs = () => {
             <div className="flex flex-wrap gap-4">
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                <Select value={logRangeDays} onValueChange={(v) => setLogRangeDays(v as "1" | "7" | "30")}>
+                <Select value={logRange} onValueChange={(v) => setLogRange(v as LogRange)}>
                   <SelectTrigger className="w-[160px]">
                     <SelectValue placeholder="Date range" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="1">Today only</SelectItem>
+                    <SelectItem value="yesterday">Yesterday</SelectItem>
                     <SelectItem value="7">Last 7 days</SelectItem>
                     <SelectItem value="30">Last 30 days</SelectItem>
+                    <SelectItem value="date">Select date</SelectItem>
+                    <SelectItem value="range">From – To</SelectItem>
                   </SelectContent>
                 </Select>
+                {logRange === 'date' && (
+                  <Input
+                    type="date"
+                    value={pickedDate}
+                    max={todayStr}
+                    onChange={(e) => setPickedDate(e.target.value)}
+                    className="w-[160px]"
+                    aria-label="Message date"
+                  />
+                )}
+                {logRange === 'range' && (
+                  <>
+                    <Input
+                      type="date"
+                      value={rangeFrom}
+                      max={todayStr}
+                      onChange={(e) => setRangeFrom(e.target.value)}
+                      className="w-[150px]"
+                      aria-label="From date"
+                    />
+                    <span className="text-sm text-muted-foreground">to</span>
+                    <Input
+                      type="date"
+                      value={rangeTo}
+                      max={todayStr}
+                      onChange={(e) => setRangeTo(e.target.value)}
+                      className="w-[150px]"
+                      aria-label="To date"
+                    />
+                  </>
+                )}
               </div>
               <div className="flex-1 min-w-[200px]">
                 <div className="relative">
@@ -373,7 +431,19 @@ const WhatsAppLogs = () => {
         {/* Logs Table */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Message History</CardTitle>
+            <CardTitle className="text-base">
+              Message History
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                {format(new Date(dateStart), 'dd/MM/yyyy')}
+                {format(new Date(dateStart), 'yyyy-MM-dd') !== format(new Date(dateEnd), 'yyyy-MM-dd') &&
+                  ` – ${format(new Date(dateEnd), 'dd/MM/yyyy')}`}
+              </span>
+            </CardTitle>
+            {logs && logs.length >= LOG_FETCH_LIMIT && (
+              <p className="text-xs text-amber-700">
+                Showing the latest {LOG_FETCH_LIMIT} messages for this period. Pick a single date to see the rest.
+              </p>
+            )}
           </CardHeader>
           <CardContent>
             {isLoading ? (
