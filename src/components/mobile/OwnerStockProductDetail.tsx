@@ -84,6 +84,7 @@ export const OwnerStockProductDetail = ({ productId, onBack }: Props) => {
       case "sale_return": return { label: "Sale Return", icon: ArrowUpRight, color: "text-success" };
       case "purchase_return": return { label: "Pur Return", icon: ArrowDownRight, color: "text-destructive" };
       case "adjustment": return { label: "Adjustment", icon: ArrowUpRight, color: "text-info" };
+      case "reconciliation": return { label: "Stock Adjustment", icon: ArrowUpRight, color: "text-info" };
       default: return { label: type, icon: ArrowUpRight, color: "text-muted-foreground" };
     }
   };
@@ -197,7 +198,7 @@ export const OwnerStockProductDetail = ({ productId, onBack }: Props) => {
                 {movements.map((m, idx) => {
                   const info = movementLabel(m.movement_type);
                   const Icon = info.icon;
-                  const isPositive = ["purchase", "sale_return", "adjustment"].includes(m.movement_type);
+                  const isPositive = ["purchase", "sale_return", "adjustment"].includes(m.movement_type) || (m.movement_type === "reconciliation" && Number(m.quantity) > 0);
                   return (
                     <div key={m.id} className={cn("flex items-center gap-2.5 py-2.5", idx < movements.length - 1 && "border-b border-border/40")}>
                       <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", isPositive ? "bg-success/10" : "bg-destructive/10")}>

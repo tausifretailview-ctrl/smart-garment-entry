@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
@@ -41,6 +41,8 @@ interface VariantWithMovements {
 }
 
 const PERF_PATH = "stock-adjustment";
+// Rendering thousands of rows with two inputs each freezes the page; search narrows the rest.
+const MAX_VISIBLE_ROWS = 300;
 
 const StockAdjustment = () => {
   useNavPerfPage(PERF_PATH);
@@ -60,13 +62,11 @@ const StockAdjustment = () => {
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
-      // Get all variants with product info using pagination
-      const allVariants: any[] = [];
       const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
-      
-      while (hasMore) {
+
+      // Variants with product info. Ordered by id so pages never skip or repeat rows.
+      const allVariants: any[] = [];
+      for (let offset = 0; ; offset += PAGE_SIZE) {
         const { data: variantsData, error: variantsError } = await supabase
           .from("product_variants")
           .select(`
@@ -84,68 +84,41 @@ const StockAdjustment = () => {
           `)
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
+          .order("id")
           .range(offset, offset + PAGE_SIZE - 1);
 
         if (variantsError) throw variantsError;
-        
-        if (variantsData && variantsData.length > 0) {
-          allVariants.push(...variantsData);
-          offset += PAGE_SIZE;
-          hasMore = variantsData.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
+        allVariants.push(...(variantsData || []));
+        if (!variantsData || variantsData.length < PAGE_SIZE) break;
       }
 
-      // Get all stock movements with pagination
-      const allMovements: any[] = [];
-      let movementOffset = 0;
-      let movementsHasMore = true;
-      
-      while (movementsHasMore) {
-        const { data: movements, error: movementsError } = await supabase
-          .from("stock_movements")
-          .select("variant_id, movement_type, quantity")
-          .eq("organization_id", currentOrganization.id)
-          .range(movementOffset, movementOffset + PAGE_SIZE - 1);
-
-        if (movementsError) throw movementsError;
-        
-        if (movements && movements.length > 0) {
-          allMovements.push(...movements);
-          movementOffset += PAGE_SIZE;
-          movementsHasMore = movements.length === PAGE_SIZE;
-        } else {
-          movementsHasMore = false;
-        }
-      }
-
-      // Aggregate movements by variant
+      // Purchased / sold / returned per variant, computed server-side from the bills
+      // (same figures as Stock Reconciliation). Scanning every stock_movements row
+      // in the browser kept this page on skeleton rows for minutes on big shops.
       const movementsByVariant: Record<string, { purchased: number; sold: number; returned: number; adjusted: number }> = {};
-      
-      allMovements.forEach((m) => {
-        if (!movementsByVariant[m.variant_id]) {
-          movementsByVariant[m.variant_id] = { purchased: 0, sold: 0, returned: 0, adjusted: 0 };
+      const reconPages = Math.max(1, Math.ceil(allVariants.length / PAGE_SIZE));
+      const PARALLEL = 4;
+      for (let start = 0; start < reconPages; start += PARALLEL) {
+        const batch = Array.from({ length: Math.min(PARALLEL, reconPages - start) }, (_, i) => {
+          const offset = (start + i) * PAGE_SIZE;
+          return supabase
+            .rpc("get_stock_reconciliation", { p_organization_id: currentOrganization.id })
+            .order("variant_id")
+            .range(offset, offset + PAGE_SIZE - 1);
+        });
+        const results = await Promise.all(batch);
+        for (const { data, error } of results) {
+          if (error) throw error;
+          for (const r of (data || []) as any[]) {
+            movementsByVariant[r.variant_id] = {
+              purchased: Number(r.purchases || 0) - Number(r.purchase_returns || 0),
+              sold: Number(r.sales || 0),
+              returned: Number(r.sale_returns || 0),
+              adjusted: 0,
+            };
+          }
         }
-        
-        switch (m.movement_type) {
-          case "purchase":
-            movementsByVariant[m.variant_id].purchased += m.quantity;
-            break;
-          case "sale":
-            movementsByVariant[m.variant_id].sold += Math.abs(m.quantity);
-            break;
-          case "sale_return":
-            movementsByVariant[m.variant_id].returned += m.quantity;
-            break;
-          case "purchase_return":
-            movementsByVariant[m.variant_id].purchased -= Math.abs(m.quantity);
-            break;
-          case "reconciliation":
-            movementsByVariant[m.variant_id].adjusted += m.quantity;
-            break;
-        }
-      });
+      }
 
       // Combine data
       return allVariants.map((v) => {
@@ -170,7 +143,7 @@ const StockAdjustment = () => {
           adjusted_qty: mvt.adjusted,
           newOpeningQty: openingQty,
           newStockQty: stockQty,
-          calculatedStock: openingQty + mvt.purchased - mvt.sold + mvt.returned + mvt.adjusted,
+          calculatedStock: stockQty,
           selected: false,
           stockQtyChanged: false,
         };
@@ -189,10 +162,8 @@ const StockAdjustment = () => {
   });
 
   // Initialize variants state when data loads
-  useMemo(() => {
-    if (rawVariants && rawVariants.length > 0) {
-      setVariants(rawVariants);
-    }
+  useEffect(() => {
+    if (rawVariants) setVariants(rawVariants);
   }, [rawVariants]);
 
   // Filter and search variants
@@ -230,7 +201,8 @@ const StockAdjustment = () => {
     setVariants((prev) =>
       prev.map((v) => {
         if (v.id === variantId) {
-          const newCalculatedStock = numValue + v.purchased_qty - v.sold_qty + v.returned_qty + v.adjusted_qty;
+          // Opening change moves stock by the same qty; never re-derive stock from history here.
+          const newCalculatedStock = v.stock_qty + (numValue - v.opening_qty);
           return { ...v, newOpeningQty: numValue, calculatedStock: newCalculatedStock, newStockQty: newCalculatedStock, stockQtyChanged: false };
         }
         return v;
@@ -274,7 +246,8 @@ const StockAdjustment = () => {
     setVariants((prev) =>
       prev.map((v) => {
         if (v.selected) {
-          const newCalculatedStock = numValue + v.purchased_qty - v.sold_qty + v.returned_qty + v.adjusted_qty;
+          // Opening change moves stock by the same qty; never re-derive stock from history here.
+          const newCalculatedStock = v.stock_qty + (numValue - v.opening_qty);
           return { ...v, newOpeningQty: numValue, calculatedStock: newCalculatedStock, newStockQty: newCalculatedStock, stockQtyChanged: false };
         }
         return v;
@@ -317,11 +290,17 @@ const StockAdjustment = () => {
         throw new Error("No changes to save");
       }
 
+      const { data: authData } = await supabase.auth.getUser();
+      const userId = authData?.user?.id ?? null;
+
       // Update each variant
       for (const v of changedVariants) {
         const openingDiff = v.newOpeningQty - v.opening_qty;
         const finalStockQty = v.stockQtyChanged ? v.newStockQty : v.calculatedStock;
-        const stockDiff = finalStockQty - v.stock_qty;
+        // The opening movement already carries openingDiff; log only the rest so
+        // the movements add up to the real stock change.
+        const stockAfterOpening = v.stock_qty + openingDiff;
+        const stockDiff = finalStockQty - stockAfterOpening;
         
         // Update variant opening_qty and stock_qty
         const { error: updateError } = await supabase
@@ -344,7 +323,8 @@ const StockAdjustment = () => {
               organization_id: currentOrganization.id,
               movement_type: "reconciliation",
               quantity: openingDiff,
-              notes: `Opening qty adjusted from ${v.opening_qty} to ${v.newOpeningQty}`,
+              notes: `Stock Adjustment: opening qty ${v.opening_qty} → ${v.newOpeningQty}`,
+              user_id: userId,
               bill_number: `ADJ-${format(new Date(), "yyyyMMdd-HHmmss")}`,
             });
 
@@ -364,7 +344,8 @@ const StockAdjustment = () => {
               organization_id: currentOrganization.id,
               movement_type: "reconciliation",
               quantity: stockDiff,
-              notes: `Stock qty directly adjusted from ${v.stock_qty} to ${finalStockQty}`,
+              notes: `Stock Adjustment: stock qty ${stockAfterOpening} → ${finalStockQty}`,
+              user_id: userId,
               bill_number: `STK-${format(new Date(), "yyyyMMdd-HHmmss")}`,
             });
 
@@ -423,7 +404,7 @@ const StockAdjustment = () => {
             Stock Adjustment Tool
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Adjust opening quantities while accounting for purchases and sales
+            Adjust opening or stock quantities. Every saved change is logged as a Stock Adjustment.
           </p>
         </div>
 
@@ -581,7 +562,7 @@ const StockAdjustment = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredVariants.map((v) => {
+                  filteredVariants.slice(0, MAX_VISIBLE_ROWS).map((v) => {
                     const finalStock = v.stockQtyChanged ? v.newStockQty : v.calculatedStock;
                     const hasChanges = v.newOpeningQty !== v.opening_qty || (v.stockQtyChanged && v.newStockQty !== v.stock_qty);
                     return (
@@ -645,6 +626,11 @@ const StockAdjustment = () => {
                 )}
               </TableBody>
             </Table>
+            {filteredVariants.length > MAX_VISIBLE_ROWS && (
+              <div className="p-3 text-center text-xs text-muted-foreground">
+                Showing first {MAX_VISIBLE_ROWS} of {filteredVariants.length} items. Search by name or barcode to find others.
+              </div>
+            )}
           </ScrollArea>
           )}
         </Card>
@@ -652,7 +638,7 @@ const StockAdjustment = () => {
         {/* Save Button */}
         <div className="flex justify-between items-center pt-4 border-t">
           <div className="text-sm text-muted-foreground">
-            Formula: New Stock = New Opening + Purchases - Sales + Returns + Adjustments
+            Changing opening qty moves stock by the same qty. Saved changes show as Stock Adjustment in Product Tracking and product history.
           </div>
           <Button
             size="lg"
