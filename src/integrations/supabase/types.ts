@@ -2325,6 +2325,48 @@ export type Database = {
           },
         ]
       }
+      daily_salesman_incentive_bill_slabs: {
+        Row: {
+          created_at: string
+          id: string
+          incentive_amount: number
+          min_bill_amount: number
+          organization_id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          incentive_amount: number
+          min_bill_amount: number
+          organization_id: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          incentive_amount?: number
+          min_bill_amount?: number
+          organization_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_salesman_incentive_bill_slabs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_salesman_incentive_bill_slabs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       daily_salesman_incentive_brackets: {
         Row: {
           created_at: string
@@ -12209,10 +12251,6 @@ export type Database = {
         }
         Returns: Json
       }
-      record_user_screen_time: {
-        Args: { p_org_id: string; p_rows: Json }
-        Returns: number
-      }
       record_online_payment_receipt: {
         Args: {
           p_amount: number
@@ -12222,6 +12260,10 @@ export type Database = {
           p_payment_method?: string
         }
         Returns: string
+      }
+      record_user_screen_time: {
+        Args: { p_org_id: string; p_rows: Json }
+        Returns: number
       }
       refresh_bulk_whatsapp_counts: {
         Args: { p_campaign_id: string }
