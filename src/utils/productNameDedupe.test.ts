@@ -34,6 +34,56 @@ describe("normalizeProductNameKey", () => {
 describe("findSameNameProductsInOrg", () => {
   beforeEach(() => {
     vi.mocked(supabase.from).mockReset();
+    vi.mocked(supabase.rpc).mockReset();
+    resetProductNameKeyRpcProbe();
+    // Default: name-key function not applied → ilike path.
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: null,
+      error: { code: "PGRST202", message: "Could not find the function" },
+    } as never);
+  });
+
+  function mockProductsByIds(rows: Array<Record<string, unknown>>) {
+    // Chain: from().select().eq().is().in() → resolved rows.
+    const inIds = vi.fn().mockResolvedValue({ data: rows, error: null });
+    const is = vi.fn().mockReturnValue({ in: inIds });
+    const eq = vi.fn().mockReturnValue({ is });
+    const select = vi.fn().mockReturnValue({ eq });
+    vi.mocked(supabase.from).mockReturnValue({ select } as never);
+    return { inIds };
+  }
+
+  it("uses the name-key RPC and skips the products read when the name is new", async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: [], error: null } as never);
+    expect(await findSameNameProductsInOrg("org-1", "BRAND NEW KURTA", "KURTI")).toEqual([]);
+    expect(supabase.rpc).toHaveBeenCalledWith("find_products_by_name_key", {
+      p_organization_id: "org-1",
+      p_name: "BRAND NEW KURTA",
+    });
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it("reads RPC hits by id and keeps only same name+category", async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: [
+        { id: "1", product_name: "AEROSYNC PB-12" },
+        { id: "4", product_name: "AEROSYNC PB12" },
+      ],
+      error: null,
+    } as never);
+    const { inIds } = mockProductsByIds([
+      {
+        id: "1",
+        product_name: "AEROSYNC PB-12",
+        brand: "AEROSYNC",
+        category: "ACCESSORIES",
+        product_variants: [{ stock_qty: 4, deleted_at: null }, { stock_qty: 9, deleted_at: "2026-01-01" }],
+      },
+      { id: "4", product_name: "AEROSYNC PB12", brand: "AEROSYNC", category: "ACCESSORIES" },
+    ]);
+    const matches = await findSameNameProductsInOrg("org-1", "aerosync pb-12", "accessories");
+    expect(inIds).toHaveBeenCalledWith("id", ["1", "4"]);
+    expect(matches.map((m) => [m.id, m.total_stock])).toEqual([["1", 4]]);
   });
 
   function mockProductsQuery(rows: Array<Record<string, unknown>>) {

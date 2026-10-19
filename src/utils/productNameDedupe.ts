@@ -19,8 +19,8 @@ export const normalizeProductNameKey = (name: string, category?: string | null):
 
 /**
  * Name-dupe gate lookup: existing org products whose name AND category match
- * case/whitespace-insensitively. Narrowed server-side with ilike, matched
- * exactly in memory (ilike alone would also match substrings).
+ * case/whitespace-insensitively. Narrowed server-side (name-key RPC, else ilike),
+ * matched exactly in memory (both also return look-alike names).
  */
 export async function findSameNameProductsInOrg(
   organizationId: string,
@@ -29,13 +29,33 @@ export async function findSameNameProductsInOrg(
 ): Promise<SameNameProductMatch[]> {
   const trimmed = (name || "").trim().replace(/[%_,]/g, "");
   if (!trimmed) return [];
-  const { data, error } = await supabase
+
+  // Indexed name-key lookup first. The %name% ilike reads every product of a big
+  // shop when the name is new (no match): avg 421 ms, up to 3.4 s per Save (19 Oct).
+  // The key also ignores - _ . / so its rows cover every same-name product; the
+  // brand / category / style needed below come from a by-id read.
+  let candidateIds: string[] | null = null;
+  if (!productNameKeyRpcMissing) {
+    const { data: keyRows, error: keyError } = await (supabase.rpc as any)("find_products_by_name_key", {
+      p_organization_id: organizationId,
+      p_name: cleanProductName(name),
+    });
+    if (!keyError && Array.isArray(keyRows)) {
+      candidateIds = (keyRows as ProductNameMatchRow[]).map((r) => r.id);
+    } else if (isMissingRpcFunctionError(keyError)) {
+      productNameKeyRpcMissing = true;
+    }
+  }
+  if (candidateIds && candidateIds.length === 0) return [];
+
+  const base = supabase
     .from("products")
     .select("id, product_name, brand, category, style, created_at, product_variants(stock_qty, deleted_at)")
     .eq("organization_id", organizationId)
-    .is("deleted_at", null)
-    .ilike("product_name", `%${trimmed}%`)
-    .limit(10);
+    .is("deleted_at", null);
+  const { data, error } = candidateIds
+    ? await base.in("id", candidateIds)
+    : await base.ilike("product_name", `%${trimmed}%`).limit(10);
   if (error || !data) return [];
   const want = normalizeProductNameKey(name, category);
   return (data as Array<SameNameProductMatch & { product_variants?: any[] | null }>)
