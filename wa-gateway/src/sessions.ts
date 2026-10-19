@@ -50,6 +50,8 @@ interface Session {
   sock: WASocket | null;
   status: SessionStatus;
   qr: string | null;
+  /** "ABCD-EFGH" code to type on the phone (Link with phone number instead), while linking by code. */
+  pairingCode: string | null;
   number: string | null;
   starting: boolean;
   sentToday: number;
@@ -65,6 +67,23 @@ interface Session {
 }
 
 const SENT_CACHE_SIZE = 3000;
+
+/** Digits for a pairing-code link: 10-digit Indian numbers get 91, a leading trunk 0 is dropped. */
+function linkPhone(raw: string): string | null {
+  let d = raw.replace(/\D/g, "");
+  if (d.length === 11 && d.startsWith("0")) d = d.slice(1);
+  if (d.length === 10) d = `91${d}`;
+  return d.length >= 11 && d.length <= 15 ? d : null;
+}
+
+/** creds.json of a number that finished linking (an unfinished QR or pairing code has no `account`). */
+function hasLinkedCreds(file: string): boolean {
+  try {
+    return Boolean((JSON.parse(fs.readFileSync(file, "utf8")) as { account?: unknown }).account);
+  } catch {
+    return false;
+  }
+}
 
 function remember(s: Session, res: WAMessage | undefined) {
   const id = res?.key?.id;
@@ -134,7 +153,7 @@ export class SessionManager {
     let s = this.sessions.get(orgId);
     if (!s) {
       s = {
-        sock: null, status: "disconnected", qr: null, number: null, starting: false,
+        sock: null, status: "disconnected", qr: null, pairingCode: null, number: null, starting: false,
         sentToday: 0, day: today(), lastSendAt: 0, queue: Promise.resolve(), retries: 0, stopped: false,
         sent: new Map(),
         mediaCache: makeMediaCache(),
@@ -170,8 +189,8 @@ export class SessionManager {
   async restoreAll() {
     if (!fs.existsSync(AUTH_DIR)) return;
     for (const orgId of fs.readdirSync(AUTH_DIR)) {
-      // Only numbers that finished linking; an abandoned QR leaves no creds.json worth restoring.
-      if (!SESSION_ID_RE.test(orgId) || !fs.existsSync(path.join(this.dir(orgId), "creds.json"))) continue;
+      // Only numbers that finished linking; an abandoned QR or pairing code leaves nothing worth restoring.
+      if (!SESSION_ID_RE.test(orgId) || !hasLinkedCreds(path.join(this.dir(orgId), "creds.json"))) continue;
       await this.connect(orgId).catch((e) => logger.warn({ err: e }, "restore failed"));
     }
   }
@@ -224,6 +243,7 @@ export class SessionManager {
         if (connection === "open") {
           s.status = "connected";
           s.qr = null;
+          s.pairingCode = null;
           s.retries = 0;
           s.number = sock.user?.id?.split(":")[0]?.split("@")[0] ?? null;
           await this.notify(orgId, s);
@@ -232,7 +252,9 @@ export class SessionManager {
           const code = (lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)?.output?.statusCode;
           s.sock = null;
           s.qr = null;
-          const linked = Boolean(state.creds.me?.id);
+          s.pairingCode = null;
+          // `account` is written only when the phone accepts the link; a pairing-code request already sets `me`.
+          const linked = Boolean(state.creds.account);
           if (code === DisconnectReason.loggedOut) {
             s.status = "logged_out";
             s.number = null;
@@ -241,7 +263,7 @@ export class SessionManager {
           } else if (s.stopped) {
             s.status = "logged_out";
           } else if (!linked) {
-            // QR expired without a scan: stop here instead of making new QR codes forever.
+            // QR / pairing code expired without a link: stop here instead of making new codes forever.
             s.status = "disconnected";
             fs.rmSync(this.dir(orgId), { recursive: true, force: true });
           } else if (code === DisconnectReason.restartRequired) {
@@ -313,19 +335,29 @@ export class SessionManager {
     }
   }
 
-  async start(orgId: string) {
+  /**
+   * Opens the link screen. With `phone` (country code + number), also asks WhatsApp for an 8-character
+   * pairing code: the user types it under Linked devices → Link with phone number instead.
+   */
+  async start(orgId: string, phone?: string) {
     this.assertOrg(orgId);
     const s = this.get(orgId);
+    const digits = phone ? linkPhone(phone) : null;
+    if (phone && !digits) throw new Error("Enter the WhatsApp number with country code, e.g. 919876543210");
     await this.connect(orgId); // no-op while a socket is open; the QR refreshes on its own
-    // Give Baileys a moment to emit the first QR
+    // Give Baileys a moment to emit the first QR (the socket must be ready before a pairing code too)
     for (let i = 0; i < 40 && s.status !== "qr" && s.status !== "connected"; i++) await sleep(250);
+    if (digits && s.status === "qr" && s.sock) {
+      const code = await s.sock.requestPairingCode(digits);
+      s.pairingCode = code.length === 8 ? `${code.slice(0, 4)}-${code.slice(4)}` : code;
+    }
     return this.status(orgId);
   }
 
   async status(orgId: string) {
     this.assertOrg(orgId);
     const s = this.get(orgId);
-    return { status: s.status, qr: s.qr, connectedNumber: s.number };
+    return { status: s.status, qr: s.qr, pairingCode: s.pairingCode, connectedNumber: s.number };
   }
 
   async logout(orgId: string) {
@@ -340,6 +372,7 @@ export class SessionManager {
     s.sock = null;
     s.status = "logged_out";
     s.qr = null;
+    s.pairingCode = null;
     s.number = null;
     fs.rmSync(this.dir(orgId), { recursive: true, force: true });
   }

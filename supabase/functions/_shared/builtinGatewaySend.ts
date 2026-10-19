@@ -20,8 +20,14 @@ export interface BuiltinSendResult {
   responseData?: unknown;
 }
 
+/** Secret value → base URL; adds https:// when the secret was saved as a bare host. */
+export function gatewayBaseUrl(raw: string | undefined): string {
+  const url = (raw ?? "").trim().replace(/\/+$/, "");
+  return url && !/^https?:\/\//i.test(url) ? `https://${url}` : url;
+}
+
 export function getGatewayConfig(): { url: string; key: string } | null {
-  const url = (Deno.env.get("WA_GATEWAY_URL") ?? "").trim().replace(/\/+$/, "");
+  const url = gatewayBaseUrl(Deno.env.get("WA_GATEWAY_URL"));
   const key = (Deno.env.get("WA_GATEWAY_KEY") ?? "").trim();
   if (!url || !key) return null;
   return { url, key };

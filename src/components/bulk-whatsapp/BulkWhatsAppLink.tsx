@@ -5,11 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatBulkPhone } from "@/utils/bulkWhatsAppContacts";
+import { WhatsAppLinkMethods, type LinkMethod } from "@/components/whatsapp/WhatsAppLinkMethods";
 import { callBulkWhatsApp, type LinkStatus } from "./bulkWhatsAppApi";
 
 interface LinkResponse {
   status?: LinkStatus;
   qr?: string | null;
+  pairingCode?: string | null;
   connectedNumber?: string | null;
 }
 
@@ -25,6 +27,8 @@ export function BulkWhatsAppLink({
 }) {
   const [status, setStatus] = useState<LinkStatus | null>(null);
   const [qr, setQr] = useState<string | null>(null);
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [method, setMethod] = useState<LinkMethod>("qr");
   const [number, setNumber] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +39,7 @@ export function BulkWhatsAppLink({
     (res: LinkResponse) => {
       setStatus(res.status ?? null);
       setQr(res.qr ?? null);
+      setPairingCode(res.pairingCode ?? null);
       setNumber(res.connectedNumber ?? null);
       onChange(res.status === "connected");
     },
@@ -68,7 +73,7 @@ export function BulkWhatsAppLink({
         }
         if (res.status === "logged_out" || res.status === "disconnected") {
           setPolling(false);
-          toast.info("QR code expired. Click Link my WhatsApp to get a new one.");
+          toast.info("The QR code / link code expired. Get a new one to try again.");
           return;
         }
       } catch {
@@ -82,10 +87,10 @@ export function BulkWhatsAppLink({
     };
   }, [polling, organizationId, apply]);
 
-  const run = async (action: "session-start" | "session-logout") => {
+  const run = async (action: "session-start" | "session-logout", phone?: string) => {
     setBusy(true);
     try {
-      const res = await callBulkWhatsApp<LinkResponse>(organizationId, action);
+      const res = await callBulkWhatsApp<LinkResponse>(organizationId, action, phone ? { phone } : {});
       if (action === "session-logout") {
         apply({ status: "logged_out" });
         setPolling(false);
@@ -131,7 +136,9 @@ export function BulkWhatsAppLink({
             {connected
               ? `Linked${number ? ` · ${formatBulkPhone(number)}` : ""}`
               : status === "qr"
-                ? "Waiting for scan"
+                ? pairingCode
+                  ? "Waiting for code"
+                  : "Waiting for scan"
                 : status === "connecting"
                   ? "Connecting…"
                   : status
@@ -150,7 +157,15 @@ export function BulkWhatsAppLink({
               <LogOut className="h-4 w-4 mr-1" /> Unlink
             </Button>
           ) : (
-            <Button type="button" size="sm" disabled={busy} onClick={() => void run("session-start")}>
+            <Button
+              type="button"
+              size="sm"
+              disabled={busy}
+              onClick={() => {
+                setMethod("qr");
+                void run("session-start");
+              }}
+            >
               {busy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <QrCode className="h-4 w-4 mr-1" />}
               {qr ? "Refresh QR" : "Link my WhatsApp"}
             </Button>
@@ -158,17 +173,16 @@ export function BulkWhatsAppLink({
         </div>
       </div>
       {error && <p className="text-xs text-destructive">{error}</p>}
-      {!connected && qr && (
-        <div className="flex flex-wrap items-start gap-4">
-          <div className="rounded-md border bg-white p-2">
-            <img src={qr} alt="WhatsApp link QR code" className="h-52 w-52" />
-          </div>
-          <ol className="text-sm text-muted-foreground list-decimal pl-5 space-y-1 max-w-sm">
-            <li>Open WhatsApp on your phone</li>
-            <li>Tap Settings (or ⋮) → Linked devices → Link a device</li>
-            <li>Scan this QR code</li>
-          </ol>
-        </div>
+      {!connected && status && (
+        <WhatsAppLinkMethods
+          method={method}
+          onMethodChange={setMethod}
+          qr={qr}
+          pairingCode={pairingCode}
+          busy={busy}
+          onRequestCode={(phone) => void run("session-start", phone)}
+          qrHint="Click Link my WhatsApp to get the QR code, or link with your phone number instead."
+        />
       )}
     </div>
   );

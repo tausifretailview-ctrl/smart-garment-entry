@@ -32,7 +32,8 @@ const wrap =
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.post("/sessions/:orgId/start", wrap(async (req, res) => {
-  res.json({ success: true, ...(await sessions.start(req.params.orgId)) });
+  const phone = typeof req.body?.phone === "string" && req.body.phone.trim() ? req.body.phone : undefined;
+  res.json({ success: true, ...(await sessions.start(req.params.orgId, phone)) });
 }));
 
 app.get("/sessions/:orgId/status", wrap(async (req, res) => {
