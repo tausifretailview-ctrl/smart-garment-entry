@@ -201,6 +201,17 @@ async function createCampaign(
     recipients.splice(0, recipients.length, ...keep);
   }
 
+  // The same message started again (double send, or re-sending a list) must not reach a number twice:
+  // numbers that got or are about to get this exact message from this shop in the last 24 hours are left out.
+  const repeated = await recentRecipientsOfSameMessage(admin, organizationId, message, mediaName, recipients.map((r) => r.phone));
+  if (repeated.size) {
+    const keep = recipients.filter((r) => !repeated.has(r.phone));
+    if (!keep.length) {
+      return json({ error: "All these numbers already got this same message in the last 24 hours. Change the message to send again." }, 400);
+    }
+    recipients.splice(0, recipients.length, ...keep);
+  }
+
   const status = await bulkGateway(`/sessions/${sessionId}/status`);
   if (!status.ok || status.data.status !== "connected") {
     return json({ error: "Link your WhatsApp first (scan the QR on this page)" }, 400);
@@ -266,7 +277,47 @@ async function createCampaign(
     await setCampaignStatus(admin, campaign.id, "failed", err);
     return json({ error: err }, job.status || 502);
   }
-  return json({ success: true, campaignId: campaign.id, total: recipients.length, unsubscribed: optedOut.size });
+  return json({
+    success: true,
+    campaignId: campaign.id,
+    total: recipients.length,
+    unsubscribed: optedOut.size,
+    alreadySent: repeated.size,
+  });
+}
+
+const REPEAT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/** Phones (of `phones`) sent the same message text and poster name by this shop within the last 24 hours. */
+async function recentRecipientsOfSameMessage(
+  admin: SupabaseClient,
+  organizationId: string,
+  message: string,
+  mediaName: string | null,
+  phones: string[],
+): Promise<Set<string>> {
+  const out = new Set<string>();
+  let q = admin
+    .from("bulk_whatsapp_campaigns")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("message", message)
+    .gte("created_at", new Date(Date.now() - REPEAT_WINDOW_MS).toISOString())
+    .limit(50);
+  q = mediaName ? q.eq("media_name", mediaName) : q.is("media_name", null);
+  const { data: campaigns } = await q;
+  const ids = (campaigns ?? []).map((c) => c.id as string);
+  if (!ids.length) return out;
+  for (let i = 0; i < phones.length; i += 500) {
+    const { data } = await admin
+      .from("bulk_whatsapp_recipients")
+      .select("phone")
+      .in("campaign_id", ids)
+      .in("status", ["pending", "sent", "delivered", "read"])
+      .in("phone", phones.slice(i, i + 500));
+    for (const row of data ?? []) out.add(row.phone as string);
+  }
+  return out;
 }
 
 async function setCampaignStatus(admin: SupabaseClient, campaignId: string, status: string, note: string | null) {
