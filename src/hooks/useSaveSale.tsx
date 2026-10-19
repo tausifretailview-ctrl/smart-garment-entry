@@ -53,7 +53,7 @@ import {
 import { invalidateAfterSaleSave } from "@/utils/invalidateDashboardQueries";
 import type { PosDashboardSaleSeed } from "@/utils/posDashboardSales";
 import { istCalendarYmd, saleDateIsoIst } from "@/lib/localDayBounds";
-import { buildSalesInvoiceWhatsAppCaption } from "@/utils/whatsappInvoiceCaption";
+import { buildSalesInvoiceWhatsAppCaption, mergeShopSocialLinks } from "@/utils/whatsappInvoiceCaption";
 import { createCustomerPageLinkForWhatsApp, customerPageBaseDomain } from "@/utils/customerPageLink";
 import { ensureFreshSupabaseSession, isJwtExpiredError } from "@/lib/jwtRetry";
 import {
@@ -1435,6 +1435,11 @@ export const useSaveSale = () => {
             // Build message text (used as fallback if no template)
             const messageText = `Hello ${resolveWhatsAppCustomerName(saleData.customerName)},\n\nYour invoice ${saleNumber} has been created.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\n\nThank you for your business!\n${companyName}`;
 
+            const shopSocialLinks = mergeShopSocialLinks(
+              whatsappSettings.social_links,
+              companySettings?.bill_barcode_settings,
+            );
+
             // Build saleData object for dynamic parameter building in edge function
             const saleDataForWhatsApp = {
               sale_id: sale.id,
@@ -1460,10 +1465,10 @@ export const useSaveSale = () => {
                 (saleSettings as any)?.invoice_template ||
                 '',
               sale_source: 'pos',
-              website: (whatsappSettings.social_links as Record<string, string> | null)?.website || '',
-              instagram: (whatsappSettings.social_links as Record<string, string> | null)?.instagram || '',
-              facebook: (whatsappSettings.social_links as Record<string, string> | null)?.facebook || '',
-              google_review_link: (whatsappSettings.social_links as Record<string, string> | null)?.google_review || '',
+              website: shopSocialLinks.website,
+              instagram: shopSocialLinks.instagram,
+              facebook: shopSocialLinks.facebook,
+              google_review_link: shopSocialLinks.google_review,
               // "" unless Customer page + "Add bill link to WhatsApp" are on.
               customer_page_link: await createCustomerPageLinkForWhatsApp(currentOrganization.id, sale.id),
             };

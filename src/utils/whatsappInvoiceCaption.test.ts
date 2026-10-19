@@ -8,7 +8,7 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
-import { applyWhatsAppTemplatePlaceholders, buildSalesInvoiceWhatsAppCaption } from "./whatsappInvoiceCaption";
+import { applyWhatsAppTemplatePlaceholders, buildSalesInvoiceWhatsAppCaption, mergeShopSocialLinks } from "./whatsappInvoiceCaption";
 
 function tableReturning(rows: Record<string, unknown>) {
   fromMock.mockImplementation((table: string) => {
@@ -141,6 +141,41 @@ describe("points and shop links on the bill message", () => {
     expect(text.endsWith(
       "⭐ Review your shopping: https://a.ezzy.shop/t/abc#rate\n📍 Review us on Google: https://g.page/r/x/review\n📷 Follow us on Instagram: https://www.instagram.com/my_shop/",
     )).toBe(true);
+  });
+});
+
+describe("Instagram link saved in Settings > Bill & Barcode", () => {
+  beforeEach(() => fromMock.mockReset());
+
+  it("adds it to the bill message when Settings > WhatsApp has no Instagram link", async () => {
+    tableReturning({
+      settings: {
+        business_name: "Shop",
+        bill_barcode_settings: { instagram_link: "https://www.Instagram.com/adeebaareeba.in?stkn=NXRsZWZibGsyZnhr" },
+      },
+      whatsapp_api_settings: { social_links: { instagram: "", google_review: "" } },
+      whatsapp_templates: { message_template: "Hello {customer_name}, bill {invoice_number} for {amount}." },
+    });
+    const text = await buildSalesInvoiceWhatsAppCaption("org-1", sale, "Shop");
+    expect(text).toBe(
+      "Hello TEST, bill POS/26-27/2302 for ₹10.\n\n📷 Follow us on Instagram: https://www.instagram.com/adeebaareeba.in?stkn=NXRsZWZibGsyZnhr",
+    );
+  });
+
+  it("does not repeat it when the template already prints {instagram_link}", async () => {
+    tableReturning({
+      settings: { business_name: "Shop", bill_barcode_settings: { instagram_link: "https://instagram.com/shop" } },
+      whatsapp_templates: { message_template: "Hi {customer_name}\nInsta: {instagram_link}" },
+    });
+    const text = await buildSalesInvoiceWhatsAppCaption("org-1", sale, "Shop");
+    expect(text).toBe("Hi TEST\nInsta: https://instagram.com/shop");
+  });
+
+  it("prefers the WhatsApp settings link when both are filled", () => {
+    expect(
+      mergeShopSocialLinks({ instagram: "https://instagram.com/a" }, { instagram_link: "https://instagram.com/b" }).instagram,
+    ).toBe("https://instagram.com/a");
+    expect(mergeShopSocialLinks(null, { google_review_link: " https://g.page/x " }).google_review).toBe("https://g.page/x");
   });
 });
 

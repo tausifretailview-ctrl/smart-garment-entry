@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { format } from "date-fns";
+import { appendSocialLinkLines, mergeShopSocialLinks } from "@/utils/whatsappInvoiceCaption";
 
 interface Invoice {
   sale_number: string;
@@ -79,14 +80,26 @@ export const useWhatsAppTemplates = () => {
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
 
-      const { data, error } = await supabase
-        .from("settings")
-        .select("bill_barcode_settings")
-        .eq("organization_id", currentOrganization.id)
-        .maybeSingle();
+      const [{ data, error }, { data: wa }] = await Promise.all([
+        supabase
+          .from("settings")
+          .select("bill_barcode_settings")
+          .eq("organization_id", currentOrganization.id)
+          .maybeSingle(),
+        supabase
+          .from("whatsapp_api_settings")
+          .select("social_links")
+          .eq("organization_id", currentOrganization.id)
+          .maybeSingle(),
+      ]);
 
       if (error) throw error;
-      return data?.bill_barcode_settings as SocialLinks | null;
+      const links = mergeShopSocialLinks(wa?.social_links, data?.bill_barcode_settings);
+      return {
+        instagram_link: links.instagram,
+        website_link: links.website,
+        google_review_link: links.google_review,
+      } as SocialLinks;
     },
     enabled: !!currentOrganization?.id,
   });
@@ -125,9 +138,15 @@ export const useWhatsAppTemplates = () => {
 
   const formatMessage = (templateType: string, invoice: Invoice, items?: string, customerBalance?: number, extraData?: { invoiceLink?: string; organizationName?: string }) => {
     const template = getTemplate(templateType);
+    // The shop's Instagram / Google review links go under every bill message, even when
+    // its saved template has no {social_links} placeholder.
+    const withShopLinks = (text: string) =>
+      templateType === "sales_invoice"
+        ? appendSocialLinkLines(text, settings?.google_review_link || "", settings?.instagram_link || "")
+        : text;
     if (!template) {
       // Return default message if no template found
-      return getDefaultMessage(templateType, invoice, items, customerBalance, extraData);
+      return withShopLinks(getDefaultMessage(templateType, invoice, items, customerBalance, extraData));
     }
 
     let message = template.message_template;
@@ -174,7 +193,7 @@ export const useWhatsAppTemplates = () => {
       .replace(/{points_balance}/g, invoice.points_balance?.toString() || "0")
       .replace(/{points_info}/g, pointsText);
 
-    return message;
+    return withShopLinks(message);
   };
 
   const buildPaymentBreakdown = (invoice: Invoice) => {
