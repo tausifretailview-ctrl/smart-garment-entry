@@ -145,6 +145,13 @@ export function BulkWhatsAppWorkspace({
   const [scheduleOn, setScheduleOn] = useState(false);
   const [sendAt, setSendAt] = useState("");
   const [checking, setChecking] = useState<{ done: number; total: number } | null>(null);
+  /** Numbers already checked (on WhatsApp, or added back by the user), so only new ones are looked up. */
+  const [verified, setVerified] = useState<Set<string>>(() => new Set());
+  /** Numbers the check took out of the list, shown with Add back. */
+  const [removedNoWa, setRemovedNoWa] = useState<BulkContact[]>([]);
+  const [showRemoved, setShowRemoved] = useState(false);
+  /** Set when a check fails (e.g. WhatsApp server not updated yet): no automatic retry until Check again. */
+  const [checkError, setCheckError] = useState<string | null>(null);
   const [contacts, setContacts] = useState<BulkContact[]>([]);
   const [typed, setTyped] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -232,32 +239,80 @@ export function BulkWhatsAppWorkspace({
     toast.success("Message and poster copied. Add numbers and send.");
   };
 
-  /** Removes numbers that have no WhatsApp before sending, so they do not count as failed. */
-  const checkNumbers = async () => {
-    if (!orgId || !contacts.length) return;
-    const phones = contacts.map((c) => c.phone);
-    const missing = new Set<string>();
-    setChecking({ done: 0, total: phones.length });
+  /**
+   * Numbers that have no WhatsApp are taken out as soon as they are added (Excel, typed or Customer
+   * Master), so they never count as failed. Only numbers not checked before are looked up.
+   */
+  const checkRun = useRef(0);
+  useEffect(() => () => void (checkRun.current += 1), []);
+  const checkNumbers = async (list: BulkContact[]) => {
+    if (!orgId || !list.length) return;
+    const run = ++checkRun.current;
+    const removed: BulkContact[] = [];
+    setChecking({ done: 0, total: list.length });
     try {
-      for (let i = 0; i < phones.length; i += CHECK_BATCH) {
-        const batch = phones.slice(i, i + CHECK_BATCH);
-        const res = await callBulkWhatsApp<{ checked?: string[]; onWhatsApp?: string[] }>(orgId, "check-numbers", { phones: batch });
+      for (let i = 0; i < list.length; i += CHECK_BATCH) {
+        if (run !== checkRun.current) return;
+        const batch = list.slice(i, i + CHECK_BATCH);
+        const res = await callBulkWhatsApp<{ checked?: string[]; onWhatsApp?: string[] }>(orgId, "check-numbers", {
+          phones: batch.map((c) => c.phone),
+        });
+        if (run !== checkRun.current) return;
         const ok = new Set(res.onWhatsApp ?? []);
-        for (const p of res.checked ?? batch) if (!ok.has(p)) missing.add(p);
-        setChecking({ done: Math.min(phones.length, i + batch.length), total: phones.length });
-        if (i + CHECK_BATCH < phones.length) await new Promise((r) => setTimeout(r, CHECK_PAUSE_MS));
+        const checked = new Set(res.checked ?? batch.map((c) => c.phone));
+        const missing = batch.filter((c) => checked.has(c.phone) && !ok.has(c.phone));
+        const gone = new Set(missing.map((c) => c.phone));
+        removed.push(...missing);
+        setVerified((v) => {
+          const next = new Set(v);
+          for (const c of batch) if (!gone.has(c.phone)) next.add(c.phone);
+          return next;
+        });
+        if (missing.length) {
+          setContacts((cur) => cur.filter((c) => !gone.has(c.phone)));
+          setRemovedNoWa((cur) => [...missing, ...cur.filter((c) => !gone.has(c.phone))]);
+        }
+        setChecking({ done: Math.min(list.length, i + batch.length), total: list.length });
+        if (i + CHECK_BATCH < list.length) await new Promise((r) => setTimeout(r, CHECK_PAUSE_MS));
       }
-      setContacts((list) => list.filter((c) => !missing.has(c.phone)));
-      toast.success(
-        missing.size
-          ? `Removed ${missing.size.toLocaleString("en-IN")} ${missing.size === 1 ? "number" : "numbers"} not on WhatsApp`
-          : "All numbers are on WhatsApp",
-      );
+      if (removed.length) {
+        toast.success(
+          `Removed ${removed.length.toLocaleString("en-IN")} ${removed.length === 1 ? "number" : "numbers"} not on WhatsApp`,
+          { action: { label: "Add back", onClick: () => addBack(removed) } },
+        );
+      }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not check the numbers");
+      if (run !== checkRun.current) return;
+      const msg = e instanceof Error ? e.message : "Could not check the numbers";
+      setCheckError(msg);
+      toast.error(`WhatsApp check stopped: ${msg}`);
     } finally {
-      setChecking(null);
+      if (run === checkRun.current) setChecking(null);
     }
+  };
+
+  /** Puts removed numbers back and keeps them (the user knows better, e.g. a new WhatsApp). */
+  const addBack = (list: BulkContact[]) => {
+    const phones = new Set(list.map((c) => c.phone));
+    setVerified((v) => new Set([...v, ...phones]));
+    setContacts((cur) => mergeContacts(cur, list).contacts.slice(0, MAX_CONTACTS));
+    setRemovedNoWa((cur) => cur.filter((c) => !phones.has(c.phone)));
+  };
+
+  const unchecked = useMemo(() => contacts.filter((c) => !verified.has(c.phone)), [contacts, verified]);
+  useEffect(() => {
+    if (!linked || checking || sending || checkError || !unchecked.length) return;
+    void checkNumbers(unchecked);
+    // checkNumbers reads only its argument and stable setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linked, checking, sending, checkError, unchecked]);
+
+  const clearContacts = () => {
+    checkRun.current += 1;
+    setChecking(null);
+    setContacts([]);
+    setRemovedNoWa([]);
+    setShowRemoved(false);
   };
 
   const insertName = () => {
@@ -276,7 +331,13 @@ export function BulkWhatsAppWorkspace({
   const scheduleTime = scheduleOn && sendAt ? new Date(sendAt) : null;
   const scheduleOk = !scheduleOn || (scheduleTime !== null && scheduleTime.getTime() > Date.now() + 60_000);
   const canSend =
-    linked && contacts.length > 0 && (message.trim() !== "" || attachment !== null) && scheduleOk && !sending && !checking;
+    linked &&
+    contacts.length > 0 &&
+    (message.trim() !== "" || attachment !== null) &&
+    scheduleOk &&
+    !sending &&
+    !checking &&
+    (unchecked.length === 0 || checkError !== null);
 
   const send = async () => {
     if (!orgId) return;
@@ -318,7 +379,7 @@ export function BulkWhatsAppWorkspace({
       toast.success(`${when}${skipped} You can close this page; it keeps sending.`, {
         action: onOpenReports ? { label: "See report", onClick: onOpenReports } : undefined,
       });
-      setContacts([]);
+      clearContacts();
       setName("");
       setScheduleOn(false);
       await queryClient.invalidateQueries({ queryKey: ["bulk-whatsapp-campaigns", orgId] });
@@ -498,25 +559,34 @@ export function BulkWhatsAppWorkspace({
             action={
               contacts.length > 0 && (
                 <div className="flex items-center gap-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs"
-                    disabled={!linked || Boolean(checking) || sending}
-                    title={linked ? "Remove numbers that have no WhatsApp" : "Link your WhatsApp first"}
-                    onClick={() => void checkNumbers()}
-                  >
-                    {checking ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="mr-1 h-3.5 w-3.5" />}
-                    {checking ? `Checking ${checking.done}/${checking.total}` : "Check WhatsApp"}
-                  </Button>
+                  {checking ? (
+                    <span className="flex h-7 items-center rounded-md bg-sky-50 px-2 text-xs font-medium text-sky-700">
+                      <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                      Checking WhatsApp {checking.done}/{checking.total}
+                    </span>
+                  ) : checkError && unchecked.length ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      disabled={!linked || sending}
+                      title={checkError}
+                      onClick={() => setCheckError(null)}
+                    >
+                      <ShieldAlert className="mr-1 h-3.5 w-3.5 text-amber-600" /> Check again
+                    </Button>
+                  ) : linked && !unchecked.length ? (
+                    <span className="flex h-7 items-center rounded-md bg-emerald-50 px-2 text-xs font-medium text-emerald-700">
+                      <ShieldCheck className="mr-1 h-3.5 w-3.5" /> All on WhatsApp
+                    </span>
+                  ) : null}
                   <Button
                     type="button"
                     size="sm"
                     variant="ghost"
                     className="h-7 text-xs text-destructive"
-                    disabled={Boolean(checking)}
-                    onClick={() => setContacts([])}
+                    onClick={clearContacts}
                   >
                     <Trash2 className="mr-1 h-3.5 w-3.5" /> Clear all
                   </Button>
@@ -566,7 +636,7 @@ export function BulkWhatsAppWorkspace({
             </button>
           </div>
           <p className="text-[11px] text-slate-500">
-            Duplicate numbers are removed automatically.
+            Duplicate numbers and numbers without WhatsApp are removed automatically.
             {optOuts.data ? ` ${optOuts.data.toLocaleString("en-IN")} unsubscribed ${optOuts.data === 1 ? "customer is" : "customers are"} always left out.` : ""}
           </p>
           <div className="space-y-1.5">
@@ -582,6 +652,51 @@ export function BulkWhatsAppWorkspace({
               <Plus className="mr-1 h-4 w-4" /> Add numbers
             </Button>
           </div>
+          {!linked && unchecked.length > 0 && (
+            <p className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
+              Numbers are checked for WhatsApp once your WhatsApp is linked above.
+            </p>
+          )}
+          {checkError && unchecked.length > 0 && !checking && (
+            <p className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
+              {unchecked.length.toLocaleString("en-IN")} {unchecked.length === 1 ? "number was" : "numbers were"} not checked for
+              WhatsApp ({checkError}). Press Check again, or send anyway and they show as failed in the report.
+            </p>
+          )}
+          {removedNoWa.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-2.5 py-2 text-xs text-amber-900">
+              <div className="flex flex-wrap items-center gap-2">
+                <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600" />
+                <span className="flex-1">
+                  <b className="tabular-nums">{removedNoWa.length.toLocaleString("en-IN")}</b>{" "}
+                  {removedNoWa.length === 1 ? "number has" : "numbers have"} no WhatsApp and {removedNoWa.length === 1 ? "was" : "were"}{" "}
+                  removed
+                </span>
+                <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setShowRemoved((v) => !v)}>
+                  {showRemoved ? "Hide" : "Show"}
+                </Button>
+                <Button type="button" size="sm" variant="outline" className="h-6 bg-white px-2 text-xs" onClick={() => addBack(removedNoWa)}>
+                  Add back all
+                </Button>
+              </div>
+              {showRemoved && (
+                <div className="mt-2 max-h-40 overflow-auto rounded-md bg-white">
+                  {removedNoWa.slice(0, SHOWN_CONTACTS).map((c) => (
+                    <div key={c.phone} className="flex items-center gap-2 border-b border-amber-100 px-2 py-1 last:border-0">
+                      <span className="tabular-nums text-slate-800">{formatBulkPhone(c.phone)}</span>
+                      <span className="min-w-0 flex-1 truncate text-slate-500">{c.name ?? ""}</span>
+                      <button type="button" className="font-medium text-emerald-700 hover:underline" onClick={() => addBack([c])}>
+                        Add back
+                      </button>
+                    </div>
+                  ))}
+                  {removedNoWa.length > SHOWN_CONTACTS && (
+                    <div className="px-2 py-1 text-slate-500">and {(removedNoWa.length - SHOWN_CONTACTS).toLocaleString("en-IN")} more</div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           {contacts.length > 0 && (
             <div className="max-h-64 overflow-auto rounded-lg border border-slate-200">
               <table className="w-full text-sm">
@@ -686,6 +801,9 @@ export function BulkWhatsAppWorkspace({
               {sending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : scheduleOn ? <CalendarClock className="mr-1.5 h-4 w-4" /> : <Send className="mr-1.5 h-4 w-4" />}
               {scheduleOn ? "Schedule for" : "Send to"} {contacts.length.toLocaleString("en-IN")} numbers
             </Button>
+            {checking && (
+              <p className="text-center text-[11px] text-sky-700">Checking numbers for WhatsApp first ({checking.done}/{checking.total})</p>
+            )}
           </div>
 
           <Alert className="border-amber-200 bg-amber-50">
