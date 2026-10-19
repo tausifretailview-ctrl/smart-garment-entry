@@ -1038,6 +1038,116 @@ export type Database = {
           },
         ]
       }
+      bulk_whatsapp_chats: {
+        Row: {
+          created_at: string
+          id: string
+          last_direction: string | null
+          last_message_at: string
+          last_message_preview: string | null
+          name: string | null
+          organization_id: string
+          phone: string
+          tags: string[]
+          unread_count: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_direction?: string | null
+          last_message_at?: string
+          last_message_preview?: string | null
+          name?: string | null
+          organization_id: string
+          phone: string
+          tags?: string[]
+          unread_count?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_direction?: string | null
+          last_message_at?: string
+          last_message_preview?: string | null
+          name?: string | null
+          organization_id?: string
+          phone?: string
+          tags?: string[]
+          unread_count?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_whatsapp_chats_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_whatsapp_chats_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      bulk_whatsapp_messages: {
+        Row: {
+          body: string
+          chat_id: string
+          created_at: string
+          direction: string
+          error: string | null
+          id: string
+          media_type: string | null
+          organization_id: string
+          sent_by: string | null
+          status: string
+          user_id: string
+          wa_message_id: string | null
+        }
+        Insert: {
+          body?: string
+          chat_id: string
+          created_at?: string
+          direction: string
+          error?: string | null
+          id?: string
+          media_type?: string | null
+          organization_id: string
+          sent_by?: string | null
+          status?: string
+          user_id: string
+          wa_message_id?: string | null
+        }
+        Update: {
+          body?: string
+          chat_id?: string
+          created_at?: string
+          direction?: string
+          error?: string | null
+          id?: string
+          media_type?: string | null
+          organization_id?: string
+          sent_by?: string | null
+          status?: string
+          user_id?: string
+          wa_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_whatsapp_messages_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "bulk_whatsapp_chats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bulk_whatsapp_optouts: {
         Row: {
           created_at: string
