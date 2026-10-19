@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeBulkFailure, groupBulkFailures } from "./bulkWhatsAppFailure";
+import { describeBulkFailure, groupBulkFailures, isRetryableBulkFailure } from "./bulkWhatsAppFailure";
 
 describe("describeBulkFailure", () => {
   it("returns null when there is no error", () => {
@@ -39,5 +39,14 @@ describe("groupBulkFailures", () => {
       ["WhatsApp did not answer", 1],
       ["Send failed", 1],
     ]);
+  });
+});
+
+describe("isRetryableBulkFailure", () => {
+  it("retries passing errors only", () => {
+    expect(isRetryableBulkFailure("Timed Out")).toBe(true);
+    expect(isRetryableBulkFailure(null)).toBe(true);
+    expect(isRetryableBulkFailure("Not on WhatsApp")).toBe(false);
+    expect(isRetryableBulkFailure("Unsubscribed")).toBe(false);
   });
 });

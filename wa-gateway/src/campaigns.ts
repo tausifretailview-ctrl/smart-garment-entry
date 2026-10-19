@@ -39,6 +39,8 @@ interface CampaignJob {
   createdAt: string;
   /** Where results go, sent by the bulk-whatsapp function itself (no server setting needed). */
   reportUrl?: string;
+  /** Scheduled campaigns: nothing is sent before this time (ISO). */
+  startAt?: string;
 }
 
 const AUTH_DIR = process.env.AUTH_DIR ?? "./data/sessions";
@@ -58,6 +60,8 @@ function bulkUrlFrom(other: string | undefined): string {
 }
 const ID_RE = /^[0-9a-fA-F-]{36}$/;
 const MAX_ITEMS = 5000;
+/** Schedules reach at most this far ahead (setTimeout tops out near 24 days). */
+const MAX_SCHEDULE_MS = 14 * 24 * 60 * 60 * 1000;
 const MAX_MEDIA_BYTES = 16 * 1024 * 1024;
 /** A video that is made smaller may start bigger than WhatsApp's 16 MB. */
 const MAX_VIDEO_SOURCE_BYTES = 50 * 1024 * 1024;
@@ -71,6 +75,7 @@ const fillName = (message: string, name: string) => message.replace(/\{\s*name\s
 export class CampaignRunner {
   private jobs = new Map<string, CampaignJob>();
   private workers = new Set<string>();
+  private timers = new Map<string, NodeJS.Timeout>();
   private media = new Map<string, BulkContent["media"]>();
   private receipts: { messageId: string; status: ReceiptStatus; at: string }[] = [];
 
@@ -183,6 +188,7 @@ export class CampaignRunner {
         this.jobs.set(job.campaignId, job);
         if (job.reportUrl) this.lastReportUrl = job.reportUrl;
         if (job.status === "running") this.kick(job.sessionId);
+        this.wakeAtStart(job);
       } catch (e) {
         logger.warn({ err: e, f }, "bad campaign file");
       }
@@ -227,13 +233,21 @@ export class CampaignRunner {
       reportUrl = u.toString();
       this.lastReportUrl = reportUrl;
     }
+    let startAt: string | undefined;
+    if (input.startAt) {
+      const at = Date.parse(String(input.startAt));
+      if (!Number.isFinite(at)) throw new Error("Invalid start time");
+      if (at - Date.now() > MAX_SCHEDULE_MS) throw new Error("Schedule at most 14 days ahead");
+      if (at > Date.now()) startAt = new Date(at).toISOString();
+    }
     const job: CampaignJob = {
       campaignId, sessionId, status: "running", media, minGapMs, maxGapMs, items, createdAt: new Date().toISOString(),
-      reportUrl,
+      reportUrl, startAt,
     };
     this.jobs.set(campaignId, job);
     this.save(job);
     this.kick(sessionId);
+    this.wakeAtStart(job);
     return this.summary(job);
   }
 
@@ -262,7 +276,23 @@ export class CampaignRunner {
     return this.summary(job);
   }
 
+  /** Scheduled job: start its number's worker when the time comes. */
+  private wakeAtStart(job: CampaignJob) {
+    const wait = job.startAt ? Date.parse(job.startAt) - Date.now() : 0;
+    if (wait <= 0) return;
+    clearTimeout(this.timers.get(job.campaignId));
+    this.timers.set(
+      job.campaignId,
+      setTimeout(() => {
+        this.timers.delete(job.campaignId);
+        if (job.status === "running") this.kick(job.sessionId);
+      }, wait + 1000),
+    );
+  }
+
   private finish(job: CampaignJob) {
+    clearTimeout(this.timers.get(job.campaignId));
+    this.timers.delete(job.campaignId);
     this.jobs.delete(job.campaignId);
     this.media.delete(job.campaignId);
     fs.rmSync(this.file(job.campaignId), { force: true });
@@ -280,8 +310,12 @@ export class CampaignRunner {
 
   private nextJob(sessionId: string) {
     return [...this.jobs.values()]
-      .filter((j) => j.sessionId === sessionId && j.status === "running")
+      .filter((j) => j.sessionId === sessionId && j.status === "running" && !this.waitingForStart(j))
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
+  }
+
+  private waitingForStart(job: CampaignJob) {
+    return Boolean(job.startAt && Date.parse(job.startAt) > Date.now());
   }
 
   /** Checks the poster once per campaign; the send itself goes by URL so WhatsApp gets one upload. */
@@ -325,6 +359,12 @@ export class CampaignRunner {
     for (;;) {
       const job = this.nextJob(sessionId);
       if (!job) return;
+      if (job.startAt) {
+        // Scheduled time reached: clear the "Starts at" note in the app.
+        delete job.startAt;
+        this.save(job);
+        this.report(job, null);
+      }
 
       // Number unlinked or offline, or today's cap used up: wait without failing anyone.
       let note: string | null = null;

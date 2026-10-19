@@ -1,9 +1,11 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { lazy, Suspense, useMemo, useState, type ReactNode } from "react";
 import { format } from "date-fns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  CalendarClock,
   CheckCheck,
+  Copy,
   Download,
   Eye,
   Loader2,
@@ -11,6 +13,7 @@ import {
   Pause,
   Play,
   RefreshCcw,
+  RotateCcw,
   Search,
   Send,
   Square,
@@ -24,16 +27,21 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { formatBulkPhone } from "@/utils/bulkWhatsAppContacts";
-import { describeBulkFailure, groupBulkFailures } from "@/utils/bulkWhatsAppFailure";
+import { describeBulkFailure, groupBulkFailures, isRetryableBulkFailure } from "@/utils/bulkWhatsAppFailure";
 import {
   CAMPAIGN_LIST_LIMIT,
   callBulkWhatsApp,
   fetchCampaignMessage,
   fetchRecipients,
+  scheduledStart,
   useBulkCampaigns,
   type BulkCampaign,
+  type BulkCampaignMessage,
   type BulkRecipient,
 } from "./bulkWhatsAppApi";
+
+/** Chart code loads only when a report with at least two finished campaigns is shown. */
+const BulkWhatsAppTrend = lazy(() => import("./BulkWhatsAppTrend"));
 
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
 const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
@@ -212,7 +220,19 @@ function FilterTile({
   );
 }
 
-function CampaignDetail({ campaign, onClose }: { campaign: BulkCampaign; onClose: () => void }) {
+function CampaignDetail({
+  campaign,
+  organizationId,
+  onClose,
+  onReuse,
+}: {
+  campaign: BulkCampaign;
+  organizationId: string;
+  onClose: () => void;
+  onReuse?: (m: BulkCampaignMessage) => void;
+}) {
+  const queryClient = useQueryClient();
+  const [resending, setResending] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
   const [reason, setReason] = useState<string | null>(null);
   const [showMessage, setShowMessage] = useState(false);
@@ -238,6 +258,26 @@ function CampaignDetail({ campaign, onClose }: { campaign: BulkCampaign; onClose
   const pending = Math.max(0, campaign.total_count - campaign.sent_count - campaign.failed_count);
   const isImage = msg.data?.media_type?.startsWith("image/");
   const hasMessage = Boolean(msg.data && (msg.data.message || msg.data.media_url));
+  const startsAt = scheduledStart(campaign);
+  const retryable = useMemo(
+    () => (q.data ?? []).filter((r) => r.status === "failed" && isRetryableBulkFailure(r.error)).length,
+    [q.data],
+  );
+
+  const resendFailed = async () => {
+    if (!window.confirm(`Send this message again to ${retryable} failed ${retryable === 1 ? "number" : "numbers"}?`)) return;
+    setResending(true);
+    try {
+      const res = await callBulkWhatsApp<{ total?: number }>(organizationId, "resend-failed", { campaignId: campaign.id });
+      toast.success(`Sending again to ${res.total ?? retryable} numbers as a new campaign`);
+      await queryClient.invalidateQueries({ queryKey: ["bulk-whatsapp-campaigns", organizationId] });
+      onClose();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not send again");
+    } finally {
+      setResending(false);
+    }
+  };
   const pick = (f: Filter) => {
     setFilter(f);
     setReason(null);
@@ -295,7 +335,31 @@ function CampaignDetail({ campaign, onClose }: { campaign: BulkCampaign; onClose
           <p className="text-xs text-slate-500">
             {fmtDate(campaign.created_at)}, {fmtTime(campaign.created_at)}
             {campaign.sender_number ? ` · from ${formatBulkPhone(campaign.sender_number)}` : ""}
+            {startsAt && startsAt.getTime() > Date.now() ? ` · starts ${fmtDate(startsAt.toISOString())}, ${fmtTime(startsAt.toISOString())}` : ""}
           </p>
+          {(onReuse || (!live && retryable > 0)) && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {!live && retryable > 0 && (
+                <Button size="sm" className="h-8 bg-emerald-600 text-white hover:bg-emerald-700" disabled={resending} onClick={() => void resendFailed()}>
+                  {resending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-1 h-4 w-4" />}
+                  Send again to {num(retryable)} failed
+                </Button>
+              )}
+              {onReuse && msg.data && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8"
+                  onClick={() => {
+                    onReuse(msg.data!);
+                    onClose();
+                  }}
+                >
+                  <Copy className="mr-1 h-4 w-4" /> Use this message again
+                </Button>
+              )}
+            </div>
+          )}
         </DialogHeader>
 
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
@@ -453,6 +517,20 @@ function StatusCell({ c }: { c: BulkCampaign }) {
   const done = c.sent_count + c.failed_count;
   const live = isLive(c);
   const badge = CAMPAIGN_BADGE[c.status];
+  const startsAt = scheduledStart(c);
+  if (startsAt && startsAt.getTime() > Date.now()) {
+    return (
+      <>
+        <Pill className={c.status === "paused" ? badge.className : "bg-violet-50 text-violet-700 ring-violet-200"}>
+          <CalendarClock className="h-3 w-3" />
+          {c.status === "paused" ? "Paused" : "Scheduled"}
+        </Pill>
+        <div className="mt-1 text-[11px] text-violet-700">
+          Starts {fmtDate(startsAt.toISOString())}, {fmtTime(startsAt.toISOString())}
+        </div>
+      </>
+    );
+  }
   return (
     <>
       <Pill className={badge.className}>
@@ -468,7 +546,7 @@ function StatusCell({ c }: { c: BulkCampaign }) {
           />
         </div>
       )}
-      {c.status_note ? <div className="mt-1 max-w-[220px] text-[11px] text-amber-700">{c.status_note}</div> : null}
+      {c.status_note && !startsAt ? <div className="mt-1 max-w-[220px] text-[11px] text-amber-700">{c.status_note}</div> : null}
     </>
   );
 }
@@ -487,11 +565,14 @@ export function BulkWhatsAppReport({
   organizationId,
   userId,
   fullPage = false,
+  onReuse,
 }: {
   organizationId: string;
   userId: string | undefined;
   /** Reports page: taller table plus search, date range and sort. */
   fullPage?: boolean;
+  /** "Use this message again": loads a past campaign's message and poster into the send form. */
+  onReuse?: (m: BulkCampaignMessage) => void;
 }) {
   const queryClient = useQueryClient();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -540,6 +621,12 @@ export function BulkWhatsAppReport({
   };
 
   return (
+    <div className="space-y-3">
+    {q.data && q.data.length > 1 && (
+      <Suspense fallback={null}>
+        <BulkWhatsAppTrend campaigns={q.data} />
+      </Suspense>
+    )}
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
         <div>
@@ -714,7 +801,10 @@ export function BulkWhatsAppReport({
           </div>
         </>
       )}
-      {open && <CampaignDetail campaign={open} onClose={() => setOpenId(null)} />}
+      {open && (
+        <CampaignDetail campaign={open} organizationId={organizationId} onClose={() => setOpenId(null)} onReuse={onReuse} />
+      )}
+    </div>
     </div>
   );
 }

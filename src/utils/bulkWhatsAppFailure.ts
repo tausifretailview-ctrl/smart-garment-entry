@@ -77,3 +77,10 @@ export function groupBulkFailures<T extends { status: string; error: string | nu
   }
   return [...groups.values()].sort((a, b) => b.count - a.count);
 }
+
+/** Failures that sending again will not fix (the bulk-whatsapp function uses the same rule for "Send again"). */
+const PERMANENT_FAILURE_RE = /not on whatsapp|invalid phone|bad-request|item-not-found|unsubscribed/i;
+
+export function isRetryableBulkFailure(error: string | null | undefined): boolean {
+  return !PERMANENT_FAILURE_RE.test(error ?? "");
+}

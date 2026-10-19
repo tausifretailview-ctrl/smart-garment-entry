@@ -172,3 +172,20 @@ export function buildBulkLinkLines(links: BulkLinks): string[] {
   if (insta) lines.push(`📸 *Follow us on Instagram:* ${insta}`);
   return lines;
 }
+
+const LINK_LINE = /^(📞 \*Call now:\*|💬 \*Enquire now:\*|📍 \*Shop location:\*|📸 \*Follow us on Instagram:\*) /;
+
+/**
+ * A sent message back to what was typed: drops the STOP footer and the link lines the page adds,
+ * so "Use again" does not add them twice.
+ */
+export function stripBulkExtras(sent: string): string {
+  const lines = sent.replace(/\r\n/g, "\n").split("\n");
+  for (;;) {
+    const last = lines[lines.length - 1];
+    if (last === undefined) break;
+    if (!last.trim() || /^_Reply STOP to stop these messages_$/.test(last.trim()) || LINK_LINE.test(last)) lines.pop();
+    else break;
+  }
+  return lines.join("\n");
+}
