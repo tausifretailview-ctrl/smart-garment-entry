@@ -5,6 +5,7 @@ import pino from "pino";
 import makeWASocket, {
   DisconnectReason,
   fetchLatestBaileysVersion,
+  normalizeMessageContent,
   useMultiFileAuthState,
   type WAMessage,
   type WASocket,
@@ -134,12 +135,38 @@ export interface BulkContent {
 
 export type ReceiptStatus = "delivered" | "read";
 
+/** A message in a bulk number's chat with a customer, for the app's Inbox. */
+export interface InboxEvent {
+  phone: string;
+  /** The customer's WhatsApp name (incoming only). */
+  name: string | null;
+  text: string;
+  /** image, video, audio, document, sticker, location or contact; null for plain text. */
+  mediaType: string | null;
+  messageId: string | null;
+  /** Typed on the linked phone itself rather than received. */
+  fromMe: boolean;
+  at: string;
+}
+
+const MEDIA_KINDS: [keyof proto.IMessage, string][] = [
+  ["imageMessage", "image"],
+  ["videoMessage", "video"],
+  ["audioMessage", "audio"],
+  ["documentMessage", "document"],
+  ["stickerMessage", "sticker"],
+  ["locationMessage", "location"],
+  ["contactMessage", "contact"],
+];
+
 export class SessionManager {
   private sessions = new Map<string, Session>();
   /** Delivery / read ticks for messages sent from Bulk WhatsApp sessions. */
   onReceipt: ((sessionId: string, messageId: string, status: ReceiptStatus) => void) | null = null;
   /** A customer replied STOP / START to a bulk number. */
   onOptOut: ((sessionId: string, phone: string, subscribe: boolean) => void) | null = null;
+  /** Any message in a bulk number's chats (customer replies, or typed on the phone), for the Inbox. */
+  onInbox: ((sessionId: string, event: InboxEvent) => void) | null = null;
 
   /** Delivered / read ticks for bill messages, sent to the app every few seconds per shop. */
   private billReceipts = new Map<string, { messageId: string; status: ReceiptStatus; at: string }[]>();
@@ -323,12 +350,15 @@ export class SessionManager {
   }
 
   /**
-   * Customer text replies go to the app: on a shop number they feed the review "OK" → stars flow; on a
-   * bulk number only STOP / START (unsubscribe) counts. Groups, status and own messages are skipped.
+   * Customer text replies go to the app: on a shop number they feed the review "OK" → stars flow. On a
+   * bulk number every message goes to the Inbox (STOP / START also unsubscribe), including ones typed
+   * on the phone itself so the conversation stays complete. Groups, status and this server's own sends
+   * (those arrive as "append", not "notify") are skipped.
    */
   private async forwardInbound(orgId: string, m: WAMessage) {
-    if (m.key.fromMe) return;
-    if (!isUserSession(orgId) && !APP_INBOUND_URL) return;
+    const bulk = isUserSession(orgId);
+    if (m.key.fromMe && !bulk) return;
+    if (!bulk && !APP_INBOUND_URL) return;
     const key = m.key as WAMessage["key"] & { senderPn?: string; remoteJidAlt?: string };
     let jid = key.remoteJid ?? "";
     if (jid.endsWith("@lid")) jid = key.senderPn || key.remoteJidAlt || "";
@@ -341,12 +371,32 @@ export class SessionManager {
       msg?.listResponseMessage?.title ||
       ""
     ).trim();
-    if (!text) return;
-    if (isUserSession(orgId)) {
-      const kw = optOutKeyword(text);
-      if (kw) this.onOptOut?.(orgId, jid.split("@")[0], kw === "start");
+    if (bulk) {
+      if (m.key.fromMe && key.id && this.get(orgId).sent.has(key.id)) return;
+      const phone = jid.split("@")[0];
+      if (!m.key.fromMe && text) {
+        const kw = optOutKeyword(text);
+        if (kw) this.onOptOut?.(orgId, phone, kw === "start");
+      }
+      const content = normalizeMessageContent(msg);
+      const media = MEDIA_KINDS.find(([k]) => content?.[k]);
+      const caption =
+        content?.imageMessage?.caption || content?.videoMessage?.caption || content?.documentMessage?.caption || "";
+      const body = (text || caption || content?.extendedTextMessage?.text || "").trim();
+      if (!body && !media) return;
+      const ts = Number(m.messageTimestamp ?? 0);
+      this.onInbox?.(orgId, {
+        phone,
+        name: m.key.fromMe ? null : m.pushName ?? null,
+        text: body.slice(0, 4000),
+        mediaType: media?.[1] ?? null,
+        messageId: key.id ?? null,
+        fromMe: Boolean(m.key.fromMe),
+        at: (ts > 0 ? new Date(ts * 1000) : new Date()).toISOString(),
+      });
       return;
     }
+    if (!text) return;
     try {
       await fetch(APP_INBOUND_URL, {
         method: "POST",

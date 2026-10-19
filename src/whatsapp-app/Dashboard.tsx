@@ -1,8 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { BarChart3, LogOut, Send, Store } from "lucide-react";
+import { BarChart3, LogOut, MessagesSquare, Send, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { BulkWhatsAppWorkspace } from "@/components/bulk-whatsapp/BulkWhatsAppWorkspace";
+import { BulkWhatsAppInbox } from "@/components/bulk-whatsapp/BulkWhatsAppInbox";
+import { useInboxChats } from "@/components/bulk-whatsapp/bulkWhatsAppApi";
 
 export interface SiteShop {
   id: string;
@@ -13,7 +15,7 @@ export interface SiteShop {
   role?: string;
 }
 
-type Page = "send" | "reports";
+type Page = "send" | "reports" | "inbox";
 
 const PAGES: { id: Page; label: string; title: string; hint: string; icon: ReactNode }[] = [
   {
@@ -30,10 +32,18 @@ const PAGES: { id: Page; label: string; title: string; hint: string; icon: React
     hint: "Every campaign with sent, delivered, read and failed counts. Open one for each number's status.",
     icon: <BarChart3 className="h-4 w-4" />,
   },
+  {
+    id: "inbox",
+    label: "Inbox",
+    title: "Inbox",
+    hint: "Customers who replied to your bulk messages. Tag interested customers and reply from your linked WhatsApp.",
+    icon: <MessagesSquare className="h-4 w-4" />,
+  },
 ];
 
 /** The page lives in the URL hash so a refresh stays on it. */
-const pageFromHash = (): Page => (window.location.hash === "#reports" ? "reports" : "send");
+const pageFromHash = (): Page =>
+  window.location.hash === "#reports" ? "reports" : window.location.hash === "#inbox" ? "inbox" : "send";
 
 /** Signed-in home: top bar (shop, login, sign out), side menu, and the shared Bulk WhatsApp screen. */
 export function Dashboard({
@@ -59,11 +69,19 @@ export function Dashboard({
   }, []);
   const go = (next: Page) => {
     setPage(next);
-    const hash = next === "reports" ? "#reports" : "";
+    const hash = next === "send" ? "" : `#${next}`;
     if (window.location.hash !== hash) history.replaceState(null, "", `${window.location.pathname}${window.location.search}${hash}`);
     window.scrollTo({ top: 0 });
   };
   const current = PAGES.find((p) => p.id === page) ?? PAGES[0];
+  const inbox = useInboxChats(shop.id, page === "inbox");
+  const unread = (inbox.data ?? []).filter((c) => c.unread_count > 0).length;
+  const badge = (p: Page) =>
+    p === "inbox" && unread ? (
+      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[11px] font-bold text-white">
+        {unread}
+      </span>
+    ) : null;
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -129,6 +147,7 @@ export function Dashboard({
                 {p.icon}
               </span>
               {p.label}
+              {badge(p.id)}
             </button>
           ))}
         </nav>
@@ -137,32 +156,48 @@ export function Dashboard({
             <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{current.title}</h1>
             <p className="text-sm text-slate-500">{current.hint}</p>
           </div>
-          <BulkWhatsAppWorkspace
-            key={shop.id}
-            organizationId={shop.id}
-            userId={userId}
-            showCustomerMaster={false}
-            showTitle={false}
-            view={page}
-            onOpenReports={() => go("reports")}
-            onOpenSend={() => go("send")}
-          />
+          {/* Kept mounted so a half-written campaign survives a look at the Inbox. */}
+          <div className={cn(page === "inbox" && "hidden")}>
+            <BulkWhatsAppWorkspace
+              key={shop.id}
+              organizationId={shop.id}
+              userId={userId}
+              showCustomerMaster={false}
+              showTitle={false}
+              view={page === "reports" ? "reports" : "send"}
+              onOpenReports={() => go("reports")}
+              onOpenSend={() => go("send")}
+            />
+          </div>
+          {page === "inbox" && (
+            <div className="px-2 py-3 sm:px-4">
+              <BulkWhatsAppInbox
+                key={shop.id}
+                organizationId={shop.id}
+                userId={userId}
+                className="h-[calc(100dvh-13rem)] min-h-[440px] md:h-[calc(100dvh-10rem)]"
+              />
+            </div>
+          )}
         </main>
       </div>
       {/* Phones: the menu sits at the bottom. */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-2 border-t border-slate-200 bg-white md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-3 border-t border-slate-200 bg-white md:hidden">
         {PAGES.map((p) => (
           <button
             key={p.id}
             type="button"
             onClick={() => go(p.id)}
             className={cn(
-              "flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium",
+              "relative flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium",
               page === p.id ? "text-emerald-700" : "text-slate-500",
             )}
           >
             {p.icon}
             {p.label}
+            {p.id === "inbox" && unread > 0 && (
+              <span className="absolute right-[calc(50%-1.25rem)] top-1 h-2 w-2 rounded-full bg-emerald-500" />
+            )}
           </button>
         ))}
       </nav>

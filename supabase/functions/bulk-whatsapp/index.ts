@@ -84,7 +84,7 @@ serve(async (req) => {
   if (!organizationId) return json({ error: "organizationId is required" }, 400);
   const access = await bulkAccess(admin, userId, organizationId);
   if (!access.allowed) return json({ error: "You do not have the Bulk WhatsApp right in this organization" }, 403);
-  if (action === "session-start" || action === "create" || action === "resume" || action === "resend-failed") {
+  if (action === "session-start" || action === "create" || action === "resume" || action === "resend-failed" || action === "inbox-send") {
     const { data: org } = await admin.from("organizations").select("is_suspended").eq("id", organizationId).maybeSingle();
     if (org?.is_suspended) return json({ error: "This account is suspended. Please contact Ezzy ERP." }, 403);
   }
@@ -184,6 +184,10 @@ serve(async (req) => {
     const keepNote = status !== "stopped" && String(c.status_note ?? "").startsWith(SCHEDULE_NOTE_PREFIX);
     await setCampaignStatus(admin, campaignId, status, keepNote ? c.status_note : null);
     return json({ success: true, status });
+  }
+
+  if (action === "inbox-send" || action === "inbox-read" || action === "inbox-tags") {
+    return await inboxAction(admin, action, body, userId, organizationId, access.isAdmin, sessionPath);
   }
 
   return json({ error: "Unknown action" }, 400);
@@ -465,6 +469,17 @@ async function handleGateway(admin: SupabaseClient, action: string, body: Record
       touched.add(row.campaign_id);
     }
     for (const id of touched) await admin.rpc("refresh_bulk_whatsapp_counts", { p_campaign_id: id });
+    // Replies sent from the Inbox get the same ticks (errors ignored before the Inbox SQL is run).
+    const { data: replies } = await admin
+      .from("bulk_whatsapp_messages")
+      .select("id, status, wa_message_id")
+      .in("wa_message_id", [...best.keys()])
+      .in("status", ["sent", "delivered"]);
+    for (const row of replies ?? []) {
+      const next = best.get(row.wa_message_id);
+      if (!next || (RANK[row.status] ?? -1) >= RANK[next.status]) continue;
+      await admin.from("bulk_whatsapp_messages").update({ status: next.status }).eq("id", row.id);
+    }
     return json({ success: true, updated: touched.size });
   }
 
@@ -503,6 +518,8 @@ async function handleGateway(admin: SupabaseClient, action: string, body: Record
     return json({ success: true, organizations: orgIds.length });
   }
 
+  if (action === "gateway-inbox") return await gatewayInbox(admin, body);
+
   if (action === "gateway-campaign") {
     const campaignId = String(body.campaignId ?? "");
     const status = String(body.status ?? "");
@@ -512,4 +529,174 @@ async function handleGateway(admin: SupabaseClient, action: string, body: Record
   }
 
   return json({ error: "Unknown action" }, 400);
+}
+
+const MEDIA_LABEL: Record<string, string> = {
+  image: "📷 Photo",
+  video: "🎥 Video",
+  audio: "🎤 Voice message",
+  document: "📄 Document",
+  sticker: "Sticker",
+  location: "📍 Location",
+  contact: "👤 Contact",
+};
+const INBOX_TAG_MAX = 10;
+
+/**
+ * A message in a bulk number's chat (session "u_<userId>"). Kept only for customers this user sent
+ * bulk messages to, one chat per shop; anything else answers tracked: false so wa-gateway stops
+ * reporting that chat for a while. A chat starts with the customer's message; messages typed on the
+ * linked phone are added to chats that already exist.
+ */
+async function gatewayInbox(admin: SupabaseClient, body: Record<string, unknown>): Promise<Response> {
+  const sessionId = String(body.sessionId ?? "");
+  const userId = sessionId.startsWith("u_") ? sessionId.slice(2) : "";
+  const phone = normalizePhone(String(body.phone ?? ""));
+  if (!userId || !phone) return json({ error: "sessionId and phone are required" }, 400);
+  const fromMe = body.fromMe === true;
+  const { data: hits, error: hitsError } = await admin
+    .from("bulk_whatsapp_recipients")
+    .select("organization_id, name, bulk_whatsapp_campaigns!inner(user_id)")
+    .eq("phone", phone)
+    .eq("bulk_whatsapp_campaigns.user_id", userId)
+    .limit(200);
+  if (hitsError) return json({ error: hitsError.message }, 500);
+  if (!hits?.length) return json({ success: true, tracked: false });
+
+  const orgs = new Map<string, string | null>();
+  for (const h of hits) {
+    const org = h.organization_id as string;
+    if (!orgs.get(org)) orgs.set(org, (h.name as string | null)?.trim() || null);
+  }
+  const mediaType = typeof body.mediaType === "string" && MEDIA_LABEL[body.mediaType] ? body.mediaType : null;
+  const text = String(body.text ?? "").slice(0, 4000);
+  const parsed = new Date(String(body.at ?? ""));
+  const at = Number.isNaN(parsed.getTime()) || parsed.getTime() > Date.now() + 60_000 ? new Date().toISOString() : parsed.toISOString();
+  const preview = (text || (mediaType ? MEDIA_LABEL[mediaType] : "") || "Message").slice(0, 200);
+  const pushName = typeof body.name === "string" ? body.name.trim().slice(0, 80) || null : null;
+  const messageId = body.messageId ? String(body.messageId).slice(0, 128) : null;
+
+  for (const [organizationId, recipientName] of orgs) {
+    const find = () =>
+      admin
+        .from("bulk_whatsapp_chats")
+        .select("id, unread_count, name")
+        .eq("organization_id", organizationId)
+        .eq("user_id", userId)
+        .eq("phone", phone)
+        .maybeSingle();
+    let { data: chat, error } = await find();
+    if (error) return json({ error: error.message }, 500);
+    if (!chat) {
+      if (fromMe) continue;
+      const created = await admin
+        .from("bulk_whatsapp_chats")
+        .insert({ organization_id: organizationId, user_id: userId, phone, name: recipientName || pushName, last_message_at: at })
+        .select("id, unread_count, name")
+        .single();
+      // Two messages at once: the other one made the chat.
+      chat = created.data ?? (await find()).data;
+      if (!chat) return json({ error: created.error?.message ?? "Could not save the chat" }, 500);
+    }
+    const { error: insertError } = await admin.from("bulk_whatsapp_messages").insert({
+      chat_id: chat.id,
+      organization_id: organizationId,
+      user_id: userId,
+      direction: fromMe ? "out" : "in",
+      body: text,
+      media_type: mediaType,
+      wa_message_id: messageId,
+      status: fromMe ? "sent" : "received",
+      created_at: at,
+    });
+    if (insertError) {
+      if (insertError.code === "23505") continue; // the same message reported twice
+      return json({ error: insertError.message }, 500);
+    }
+    await admin
+      .from("bulk_whatsapp_chats")
+      .update({
+        last_message_at: at,
+        last_message_preview: preview,
+        last_direction: fromMe ? "out" : "in",
+        unread_count: fromMe ? 0 : (chat.unread_count ?? 0) + 1,
+        ...(!chat.name && (recipientName || pushName) ? { name: recipientName || pushName } : {}),
+      })
+      .eq("id", chat.id);
+  }
+  return json({ success: true, tracked: true });
+}
+
+/** Inbox actions from the page: reply (from the user's own linked number), mark read, set tags. */
+async function inboxAction(
+  admin: SupabaseClient,
+  action: string,
+  body: Record<string, unknown>,
+  userId: string,
+  organizationId: string,
+  isAdmin: boolean,
+  sessionPath: string,
+): Promise<Response> {
+  const { data: chat } = await admin
+    .from("bulk_whatsapp_chats")
+    .select("id, organization_id, user_id, phone")
+    .eq("id", String(body.chatId ?? ""))
+    .maybeSingle();
+  if (!chat || chat.organization_id !== organizationId || (chat.user_id !== userId && !isAdmin)) {
+    return json({ error: "Chat not found" }, 404);
+  }
+
+  if (action === "inbox-read") {
+    await admin.from("bulk_whatsapp_chats").update({ unread_count: 0 }).eq("id", chat.id);
+    return json({ success: true });
+  }
+
+  if (action === "inbox-tags") {
+    const tags = [
+      ...new Set(
+        (Array.isArray(body.tags) ? body.tags : [])
+          .map((t) => String(t).trim().replace(/\s+/g, " ").slice(0, 24))
+          .filter(Boolean),
+      ),
+    ].slice(0, INBOX_TAG_MAX);
+    const { error } = await admin.from("bulk_whatsapp_chats").update({ tags }).eq("id", chat.id);
+    if (error) return json({ error: error.message }, 500);
+    return json({ success: true, tags });
+  }
+
+  // inbox-send: the reply goes from the number that has this chat, so only its owner can send.
+  if (chat.user_id !== userId) {
+    return json({ error: "This chat is on another user's WhatsApp. Only they can reply from it." }, 403);
+  }
+  const text = String(body.text ?? "").trim().slice(0, 4000);
+  if (!text) return json({ error: "Type a message first" }, 400);
+  const result = await bulkGateway(`${sessionPath}/send-text`, {
+    method: "POST",
+    body: { phone: chat.phone, message: text },
+  });
+  const ok = result.ok && result.data.success !== false;
+  const now = new Date().toISOString();
+  const error = ok ? null : String(result.data.error ?? "WhatsApp server error").slice(0, 300);
+  const { data: row } = await admin
+    .from("bulk_whatsapp_messages")
+    .insert({
+      chat_id: chat.id,
+      organization_id: organizationId,
+      user_id: userId,
+      direction: "out",
+      body: text,
+      wa_message_id: ok && result.data.messageId ? String(result.data.messageId) : null,
+      status: ok ? "sent" : "failed",
+      error,
+      sent_by: userId,
+      created_at: now,
+    })
+    .select("id")
+    .single();
+  if (!ok) return json({ error, messageId: row?.id ?? null }, result.status && result.status < 500 ? 400 : 502);
+  await admin
+    .from("bulk_whatsapp_chats")
+    .update({ last_message_at: now, last_message_preview: text.slice(0, 200), last_direction: "out", unread_count: 0 })
+    .eq("id", chat.id);
+  return json({ success: true, id: row?.id ?? null });
 }

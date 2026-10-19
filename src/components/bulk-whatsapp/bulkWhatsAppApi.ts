@@ -157,3 +157,90 @@ export async function fetchSentHistory(campaignIds: string[]): Promise<SentHisto
   }
   return out;
 }
+
+export interface InboxChat {
+  id: string;
+  user_id: string;
+  phone: string;
+  name: string | null;
+  tags: string[];
+  unread_count: number;
+  last_message_at: string;
+  last_message_preview: string | null;
+  last_direction: "in" | "out" | null;
+}
+
+export interface InboxMessage {
+  id: string;
+  direction: "in" | "out";
+  body: string;
+  media_type: string | null;
+  status: "received" | "sent" | "delivered" | "read" | "failed";
+  error: string | null;
+  created_at: string;
+}
+
+/** Bulk messages one number got: the campaign sends shown in its Inbox chat. */
+export interface PhoneCampaignSend {
+  id: string;
+  campaign_id: string;
+  name: string | null;
+  status: BulkRecipient["status"];
+  error: string | null;
+  sent_at: string | null;
+  delivered_at: string | null;
+  read_at: string | null;
+}
+
+/** Postgres "relation does not exist": the Inbox SQL has not been run yet. */
+const isMissingTable = (e: { code?: string; message?: string }) =>
+  e.code === "42P01" || e.code === "PGRST205" || /does not exist|schema cache/i.test(e.message ?? "");
+
+export const INBOX_CHAT_LIMIT = 500;
+
+/** Latest chats first; null when the Inbox is not set up yet. */
+export async function fetchInboxChats(organizationId: string): Promise<InboxChat[] | null> {
+  const { data, error } = await db
+    .from("bulk_whatsapp_chats")
+    .select("id, user_id, phone, name, tags, unread_count, last_message_at, last_message_preview, last_direction")
+    .eq("organization_id", organizationId)
+    .order("last_message_at", { ascending: false })
+    .limit(INBOX_CHAT_LIMIT);
+  if (error) {
+    if (isMissingTable(error)) return null;
+    throw error;
+  }
+  return (data ?? []) as InboxChat[];
+}
+
+/** Every 8 s while the Inbox is open (new replies), once a minute elsewhere (the unread badge). */
+export function useInboxChats(organizationId: string, open: boolean) {
+  return useQuery({
+    queryKey: ["bulk-whatsapp-inbox", organizationId],
+    queryFn: () => fetchInboxChats(organizationId),
+    refetchInterval: open ? 8000 : 60000,
+  });
+}
+
+export async function fetchInboxMessages(chatId: string): Promise<InboxMessage[]> {
+  const { data, error } = await db
+    .from("bulk_whatsapp_messages")
+    .select("id, direction, body, media_type, status, error, created_at")
+    .eq("chat_id", chatId)
+    .order("created_at", { ascending: true })
+    .limit(1000);
+  if (error) throw error;
+  return (data ?? []) as InboxMessage[];
+}
+
+export async function fetchPhoneCampaignSends(phone: string, campaignIds: string[]): Promise<PhoneCampaignSend[]> {
+  if (!campaignIds.length) return [];
+  const { data, error } = await db
+    .from("bulk_whatsapp_recipients")
+    .select("id, campaign_id, name, status, error, sent_at, delivered_at, read_at")
+    .eq("phone", phone)
+    .in("campaign_id", campaignIds)
+    .limit(200);
+  if (error) throw error;
+  return (data ?? []) as PhoneCampaignSend[];
+}
