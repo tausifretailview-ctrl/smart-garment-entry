@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import pino from "pino";
 import { type BulkContent, type ReceiptStatus, type SessionManager } from "./sessions.js";
+import { removeCampaignVideos, shrinkVideo, type VideoQuality } from "./video.js";
 
 /**
  * Bulk WhatsApp campaigns. Each job is saved on the volume and sent one number at a time with a
@@ -23,6 +24,8 @@ interface CampaignMedia {
   mimetype: string;
   filename: string;
   kind: "image" | "video" | "document";
+  /** Videos only: re-encode to 480p / 720p before sending. Missing = send as uploaded. */
+  quality?: VideoQuality;
 }
 
 interface CampaignJob {
@@ -36,10 +39,13 @@ interface CampaignJob {
   createdAt: string;
   /** Where results go, sent by the bulk-whatsapp function itself (no server setting needed). */
   reportUrl?: string;
+  /** Scheduled campaigns: nothing is sent before this time (ISO). */
+  startAt?: string;
 }
 
 const AUTH_DIR = process.env.AUTH_DIR ?? "./data/sessions";
 const CAMPAIGN_DIR = process.env.CAMPAIGN_DIR ?? path.join(path.dirname(AUTH_DIR), "campaigns");
+const VIDEO_DIR = path.join(CAMPAIGN_DIR, "videos");
 const API_KEY = process.env.GATEWAY_API_KEY ?? "";
 /** Defaults to the bulk-whatsapp function next to whatsapp-gateway-proxy, so no new setting is needed. */
 const APP_BULK_URL = process.env.APP_BULK_URL || bulkUrlFrom(process.env.APP_EVENT_URL || process.env.APP_INBOUND_URL);
@@ -54,7 +60,11 @@ function bulkUrlFrom(other: string | undefined): string {
 }
 const ID_RE = /^[0-9a-fA-F-]{36}$/;
 const MAX_ITEMS = 5000;
+/** Schedules reach at most this far ahead (setTimeout tops out near 24 days). */
+const MAX_SCHEDULE_MS = 14 * 24 * 60 * 60 * 1000;
 const MAX_MEDIA_BYTES = 16 * 1024 * 1024;
+/** A video that is made smaller may start bigger than WhatsApp's 16 MB. */
+const MAX_VIDEO_SOURCE_BYTES = 50 * 1024 * 1024;
 const logger = pino({ level: process.env.LOG_LEVEL ?? "warn" });
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -65,6 +75,7 @@ const fillName = (message: string, name: string) => message.replace(/\{\s*name\s
 export class CampaignRunner {
   private jobs = new Map<string, CampaignJob>();
   private workers = new Set<string>();
+  private timers = new Map<string, NodeJS.Timeout>();
   private media = new Map<string, BulkContent["media"]>();
   private receipts: { messageId: string; status: ReceiptStatus; at: string }[] = [];
 
@@ -177,6 +188,7 @@ export class CampaignRunner {
         this.jobs.set(job.campaignId, job);
         if (job.reportUrl) this.lastReportUrl = job.reportUrl;
         if (job.status === "running") this.kick(job.sessionId);
+        this.wakeAtStart(job);
       } catch (e) {
         logger.warn({ err: e, f }, "bad campaign file");
       }
@@ -208,7 +220,8 @@ export class CampaignRunner {
       const url = new URL(String(m.url));
       if (url.protocol !== "https:") throw new Error("Media URL must be https");
       const kind = m.kind === "video" || m.kind === "document" ? m.kind : "image";
-      media = { url: url.toString(), mimetype: String(m.mimetype ?? "image/jpeg"), filename: String(m.filename ?? "poster"), kind };
+      const quality = kind === "video" && (m.quality === "small" || m.quality === "medium") ? m.quality : undefined;
+      media = { url: url.toString(), mimetype: String(m.mimetype ?? "image/jpeg"), filename: String(m.filename ?? "poster"), kind, quality };
     }
     if (!media && items.every((i) => !i.text.trim())) throw new Error("Message or poster is required");
     const minGapMs = Math.max(3000, Number(input.minGapMs ?? 8000));
@@ -220,13 +233,21 @@ export class CampaignRunner {
       reportUrl = u.toString();
       this.lastReportUrl = reportUrl;
     }
+    let startAt: string | undefined;
+    if (input.startAt) {
+      const at = Date.parse(String(input.startAt));
+      if (!Number.isFinite(at)) throw new Error("Invalid start time");
+      if (at - Date.now() > MAX_SCHEDULE_MS) throw new Error("Schedule at most 14 days ahead");
+      if (at > Date.now()) startAt = new Date(at).toISOString();
+    }
     const job: CampaignJob = {
       campaignId, sessionId, status: "running", media, minGapMs, maxGapMs, items, createdAt: new Date().toISOString(),
-      reportUrl,
+      reportUrl, startAt,
     };
     this.jobs.set(campaignId, job);
     this.save(job);
     this.kick(sessionId);
+    this.wakeAtStart(job);
     return this.summary(job);
   }
 
@@ -255,10 +276,27 @@ export class CampaignRunner {
     return this.summary(job);
   }
 
+  /** Scheduled job: start its number's worker when the time comes. */
+  private wakeAtStart(job: CampaignJob) {
+    const wait = job.startAt ? Date.parse(job.startAt) - Date.now() : 0;
+    if (wait <= 0) return;
+    clearTimeout(this.timers.get(job.campaignId));
+    this.timers.set(
+      job.campaignId,
+      setTimeout(() => {
+        this.timers.delete(job.campaignId);
+        if (job.status === "running") this.kick(job.sessionId);
+      }, wait + 1000),
+    );
+  }
+
   private finish(job: CampaignJob) {
+    clearTimeout(this.timers.get(job.campaignId));
+    this.timers.delete(job.campaignId);
     this.jobs.delete(job.campaignId);
     this.media.delete(job.campaignId);
     fs.rmSync(this.file(job.campaignId), { force: true });
+    removeCampaignVideos(VIDEO_DIR, job.campaignId);
   }
 
   /** One worker per linked number: its campaigns go out in the order they were created. */
@@ -272,8 +310,12 @@ export class CampaignRunner {
 
   private nextJob(sessionId: string) {
     return [...this.jobs.values()]
-      .filter((j) => j.sessionId === sessionId && j.status === "running")
+      .filter((j) => j.sessionId === sessionId && j.status === "running" && !this.waitingForStart(j))
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
+  }
+
+  private waitingForStart(job: CampaignJob) {
+    return Boolean(job.startAt && Date.parse(job.startAt) > Date.now());
   }
 
   /** Checks the poster once per campaign; the send itself goes by URL so WhatsApp gets one upload. */
@@ -281,6 +323,19 @@ export class CampaignRunner {
     if (!job.media) return undefined;
     const cached = this.media.get(job.campaignId);
     if (cached) return cached;
+    if (job.media.kind === "video" && job.media.quality) {
+      const file = await shrinkVideo({
+        url: job.media.url,
+        quality: job.media.quality,
+        dir: VIDEO_DIR,
+        id: job.campaignId,
+        maxSourceBytes: MAX_VIDEO_SOURCE_BYTES,
+      });
+      // A file path: Baileys reads it from disk and caches the upload under this path.
+      const small = { url: file, mimetype: "video/mp4", filename: job.media.filename, kind: "video" as const };
+      this.media.set(job.campaignId, small);
+      return small;
+    }
     const resp = await fetch(job.media.url);
     // Only the headers are needed here; Baileys downloads the file itself on the first send.
     await resp.body?.cancel().catch(() => undefined);
@@ -304,6 +359,12 @@ export class CampaignRunner {
     for (;;) {
       const job = this.nextJob(sessionId);
       if (!job) return;
+      if (job.startAt) {
+        // Scheduled time reached: clear the "Starts at" note in the app.
+        delete job.startAt;
+        this.save(job);
+        this.report(job, null);
+      }
 
       // Number unlinked or offline, or today's cap used up: wait without failing anyone.
       let note: string | null = null;
@@ -319,6 +380,8 @@ export class CampaignRunner {
       waitingNote = null;
 
       let media: BulkContent["media"];
+      const encoding = job.media?.kind === "video" && job.media.quality && !this.media.has(job.campaignId);
+      if (encoding) this.report(job, "Making the video smaller before sending");
       try {
         media = await this.loadMedia(job);
       } catch (e) {
@@ -327,6 +390,9 @@ export class CampaignRunner {
         this.finish(job);
         continue;
       }
+      if (encoding) this.report(job, null);
+      // Paused or stopped while the video was being made smaller.
+      if (job.status !== "running") continue;
 
       const item = job.items.find((i) => !i.done);
       if (!item) {

@@ -9,6 +9,7 @@ import {
   normalizeBulkPhone,
   parseContactSheet,
   parseTypedContacts,
+  stripBulkExtras,
 } from "./bulkWhatsAppContacts";
 
 describe("normalizeBulkPhone", () => {
@@ -106,5 +107,25 @@ describe("buildBulkLinkLines", () => {
     ).toEqual(["📍 *Shop location:* https://maps.app.goo.gl/x", "📸 *Follow us on Instagram:* https://instagram.com/abc"]);
     expect(instagramLink("bad handle!")).toBeNull();
     expect(locationLink("")).toBeNull();
+  });
+});
+
+describe("stripBulkExtras", () => {
+  it("drops the STOP footer and the added link lines", () => {
+    const sent = [
+      "*Diwali sale*",
+      "",
+      "Up to 15% off",
+      "",
+      "📞 *Call now:* +91 98765 43210",
+      "📍 *Shop location:* https://maps.app.goo.gl/abc",
+      "",
+      "_Reply STOP to stop these messages_",
+    ].join("\n");
+    expect(stripBulkExtras(sent)).toBe("*Diwali sale*\n\nUp to 15% off");
+  });
+
+  it("keeps a message with nothing added", () => {
+    expect(stripBulkExtras("Hello {name}")).toBe("Hello {name}");
   });
 });

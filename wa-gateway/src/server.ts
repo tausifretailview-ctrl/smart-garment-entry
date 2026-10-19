@@ -68,6 +68,12 @@ app.post("/sessions/:orgId/check-number", wrap(async (req, res) => {
   res.json({ success: true, exists });
 }));
 
+app.post("/sessions/:orgId/check-numbers", wrap(async (req, res) => {
+  const phones = Array.isArray(req.body?.phones) ? (req.body.phones as unknown[]).map(String) : [];
+  const onWhatsApp = await sessions.checkNumbers(req.params.orgId, phones);
+  res.json({ success: true, onWhatsApp });
+}));
+
 // ---- Bulk WhatsApp campaigns (sessions "u_<userId>") ----
 app.post("/campaigns", wrap(async (req, res) => {
   res.json({ success: true, ...campaigns.create(req.body ?? {}) });

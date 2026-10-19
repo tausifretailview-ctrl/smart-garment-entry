@@ -145,6 +145,7 @@ export function Dashboard({
             showTitle={false}
             view={page}
             onOpenReports={() => go("reports")}
+            onOpenSend={() => go("send")}
           />
         </main>
       </div>

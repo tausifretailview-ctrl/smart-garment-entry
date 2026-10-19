@@ -33,6 +33,12 @@ function bulkGatewayConfig(): { url: string; key: string } | null {
 const bulkGateway = (path: string, init: { method?: string; body?: unknown } = {}) =>
   gatewayRequest(path, init, bulkGatewayConfig());
 
+/** Failures that sending again will not fix (same rule as the page's resend button). */
+/** Read by the page (bulkWhatsAppApi scheduledStart) to show "Scheduled". */
+const SCHEDULE_NOTE_PREFIX = "Starts at ";
+
+const PERMANENT_FAILURE_RE = /not on whatsapp|invalid phone|bad-request|item-not-found|unsubscribed/i;
+
 /** Digits only; 10-digit Indian numbers get 91, a leading trunk 0 is dropped. */
 function normalizePhone(raw: string): string | null {
   let d = String(raw ?? "").replace(/\D/g, "");
@@ -78,7 +84,7 @@ serve(async (req) => {
   if (!organizationId) return json({ error: "organizationId is required" }, 400);
   const access = await bulkAccess(admin, userId, organizationId);
   if (!access.allowed) return json({ error: "You do not have the Bulk WhatsApp right in this organization" }, 403);
-  if (action === "session-start" || action === "create" || action === "resume") {
+  if (action === "session-start" || action === "create" || action === "resume" || action === "resend-failed") {
     const { data: org } = await admin.from("organizations").select("is_suspended").eq("id", organizationId).maybeSingle();
     if (org?.is_suspended) return json({ error: "This account is suspended. Please contact Ezzy ERP." }, 403);
   }
@@ -103,11 +109,60 @@ serve(async (req) => {
 
   if (action === "create") return await createCampaign(admin, body, userId, organizationId, sessionId);
 
+  // Up to 50 numbers per call: which have WhatsApp (the page checks a list in batches before sending).
+  if (action === "check-numbers") {
+    const phones = (Array.isArray(body.phones) ? body.phones : [])
+      .slice(0, 50)
+      .map((p) => normalizePhone(String(p)))
+      .filter((p): p is string => Boolean(p));
+    if (!phones.length) return json({ success: true, onWhatsApp: [] });
+    const result = await bulkGateway(`${sessionPath}/check-numbers`, { method: "POST", body: { phones } });
+    if (!result.ok) return json({ error: result.data.error ?? "WhatsApp server error" }, result.status || 502);
+    return json({ success: true, checked: phones, onWhatsApp: result.data.onWhatsApp ?? [] });
+  }
+
+  // New campaign with the same message and poster to the numbers that failed for a passing reason.
+  if (action === "resend-failed") {
+    const campaignId = String(body.campaignId ?? "");
+    const { data: c } = await admin
+      .from("bulk_whatsapp_campaigns")
+      .select("id, user_id, organization_id, name, message, media_url, media_type, media_name")
+      .eq("id", campaignId)
+      .maybeSingle();
+    if (!c || c.organization_id !== organizationId || (c.user_id !== userId && !access.isAdmin)) {
+      return json({ error: "Campaign not found" }, 404);
+    }
+    const { data: failed, error } = await admin
+      .from("bulk_whatsapp_recipients")
+      .select("phone, name, error")
+      .eq("campaign_id", campaignId)
+      .eq("status", "failed")
+      .order("position", { ascending: true })
+      .limit(5000);
+    if (error) return json({ error: error.message }, 500);
+    const retry = (failed ?? []).filter((r) => !PERMANENT_FAILURE_RE.test(String(r.error ?? "")));
+    if (!retry.length) return json({ error: "No failed numbers to try again (numbers not on WhatsApp are left out)" }, 400);
+    return await createCampaign(
+      admin,
+      {
+        name: `${String(c.name).slice(0, 100)} (resend)`,
+        message: c.message,
+        mediaUrl: c.media_url,
+        mediaType: c.media_type,
+        mediaName: c.media_name,
+        recipients: retry.map((r) => ({ phone: r.phone, name: r.name })),
+      },
+      userId,
+      organizationId,
+      sessionId,
+    );
+  }
+
   if (action === "pause" || action === "resume" || action === "stop") {
     const campaignId = String(body.campaignId ?? "");
     const { data: c } = await admin
       .from("bulk_whatsapp_campaigns")
-      .select("id, user_id, organization_id, status")
+      .select("id, user_id, organization_id, status, status_note")
       .eq("id", campaignId)
       .maybeSingle();
     if (!c || c.organization_id !== organizationId || (c.user_id !== userId && !access.isAdmin)) {
@@ -125,7 +180,9 @@ serve(async (req) => {
       return json({ error: result.data.error ?? "WhatsApp server error" }, result.status || 502);
     }
     const status = action === "pause" ? "paused" : action === "resume" ? "running" : "stopped";
-    await setCampaignStatus(admin, campaignId, status, null);
+    // A scheduled campaign paused and resumed before its time keeps showing when it starts.
+    const keepNote = status !== "stopped" && String(c.status_note ?? "").startsWith(SCHEDULE_NOTE_PREFIX);
+    await setCampaignStatus(admin, campaignId, status, keepNote ? c.status_note : null);
     return json({ success: true, status });
   }
 
@@ -169,7 +226,17 @@ async function createCampaign(
   const mediaUrl = body.mediaUrl ? String(body.mediaUrl) : null;
   const mediaType = body.mediaType ? String(body.mediaType) : null;
   const mediaName = body.mediaName ? String(body.mediaName).slice(0, 120) : null;
+  // Videos: the WhatsApp server re-encodes to 480p (small) or 720p (medium); original sends the file as is.
+  const videoQuality = body.videoQuality === "small" || body.videoQuality === "original" ? body.videoQuality : "medium";
   if (mediaUrl && !mediaUrl.startsWith("https://")) return json({ error: "Poster link must be https" }, 400);
+  // Scheduled send: the WhatsApp server holds the campaign until this time.
+  let startAt: string | null = null;
+  if (body.startAt) {
+    const at = Date.parse(String(body.startAt));
+    if (!Number.isFinite(at)) return json({ error: "Invalid start time" }, 400);
+    if (at - Date.now() > 14 * 24 * 60 * 60 * 1000) return json({ error: "Schedule at most 14 days ahead" }, 400);
+    if (at > Date.now() + 60_000) startAt = new Date(at).toISOString();
+  }
   if (!message.trim() && !mediaUrl) return json({ error: "Type a message or attach a poster" }, 400);
 
   const raw = Array.isArray(body.recipients) ? (body.recipients as Record<string, unknown>[]) : [];
@@ -230,6 +297,7 @@ async function createCampaign(
       media_name: mediaName,
       sender_number: status.data.connectedNumber ? String(status.data.connectedNumber) : null,
       status: "running",
+      status_note: startAt ? `${SCHEDULE_NOTE_PREFIX}${startAt}` : null,
       total_count: recipients.length,
     })
     .select("id")
@@ -265,7 +333,16 @@ async function createCampaign(
       message,
       minGapMs: MIN_GAP_MS,
       maxGapMs: MAX_GAP_MS,
-      media: mediaUrl ? { url: mediaUrl, mimetype: mediaType ?? "image/jpeg", filename: mediaName ?? "poster", kind } : null,
+      startAt,
+      media: mediaUrl
+        ? {
+          url: mediaUrl,
+          mimetype: mediaType ?? "image/jpeg",
+          filename: mediaName ?? "poster",
+          kind,
+          quality: kind === "video" ? videoQuality : undefined,
+        }
+        : null,
       items: recipients.map((r, i) => ({
         recipientId: idByPos.get(i + 1),
         phone: r.phone,

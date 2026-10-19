@@ -504,6 +504,21 @@ export class SessionManager {
     );
   }
 
+  /** Which of `phones` (up to 50, digits) have WhatsApp, in one lookup. */
+  async checkNumbers(orgId: string, phones: string[]): Promise<string[]> {
+    const s = this.ready(orgId);
+    const jids = phones.slice(0, 50).flatMap((p) => {
+      try {
+        return [toJid(p)];
+      } catch {
+        return [];
+      }
+    });
+    if (!jids.length) return [];
+    const found = (await s.sock!.onWhatsApp(...jids)) ?? [];
+    return found.filter((r) => r.exists).map((r) => String(r.jid).split("@")[0].split(":")[0]);
+  }
+
   async checkNumber(orgId: string, phone: string): Promise<boolean> {
     const s = this.ready(orgId);
     const [result] = (await s.sock!.onWhatsApp(toJid(phone))) ?? [];

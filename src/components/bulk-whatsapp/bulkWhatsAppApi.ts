@@ -91,16 +91,31 @@ export function useBulkCampaigns(organizationId: string) {
   });
 }
 
-export async function fetchCampaignMessage(
-  campaignId: string,
-): Promise<{ message: string; media_url: string | null; media_type: string | null } | null> {
+export interface BulkCampaignMessage {
+  message: string;
+  media_url: string | null;
+  media_type: string | null;
+  media_name: string | null;
+}
+
+export async function fetchCampaignMessage(campaignId: string): Promise<BulkCampaignMessage | null> {
   const { data, error } = await db
     .from("bulk_whatsapp_campaigns")
-    .select("message, media_url, media_type")
+    .select("message, media_url, media_type, media_name")
     .eq("id", campaignId)
     .maybeSingle();
   if (error) throw error;
-  return data as { message: string; media_url: string | null; media_type: string | null } | null;
+  return data as BulkCampaignMessage | null;
+}
+
+/** Scheduled campaigns carry "Starts at <ISO>" as their note until the WhatsApp server starts them. */
+const SCHEDULE_NOTE_PREFIX = "Starts at ";
+
+export function scheduledStart(c: Pick<BulkCampaign, "status" | "status_note">): Date | null {
+  if (c.status !== "running" && c.status !== "paused") return null;
+  if (!c.status_note?.startsWith(SCHEDULE_NOTE_PREFIX)) return null;
+  const at = new Date(c.status_note.slice(SCHEDULE_NOTE_PREFIX.length));
+  return Number.isNaN(at.getTime()) ? null : at;
 }
 
 export async function fetchRecipients(campaignId: string): Promise<BulkRecipient[]> {
