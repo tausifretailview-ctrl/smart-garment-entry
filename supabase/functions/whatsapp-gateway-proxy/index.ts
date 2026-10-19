@@ -70,6 +70,48 @@ serve(async (req) => {
     return json({ success: true });
   }
 
+  // ---- Gateway -> app delivered / read ticks for this shop's bill messages (shared secret) ----
+  if (action === "gateway-receipts") {
+    const cfg = getGatewayConfig();
+    if (!cfg || req.headers.get("x-api-key") !== cfg.key) return json({ error: "Unauthorized" }, 401);
+    const receipts = Array.isArray(body.receipts) ? body.receipts.slice(0, 200) : [];
+    let updated = 0;
+    for (const r of receipts as Record<string, unknown>[]) {
+      const wamid = String(r?.messageId ?? "").trim();
+      const status = r?.status === "read" ? "read" : r?.status === "delivered" ? "delivered" : "";
+      if (!wamid || !status) continue;
+      const at = typeof r.at === "string" && !Number.isNaN(Date.parse(r.at)) ? r.at : new Date().toISOString();
+      // Never step back: a late "delivered" must not turn a read message into delivered.
+      const from = status === "read" ? ["pending", "sent", "delivered"] : ["pending", "sent"];
+      const patch: Record<string, unknown> = status === "read"
+        ? { status, read_at: at }
+        : { status, delivered_at: at };
+      for (const table of ["whatsapp_logs", "whatsapp_messages"]) {
+        const { data, error } = await supabaseAdmin
+          .from(table)
+          .update(patch)
+          .eq("organization_id", organizationId)
+          .eq("wamid", wamid)
+          .in("status", from)
+          .select("id, delivered_at");
+        if (error) {
+          console.error(`[gateway-receipts] ${table}:`, error.message);
+          continue;
+        }
+        if (table === "whatsapp_logs") updated += data?.length ?? 0;
+        // Read with no delivered tick seen (phone was online): count it as delivered at the same time.
+        const missing = (data ?? []).filter((row: { delivered_at: string | null }) => !row.delivered_at);
+        if (status === "read" && missing.length) {
+          await supabaseAdmin
+            .from(table)
+            .update({ delivered_at: at })
+            .in("id", missing.map((row: { id: string }) => row.id));
+        }
+      }
+    }
+    return json({ success: true, updated });
+  }
+
   // ---- Browser -> gateway (user JWT + org role) ----
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   if (!token) return json({ error: "Unauthorized" }, 401);
