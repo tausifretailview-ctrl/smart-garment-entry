@@ -500,6 +500,195 @@ function FreeTextFieldCombobox({
   );
 }
 
+/**
+ * Colour entry with a dropdown of the shop's saved colours. Opens on focus, filters as
+ * the user types, and a click / Enter on a suggestion adds it as a chip. A brand-new
+ * colour can still be typed and added; comma-separated typing keeps working.
+ */
+function ColorSuggestInput({
+  value,
+  onChange,
+  options,
+  selected,
+  onAdd,
+  onRemoveLast,
+  onEnterEmpty,
+  placeholder,
+  className,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+  selected: string[];
+  onAdd: (raw: string) => void;
+  onRemoveLast: () => void;
+  onEnterEmpty: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const suppressOpenRef = useRef(false);
+
+  // Only the text after the last comma is being typed right now.
+  const query = (value.split(",").pop() ?? "").trim();
+
+  const available = useMemo(() => {
+    const taken = new Set(selected.map((c) => c.toLowerCase()));
+    return options.filter((opt) => !taken.has(opt.toLowerCase()));
+  }, [options, selected]);
+
+  const displayItems = useMemo(() => {
+    const q = query.toLowerCase();
+    const matches = q ? available.filter((opt) => opt.toLowerCase().includes(q)) : available;
+    // Colours that start with the typed text first.
+    const sorted = q
+      ? [...matches].sort((a, b) => Number(!a.toLowerCase().startsWith(q)) - Number(!b.toLowerCase().startsWith(q)))
+      : matches;
+    const items: { value: string; label: string; isNew?: boolean }[] = [];
+    const exact = q ? options.some((opt) => opt.toLowerCase() === q) : false;
+    if (query && !exact) items.push({ value: query, label: `Add new colour "${query}"`, isNew: true });
+    for (const opt of sorted.slice(0, 100)) items.push({ value: opt, label: opt });
+    return items;
+  }, [available, options, query]);
+
+  useEffect(() => {
+    setHighlightIndex(0);
+  }, [value, open, displayItems.length]);
+
+  useEffect(() => {
+    if (!open || displayItems.length === 0) return;
+    const el = listRef.current?.querySelector(`[data-combobox-item="${highlightIndex}"]`);
+    el?.scrollIntoView({ block: "nearest" });
+  }, [highlightIndex, open, displayItems.length]);
+
+  const pick = (picked: string) => {
+    const head = value.includes(",") ? value.slice(0, value.lastIndexOf(",") + 1) : "";
+    onAdd(`${head}${picked}`);
+    suppressOpenRef.current = true;
+    inputRef.current?.focus();
+    // Keep the list open so several colours can be picked one after another.
+    setOpen(true);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Escape" && open) {
+      setOpen(false);
+      e.stopPropagation();
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!open) setOpen(true);
+      else setHighlightIndex((i) => Math.min(i + 1, displayItems.length - 1));
+      return;
+    }
+    if (e.key === "ArrowUp" && open) {
+      e.preventDefault();
+      e.stopPropagation();
+      setHighlightIndex((i) => Math.max(i - 1, 0));
+      return;
+    }
+    if (e.key === "Enter" || e.key === "Tab") {
+      if (value.trim()) {
+        e.preventDefault();
+        e.stopPropagation();
+        const item = open ? displayItems[highlightIndex] : undefined;
+        if (item && (highlightIndex > 0 || !item.isNew)) pick(item.value);
+        else onAdd(value);
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        e.stopPropagation();
+        setOpen(false);
+        onEnterEmpty(e);
+      } else {
+        setOpen(false);
+      }
+      return;
+    }
+    if (e.key === "Backspace" && !value && selected.length > 0) {
+      onRemoveLast();
+    }
+  };
+
+  return (
+    <div data-combobox-root className="flex-1 min-w-0">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverAnchor asChild>
+          <Input
+            ref={inputRef}
+            value={value}
+            data-combobox-open={open ? "true" : "false"}
+            onChange={(e) => {
+              const val = e.target.value;
+              setOpen(true);
+              // Typing a comma finishes the colours before it.
+              if (val.endsWith(",") || val.endsWith(", ")) {
+                onAdd(val);
+                return;
+              }
+              onChange(val);
+            }}
+            onFocus={() => {
+              if (suppressOpenRef.current) {
+                suppressOpenRef.current = false;
+                return;
+              }
+              setOpen(true);
+            }}
+            onClick={() => setOpen(true)}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            autoComplete="off"
+            className={className}
+          />
+        </PopoverAnchor>
+        <PopoverContent
+          className="z-[200] w-[var(--radix-popover-trigger-width)] min-w-[12rem] p-0"
+          align="start"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onInteractOutside={(e) => {
+            if (inputRef.current?.contains(e.target as Node)) {
+              e.preventDefault();
+            }
+          }}
+        >
+          <Command shouldFilter={false}>
+            <CommandList ref={listRef} className="max-h-56">
+              {displayItems.length > 0 ? (
+                <CommandGroup heading={query ? undefined : "Saved colours"}>
+                  {displayItems.map((item, idx) => (
+                    <CommandItem
+                      key={`${item.value}-${idx}`}
+                      value={`${item.value}-${idx}`}
+                      data-combobox-item={idx}
+                      className={cn(
+                        idx === highlightIndex && "bg-accent text-accent-foreground",
+                        item.isNew && "font-medium text-primary",
+                      )}
+                      onSelect={() => pick(item.value)}
+                      onMouseEnter={() => setHighlightIndex(idx)}
+                    >
+                      {item.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : (
+                <CommandEmpty>{options.length ? "All saved colours added" : "No saved colours yet"}</CommandEmpty>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 export const ProductEntryDialog = ({
   open,
   onOpenChange,
@@ -1281,24 +1470,31 @@ export const ProductEntryDialog = ({
       anyFailed = true;
     }
 
-    // Fetch unique colors from product_variants (independent of products query)
+    // Fetch unique colors from product_variants (independent of products query).
+    // Big catalogs repeat the same few colours across thousands of variants, so read
+    // several pages instead of one 1000-row page.
     try {
-      const { data: variantsData, error: variantsError } = await supabase
-        .from("product_variants")
-        .select("color")
-        .eq("organization_id", orgId)
-        .is("deleted_at", null)
-        .not("color", "is", null)
-        .limit(1000);
+      const PAGE = 1000;
+      const MAX_PAGES = 5;
+      const variantColors: string[] = [];
+      for (let page = 0; page < MAX_PAGES; page++) {
+        const { data: variantsData, error: variantsError } = await supabase
+          .from("product_variants")
+          .select("color")
+          .eq("organization_id", orgId)
+          .is("deleted_at", null)
+          .not("color", "is", null)
+          .range(page * PAGE, page * PAGE + PAGE - 1);
 
-      if (variantsError) {
-        anyFailed = true;
-      } else if (variantsData) {
-        uniqueColors = mergeSortedUnique(
-          cached.colors,
-          variantsData.map((v: { color: string | null }) => v.color).filter(Boolean) as string[],
-        );
+        if (variantsError) {
+          anyFailed = true;
+          break;
+        }
+        const rows = (variantsData ?? []) as { color: string | null }[];
+        for (const v of rows) if (v.color) variantColors.push(v.color);
+        if (rows.length < PAGE) break;
       }
+      uniqueColors = mergeSortedUnique(uniqueColors, variantColors);
     } catch {
       anyFailed = true;
     }
@@ -2658,10 +2854,21 @@ export const ProductEntryDialog = ({
     }
   };
 
-  const handleAddColor = () => {
-    if (colorInput.trim()) {
-      const colorsToAdd = colorInput.split(",").map(c => c.trim()).filter(c => c);
-      const uniqueNewColors = colorsToAdd.filter(c => !formData.colors.includes(c));
+  const handleAddColor = (raw: string = colorInput) => {
+    if (raw.trim()) {
+      // Reuse the saved spelling ("bk gray" → "BK GRAY") so the shop doesn't get look-alike colours.
+      const colorsToAdd = raw
+        .split(",")
+        .map(c => c.trim())
+        .filter(c => c)
+        .map(c => existingColors.find(e => e.toLowerCase() === c.toLowerCase()) ?? c);
+      const taken = new Set(formData.colors.map(c => c.toLowerCase()));
+      const uniqueNewColors = colorsToAdd.filter(c => {
+        const key = c.toLowerCase();
+        if (taken.has(key)) return false;
+        taken.add(key);
+        return true;
+      });
       if (uniqueNewColors.length > 0) {
         setFormData({ ...formData, colors: [...formData.colors, ...uniqueNewColors] });
         if (currentOrganization?.id) {
@@ -3432,53 +3639,21 @@ export const ProductEntryDialog = ({
                 <div className="space-y-2">
                   <Label>{getFieldLabel("color", "Colors")} (comma-separated)</Label>
                   <div className="flex gap-2">
-                    <Input
+                    <ColorSuggestInput
                       value={colorInput}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setColorInput(val);
-                        // Auto-parse on comma/tab: extract finished colors
-                        if (val.endsWith(',') || val.endsWith(', ')) {
-                          const parts = val.split(',').map(c => c.trim()).filter(c => c);
-                          const uniqueNew = parts.filter(c => !formData.colors.includes(c));
-                          if (uniqueNew.length > 0) {
-                            setFormData(prev => ({ ...prev, colors: [...prev.colors, ...uniqueNew] }));
-                          }
-                          setColorInput('');
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === "Tab") {
-                          if (colorInput.trim()) {
-                            e.preventDefault();
-                            handleAddColor();
-                            return;
-                          }
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            focusNextFieldInProductForm(e.currentTarget);
-                            return;
-                          }
-                        }
-                        // Backspace on empty input removes last color
-                        if (e.key === "Backspace" && !colorInput && formData.colors.length > 0) {
-                          handleRemoveColor(formData.colors[formData.colors.length - 1]);
-                        }
-                      }}
+                      onChange={setColorInput}
+                      options={existingColors}
+                      selected={formData.colors}
+                      onAdd={handleAddColor}
+                      onRemoveLast={() => handleRemoveColor(formData.colors[formData.colors.length - 1])}
+                      onEnterEmpty={(e) => focusNextFieldInProductForm(e.currentTarget)}
                       placeholder={formData.colors.length > 0 ? "Add more colors..." : "e.g., Black, White, Red"}
                       className="flex-1"
-                      list="color-list"
-                      autoComplete="off"
                     />
-                    <datalist id="color-list">
-                      {existingColors.filter(c => !formData.colors.includes(c)).map((color) => (
-                        <option key={color} value={color} />
-                      ))}
-                    </datalist>
                     <Button
                       type="button"
                       variant="secondary"
-                      onClick={handleAddColor}
+                      onClick={() => handleAddColor()}
                       className={isPurchaseBillForm ? "h-10 text-[15px] px-4" : undefined}
                     >
                       Add
@@ -3534,58 +3709,26 @@ export const ProductEntryDialog = ({
                         {getFieldLabel("color", "Colors")} (comma-separated)
                       </Label>
                       <div className="flex gap-1.5 items-center">
-                        <Input
+                        <ColorSuggestInput
                           value={colorInput}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setColorInput(val);
-                            if (val.endsWith(",") || val.endsWith(", ")) {
-                              const parts = val.split(",").map((c) => c.trim()).filter(Boolean);
-                              const uniqueNew = parts.filter((c) => !formData.colors.includes(c));
-                              if (uniqueNew.length > 0) {
-                                setFormData((prev) => ({ ...prev, colors: [...prev.colors, ...uniqueNew] }));
-                              }
-                              setColorInput("");
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === "Tab") {
-                              if (colorInput.trim()) {
-                                e.preventDefault();
-                                handleAddColor();
-                                return;
-                              }
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                focusNextFieldInProductForm(e.currentTarget);
-                                return;
-                              }
-                            }
-                            if (e.key === "Backspace" && !colorInput && formData.colors.length > 0) {
-                              handleRemoveColor(formData.colors[formData.colors.length - 1]);
-                            }
-                          }}
+                          onChange={setColorInput}
+                          options={existingColors}
+                          selected={formData.colors}
+                          onAdd={handleAddColor}
+                          onRemoveLast={() => handleRemoveColor(formData.colors[formData.colors.length - 1])}
+                          onEnterEmpty={(e) => focusNextFieldInProductForm(e.currentTarget)}
                           placeholder={formData.colors.length > 0 ? "Add more…" : "e.g., Black, White, Red"}
                           className="h-10 text-[16px] font-semibold flex-1 min-w-0"
-                          list="color-list-mobile"
-                          autoComplete="off"
                         />
                         <Button
                           type="button"
                           variant="secondary"
-                          onClick={handleAddColor}
+                          onClick={() => handleAddColor()}
                           className="h-10 text-[15px] px-3.5 shrink-0"
                         >
                           Add
                         </Button>
                       </div>
-                      <datalist id="color-list-mobile">
-                        {existingColors
-                          .filter((c) => !formData.colors.includes(c))
-                          .map((color) => (
-                            <option key={color} value={color} />
-                          ))}
-                      </datalist>
                       {existingColors.length === 0 && previousValuesError && (
                         <p className="text-xs text-destructive">
                           {previousValuesError} ·{" "}
@@ -3755,43 +3898,18 @@ export const ProductEntryDialog = ({
                       <div className="space-y-1.5 min-w-0">
                         <Label className={purchaseTypography.fieldLabel}>{getFieldLabel("color", "Colors")} (comma-separated)</Label>
                         <div className="flex gap-1.5 items-center">
-                          <Input
+                          <ColorSuggestInput
                             value={colorInput}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setColorInput(val);
-                              if (val.endsWith(',') || val.endsWith(', ')) {
-                                const parts = val.split(',').map(c => c.trim()).filter(c => c);
-                                const uniqueNew = parts.filter(c => !formData.colors.includes(c));
-                                if (uniqueNew.length > 0) {
-                                  setFormData(prev => ({ ...prev, colors: [...prev.colors, ...uniqueNew] }));
-                                }
-                                setColorInput('');
-                              }
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === "Tab") {
-                                if (colorInput.trim()) {
-                                  e.preventDefault();
-                                  handleAddColor();
-                                  return;
-                                }
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  focusNextFieldInProductForm(e.currentTarget);
-                                  return;
-                                }
-                              }
-                              if (e.key === "Backspace" && !colorInput && formData.colors.length > 0) {
-                                handleRemoveColor(formData.colors[formData.colors.length - 1]);
-                              }
-                            }}
+                            onChange={setColorInput}
+                            options={existingColors}
+                            selected={formData.colors}
+                            onAdd={handleAddColor}
+                            onRemoveLast={() => handleRemoveColor(formData.colors[formData.colors.length - 1])}
+                            onEnterEmpty={(e) => focusNextFieldInProductForm(e.currentTarget)}
                             placeholder={formData.colors.length > 0 ? "Add more…" : "e.g., Black, White, Red"}
                             className="h-10 text-[16px] font-semibold flex-1 min-w-0"
-                            list="color-list"
-                            autoComplete="off"
                           />
-                          <Button type="button" variant="secondary" onClick={handleAddColor} className="h-10 text-[15px] px-3.5 shrink-0">
+                          <Button type="button" variant="secondary" onClick={() => handleAddColor()} className="h-10 text-[15px] px-3.5 shrink-0">
                             Add
                           </Button>
                         </div>
