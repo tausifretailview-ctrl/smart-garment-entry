@@ -4,7 +4,7 @@ import { useMobileUiThemeActions } from "@/hooks/useMobileUiTheme";
 import { cn } from "@/lib/utils";
 
 /** More-menu row — switch the Home / POS / Purchase screens between the
- * classic look and the premium Ezzy redesign. Presentation only. */
+ * premium Ezzy redesign (default) and the classic look. Presentation only. */
 export function MobileThemeToggle({ className }: { className?: string }) {
   const { theme, setTheme } = useMobileUiThemeActions();
   const isPremium = theme === "premium";
@@ -42,7 +42,7 @@ export function MobileThemeToggle({ className }: { className?: string }) {
         </p>
         <p className="text-[11px] text-muted-foreground leading-snug">
           {isPremium
-            ? "Restore the current Home, POS and Purchase screens"
+            ? "Older light Home, POS and Purchase screens"
             : "Dark-shell redesign for Home, POS and Purchase"}
         </p>
       </div>

@@ -9,12 +9,14 @@ describe("mobile UI theme", () => {
     localStorage.removeItem(MOBILE_UI_THEME_KEY);
   });
 
-  it("defaults to classic when nothing is stored", () => {
-    expect(getMobileUiTheme()).toBe("classic");
+  it("defaults to premium when nothing is stored", () => {
+    expect(getMobileUiTheme()).toBe("premium");
   });
 
-  it("only returns premium when that exact value is stored", () => {
+  it("keeps a saved classic choice and ignores unknown values", () => {
     localStorage.setItem(MOBILE_UI_THEME_KEY, "dark");
+    expect(getMobileUiTheme()).toBe("premium");
+    localStorage.setItem(MOBILE_UI_THEME_KEY, "classic");
     expect(getMobileUiTheme()).toBe("classic");
     setMobileUiTheme("premium");
     expect(getMobileUiTheme()).toBe("premium");

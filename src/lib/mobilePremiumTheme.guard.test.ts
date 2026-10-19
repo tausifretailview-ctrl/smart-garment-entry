@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
-describe("premium mobile theme stays opt-in", () => {
+describe("premium mobile theme stays scoped to .ez", () => {
   it("scopes Archivo and zero-radius to .ez, not the document", async () => {
     const css = await readFile(path.join(ROOT, "src/index.css"), "utf8");
     expect(css).toMatch(/\.ez,\s*\.ez \* \{[\s\S]*?font-family:\s*"Archivo"/);
