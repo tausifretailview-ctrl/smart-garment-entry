@@ -260,6 +260,7 @@ export const ProductHistoryDialog = ({
       sale_return:       { label: "Sale Return",     className: "bg-yellow-100 text-yellow-700 border-yellow-300" },
       purchase_return:   { label: "Pur Return",      className: "bg-red-100 text-red-700 border-red-300" },
       adjustment:        { label: "Adjustment",      className: "bg-purple-100 text-purple-700 border-purple-300" },
+      reconciliation:    { label: "Stock Adjustment", className: "bg-purple-100 text-purple-700 border-purple-300" },
       purchase_increase: { label: "Stock Added",     className: "bg-teal-100 text-teal-700 border-teal-300" },
       purchase_decrease: { label: "Stock Reduced",   className: "bg-orange-100 text-orange-700 border-orange-300" },
       purchase_delete:   { label: "Bill Deleted",    className: "bg-slate-100 text-slate-600 border-slate-300" },

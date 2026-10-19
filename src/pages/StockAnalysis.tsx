@@ -769,6 +769,7 @@ export default function StockAnalysis() {
                                   sale_return:       { label: "Sale Return",       className: "bg-blue-100 text-blue-700 border-blue-300" },
                                   purchase_return:   { label: "Purch. Return",     className: "bg-orange-100 text-orange-700 border-orange-300" },
                                   adjustment:        { label: "Adjustment",        className: "bg-purple-100 text-purple-700 border-purple-300" },
+                                  reconciliation:    { label: "Stock Adjustment",  className: "bg-purple-100 text-purple-700 border-purple-300" },
                                   purchase_delete:   { label: "Bill Deleted",      className: "bg-slate-100 text-slate-600 border-slate-300" },
                                   purchase_increase: { label: "Stock Added",       className: "bg-teal-100 text-teal-700 border-teal-300" },
                                   purchase_decrease: { label: "Stock Reduced",     className: "bg-amber-100 text-amber-700 border-amber-300" },
@@ -783,7 +784,7 @@ export default function StockAnalysis() {
                               })()}
                             </TableCell>
                             <TableCell className="text-right">
-                              {['purchase', 'sale_return', 'purchase_increase'].includes(movement.movement_type) ? '+' : ''}{movement.quantity}
+                              {['purchase', 'sale_return', 'purchase_increase'].includes(movement.movement_type) || (movement.movement_type === 'reconciliation' && movement.quantity > 0) ? '+' : ''}{movement.quantity}
                             </TableCell>
                             <TableCell className="text-muted-foreground">{movement.notes}</TableCell>
                           </TableRow>

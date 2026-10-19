@@ -119,6 +119,7 @@ const columns: ColumnDef<MovementRecord, any>[] = [
         sale_return:     { label: "Sale Return",      className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
         purchase_return: { label: "Purchase Return",  className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
         adjustment:      { label: "Adjustment",       className: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
+        reconciliation:  { label: "Stock Adjustment", className: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
         purchase_delete: { label: "Bill Deleted",     className: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
         transfer_in:     { label: "Transfer In",      className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
         transfer_out:    { label: "Transfer Out",     className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
@@ -141,7 +142,8 @@ const columns: ColumnDef<MovementRecord, any>[] = [
   {
     id: "credit",
     accessorFn: (row) =>
-      row.movement_type === "purchase" || row.movement_type === "sale_return" || row.movement_type === "transfer_in"
+      row.movement_type === "purchase" || row.movement_type === "sale_return" || row.movement_type === "transfer_in" ||
+      (row.movement_type === "reconciliation" && row.quantity > 0)
         ? Math.abs(row.quantity)
         : null,
     header: "Credit (In)",
@@ -155,7 +157,8 @@ const columns: ColumnDef<MovementRecord, any>[] = [
   {
     id: "debit",
     accessorFn: (row) =>
-      row.movement_type === "sale" || row.movement_type === "purchase_return" || row.movement_type === "transfer_out"
+      row.movement_type === "sale" || row.movement_type === "purchase_return" || row.movement_type === "transfer_out" ||
+      (row.movement_type === "reconciliation" && row.quantity < 0)
         ? Math.abs(row.quantity)
         : null,
     header: "Debit (Out)",
@@ -438,6 +441,10 @@ const ProductTrackingReport = () => {
           const qty = Math.abs(Number(row.quantity) || 0);
           if (row.movement_type === "purchase" || row.movement_type === "sale_return" || row.movement_type === "transfer_in") inQty += qty;
           else if (row.movement_type === "sale" || row.movement_type === "purchase_return" || row.movement_type === "transfer_out") outQty += qty;
+          else if (row.movement_type === "reconciliation") {
+            if (Number(row.quantity) > 0) inQty += qty;
+            else outQty += qty;
+          }
         }
         if (rows.length < 1000) break;
         from += 1000;
@@ -570,7 +577,7 @@ const ProductTrackingReport = () => {
                   <SelectItem value="sale">Sale (Stock Out)</SelectItem>
                   <SelectItem value="sale_return">Sale Return (Stock In)</SelectItem>
                   <SelectItem value="purchase_return">Purchase Return (Stock Out)</SelectItem>
-                  <SelectItem value="adjustment">Stock Adjustment</SelectItem>
+                  <SelectItem value="reconciliation">Stock Adjustment</SelectItem>
                   <SelectItem value="transfer_in">Transfer In (Stock In)</SelectItem>
                   <SelectItem value="transfer_out">Transfer Out (Stock Out)</SelectItem>
                 </SelectContent>
