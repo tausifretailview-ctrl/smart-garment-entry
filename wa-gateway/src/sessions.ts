@@ -141,6 +141,35 @@ export class SessionManager {
   /** A customer replied STOP / START to a bulk number. */
   onOptOut: ((sessionId: string, phone: string, subscribe: boolean) => void) | null = null;
 
+  /** Delivered / read ticks for bill messages, sent to the app every few seconds per shop. */
+  private billReceipts = new Map<string, { messageId: string; status: ReceiptStatus; at: string }[]>();
+  private billReceiptTimer: ReturnType<typeof setInterval> | null = null;
+
+  private queueBillReceipt(orgId: string, messageId: string, status: ReceiptStatus) {
+    if (!APP_EVENT_URL) return;
+    const list = this.billReceipts.get(orgId) ?? [];
+    list.push({ messageId, status, at: new Date().toISOString() });
+    this.billReceipts.set(orgId, list);
+    this.billReceiptTimer ??= setInterval(() => void this.flushBillReceipts(), 5000);
+  }
+
+  private async flushBillReceipts() {
+    for (const [orgId, list] of this.billReceipts) {
+      if (!list.length) continue;
+      const batch = list.splice(0, 200);
+      try {
+        const res = await fetch(APP_EVENT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-api-key": API_KEY },
+          body: JSON.stringify({ action: "gateway-receipts", organizationId: orgId, receipts: batch }),
+        });
+        if (!res.ok) logger.warn({ status: res.status }, "bill receipts rejected");
+      } catch (e) {
+        logger.warn({ err: e }, "bill receipts failed");
+      }
+    }
+  }
+
   private assertOrg(orgId: string) {
     if (!SESSION_ID_RE.test(orgId)) throw new Error("Invalid session id");
   }
@@ -224,16 +253,17 @@ export class SessionManager {
         if (type !== "notify") return;
         for (const m of messages) void this.forwardInbound(orgId, m);
       });
-      if (isUserSession(orgId)) {
-        // WhatsApp status: 3 = delivered (two grey ticks), 4 = read, 5 = played (voice/video seen).
-        sock.ev.on("messages.update", (updates) => {
-          for (const { key, update } of updates) {
-            const st = update.status;
-            if (!key.fromMe || !key.id || typeof st !== "number" || st < 3) continue;
-            this.onReceipt?.(orgId, key.id, st >= 4 ? "read" : "delivered");
-          }
-        });
-      }
+      // WhatsApp status: 3 = delivered (two grey ticks), 4 = read, 5 = played (voice/video seen).
+      // Bulk numbers report to the campaign runner; a shop's bill number to the app's WhatsApp logs.
+      sock.ev.on("messages.update", (updates) => {
+        for (const { key, update } of updates) {
+          const st = update.status;
+          if (!key.fromMe || !key.id || typeof st !== "number" || st < 3) continue;
+          const status: ReceiptStatus = st >= 4 ? "read" : "delivered";
+          if (isUserSession(orgId)) this.onReceipt?.(orgId, key.id, status);
+          else this.queueBillReceipt(orgId, key.id, status);
+        }
+      });
       sock.ev.on("connection.update", async (update) => {
         const { connection, lastDisconnect, qr } = update;
         if (qr) {
