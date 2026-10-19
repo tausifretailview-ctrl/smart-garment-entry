@@ -62,6 +62,11 @@ export type SaveSaleRuntimeOptions = {
   capturePdfBase64?: (meta: PosWhatsAppPdfCaptureMeta) => Promise<string | null>;
   /** When true, useSaveSale skips built-in WhatsApp auto-send (caller sends via POS/dashboard path). */
   skipWhatsAppAutoSend?: boolean;
+  /**
+   * Offline billing sync: save under this number (the OFL number already printed
+   * on the slip) instead of allocating a new one. Never saved offline again.
+   */
+  presetSaleNumber?: string;
 };
 
 export const POS_DEFERRED_INVALIDATION_OPTS: SaveSaleRuntimeOptions = {

@@ -40,6 +40,7 @@ const LazyCustomerReviewNotifier = lazy(() =>
 const LazyPOSFloatingChat = lazy(() => import("@/components/POSFloatingChat"));
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
+import { OfflinePosButton } from "@/components/pos/OfflinePosButton";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
 import {
   LazyFloatingCashTally,
@@ -352,6 +353,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                 <p>Quick Payments (Receipt / Supplier / Expense)</p>
               </TooltipContent>
             </Tooltip>}
+            <OfflinePosButton className={posNavBtnClass} />
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button 
