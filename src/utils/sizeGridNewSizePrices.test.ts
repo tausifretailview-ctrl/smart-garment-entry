@@ -47,6 +47,29 @@ describe("sizeGridNewSizePrices", () => {
     expect(prices).toEqual({ pur_price: 200, sale_price: 450, mrp: 450 });
   });
 
+  it("new colour takes Pur/Sale/MRP from the grid's sizes, not old product defaults (KS AT28)", () => {
+    const prices = sizeGridNewSizePrices({
+      colorVariants: [],
+      allVariants: [
+        { pur_price: 283.62, sale_price: 342, mrp: 489 },
+        { pur_price: 283.62, sale_price: 342, mrp: 489 },
+      ],
+      productPurPrice: 248.82,
+      productSalePrice: 308.88,
+    });
+    expect(prices).toEqual({ pur_price: 283.62, sale_price: 342, mrp: 489 });
+  });
+
+  it("product defaults still fill in when the product has no priced sizes", () => {
+    const prices = sizeGridNewSizePrices({
+      colorVariants: [],
+      allVariants: [{ pur_price: 0, sale_price: 0, mrp: 0 }],
+      productPurPrice: 248.82,
+      productSalePrice: 308.88,
+    });
+    expect(prices).toEqual({ pur_price: 248.82, sale_price: 308.88, mrp: 308.88 });
+  });
+
   it("explicit grid defaults still win over existing sizes", () => {
     const prices = sizeGridNewSizePrices({
       colorVariants: black,
