@@ -5125,11 +5125,18 @@ const PurchaseEntry = () => {
       lineMrpEditBaseRef.current.delete(temp_id);
     }
     const scaleSaleWithMrp = field === "mrp" && !lineSaleTypedRef.current.has(temp_id);
+    // MRP off (Settings → Purchase): the hidden MRP box still carries the item's old MRP, so a
+    // sale price cut (₹1,350 → ₹650) left MRP ₹1,350 on the item and POS billed ₹700/pc as
+    // Discount. With MRP off, MRP follows the typed sale price.
+    const mrpFollowsSale = field === "sale_price" && settings != null && !purchaseShowMrp;
 
     setLineItems((items) =>
       items.map((item) => {
         if (item.temp_id === temp_id) {
           const updated = { ...item, [field]: value };
+          if (mrpFollowsSale && Number(value) > 0) {
+            updated.mrp = Number(value);
+          }
           if (scaleSaleWithMrp) {
             let base = lineMrpEditBaseRef.current.get(temp_id);
             if (!base) {
