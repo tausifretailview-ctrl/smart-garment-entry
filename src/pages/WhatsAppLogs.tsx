@@ -123,7 +123,7 @@ const WhatsAppLogs = () => {
     return { dateStart: startOfDay(from).toISOString(), dateEnd: endOfDay(to).toISOString() };
   }, [logRange, pickedDate, rangeFrom, rangeTo]);
 
-  const { data: logs, isLoading, isFetching, refetch } = useQuery({
+  const { data: logs, isLoading: logsQueryLoading, isFetching, refetch } = useQuery({
     // Org in the key: without it a shop switch showed the other shop's logs, and a
     // fetch made before the org loaded cached an empty list.
     queryKey: ['whatsapp-logs', orgId, statusFilter, typeFilter, dateStart, dateEnd],
@@ -142,6 +142,9 @@ const WhatsAppLogs = () => {
         endDate: dateEnd,
       }),
   });
+
+  // The query waits for the org; show skeleton rows meanwhile, not "no messages".
+  const isLoading = logsQueryLoading || !orgId;
 
   // Calculate stats from the fetched logs for the selected date
   const stats = useMemo(() => {
@@ -457,7 +460,7 @@ const WhatsAppLogs = () => {
             )}
           </CardHeader>
           <CardContent>
-            {isLoading || !orgId ? (
+            {isLoading ? (
               <ListTableSkeleton rows={8} columns={6} />
             ) : filteredLogs.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
