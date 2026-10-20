@@ -58,6 +58,14 @@ export default function OrganizationManagement() {
   const [isSavingSlug, setIsSavingSlug] = useState(false);
 
   const isAdmin = organizationRole === "admin";
+  // Members (get-users pages through every login) and login history only load
+  // once their tab is opened, so the default General tab opens without them.
+  const [activeTab, setActiveTab] = useState("general");
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(["general"]));
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    setVisitedTabs((prev) => (prev.has(value) ? prev : new Set(prev).add(value)));
+  };
 
   // Sync editableSlug when org changes
   useEffect(() => {
@@ -128,7 +136,7 @@ export default function OrganizationManagement() {
       
       return memberData;
     },
-    enabled: !!currentOrganization,
+    enabled: !!currentOrganization && visitedTabs.has("members"),
   });
 
   const { data: loginHistory, isLoading: loginHistoryLoading } = useQuery({
@@ -137,7 +145,7 @@ export default function OrganizationManagement() {
       if (!currentOrganization) return [];
       return fetchOrganizationLoginHistory(supabase, currentOrganization.id);
     },
-    enabled: !!currentOrganization,
+    enabled: !!currentOrganization && visitedTabs.has("activity"),
   });
 
   const updateOrgMutation = useMutation({
@@ -420,7 +428,7 @@ export default function OrganizationManagement() {
         </div>
       </div>
 
-      <Tabs defaultValue="general" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="features">Features</TabsTrigger>
