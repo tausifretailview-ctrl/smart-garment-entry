@@ -8615,6 +8615,18 @@ export default function POSSales() {
                                   : percentAmount;
                               const discPct = Number(item.discountPercent) || 0;
                               const hasLineDisc = lineDiscRs > 0.005 || discPct > 0.005;
+                              // MRP column hidden: bill Discount still counts MRP − rate, so show the MRP here
+                              // or the cashier sees a footer discount with every line box at 0.
+                              const hiddenMrpGap =
+                                !enableMrp && !hasLineDisc && Number(item.mrp) > (Number(item.unitCost) || 0) + 0.005;
+                              const hiddenMrpNote = hiddenMrpGap ? (
+                                <span
+                                  className="text-[10px] font-semibold text-muted-foreground line-through tabular-nums"
+                                  title={`MRP ₹${formatINR2(Number(item.mrp))} − rate counts in bill Discount`}
+                                >
+                                  MRP ₹{formatINR2(Number(item.mrp))}
+                                </span>
+                              ) : null;
                               // Match bill print: show list rate + -% when line discount is on
                               if (hasLineDisc && !canEditPosUnitPrice) {
                                 return (
@@ -8686,12 +8698,13 @@ export default function POSSales() {
                                         : ""}
                                     </span>
                                   )}
+                                  {hiddenMrpNote}
                                   </div>
                                 );
                               }
                               return (
                                 <div
-                                  className="flex items-center justify-end text-base font-medium text-muted-foreground h-8"
+                                  className={`flex ${hiddenMrpNote ? "flex-col items-end justify-center leading-tight min-h-8" : "items-center justify-end h-8"} text-base font-medium text-muted-foreground`}
                                   title={
                                     taxType === "exclusive"
                                       ? "Taxable unit (GST added in line total)"
@@ -8701,7 +8714,8 @@ export default function POSSales() {
                                   }
                                 >
                                   {/* Selling price, not MRP: MRP 569 / sale 549 must read ₹549 here (MRP has its own column). */}
-                                  ₹{formatINR2(Number(item.unitCost) > 0 ? Number(item.unitCost) : posLineNetUnitPrice(item))}
+                                  <span>₹{formatINR2(Number(item.unitCost) > 0 ? Number(item.unitCost) : posLineNetUnitPrice(item))}</span>
+                                  {hiddenMrpNote}
                                 </div>
                               );
                             })()}
