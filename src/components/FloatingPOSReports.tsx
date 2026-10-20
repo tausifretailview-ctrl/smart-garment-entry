@@ -81,7 +81,7 @@ function parseLocalYmd(ymd: string): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-// Floating Daily Cashier Report Dialog
+// Floating Business Report Dialog
 function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenChange: () => void }) {
   const { currentOrganization } = useOrganization();
   const [selectedDate, setSelectedDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
@@ -383,7 +383,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
         printWindow.document.write(`
           <html>
             <head>
-              <title>Daily Cashier Report - ${format(reportDate, 'dd/MM/yyyy')}</title>
+              <title>Business Report - ${format(reportDate, 'dd/MM/yyyy')}</title>
               <style>
                 body { font-family: Arial, sans-serif; padding: 20px; }
                 table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -395,7 +395,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
               </style>
             </head>
             <body>
-              <h2 style="text-align: center;">Daily Cashier Report</h2>
+              <h2 style="text-align: center;">Business Report</h2>
               <p style="text-align: center;">${format(reportDate, 'dd MMM yyyy')}</p>
               ${printContent.innerHTML}
             </body>
@@ -414,7 +414,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-primary" />
-              Daily Cashier Report - {format(reportDate, 'dd MMM yyyy')}
+              Business Report - {format(reportDate, 'dd MMM yyyy')}
             </DialogTitle>
             <div className="flex items-center gap-2 mr-8">
               <Input

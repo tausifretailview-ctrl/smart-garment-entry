@@ -34,7 +34,7 @@ const TAB_LOAD_LABELS: Record<string, string> = {
   "stock-analysis": "Opening Stock Analysis…",
   "barcode-printing": "Opening Barcode Printing…",
   reports: "Opening Reports…",
-  "daily-cashier-report": "Opening Cashier Report…",
+  "daily-cashier-report": "Opening Business Report…",
   "sales-analytics": "Opening Sales Analytics…",
   "net-profit-analysis": "Opening Net Profit…",
   "supplier-party-balances": "Opening Supplier Balances…",

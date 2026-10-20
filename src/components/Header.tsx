@@ -438,7 +438,7 @@ export const Header = () => {
         )}
       >
         <div className="flex items-center gap-1.5 flex-1 min-w-0 flex-nowrap">
-          {/* Order: POS → Purchase → Cashier Report → Payment → Quick Stock → Quick Sale → Stock → Size Stock → Customer Balance */}
+          {/* Order: POS → Purchase → Business Report → Payment → Quick Stock → Quick Sale → Stock → Size Stock → Customer Balance */}
           {showPrimarySaleButton && (
             <button
               type="button"
@@ -495,7 +495,7 @@ export const Header = () => {
               onClick={() => orgNavigate("/daily-cashier-report")}
             >
               <Wallet className="erp-tbtn__icon" />
-              Cashier Report
+              Business Report
             </button>
           )}
           {canQuickPayments && (

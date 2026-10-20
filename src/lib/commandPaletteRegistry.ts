@@ -163,8 +163,9 @@ export const COMMAND_PALETTE_REGISTRY: CommandPaletteRegistryItem[] = [
   {
     id: "nav-daily-cashier",
     group: "Go to",
-    label: "Cashier Report",
-    subtitle: "Daily cashier report",
+    label: "Business Report",
+    subtitle: "Daily cashier summary",
+    keywords: ["cashier", "business", "daily", "f8"],
     icon: Wallet,
     path: "/daily-cashier-report",
     permission: "daily_cashier_report",

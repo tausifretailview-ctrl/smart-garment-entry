@@ -84,7 +84,7 @@ const menuStructure = [
       { id: "stock_report", name: "Stock Report" },
       { id: "stock_analysis", name: "Stock Analysis" },
       { id: "stock_ageing", name: "Stock Ageing" },
-      { id: "daily_cashier_report", name: "Daily Cashier Report" },
+      { id: "daily_cashier_report", name: "Business Report" },
       { id: "daily_tally", name: "Daily Tally" },
       { id: "sale_analysis", name: "Sale Analysis" },
       { id: "einvoice_report", name: "E-Invoice Report" },

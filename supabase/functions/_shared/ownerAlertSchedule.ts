@@ -173,7 +173,7 @@ export function cashierMessage(
   t: CashierTotals,
   salesmen?: SalesmanTotal[],
 ): { title: string; body: string } {
-  return { title: `Cashier report ${formatHm(slotMinutes)}`, body: withSalesmen(totalsLine(t), salesmen) };
+  return { title: `Business report ${formatHm(slotMinutes)}`, body: withSalesmen(totalsLine(t), salesmen) };
 }
 
 export function dayEndMessage(date: string, t: CashierTotals, salesmen?: SalesmanTotal[]): { title: string; body: string } {

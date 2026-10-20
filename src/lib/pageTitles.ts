@@ -50,7 +50,7 @@ export const PAGE_TITLE_CONFIG: Record<string, { label: string; icon: string }> 
   "purchase-report": { label: "Supplier Report", icon: "TrendingUp" },
   "price-history": { label: "Price History", icon: "History" },
   "product-tracking": { label: "Product Tracking", icon: "History" },
-  "daily-cashier-report": { label: "Daily Cashier", icon: "CalendarDays" },
+  "daily-cashier-report": { label: "Business Report", icon: "CalendarDays" },
   "daily-tally": { label: "Daily Tally", icon: "CalendarDays" },
   "daily-sale-analysis": { label: "Daily Sale Analysis", icon: "BarChart3" },
   "hourly-sales-analysis": { label: "Hourly Sales", icon: "BarChart3" },

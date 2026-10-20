@@ -102,7 +102,7 @@ export const MobileReportsSummary = () => {
     { icon: FileText, label: "Purchase Report", path: "/purchase-bills", color: "text-amber-500" },
     { icon: Receipt, label: "GST Report", path: "/gst-reports", color: "text-indigo-500" },
     { icon: Package, label: "Item-wise Sales", path: "/item-wise-sales", color: "text-violet-500" },
-    { icon: Calendar, label: "Daily Cashier", path: "/daily-cashier-report", color: "text-cyan-500" },
+    { icon: Calendar, label: "Business Report", path: "/daily-cashier-report", color: "text-cyan-500" },
     { icon: TrendingUp, label: "Profit Analysis", path: "/net-profit-analysis", color: "text-emerald-500" },
   ];
 
