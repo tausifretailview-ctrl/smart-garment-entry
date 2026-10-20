@@ -334,7 +334,7 @@ export default function SalesInvoice() {
   const refreshInvoiceDashboardAfterPrint = useCallback(() => {
     flushScheduledSalesInvalidation(currentOrganization?.id, { notifyPos: false });
   }, [currentOrganization?.id, flushScheduledSalesInvalidation]);
-  const { checkStock, validateCartStock } = useStockValidation();
+  const { checkStock, validateCartStock, allowNegativeStock } = useStockValidation();
   const [showStockIssueDialog, setShowStockIssueDialog] = useState(false);
   const [stockIssuePresentation, setStockIssuePresentation] = useState<StockIssuePresentation | null>(null);
 
@@ -1584,7 +1584,7 @@ export default function SalesInvoice() {
         // Filter: keep service/combo products regardless of stock, require stock > 0 for goods
         let filtered = (data || []).filter((v: any) => {
           const pType = v.products?.product_type;
-          return pType === 'service' || pType === 'combo' || (v.stock_qty || 0) > 0;
+          return pType === 'service' || pType === 'combo' || allowNegativeStock || (v.stock_qty || 0) > 0;
         });
 
         // Prefer token-boundary product matches (FL20 before FL2067) when variant cap is hit
@@ -1700,7 +1700,7 @@ export default function SalesInvoice() {
       stale = true;
       clearTimeout(debounceTimer);
     };
-  }, [searchInput, currentOrganization?.id, sizeGroupSizesById]);
+  }, [searchInput, currentOrganization?.id, sizeGroupSizesById, allowNegativeStock]);
   // Open size grid modal for a product - fetch ALL variants fresh from DB
   const openSizeGridForProduct = async (product: any, selectedSalePrice?: number) => {
     if (!currentOrganization) return;
@@ -2113,7 +2113,7 @@ export default function SalesInvoice() {
         const alreadyStaged = stagedQtyByVariantRef.current.get(foundVariant.id) || 0;
         const requestedQty = alreadyStaged + 1;
         const availableStock = stockQty + freedQty;
-        if (availableStock < requestedQty) {
+        if (availableStock < requestedQty && !allowNegativeStock) {
           playErrorBeep();
           openStockIssueDialog(
             buildInsufficientStockIssue(
@@ -2142,6 +2142,11 @@ export default function SalesInvoice() {
           currentOrganization.id,
           searchTerm,
         );
+        if (unavailableMatch && allowNegativeStock) {
+          await addProductToInvoice(unavailableMatch.product, unavailableMatch.variant);
+          setSearchInput("");
+          return;
+        }
         if (unavailableMatch) {
           playErrorBeep();
           openStockIssueDialog(
@@ -2171,6 +2176,7 @@ export default function SalesInvoice() {
     openStockIssueDialog,
     editingInvoiceId,
     originalItemsForEdit,
+    allowNegativeStock,
   ]);
 
   const addProductToInvoice = async (
@@ -4398,7 +4404,7 @@ Thank you for choosing us!`;
             <AlertDialogFooter><AlertDialogCancel onClick={handleClosePrintDialog}>Skip</AlertDialogCancel><AlertDialogAction onClick={(e) => { e.preventDefault(); handlePrintInvoice(); }}>Print</AlertDialogAction></AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-        <SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={sizeGridProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} showStock validateStock title="Enter Size-wise Qty" isLoading={sizeGridLoading} />
+        <SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={sizeGridProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} showStock validateStock={!allowNegativeStock} title="Enter Size-wise Qty" isLoading={sizeGridLoading} />
         <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
           {savedInvoiceData?.invoiceNumber && (savedInvoiceData?.filledItems?.length ?? 0) > 0 ? (
             <InvoiceWrapper ref={printRef} template={effectiveInvoicePrintTemplate} billNo={savedInvoiceData.invoiceNumber} date={invoiceDate} dueDate={dueDate} customerName={savedInvoiceData?.customer?.customer_name || selectedCustomer?.customer_name || ""} customerAddress={savedInvoiceData?.customer?.address || ""} customerMobile={savedInvoiceData?.customer?.phone || ""} customerGSTIN={savedInvoiceData?.customer?.gst_number || ""} customerTransportDetails="" items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({ sr: index + 1, particulars: item.productName, productId: item.productId, size: item.size, barcode: item.barcode || "", hsn: item.hsnCode || "", sp: item.salePrice, mrp: item.mrp, qty: item.quantity, rate: item.salePrice, total: item.lineTotal, color: item.color || "", gstPercent: item.gstPercent || 0, discountPercent: item.discountPercent || 0 }))} subTotal={savedInvoiceData?.grossAmount ?? grossAmount} discount={savedInvoiceData?.totalDiscount ?? totalDiscount} grandTotal={savedInvoiceData?.netAmount ?? netAmount} notes={savedInvoiceData?.notes ?? notes} pointsBalance={savedInvoiceData?.pointsBalance} pointsRedeemed={savedInvoiceData?.pointsRedeemed} otherCharges={savedInvoiceData?.otherCharges ?? otherCharges} roundOff={roundOff} paymentMethod="Cash" taxType={taxType} financerDetails={financerDetails} />
@@ -5908,7 +5914,7 @@ Thank you for choosing us!`;
         variants={sizeGridVariants}
         onConfirm={handleSizeGridConfirm}
         showStock={true}
-        validateStock={true}
+        validateStock={!allowNegativeStock}
         title="Enter Size-wise Qty (Stock Validated)"
         isLoading={sizeGridLoading}
       />

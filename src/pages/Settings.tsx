@@ -2769,6 +2769,30 @@ export default function Settings() {
 
                 <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
                   <div className="space-y-0.5">
+                    <Label htmlFor="allow_negative_stock_sale" className="text-sm font-medium">
+                      Allow Sale Without Stock (Negative Stock)
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Sale Bill and POS let you bill items that have no stock, with a warning. Stock goes below zero until the next purchase.
+                    </p>
+                  </div>
+                  <Switch
+                    id="allow_negative_stock_sale"
+                    checked={(settings.sale_settings as any)?.allow_negative_stock_sale === true}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          allow_negative_stock_sale: checked,
+                        } as any,
+                      })
+                    }
+                />
+                </div>
+
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div className="space-y-0.5">
                     <Label htmlFor="ask_price_on_scan" className="text-sm font-medium">
                       Ask Price When Last Purchase Differs
                     </Label>

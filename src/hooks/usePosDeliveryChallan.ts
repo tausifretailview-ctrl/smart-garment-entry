@@ -112,7 +112,7 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { checkStock } = useStockValidation();
+  const { checkStockStrict: checkStock } = useStockValidation();
   const { data: orgSettings } = useSettings();
 
   const [items, setItems] = useState<PosDCItem[]>([]);
