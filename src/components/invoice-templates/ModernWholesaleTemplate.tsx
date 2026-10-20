@@ -1,5 +1,6 @@
 import React from "react";
 import { numberToWords } from "@/lib/utils";
+import { buildHsnTaxSummary } from "@/utils/hsnTaxSummary";
 
 interface WholesaleItem {
   particulars: string;
@@ -56,6 +57,8 @@ interface ModernWholesaleTemplateProps {
   taxableAmount?: number;
   cgstAmount?: number;
   sgstAmount?: number;
+  igstAmount?: number;
+  taxType?: string;
   grandTotal: number;
   bankDetails?: {
     bank_name?: string;
@@ -116,6 +119,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   taxableAmount,
   cgstAmount = 0,
   sgstAmount = 0,
+  igstAmount = 0,
+  taxType,
   grandTotal,
   bankDetails,
   showGSTBreakdown = true,
@@ -229,6 +234,23 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   
 
   const isA5 = format === 'a5-vertical' || format === 'a5-horizontal';
+
+  // HSN-wise tax summary under Amount in Words (A4 only; A5 has no room).
+  const hsnSummary = isA5
+    ? null
+    : buildHsnTaxSummary({
+        items: items.map((item) => ({
+          total: item.total,
+          gstPercent: getItemGstPercent(item),
+          qty: item.qty,
+          hsn: item.hsn,
+        })),
+        taxType,
+        grandTotal,
+        saleReturnAdjust,
+        isInterState: igstAmount > 0 && cgstAmount + sgstAmount <= 0,
+        targetTax: cgstAmount + sgstAmount + igstAmount,
+      });
 
   // Items per page: full pages vs last page (reserving space for footer/summary)
   const getItemsPerPage = () => {
@@ -520,6 +542,102 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
     );
   };
 
+  // td only: the print CSS paints every th in .invoice-page with the header gradient.
+  const renderHsnTaxSummary = (summary: NonNullable<typeof hsnSummary>) => {
+    const inter = summary.isInterState;
+    const c: React.CSSProperties = {
+      border: "1px solid #9ca3af",
+      padding: "1px 3px",
+      fontSize: "6.5pt",
+      lineHeight: "1.25",
+      textAlign: "right",
+      whiteSpace: "nowrap",
+    };
+    const h: React.CSSProperties = {
+      ...c,
+      textAlign: "center",
+      fontWeight: "700",
+      background: colors.light,
+      WebkitPrintColorAdjust: "exact",
+      printColorAdjust: "exact" as any,
+    };
+    const money = (n: number) =>
+      n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const pct = (n: number) => `${Number(n.toFixed(2))}`;
+    return (
+      <div style={{ marginTop: "5px" }}>
+        <div style={{ fontSize: "7pt", fontWeight: "700", marginBottom: "2px" }}>TAX SUMMARY:</div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}>
+          <tbody>
+            <tr>
+              <td rowSpan={2} style={h}>HSN/SAC</td>
+              <td rowSpan={2} style={h}>Taxable Amt</td>
+              {inter ? (
+                <td colSpan={2} style={h}>IGST</td>
+              ) : (
+                <>
+                  <td colSpan={2} style={h}>CGST</td>
+                  <td colSpan={2} style={h}>SGST</td>
+                </>
+              )}
+              <td rowSpan={2} style={h}>Total Tax</td>
+            </tr>
+            <tr>
+              <td style={h}>Rate</td>
+              <td style={h}>Amt</td>
+              {!inter && (
+                <>
+                  <td style={h}>Rate</td>
+                  <td style={h}>Amt</td>
+                </>
+              )}
+            </tr>
+            {summary.rows.map((r) => (
+              <tr key={`${r.hsn}|${r.gstPercent}`}>
+                <td style={{ ...c, textAlign: "center" }}>{r.hsn}</td>
+                <td style={c}>{money(r.taxable)}</td>
+                {inter ? (
+                  <>
+                    <td style={{ ...c, textAlign: "center" }}>{pct(r.gstPercent)}%</td>
+                    <td style={c}>{money(r.igst)}</td>
+                  </>
+                ) : (
+                  <>
+                    <td style={{ ...c, textAlign: "center" }}>{pct(r.gstPercent / 2)}%</td>
+                    <td style={c}>{money(r.cgst)}</td>
+                    <td style={{ ...c, textAlign: "center" }}>{pct(r.gstPercent / 2)}%</td>
+                    <td style={c}>{money(r.sgst)}</td>
+                  </>
+                )}
+                <td style={c}>
+                  {money(r.tax)} ({pct(r.gstPercent)}%)
+                </td>
+              </tr>
+            ))}
+            <tr style={{ fontWeight: "700" }}>
+              <td style={{ ...c, textAlign: "center" }}>Total</td>
+              <td style={c}>{money(summary.total.taxable)}</td>
+              {inter ? (
+                <>
+                  <td style={{ ...c, textAlign: "center" }}>-</td>
+                  <td style={c}>{money(summary.total.igst)}</td>
+                </>
+              ) : (
+                <>
+                  <td style={{ ...c, textAlign: "center" }}>-</td>
+                  <td style={c}>{money(summary.total.cgst)}</td>
+                  <td style={{ ...c, textAlign: "center" }}>-</td>
+                  <td style={c}>{money(summary.total.sgst)}</td>
+                </>
+              )}
+              <td style={c}>{money(summary.total.tax)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   // Render summary section (only on last page)
   const renderSummary = () => (
     <div style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
@@ -528,6 +646,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         <div style={{ flex: 1, padding: isA5 ? "5px 6px" : "8px", borderRight: "1px solid #374151", minWidth: 0 }}>
           <div style={{ fontSize: isA5 ? "6pt" : "7pt", fontWeight: "700" }}>AMOUNT IN WORDS:</div>
           <div style={{ fontSize: isA5 ? "7.5pt" : "9pt", fontStyle: "italic" }}>{numberToWords(grandTotal)} Only</div>
+
+          {hsnSummary && hsnSummary.rows.length > 0 && renderHsnTaxSummary(hsnSummary)}
 
           {bankDetails && (bankDetails.bank_name || bankDetails.account_number) && (
             <div style={{ marginTop: isA5 ? "5px" : "10px" }}>
