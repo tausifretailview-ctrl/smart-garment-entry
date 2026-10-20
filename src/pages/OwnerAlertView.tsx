@@ -144,7 +144,7 @@ export function OwnerAlertReport() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-medium opacity-80">{currentOrganization?.name ?? ""}</p>
-            <h1 className="text-lg font-bold">{date === today ? "Today's cashier report" : "Cashier report"}</h1>
+            <h1 className="text-lg font-bold">{date === today ? "Today's business report" : "Business report"}</h1>
           </div>
           <button
             type="button"

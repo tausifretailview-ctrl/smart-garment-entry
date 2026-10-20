@@ -25,7 +25,7 @@ const primaryActions: QuickAction[] = [
 
 const secondaryActions: QuickAction[] = [
   { icon: Wallet, label: "Accounts", path: MOBILE_ACCOUNTS_PATH, color: "text-indigo-500" },
-  { icon: Calculator, label: "Cashier", path: "/daily-cashier-report", color: "text-purple-500" },
+  { icon: Calculator, label: "Business", path: "/daily-cashier-report", color: "text-purple-500" },
   { icon: BarChart3, label: "Reports", path: MOBILE_REPORTS_PATH, color: "text-green-500" },
 ];
 

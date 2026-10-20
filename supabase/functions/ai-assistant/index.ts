@@ -628,7 +628,7 @@ const getSupportContent = (query: string): string => {
 1. **Sales Analytics** - Revenue trends, top customers, top products
 2. **Sales Report by Customer** - Customer-wise sales summary
 3. **Item-wise Sales Report** - Product-wise sales breakdown
-4. **Daily Cashier Report** - Day-end cash summary
+4. **Business Report** (Daily Cashier) - Day-end cash summary
 
 **Quick Access:**
 - Dashboard → Click any metric card

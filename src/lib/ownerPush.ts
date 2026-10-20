@@ -59,7 +59,7 @@ async function registerForToken(): Promise<string> {
     Push.createChannel({
       id: OWNER_ALERT_CHANNEL_ID,
       name: "Owner alerts",
-      description: "Cashier report, low stock, bills and day-end summary",
+      description: "Business report, low stock, bills and day-end summary",
       importance: 4,
       visibility: 1,
     }),

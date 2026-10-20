@@ -242,11 +242,11 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                     className={posNavBtnClass}
                   >
                     <BarChart3 className={posNavIconClass} />
-                    <span className="hidden sm:inline">Cashier</span>
+                    <span className="hidden sm:inline">Business</span>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
-                  <p>Daily Cashier Report</p>
+                  <p>Business Report</p>
                 </TooltipContent>
               </Tooltip>
             )}

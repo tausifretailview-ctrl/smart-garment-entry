@@ -112,7 +112,7 @@ export function OwnerPushBridge() {
         <DialogHeader>
           <DialogTitle>Get shop alerts on this phone?</DialogTitle>
           <DialogDescription>
-            Cashier report, low stock, big bills and the day-end summary, even when the app is closed. Tap Turn on, then
+            Business report, low stock, big bills and the day-end summary, even when the app is closed. Tap Turn on, then
             choose Allow.
           </DialogDescription>
         </DialogHeader>

@@ -41,7 +41,7 @@ interface ReportCard {
 
 /** Brand-aligned report chip colors (icon blue #1857A6 → blue/sky/indigo family). */
 const REPORTS: ReportCard[] = [
-  { id: "daily-cashier", icon: Calculator, label: "Cashier Report", description: "Bills with cash, UPI, card & net", color: "text-blue-700 bg-blue-50 dark:bg-blue-950/40" },
+  { id: "daily-cashier", icon: Calculator, label: "Business Report", description: "Bills with cash, UPI, card & net", color: "text-blue-700 bg-blue-50 dark:bg-blue-950/40" },
   { id: "item-wise-sales", icon: BarChart3, label: "Item-wise Sale", description: "Qty, rate and amount by product", color: "text-sky-700 bg-sky-50 dark:bg-sky-950/40" },
   { id: "customer-wise-sales", icon: Users, label: "Customer-wise Sale", description: "Bills and amount by customer", color: "text-blue-600 bg-blue-50 dark:bg-blue-950/40" },
   { id: "salesman-wise-sales", icon: UserCheck, label: "Salesman-wise Sale", description: "Bills and amount by salesman", color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40" },
@@ -80,7 +80,7 @@ const QUICK_LINKS: QuickLink[] = [
   { label: "Item-wise Sale", icon: BarChart3, color: "text-sky-700 bg-sky-50 dark:bg-sky-950/40", report: "item-wise-sales" },
   { label: "Net Profit", icon: PieChart, color: "text-blue-700 bg-blue-50 dark:bg-blue-950/40", report: "net-profit" },
   {
-    label: "Daily Cashier",
+    label: "Business Report",
     icon: Calculator,
     color: "text-blue-700 bg-blue-50 dark:bg-blue-950/40",
     report: "daily-cashier",

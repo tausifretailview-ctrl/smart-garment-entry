@@ -202,10 +202,10 @@ function PosDeliveryChallanLayoutContent({ children }: { children: ReactNode }) 
                   className="text-white hover:bg-orange-500 gap-1"
                 >
                   <BarChart3 className="h-4 w-4" />
-                  <span className="hidden sm:inline">Cashier</span>
+                  <span className="hidden sm:inline">Business</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Daily Cashier Report (F8)</TooltipContent>
+              <TooltipContent>Business Report (F8)</TooltipContent>
             </Tooltip>
           )}
           {onOpenStockReport && can("stock_report") && (

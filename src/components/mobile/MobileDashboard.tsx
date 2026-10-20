@@ -357,7 +357,7 @@ export const MobileDashboard = () => {
           {[
             { icon: ShoppingBag, label: "Purchase", nav: "/purchase-entry", gradient: "from-orange-400 to-amber-500" },
             { icon: Package, label: "Stock", nav: "/owner-stock", gradient: "from-amber-400 to-orange-500" },
-            { icon: Calculator, label: "Cashier", nav: "/daily-cashier-report", gradient: "from-purple-400 to-violet-500" },
+            { icon: Calculator, label: "Business", nav: "/daily-cashier-report", gradient: "from-purple-400 to-violet-500" },
             { icon: BarChart3, label: "Reports", nav: "/owner-reports", gradient: "from-teal-400 to-cyan-500" },
           ].map((a) => {
             const Icon = a.icon;

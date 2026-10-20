@@ -99,7 +99,7 @@ const ALL_REPORTS: ReportItem[] = [
   },
   {
     icon: Calendar,
-    label: "Daily Cashier",
+    label: "Business Report",
     path: "/daily-cashier-report",
     desc: "Cash and tender summary for the day",
     tab: "sales",

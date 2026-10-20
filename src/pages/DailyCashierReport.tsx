@@ -1161,7 +1161,7 @@ const DailyCashierReport = () => {
       (totals.advanceReceived || 0);
     
     const data = [
-      ["Cashier Report - " + getPeriodLabel()],
+      ["Business Report - " + getPeriodLabel()],
       [settings?.business_name || "Business Name"],
       [],
       ["Sales Summary"],
@@ -1221,8 +1221,8 @@ const DailyCashierReport = () => {
     const XLSX = await loadXlsx();
     const ws = XLSX.utils.aoa_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Cashier Report");
-    XLSX.writeFile(wb, `Cashier_Report_${format(selectedDate, "yyyy-MM-dd")}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Business Report");
+    XLSX.writeFile(wb, `Business_Report_${format(selectedDate, "yyyy-MM-dd")}.xlsx`);
   };
 
   const handleExportPDF = async () => {
@@ -1354,7 +1354,7 @@ const DailyCashierReport = () => {
     doc.setFontSize(9);
     doc.text(`Generated on ${format(new Date(), "dd/MM/yyyy HH:mm")}`, pageWidth / 2, y, { align: "center" });
 
-    doc.save(`Cashier_Report_${format(selectedDate, "yyyy-MM-dd")}.pdf`);
+    doc.save(`Business_Report_${format(selectedDate, "yyyy-MM-dd")}.pdf`);
   };
 
   const formatCurrency = (amount: number) => {
@@ -1392,7 +1392,7 @@ const DailyCashierReport = () => {
     return (
       // The shell clips this route (fill-height page), so the phone view scrolls itself.
       <div className={cn(mobilePageScrollWithNavClass, "flex-1 flex flex-col bg-muted/30")}>
-        <MobilePageHeader title="Cashier Report" backTo="/" subtitle={getPeriodLabel()} />
+        <MobilePageHeader title="Business Report" backTo="/" subtitle={getPeriodLabel()} />
 
         {/* Date navigator */}
         <div className="flex items-center gap-2 px-4 py-3">
@@ -1644,7 +1644,7 @@ const DailyCashierReport = () => {
             <div className="min-w-0">
               <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
                 <Wallet className="h-5 w-5 shrink-0" />
-                Cashier Report
+                Business Report
               </h1>
               <p className="text-sm text-muted-foreground mt-1 truncate">
                 Sales summary by payment method

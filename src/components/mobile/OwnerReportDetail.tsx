@@ -76,7 +76,7 @@ const TITLES: Record<ReportType, string> = {
   "brand-sales": "Brand-wise Sales",
   "size-sales": "Size-wise Sales",
   "payment-collection": "Payment Collection",
-  "daily-cashier": "Cashier Report",
+  "daily-cashier": "Business Report",
   "item-wise-sales": "Item-wise Sale",
   "customer-wise-sales": "Customer-wise Sale",
   "salesman-wise-sales": "Salesman-wise Sale",

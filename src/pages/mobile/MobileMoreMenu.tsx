@@ -92,7 +92,7 @@ export default function MobileMoreMenu() {
         { icon: Package, label: "Size-wise Stock", path: `${MOBILE_REPORTS_PATH}?report=size-wise-stock`, color: "text-indigo-600" },
         { icon: Users, label: "Customer Balance", path: `${MOBILE_REPORTS_PATH}?report=customer-balance`, color: "text-blue-600" },
         { icon: Building2, label: "Supplier Balance", path: `${MOBILE_REPORTS_PATH}?report=supplier-balance`, color: "text-orange-600" },
-        { icon: TrendingUp, label: "Daily Cashier", path: "/daily-cashier-report", color: "text-blue-700" },
+        { icon: TrendingUp, label: "Business Report", path: "/daily-cashier-report", color: "text-blue-700" },
         { icon: Package, label: "Stock Report", path: "/stock-report", color: "text-sky-700" },
         { icon: Receipt, label: "GST Reports", path: "/gst-reports", color: "text-amber-600" },
         { icon: BookOpen, label: "Customer Ledger", path: "/customer-ledger-report", color: "text-blue-600" },

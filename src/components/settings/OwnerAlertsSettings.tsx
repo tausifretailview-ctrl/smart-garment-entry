@@ -216,7 +216,7 @@ export function OwnerAlertsSettings() {
   const activeDevices = devices.filter((d) => d.status === "active");
 
   return (
-    <SettingsSection title="Owner alerts (mobile app)" subtitle="Cashier report, low stock, bills and day-end on the owner's phone">
+    <SettingsSection title="Owner alerts (mobile app)" subtitle="Business report, low stock, bills and day-end on the owner's phone">
       {/* Full width so the button and its status fit on a phone screen. */}
       <div className="space-y-2 border-b px-3 py-3">
         <div className="text-sm font-semibold text-slate-800">This phone</div>
@@ -269,7 +269,7 @@ export function OwnerAlertsSettings() {
         <Switch checked={form.enabled} disabled={disabled} onCheckedChange={(v) => set("enabled", v)} />
       </SettingsRow>
 
-      <SettingsRow label="Cashier report" description="Sales, cash, UPI, card, due and returns so far today.">
+      <SettingsRow label="Business report" description="Sales, cash, UPI, card, due and returns so far today.">
         <div className="flex items-center gap-2">
           <Select
             value={String(form.cashier_every_hours)}
@@ -288,7 +288,7 @@ export function OwnerAlertsSettings() {
         </div>
       </SettingsRow>
 
-      <SettingsRow label="Shop hours" description="Cashier reports are sent only between these times (IST).">
+      <SettingsRow label="Shop hours" description="Business reports are sent only between these times (IST).">
         <div className="flex items-center gap-1">
           <Input type="time" className="h-8 w-[110px]" value={form.shop_open} disabled={disabled} onChange={(e) => set("shop_open", e.target.value)} />
           <span className="text-xs">to</span>
@@ -356,7 +356,7 @@ export function OwnerAlertsSettings() {
         </div>
       </SettingsRow>
 
-      <SettingsRow label="Salesman summary" description="Add each salesman's sales today to the cashier report and day-end alerts.">
+      <SettingsRow label="Salesman summary" description="Add each salesman's sales today to the business report and day-end alerts.">
         <Switch
           checked={form.salesman_summary_enabled}
           disabled={disabled}

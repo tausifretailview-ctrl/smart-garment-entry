@@ -72,7 +72,7 @@ export default function MobileReportsHub() {
       color: "text-blue-700",
       reports: [
         { icon: BarChart3, label: "Sales Report", path: "/sales-invoice-dashboard", desc: "All sales invoices" },
-        { icon: Calendar, label: "Daily Cashier", path: "/daily-cashier-report", desc: "Cash summary for day" },
+        { icon: Calendar, label: "Business Report", path: "/daily-cashier-report", desc: "Cash summary for day" },
         { icon: ShoppingBag, label: "Item-wise Sales", path: "/item-wise-sales", desc: "Sales by product" },
         { icon: Trophy, label: "Top Selling Products", path: `${MOBILE_REPORTS_PATH}?report=top-selling-products`, desc: "Top 50 by revenue or qty" },
         { icon: Users, label: "Customer-wise Sale", path: `${MOBILE_REPORTS_PATH}?report=customer-wise-sales`, desc: "Sales by customer" },

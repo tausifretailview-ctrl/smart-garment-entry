@@ -265,7 +265,7 @@ Deno.serve(async (req) => {
         sa,
         organizationId,
         logId,
-        { title: "EzzyERP owner alerts are on", body: "You will get cashier reports, stock and bill alerts here." },
+        { title: "EzzyERP owner alerts are on", body: "You will get business reports, stock and bill alerts here." },
         { route: reportRoute(new Date()) },
       );
       return json(200, { ok: true, ...r });

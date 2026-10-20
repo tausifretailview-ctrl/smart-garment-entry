@@ -97,7 +97,7 @@ describe("message text", () => {
       refundAmount: 0,
       totalSaleReturnAdjust: 0,
     });
-    expect(m.title).toBe("Cashier report 2 PM");
+    expect(m.title).toBe("Business report 2 PM");
     expect(m.body).toBe("Sales ₹48,200 (32 bills) · Cash ₹21,000 · UPI ₹19,500 · Card ₹7,700");
     expect(lowStockMessage([])).toBeNull();
     expect(
