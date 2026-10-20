@@ -171,14 +171,29 @@ describe("Customer Payment receipt delete UI", () => {
     source.indexOf("const handleBulkDeleteReceipts"),
   );
 
+  const shared = readFileSync(
+    resolve(process.cwd(), "src/utils/deleteCustomerReceipt.ts"),
+    "utf8",
+  );
+  const reconciliation = readFileSync(
+    resolve(process.cwd(), "src/components/accounts/ReconciliationTab.tsx"),
+    "utf8",
+  );
+
   it("puts a delete action on each receipt row and resyncs the linked customer", () => {
-    expect(deleteBlock).toContain("loadSalesTouchedByReceipt");
-    expect(deleteBlock).toContain("collectSaleIdsForReceiptDelete");
-    expect(deleteBlock).toContain("syncSalePaymentFromVouchers");
-    expect(deleteBlock).toContain('.eq("organization_id", organizationId)');
+    expect(deleteBlock).toContain("deleteCustomerReceipt(organizationId, payment)");
+    expect(shared).toContain("loadSalesTouchedByReceipt");
+    expect(shared).toContain("collectSaleIdsForReceiptDelete");
+    expect(shared).toContain("syncSalePaymentFromVouchers");
+    expect(shared).toContain('.eq("organization_id", organizationId)');
     expect(deleteBlock).toContain('queryKey: ["customer-invoices"]');
     expect(deleteBlock).toContain("invalidateCustomerFinancialSnapshot(queryClient, organizationId, customerId)");
     expect(deleteBlock).not.toContain('payment.reference_type === "sale"');
     expect(source.match(/title="Delete Receipt"/g)?.length).toBe(2);
+  });
+
+  it("Payment Reconciliation deletes receipts through the same shared reversal", () => {
+    expect(reconciliation).toContain("deleteCustomerReceipt(organizationId, payment)");
+    expect(reconciliation).not.toContain('from("sales").update');
   });
 });
