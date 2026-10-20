@@ -28,6 +28,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useWhatsAppAPI, WhatsAppLog } from "@/hooks/useWhatsAppAPI";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { 
   MessageSquare, 
   Send, 
@@ -86,6 +87,8 @@ const LOG_FETCH_LIMIT = 1000;
 
 const WhatsAppLogs = () => {
   const { fetchMessageLogs, retryMessage, isRetrying } = useWhatsAppAPI();
+  const { currentOrganization } = useOrganization();
+  const orgId = currentOrganization?.id;
   
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -121,7 +124,15 @@ const WhatsAppLogs = () => {
   }, [logRange, pickedDate, rangeFrom, rangeTo]);
 
   const { data: logs, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['whatsapp-logs', statusFilter, typeFilter, dateStart, dateEnd],
+    // Org in the key: without it a shop switch showed the other shop's logs, and a
+    // fetch made before the org loaded cached an empty list.
+    queryKey: ['whatsapp-logs', orgId, statusFilter, typeFilter, dateStart, dateEnd],
+    enabled: !!orgId,
+    // Coming back to the page (or changing a filter) shows the last list at once
+    // and refreshes it, instead of skeleton rows every time.
+    staleTime: 30_000,
+    placeholderData: (prev, prevQuery) =>
+      prevQuery?.queryKey[1] === orgId ? prev : undefined,
     queryFn: () =>
       fetchMessageLogs({
         status: statusFilter,
@@ -446,7 +457,7 @@ const WhatsAppLogs = () => {
             )}
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {isLoading || !orgId ? (
               <ListTableSkeleton rows={8} columns={6} />
             ) : filteredLogs.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">

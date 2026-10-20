@@ -9,14 +9,33 @@ import {
   sleep,
   withAttemptTimeout,
 } from "@/lib/resilientPermissionVerify";
+import {
+  dedupeUserRolesLoad,
+  isUserRolesEntryFresh,
+  readCachedUserRoles,
+  userRolesCacheKey,
+  writeCachedUserRoles,
+} from "@/lib/userRolesCache";
 
 type AppRole = "admin" | "manager" | "user" | "platform_admin";
 
 const MAX_VERIFY_ATTEMPTS = PERMISSION_VERIFY_BACKOFF_MS.length + 1;
 
+function resolveRolesOrgId(userId: string, organizationId?: string): string | null {
+  if (organizationId) return organizationId;
+  try {
+    return (
+      localStorage.getItem(`currentOrgId_${userId}`) ||
+      localStorage.getItem("selectedOrgId")
+    );
+  } catch {
+    return null;
+  }
+}
+
 async function loadUserRolesOnce(
   userId: string,
-  organizationId?: string,
+  orgId: string | null,
 ): Promise<AppRole[]> {
   return withAttemptTimeout(async () => {
     const { data: globalRoles, error: globalError } = await (supabase as any)
@@ -28,11 +47,6 @@ async function loadUserRolesOnce(
 
     const allRoles: AppRole[] = globalRoles?.map((r: any) => r.role as AppRole) || [];
 
-    const orgId =
-      organizationId ||
-      localStorage.getItem(`currentOrgId_${userId}`) ||
-      localStorage.getItem("selectedOrgId");
-
     if (orgId) {
       const { data: orgMember, error: orgError } = await supabase
         .from("organization_members")
@@ -41,7 +55,10 @@ async function loadUserRolesOnce(
         .eq("organization_id", orgId)
         .maybeSingle();
 
-      if (!orgError && orgMember?.role && !allRoles.includes(orgMember.role as AppRole)) {
+      // Failing here (instead of returning only the global roles) retries the
+      // check and keeps a half answer out of the shared roles cache.
+      if (orgError) throw orgError;
+      if (orgMember?.role && !allRoles.includes(orgMember.role as AppRole)) {
         allRoles.push(orgMember.role as AppRole);
       }
     }
@@ -52,12 +69,19 @@ async function loadUserRolesOnce(
 
 export const useUserRoles = (organizationId?: string) => {
   const { user } = useAuth();
-  const [roles, setRoles] = useState<AppRole[]>([]);
-  const [loading, setLoading] = useState(true);
+  const userId = user?.id;
+  const cacheKey = userId
+    ? userRolesCacheKey(userId, resolveRolesOrgId(userId, organizationId))
+    : null;
+  // Seed from the last verified roles so a known user + org renders at once
+  // instead of waiting on two round trips behind a spinner on every page open.
+  const initialCached = cacheKey ? readCachedUserRoles(cacheKey) : null;
+  const [roles, setRoles] = useState<AppRole[]>(() => initialCached?.roles ?? []);
+  const [loading, setLoading] = useState(() => !initialCached);
   const [error, setError] = useState<Error | null>(null);
   const [verifyGeneration, setVerifyGeneration] = useState(0);
   const runIdRef = useRef(0);
-  const hasLoadedRef = useRef(false);
+  const hasLoadedRef = useRef(!!initialCached);
 
   const refetch = useCallback(() => {
     setVerifyGeneration((g) => g + 1);
@@ -77,6 +101,18 @@ export const useUserRoles = (organizationId?: string) => {
       }
 
       if (cancelled || runId !== runIdRef.current) return;
+      const orgId = resolveRolesOrgId(user.id, organizationId);
+      const key = userRolesCacheKey(user.id, orgId);
+      const cached = readCachedUserRoles(key);
+      if (cached) {
+        setRoles(cached.roles);
+        setLoading(false);
+        setError(null);
+        hasLoadedRef.current = true;
+        // Verified moments ago (another pane, the sidebar): skip the database.
+        // An explicit Retry (verifyGeneration > 0) always goes to the network.
+        if (verifyGeneration === 0 && isUserRolesEntryFresh(cached)) return;
+      }
       // Only show the loading shell on the very first verification — subsequent
       // re-checks (e.g. AuthContext refreshing the session on tab resume) must
       // not unmount the active dashboard. Matches Sales Invoice Dashboard.
@@ -102,7 +138,10 @@ export const useUserRoles = (organizationId?: string) => {
         }
 
         try {
-          const allRoles = await loadUserRolesOnce(user.id, organizationId);
+          const allRoles = await dedupeUserRolesLoad(key, () =>
+            loadUserRolesOnce(user.id, orgId),
+          );
+          writeCachedUserRoles(key, allRoles);
           if (cancelled || runId !== runIdRef.current) return;
           setRoles(allRoles);
           setLoading(false);
@@ -129,6 +168,9 @@ export const useUserRoles = (organizationId?: string) => {
       }
 
       if (cancelled || runId !== runIdRef.current) return;
+      // A failed background re-check keeps the roles already showing (cached or
+      // verified earlier) instead of replacing a working page with an error.
+      if (cached) return;
       setError(lastError ?? new Error("Unable to verify permissions"));
       setRoles([]);
       setLoading(false);
@@ -142,7 +184,7 @@ export const useUserRoles = (organizationId?: string) => {
     // Depend on user?.id (stable across session refreshes) instead of the user
     // object itself — otherwise tab-resume session refresh re-runs verification
     // and unmounts role-protected pages.
-  }, [user?.id, organizationId, verifyGeneration]);
+  }, [userId, organizationId, verifyGeneration]);
 
   const hasRole = (role: AppRole) => roles.includes(role);
   const isAdmin = hasRole("admin");
