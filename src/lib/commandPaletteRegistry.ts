@@ -254,7 +254,7 @@ export const COMMAND_PALETTE_REGISTRY: CommandPaletteRegistryItem[] = [
     icon: FileText,
     path: "/customer-notifications",
     keywords: ["notification", "push", "sent", "read", "failed", "invite", "customer app"],
-    permission: "sales_invoice_dashboard",
+    permission: "customer_notifications",
   },
   {
     id: "nav-customer-reviews",
@@ -264,7 +264,7 @@ export const COMMAND_PALETTE_REGISTRY: CommandPaletteRegistryItem[] = [
     icon: FileText,
     path: "/customer-reviews",
     keywords: ["review", "rating", "feedback", "stars", "customer", "comment"],
-    permission: "sales_invoice_dashboard",
+    permission: "customer_reviews",
   },
   {
     id: "nav-settings",

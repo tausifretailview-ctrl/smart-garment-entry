@@ -29,8 +29,8 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   "sale-returns": "sale_return_dashboard",
   "sale-return-dashboard": "sale_return_dashboard",
   "cn-sr-adjustment-register": "sale_return_dashboard",
-  "customer-reviews": "sales_invoice_dashboard",
-  "customer-notifications": "sales_invoice_dashboard",
+  "customer-reviews": "customer_reviews",
+  "customer-notifications": "customer_notifications",
   "advance-booking-dashboard": "advance_booking_dashboard",
   "discount-scheme-dashboard": "discount_scheme_dashboard",
   "purchase-entry": "purchase_bill",
@@ -117,6 +117,12 @@ const DEFAULT_ON_MENU_IDS = new Set([
   "business_insights",
 ]);
 
+/** Newer menu ids that follow an older right until the user saves their own choice in User Rights. */
+export const MENU_FALLBACK_WHEN_UNSET: Record<string, string> = {
+  customer_reviews: "sales_invoice_dashboard",
+  customer_notifications: "sales_invoice_dashboard",
+};
+
 export function isMenuPermissionGranted(
   permissions: { menu?: Record<string, boolean>; mainMenu?: Record<string, boolean> } | null,
   menuId: string
@@ -132,6 +138,10 @@ export function isMenuPermissionGranted(
   if (menu[canonical] === true) return true;
   if (canonical !== menuId && menu[menuId] === true) return true;
   if (DEFAULT_ON_MENU_IDS.has(canonical) && menu[canonical] !== false) {
+    return true;
+  }
+  const fallback = MENU_FALLBACK_WHEN_UNSET[canonical];
+  if (fallback && menu[canonical] === undefined && menu[fallback] === true) {
     return true;
   }
   return false;

@@ -111,4 +111,17 @@ describe("menuPermissions", () => {
       "mobile-dashboard",
     );
   });
+
+  it("gives Customer Reviews its own right, falling back to Sales Invoice Dashboard until saved", () => {
+    expect(getMenuPermissionForPath("/customer-reviews")).toBe("customer_reviews");
+    expect(getMenuPermissionForPath("/customer-notifications")).toBe("customer_notifications");
+    const legacy = { menu: { sales_invoice_dashboard: true }, mainMenu: { sales: true } };
+    expect(isMenuPermissionGranted(legacy, "customer_reviews")).toBe(true);
+    expect(isMenuPermissionGranted(legacy, "customer_notifications")).toBe(true);
+    const own = { menu: { sales_invoice_dashboard: false, customer_reviews: true }, mainMenu: {} };
+    expect(isMenuPermissionGranted(own, "customer_reviews")).toBe(true);
+    expect(isMenuPermissionGranted(own, "customer_notifications")).toBe(false);
+    const off = { menu: { sales_invoice_dashboard: true, customer_reviews: false }, mainMenu: {} };
+    expect(isMenuPermissionGranted(off, "customer_reviews")).toBe(false);
+  });
 });

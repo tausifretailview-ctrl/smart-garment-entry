@@ -108,6 +108,8 @@ const menuStructure = [
       { id: "customer_balance_activity", name: "Customer balance & activity" },
       { id: "customer_audit_report", name: "Customer Audit Report" },
       { id: "customer_points_report", name: "Customer Points Report" },
+      { id: "customer_reviews", name: "Customer Reviews" },
+      { id: "customer_notifications", name: "Customer Notifications" },
     ],
   },
   {
@@ -283,6 +285,8 @@ const defaultManagerPermissions: Record<string, boolean> = {
   customer_balance_activity: true,
   customer_audit_report: true,
   customer_points_report: true,
+  customer_reviews: true,
+  customer_notifications: true,
   delivery_dashboard: true,
   delivery_update: true,
   delivery_whatsapp: true,
@@ -413,6 +417,13 @@ const UserRights = () => {
       }
       if (menuPerms.customer_points_report === undefined) {
         menuPerms.customer_points_report = !!menuPerms.customer_ledger;
+      }
+      // Customer Reviews / Notifications used to follow Sales Invoice Dashboard.
+      if (menuPerms.customer_reviews === undefined) {
+        menuPerms.customer_reviews = !!menuPerms.sales_invoice_dashboard;
+      }
+      if (menuPerms.customer_notifications === undefined) {
+        menuPerms.customer_notifications = !!menuPerms.sales_invoice_dashboard;
       }
       if (menuPerms.business_insights === undefined) {
         menuPerms.business_insights = true;
