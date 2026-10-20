@@ -2,6 +2,8 @@ import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { usePOSSettings } from "@/hooks/useSettings";
+import { isNegativeStockSaleAllowed } from "@/utils/negativeStockSale";
 import { isNetworkFailure } from "@/lib/offlinePos/offlinePosCore";
 import {
   noteNetworkFailure,
@@ -15,6 +17,8 @@ interface StockCheckResult {
   availableStock: number;
   productName: string;
   size: string;
+  /** Stock lookup itself failed (not a shortage). */
+  checkFailed?: boolean;
 }
 
 interface OldItem {
@@ -45,6 +49,7 @@ export const useStockValidation = () => {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const [checking, setChecking] = useState(false);
+  const allowNegativeStock = isNegativeStockSaleAllowed(usePOSSettings());
 
   /**
    * Check if requested quantity is available in stock
@@ -53,7 +58,7 @@ export const useStockValidation = () => {
    * @param freedQty - Quantity that will be freed from old invoice (for edit mode)
    * @returns StockCheckResult with availability status
    */
-  const checkStock = useCallback(async (
+  const checkStockStrict = useCallback(async (
     variantId: string,
     requestedQty: number,
     freedQty: number = 0
@@ -121,6 +126,7 @@ export const useStockValidation = () => {
         availableStock: 0,
         productName: "Unknown",
         size: "",
+        checkFailed: true,
       };
     } finally {
       setChecking(false);
@@ -133,7 +139,7 @@ export const useStockValidation = () => {
    * @param items - New items to validate
    * @param oldItems - Old items from existing invoice (for edit mode) - stock from these will be considered "freed"
    */
-  const validateCartStock = useCallback(async (
+  const validateCartStockStrict = useCallback(async (
     items: Array<{ variantId: string; quantity: number; productName?: string; size?: string }>,
     oldItems?: Array<{ variantId: string; quantity: number }>
   ): Promise<Array<{ productName: string; size: string; requested: number; available: number }>> => {
@@ -273,6 +279,32 @@ export const useStockValidation = () => {
   }, [toast, currentOrganization?.id]);
 
   /**
+   * Settings > Sale "Allow sale without stock": short items are billed with a
+   * warning and stock goes negative instead of being blocked.
+   */
+  const checkStock = useCallback(async (
+    variantId: string,
+    requestedQty: number,
+    freedQty: number = 0
+  ): Promise<StockCheckResult> => {
+    const result = await checkStockStrict(variantId, requestedQty, freedQty);
+    if (!allowNegativeStock || result.isAvailable || result.checkFailed) return result;
+    toast({
+      title: "Selling without stock",
+      description: `${result.productName}${result.size ? ` (${result.size})` : ""}: stock ${result.availableStock}, billing ${requestedQty}. Stock will go negative.`,
+    });
+    return { ...result, isAvailable: true };
+  }, [checkStockStrict, allowNegativeStock, toast]);
+
+  const validateCartStock = useCallback(async (
+    items: Array<{ variantId: string; quantity: number; productName?: string; size?: string }>,
+    oldItems?: Array<{ variantId: string; quantity: number }>
+  ): Promise<Array<{ productName: string; size: string; requested: number; available: number }>> => {
+    if (allowNegativeStock) return [];
+    return validateCartStockStrict(items, oldItems);
+  }, [validateCartStockStrict, allowNegativeStock]);
+
+  /**
    * Show toast notification for stock validation errors
    */
   const showStockError = useCallback((
@@ -321,6 +353,7 @@ export const useStockValidation = () => {
   return {
     checkStock,
     validateCartStock,
+    allowNegativeStock,
     showStockError,
     showMultipleStockErrors,
     checking,

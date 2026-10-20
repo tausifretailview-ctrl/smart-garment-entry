@@ -813,7 +813,7 @@ export default function POSSales() {
       returnIds: sameBillExchangeReturnIdsRef.current,
     });
   };
-  const { checkStock, validateCartStock } = useStockValidation();
+  const { checkStock, validateCartStock, allowNegativeStock } = useStockValidation();
   const { lockedVariantIds, isLocked: isVariantLockedForSettlement } = useOpenSettlementVariantIds();
   const queryClient = useQueryClient();
 
@@ -3427,7 +3427,7 @@ export default function POSSales() {
           });
         }
         // Serialized units are unique pieces — a zero-stock IMEI is already sold.
-        if (stockQty > 0 || (!isStockTrackedPosProduct(prod) && !needsImei)) {
+        if (stockQty > 0 || ((allowNegativeStock || !isStockTrackedPosProduct(prod)) && !needsImei)) {
           // Same barcode again → addItemToCart merges qty (+1), not a duplicate line.
           await addItemToCart(prod, dbVariant, undefined, 'barcode');
           recordPosBarcodeScanSuccess(trimmedTerm);
@@ -3493,6 +3493,10 @@ export default function POSSales() {
         );
         if (unavailableMatch) {
           setSearchInput("");
+          if (allowNegativeStock) {
+            await addItemToCart(unavailableMatch.product, unavailableMatch.variant, undefined, 'manual');
+            return;
+          }
           openStockIssueDialog(
             buildInsufficientStockIssue(
               unavailableMatch.product.product_name,
