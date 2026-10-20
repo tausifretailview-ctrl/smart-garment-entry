@@ -1496,16 +1496,6 @@ const PurchaseBillDashboard = () => {
         newStatus = 'partial';
       }
 
-      const { error: updateError } = await supabase
-        .from("purchase_bills")
-        .update({
-          paid_amount: newTotalPaid,
-          payment_status: newStatus,
-        })
-        .eq("id", selectedBillForPayment.id);
-
-      if (updateError) throw updateError;
-
       const { data: voucherNumber, error: voucherNumberError } = await supabase.rpc(
         "generate_voucher_number",
         { p_type: "payment", p_date: paymentDate }
@@ -1515,7 +1505,7 @@ const PurchaseBillDashboard = () => {
 
       const paymentDescription = `Payment for Bill: ${selectedBillForPayment.software_bill_no || selectedBillForPayment.supplier_invoice_no} | Supplier: ${selectedBillForPayment.supplier_name}${paymentNotes ? ` | ${paymentNotes}` : ''}`;
       
-      const { error: voucherError } = await supabase
+      const { data: voucherRow, error: voucherError } = await supabase
         .from("voucher_entries")
         .insert({
           organization_id: currentOrganization.id,
@@ -1527,9 +1517,26 @@ const PurchaseBillDashboard = () => {
           description: paymentDescription,
           total_amount: amount,
           created_by: user?.id ?? null,
-        });
+        })
+        .select("id")
+        .single();
 
       if (voucherError) throw voucherError;
+
+      // The bill is marked paid only after the payment voucher exists; if that update
+      // fails the voucher is removed so the bill and its payments stay in step.
+      const { error: updateError } = await supabase
+        .from("purchase_bills")
+        .update({
+          paid_amount: newTotalPaid,
+          payment_status: newStatus,
+        })
+        .eq("id", selectedBillForPayment.id);
+
+      if (updateError) {
+        if (voucherRow?.id) await supabase.from("voucher_entries").delete().eq("id", voucherRow.id);
+        throw updateError;
+      }
 
       toast({
         title: "Payment Recorded",

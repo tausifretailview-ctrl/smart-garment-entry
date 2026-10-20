@@ -52,7 +52,7 @@ describe("purchase line-qty edit keeps the sold-qty stock floor", () => {
 });
 
 describe("stock_movements allows purchase sku remaps", () => {
-  it("latest movement_type_check includes purchase_sku_change_in/out", async () => {
+  it("latest movement_type_check includes purchase_sku_change_in/out and stock transfer types", async () => {
     const dir = path.join(ROOT, "supabase/migrations");
     const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
     const rewrites: { version: string; file: string; body: string }[] = [];
@@ -66,9 +66,11 @@ describe("stock_movements allows purchase sku remaps", () => {
     }
     expect(rewrites.length).toBeGreaterThan(0);
     const latest = rewrites.reduce((a, b) => (a.version > b.version ? a : b));
-    expect(latest.version).toBe("20261207140000");
+    expect(latest.version).toBe("20270209120000");
     expect(latest.body).toMatch(/purchase_sku_change_in/);
     expect(latest.body).toMatch(/purchase_sku_change_out/);
+    expect(latest.body).toMatch(/'transfer_out'/);
+    expect(latest.body).toMatch(/'transfer_in'/);
   });
 });
 
