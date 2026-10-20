@@ -145,8 +145,7 @@ const ALL_REPORTS: ReportItem[] = [
     path: "/cn-sr-adjustment-register",
     desc: "Credit notes from sale returns, applied and remaining",
     tab: "sales",
-    permission: "sale_return_dashboard",
-    permissionAlt: "sale_return",
+    permission: "cn_sr_adjustment_register",
   },
   {
     icon: LineChart,
@@ -196,8 +195,7 @@ const ALL_REPORTS: ReportItem[] = [
     path: "/supplier-party-balances",
     desc: "Tally-style Cr/Dr payables list",
     tab: "purchase",
-    permission: "accounts_dashboard",
-    permissionAlt: "purchase_dashboard",
+    permission: "supplier_party_balances",
   },
   {
     icon: Package,
@@ -289,7 +287,7 @@ const ALL_REPORTS: ReportItem[] = [
     path: "/expense-salary-report",
     desc: "Payroll and expense breakdown",
     tab: "accounts",
-    permission: "accounting_reports_view",
+    permission: "expense_salary_report",
   },
   {
     icon: FileSpreadsheet,
@@ -315,7 +313,7 @@ const ALL_REPORTS: ReportItem[] = [
     desc: "Tally-style Dr/Cr party list",
     tab: "accounts",
     favourite: true,
-    permission: "customer_ledger",
+    permission: "customer_party_balances",
   },
   {
     icon: ClipboardList,
@@ -332,7 +330,6 @@ const ALL_REPORTS: ReportItem[] = [
     desc: "Printable account statement",
     tab: "accounts",
     permission: "customer_account_statement",
-    permissionAlt: "customer_ledger",
   },
   {
     icon: Coins,
@@ -349,7 +346,6 @@ const ALL_REPORTS: ReportItem[] = [
     desc: "Balance changes and activity log",
     tab: "accounts",
     permission: "customer_balance_activity",
-    permissionAlt: "customer_ledger",
   },
   {
     icon: ShieldCheck,
@@ -358,7 +354,6 @@ const ALL_REPORTS: ReportItem[] = [
     desc: "Outstanding verification",
     tab: "accounts",
     permission: "customer_audit_report",
-    permissionAlt: "customer_ledger",
   },
   {
     icon: Gift,
@@ -367,7 +362,6 @@ const ALL_REPORTS: ReportItem[] = [
     desc: "Earned, redeemed, and balance drift",
     tab: "accounts",
     permission: "customer_points_report",
-    permissionAlt: "customer_ledger",
     requiresPointsSystem: true,
   },
   {
@@ -417,7 +411,6 @@ const ALL_REPORTS: ReportItem[] = [
     desc: "Audit register for comparison",
     tab: "other",
     permission: "customer_account_statement",
-    permissionAlt: "customer_ledger",
   },
 ];
 

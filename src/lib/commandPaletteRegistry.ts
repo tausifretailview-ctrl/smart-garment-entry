@@ -244,7 +244,7 @@ export const COMMAND_PALETTE_REGISTRY: CommandPaletteRegistryItem[] = [
     icon: RotateCcw,
     path: "/cn-sr-adjustment-register",
     keywords: ["credit note", "sale return", "cn", "sr", "adjustment", "remaining"],
-    permission: "sale_return_dashboard",
+    permission: "cn_sr_adjustment_register",
   },
   {
     id: "nav-customer-notifications",

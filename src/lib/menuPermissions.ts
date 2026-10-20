@@ -28,7 +28,7 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   "sale-return-entry": "sale_return",
   "sale-returns": "sale_return_dashboard",
   "sale-return-dashboard": "sale_return_dashboard",
-  "cn-sr-adjustment-register": "sale_return_dashboard",
+  "cn-sr-adjustment-register": "cn_sr_adjustment_register",
   "customer-reviews": "customer_reviews",
   "customer-notifications": "customer_notifications",
   "advance-booking-dashboard": "advance_booking_dashboard",
@@ -54,6 +54,13 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   "accounts-payments": "accounts_payments",
   accounts: "accounts_dashboard",
   "customer-party-balances": "customer_party_balances",
+  "customer-ledger-report": "customer_ledger",
+  "customer-account-statement": "customer_account_statement",
+  "customer-account-statement-audit": "customer_account_statement",
+  "customer-balance-activity": "customer_balance_activity",
+  "customer-audit-report": "customer_audit_report",
+  "payment-flow": "payment_flow",
+  "expense-salary-report": "expense_salary_report",
   "supplier-party-balances": "supplier_party_balances",
   "customer-points-report": "customer_points_report",
   reports: "reports_hub",
@@ -117,11 +124,41 @@ const DEFAULT_ON_MENU_IDS = new Set([
   "business_insights",
 ]);
 
-/** Newer menu ids that follow an older right until the user saves their own choice in User Rights. */
-export const MENU_FALLBACK_WHEN_UNSET: Record<string, string> = {
-  customer_reviews: "sales_invoice_dashboard",
-  customer_notifications: "sales_invoice_dashboard",
+/**
+ * Newer menu ids that follow older rights until the user saves their own choice in User Rights.
+ * Only used while the id is unset: once User Rights saves true/false, that checkbox alone decides.
+ * Fallback ids resolve through this map too (e.g. balance activity → account statement → ledger).
+ */
+export const MENU_FALLBACK_WHEN_UNSET: Record<string, string[]> = {
+  customer_reviews: ["sales_invoice_dashboard"],
+  customer_notifications: ["sales_invoice_dashboard"],
+  customer_party_balances: ["customer_ledger"],
+  supplier_party_balances: ["accounts_dashboard", "purchase_dashboard"],
+  customer_account_statement: ["customer_ledger"],
+  customer_balance_activity: ["customer_account_statement", "customer_ledger"],
+  customer_audit_report: ["customer_ledger"],
+  customer_points_report: ["customer_ledger"],
+  payment_flow: ["customer_party_balances", "customer_ledger", "supplier_party_balances", "accounts_dashboard"],
+  cn_sr_adjustment_register: ["sale_return_dashboard", "sale_return"],
+  expense_salary_report: ["accounting_reports_view"],
 };
+
+function isGrantedInMenu(menu: Record<string, boolean>, id: string, depth = 0): boolean {
+  if (menu[id] === true) return true;
+  if (DEFAULT_ON_MENU_IDS.has(id) && menu[id] !== false) return true;
+  const fallbacks = MENU_FALLBACK_WHEN_UNSET[id];
+  if (!fallbacks || menu[id] !== undefined || depth > 4) return false;
+  return fallbacks.some((f) => isGrantedInMenu(menu, f, depth + 1));
+}
+
+/** Fill unset newer ids from their legacy rights, so User Rights shows what the menu actually grants. */
+export function applyMenuFallbacksWhenUnset(menu: Record<string, boolean>): Record<string, boolean> {
+  const out = { ...menu };
+  for (const id of Object.keys(MENU_FALLBACK_WHEN_UNSET)) {
+    if (out[id] === undefined) out[id] = isGrantedInMenu(menu, id);
+  }
+  return out;
+}
 
 export function isMenuPermissionGranted(
   permissions: { menu?: Record<string, boolean>; mainMenu?: Record<string, boolean> } | null,
@@ -135,16 +172,8 @@ export function isMenuPermissionGranted(
   }
 
   const menu = normalizeStoredMenuPermissions(permissions.menu);
-  if (menu[canonical] === true) return true;
   if (canonical !== menuId && menu[menuId] === true) return true;
-  if (DEFAULT_ON_MENU_IDS.has(canonical) && menu[canonical] !== false) {
-    return true;
-  }
-  const fallback = MENU_FALLBACK_WHEN_UNSET[canonical];
-  if (fallback && menu[canonical] === undefined && menu[fallback] === true) {
-    return true;
-  }
-  return false;
+  return isGrantedInMenu(menu, canonical);
 }
 
 /** Default route after login or when main dashboard is blocked. */

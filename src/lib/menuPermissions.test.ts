@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyMenuFallbacksWhenUnset,
   getMenuPermissionForPath,
   isMenuPermissionGranted,
   normalizeStoredMenuPermissions,
@@ -123,5 +124,45 @@ describe("menuPermissions", () => {
     expect(isMenuPermissionGranted(own, "customer_notifications")).toBe(false);
     const off = { menu: { sales_invoice_dashboard: true, customer_reviews: false }, mainMenu: {} };
     expect(isMenuPermissionGranted(off, "customer_reviews")).toBe(false);
+  });
+
+  it("hides a report whose own box is unticked even when the older right is on", () => {
+    const menu = {
+      customer_ledger: true,
+      accounts_dashboard: true,
+      purchase_dashboard: true,
+      sale_return_dashboard: true,
+      accounting_reports_view: true,
+      customer_party_balances: false,
+      supplier_party_balances: false,
+      customer_account_statement: false,
+      customer_balance_activity: false,
+      customer_audit_report: false,
+      customer_points_report: false,
+      payment_flow: false,
+      cn_sr_adjustment_register: false,
+      expense_salary_report: false,
+    };
+    const permissions = { menu, mainMenu: { reports: true } };
+    for (const id of Object.keys(menu).filter((k) => menu[k as keyof typeof menu] === false)) {
+      expect(isMenuPermissionGranted(permissions, id)).toBe(false);
+    }
+    expect(getMenuPermissionForPath("/payment-flow")).toBe("payment_flow");
+    expect(getMenuPermissionForPath("/cn-sr-adjustment-register")).toBe("cn_sr_adjustment_register");
+  });
+
+  it("keeps older rights working for reports never saved, and User Rights shows the same", () => {
+    const menu = { customer_ledger: true, sale_return: true };
+    const permissions = { menu, mainMenu: { reports: true } };
+    expect(isMenuPermissionGranted(permissions, "customer_party_balances")).toBe(true);
+    expect(isMenuPermissionGranted(permissions, "customer_balance_activity")).toBe(true);
+    expect(isMenuPermissionGranted(permissions, "payment_flow")).toBe(true);
+    expect(isMenuPermissionGranted(permissions, "cn_sr_adjustment_register")).toBe(true);
+    expect(isMenuPermissionGranted(permissions, "supplier_party_balances")).toBe(false);
+    const shown = applyMenuFallbacksWhenUnset(menu);
+    expect(shown.customer_party_balances).toBe(true);
+    expect(shown.payment_flow).toBe(true);
+    expect(shown.supplier_party_balances).toBe(false);
+    expect(shown.customer_reviews).toBe(false);
   });
 });

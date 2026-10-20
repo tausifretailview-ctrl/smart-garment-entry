@@ -11,7 +11,7 @@ import { Loader2, ChevronDown, ChevronRight, Shield, Users, Save, LayoutDashboar
 import { Label } from "@/components/ui/label";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { cn } from "@/lib/utils";
-import { normalizeStoredMenuPermissions } from "@/lib/menuPermissions";
+import { applyMenuFallbacksWhenUnset, normalizeStoredMenuPermissions } from "@/lib/menuPermissions";
 
 // Define menu structure with main menus and submenus
 const menuStructure = [
@@ -99,13 +99,16 @@ const menuStructure = [
       { id: "sales_analytics", name: "Sales Analytics Dashboard" },
       { id: "tally_export", name: "Tally Export" },
       { id: "accounting_reports_view", name: "Accounting Reports" },
+      { id: "expense_salary_report", name: "Expense & Salary Report" },
       { id: "net_profit_analysis", name: "Net Profit Analysis" },
       { id: "hourly_sales_analysis", name: "Hourly Sales Analysis" },
       { id: "customer_ledger", name: "Customer Ledger" },
       { id: "customer_party_balances", name: "Customer Balances" },
       { id: "supplier_party_balances", name: "Supplier Balances" },
+      { id: "payment_flow", name: "Payment Flow" },
       { id: "customer_account_statement", name: "Customer Account Statement" },
       { id: "customer_balance_activity", name: "Customer balance & activity" },
+      { id: "cn_sr_adjustment_register", name: "CN / S-R Adjustment Register" },
       { id: "customer_audit_report", name: "Customer Audit Report" },
       { id: "customer_points_report", name: "Customer Points Report" },
       { id: "customer_reviews", name: "Customer Reviews" },
@@ -287,6 +290,9 @@ const defaultManagerPermissions: Record<string, boolean> = {
   customer_points_report: true,
   customer_reviews: true,
   customer_notifications: true,
+  payment_flow: true,
+  cn_sr_adjustment_register: true,
+  expense_salary_report: true,
   delivery_dashboard: true,
   delivery_update: true,
   delivery_whatsapp: true,
@@ -400,31 +406,11 @@ const UserRights = () => {
   useEffect(() => {
     if (userPermissions?.permissions) {
       const perms = userPermissions.permissions as Record<string, any>;
-      const menuPerms = normalizeStoredMenuPermissions(
+      const storedMenu = normalizeStoredMenuPermissions(
         perms.menu || (selectedUserRole === "manager" ? defaultManagerPermissions : defaultBasicPermissions),
       );
-      // Backward compatibility: older records used one key (`customer_ledger`) for all customer report screens.
-      if (menuPerms.customer_account_statement === undefined) {
-        menuPerms.customer_account_statement = !!menuPerms.customer_ledger;
-      }
-      if (menuPerms.customer_balance_activity === undefined) {
-        menuPerms.customer_balance_activity = !!(
-          menuPerms.customer_account_statement || menuPerms.customer_ledger
-        );
-      }
-      if (menuPerms.customer_audit_report === undefined) {
-        menuPerms.customer_audit_report = !!menuPerms.customer_ledger;
-      }
-      if (menuPerms.customer_points_report === undefined) {
-        menuPerms.customer_points_report = !!menuPerms.customer_ledger;
-      }
-      // Customer Reviews / Notifications used to follow Sales Invoice Dashboard.
-      if (menuPerms.customer_reviews === undefined) {
-        menuPerms.customer_reviews = !!menuPerms.sales_invoice_dashboard;
-      }
-      if (menuPerms.customer_notifications === undefined) {
-        menuPerms.customer_notifications = !!menuPerms.sales_invoice_dashboard;
-      }
+      // Newer report rights follow their older right until saved (same rule the menu uses).
+      const menuPerms = applyMenuFallbacksWhenUnset(storedMenu);
       if (menuPerms.business_insights === undefined) {
         menuPerms.business_insights = true;
       }

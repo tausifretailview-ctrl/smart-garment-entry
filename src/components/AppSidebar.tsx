@@ -981,7 +981,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {(isAdminPermissions || hasMenuAccess("accounting_reports_view")) && (
+                        {(isAdminPermissions || hasMenuAccess("expense_salary_report")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/expense-salary-report")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
                               <NavLink to="/expense-salary-report" className="flex items-center gap-2 group">
@@ -1001,7 +1001,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {(isAdminPermissions || hasMenuAccess("customer_party_balances") || hasMenuAccess("customer_ledger")) && (
+                        {(isAdminPermissions || hasMenuAccess("customer_party_balances")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/customer-party-balances")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
                               <NavLink to="/customer-party-balances" className="flex items-center gap-2 group">
@@ -1011,7 +1011,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {(isAdminPermissions || hasMenuAccess("supplier_party_balances") || hasMenuAccess("accounts_dashboard") || hasMenuAccess("purchase_dashboard")) && (
+                        {(isAdminPermissions || hasMenuAccess("supplier_party_balances")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/supplier-party-balances")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
                               <NavLink to="/supplier-party-balances" className="flex items-center gap-2 group">
@@ -1021,7 +1021,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {(isAdminPermissions || hasMenuAccess("customer_party_balances") || hasMenuAccess("customer_ledger") || hasMenuAccess("supplier_party_balances") || hasMenuAccess("accounts_dashboard")) && (
+                        {(isAdminPermissions || hasMenuAccess("payment_flow")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/payment-flow")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
                               <NavLink to="/payment-flow" className="flex items-center gap-2 group">
@@ -1031,7 +1031,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {(isAdminPermissions || hasMenuAccess("customer_account_statement") || hasMenuAccess("customer_ledger")) && (
+                        {(isAdminPermissions || hasMenuAccess("customer_account_statement")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/customer-account-statement")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
                               <NavLink to="/customer-account-statement" className="flex items-center gap-2 group">
@@ -1041,7 +1041,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {(isAdminPermissions || hasMenuAccess("customer_account_statement") || hasMenuAccess("customer_ledger")) && (
+                        {(isAdminPermissions || hasMenuAccess("customer_account_statement")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/customer-account-statement-audit")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
                               <NavLink to="/customer-account-statement-audit" className="flex items-center gap-2 group" title="Audit register — compare with classic Customer Ledger">
@@ -1051,10 +1051,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {(isAdminPermissions ||
-                          hasMenuAccess("customer_balance_activity") ||
-                          hasMenuAccess("customer_account_statement") ||
-                          hasMenuAccess("customer_ledger")) && (
+                        {(isAdminPermissions || hasMenuAccess("customer_balance_activity")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton
                               asChild
@@ -1070,7 +1067,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {(isAdminPermissions || hasMenuAccess("sale_return_dashboard") || hasMenuAccess("sale_return")) && (
+                        {(isAdminPermissions || hasMenuAccess("cn_sr_adjustment_register")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/cn-sr-adjustment-register")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
                               <NavLink to="/cn-sr-adjustment-register" className="flex items-center gap-2 group" title="Credit notes from sale returns with allocated remaining">
@@ -1100,7 +1097,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {(isAdminPermissions || hasMenuAccess("customer_audit_report") || hasMenuAccess("customer_ledger")) && (
+                        {(isAdminPermissions || hasMenuAccess("customer_audit_report")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/customer-audit-report")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
                               <NavLink to="/customer-audit-report" className="flex items-center gap-2 group" title="Verified customer outstanding balance">
@@ -1111,9 +1108,7 @@ export function AppSidebar() {
                           </SidebarMenuSubItem>
                         )}
                         {enablePointsSystem &&
-                          (isAdminPermissions ||
-                            hasMenuAccess("customer_points_report") ||
-                            hasMenuAccess("customer_ledger")) && (
+                          (isAdminPermissions || hasMenuAccess("customer_points_report")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/customer-points-report")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
                               <NavLink to="/customer-points-report" className="flex items-center gap-2 group" title="Customer points earned, redeemed, and drift">
