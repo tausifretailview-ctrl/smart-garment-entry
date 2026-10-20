@@ -365,7 +365,7 @@ export async function loadProfitDataset(
   const returnsQuery = (from: number, to: number) => supabase
     .from("sale_returns")
     .select(
-      "id, linked_sale_id, original_sale_number, customer_id, customer_name, payment_method, return_date",
+      "id, linked_sale_id, original_sale_number, customer_id, customer_name, payment_method, return_date, net_amount",
     )
     .eq("organization_id", organizationId)
     .gte("return_date", fromTimestamp)
@@ -400,17 +400,7 @@ export async function loadProfitDataset(
   const saleById = new Map(saleRows.map((s) => [s.id, s]));
   const saleByNumber = new Map(saleRows.map((s) => [s.sale_number, s]));
 
-  type ReturnHeader = {
-    id: string;
-    linked_sale_id: string | null;
-    original_sale_number: string | null;
-    customer_id: string | null;
-    customer_name: string;
-    payment_method: string | null;
-    return_date: string;
-  };
-
-  const returnHeaders = (returns || []) as ReturnHeader[];
+  const returnHeaders = (returns || []) as NetProfitReturnHeader[];
   const returnById = new Map(returnHeaders.map((r) => [r.id, r]));
 
   // Sale lines and return lines are independent — fetch them together.
@@ -426,7 +416,14 @@ export async function loadProfitDataset(
       : Promise.resolve<Awaited<ReturnType<typeof fetchSaleReturnItemsByIds>>>([]),
   ]);
 
-  if (saleItems.length === 0 && returnItems.length === 0) {
+  // Amount-only returns (e.g. "Old sale return" from POS S/R Adj) have no item
+  // rows; their credit note value still comes off sales in the S/R view.
+  const returnIdsWithItems = new Set(returnItems.map((ri: any) => ri.return_id as string));
+  const amountOnlyReturns = returnHeaders.filter(
+    (r) => !returnIdsWithItems.has(r.id) && Math.abs(Number(r.net_amount) || 0) > 0,
+  );
+
+  if (saleItems.length === 0 && returnItems.length === 0 && amountOnlyReturns.length === 0) {
     return { lines: [], totals: sumLines([]) };
   }
 
@@ -613,8 +610,75 @@ export async function loadProfitDataset(
     });
   });
 
+  amountOnlyReturns.forEach((ret) => {
+    const linkedSale =
+      (ret.linked_sale_id && saleById.get(ret.linked_sale_id)) ||
+      (ret.original_sale_number && saleByNumber.get(ret.original_sale_number)) ||
+      null;
+    lines.push(amountOnlyReturnLine(ret, linkedSale));
+  });
+
   const totals = sumLines(lines);
   return { lines, totals };
+}
+
+export type NetProfitReturnHeader = {
+  id: string;
+  linked_sale_id: string | null;
+  original_sale_number: string | null;
+  customer_id: string | null;
+  customer_name: string;
+  payment_method: string | null;
+  return_date: string;
+  net_amount?: number | null;
+};
+
+export const AMOUNT_ONLY_RETURN_LABEL = "Return without items";
+
+/** Return line for a sale return saved as an amount only (no item rows). No stock, so no COGS. */
+export function amountOnlyReturnLine(
+  ret: NetProfitReturnHeader,
+  linkedSale: {
+    id: string;
+    sale_number: string;
+    sale_date: string;
+    customer_id: string | null;
+    customer_name: string;
+    salesman: string | null;
+    payment_method: string;
+  } | null,
+): ProfitLine {
+  return {
+    qty: 0,
+    grossSales: 0,
+    totalDiscounts: 0,
+    roundOff: 0,
+    netSales: 0,
+    totalCOGS: 0,
+    zeroCostQty: 0,
+    sign: -1,
+    returnQty: 0,
+    returnAmount: Math.abs(Number(ret.net_amount) || 0),
+    returnCOGS: 0,
+    supplierId: null,
+    supplierName: AMOUNT_ONLY_RETURN_LABEL,
+    productId: "amount-only-return",
+    productName: AMOUNT_ONLY_RETURN_LABEL,
+    brand: null,
+    category: null,
+    style: null,
+    size: null,
+    color: null,
+    hsn: null,
+    productType: "goods",
+    saleId: linkedSale?.id ?? ret.linked_sale_id ?? null,
+    saleNumber: linkedSale?.sale_number ?? ret.original_sale_number ?? "Unlinked Return",
+    saleDate: linkedSale?.sale_date ?? ret.return_date ?? null,
+    customerId: ret.customer_id ?? linkedSale?.customer_id ?? null,
+    customerName: ret.customer_name || linkedSale?.customer_name || "Walk-in",
+    salesman: linkedSale?.salesman ?? null,
+    paymentMethod: ret.payment_method ?? linkedSale?.payment_method ?? null,
+  };
 }
 
 /**
@@ -838,8 +902,8 @@ export function sumAggregates(rows: ProfitAggregateRow[]): ProfitDataset["totals
   };
 }
 
-export function rowsHaveReturns(rows: { qtyReturned: number }[]): boolean {
-  return rows.some((r) => (Number(r.qtyReturned) || 0) > 0);
+export function rowsHaveReturns(rows: { qtyReturned: number; returnAmount?: number }[]): boolean {
+  return rows.some((r) => (Number(r.qtyReturned) || 0) > 0 || (Number(r.returnAmount) || 0) > 0);
 }
 
 export const FIELD_DIMENSION_OPTIONS: {

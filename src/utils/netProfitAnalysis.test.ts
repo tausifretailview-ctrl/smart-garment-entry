@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   aggregateForTab,
+  amountOnlyReturnLine,
   applySrAdjusted,
   computeSaleLineRevenue,
   profitSalesmanName,
@@ -504,5 +505,29 @@ describe("S/R Adjusted view", () => {
     expect(adjusted.grossProfit).toBe(700);
     expect(adjusted.returnAmount).toBe(2000);
     expect(adjusted.itemsSold).toBe(1);
+  });
+
+  it("amount-only old sale return (no items) still comes off sales", () => {
+    // POS S/R Adj "Old sale return": ₹1,600 credit note with no item rows, used on a new bill.
+    const ret = amountOnlyReturnLine(
+      {
+        id: "r1",
+        linked_sale_id: "s2",
+        original_sale_number: null,
+        customer_id: "c1",
+        customer_name: "HASAN",
+        payment_method: null,
+        return_date: "2026-10-07T00:00:00+05:30",
+        net_amount: 1600,
+      },
+      null,
+    );
+    const lines = [line({ netSales: 5000, totalCOGS: 3000, saleId: "s2" }), ret];
+    expect(rowsHaveReturns(aggregateForTab(lines, "supplier-wise"))).toBe(true);
+    const adjusted = sumAggregates(aggregateForTab(applySrAdjusted(lines), "date-wise"));
+    expect(adjusted.netSales).toBe(3400);
+    expect(adjusted.totalCOGS).toBe(3000);
+    expect(adjusted.returnAmount).toBe(1600);
+    expect(adjusted.qtyReturned).toBe(0);
   });
 });
