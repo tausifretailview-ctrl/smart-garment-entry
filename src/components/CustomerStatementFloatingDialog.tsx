@@ -52,7 +52,7 @@ interface CustomerStatementFloatingDialogProps {
 
 function canAccessStatement(hasMenuAccess: (id: string) => boolean, permissions: unknown) {
   if (permissions === null) return true;
-  return hasMenuAccess("customer_account_statement") || hasMenuAccess("customer_ledger");
+  return hasMenuAccess("customer_account_statement");
 }
 
 export function CustomerStatementFloatingDialog({ open, onOpenChange }: CustomerStatementFloatingDialogProps) {

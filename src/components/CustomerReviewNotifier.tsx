@@ -35,7 +35,7 @@ export function CustomerReviewNotifier() {
 
   const orgId = currentOrganization?.id;
   const canNotify =
-    !permLoading && !!orgId && (isAdmin || isAdminPermissions || hasMenuAccess("sales_invoice_dashboard"));
+    !permLoading && !!orgId && (isAdmin || isAdminPermissions || hasMenuAccess("customer_reviews"));
 
   // Clicks on a background notification come back from the service worker.
   useEffect(() => {
