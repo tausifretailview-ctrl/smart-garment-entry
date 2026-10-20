@@ -63,7 +63,8 @@ import { useSettings, useProductFieldSettings } from "@/hooks/useSettings";
 import {
   catalogSearchIlikeTerm,
   fetchCatalogRowsForProductIds,
-  fetchProductIdsByBarcodeSearch,
+  fetchProductIdsByExactBarcode,
+  fetchProductIdsByPartialBarcode,
   fetchProductIdsByCatalogTextSearch,
   looksLikeBarcodeSearch,
   normalizeProductSearchTerm,
@@ -719,6 +720,7 @@ const ProductDashboard = () => {
     data: catalogData,
     isLoading: catalogLoading,
     isFetching: catalogFetching,
+    isPlaceholderData: catalogIsPlaceholder,
     error: catalogError,
     refetch: refetchCatalog,
   } = useQuery({
@@ -734,6 +736,38 @@ const ProductDashboard = () => {
       if (!currentOrganization?.id) return { rows: [] as ProductRow[], totalCount: 0 };
       const params = { ...buildRpcParams(), p_page: currentPage, p_page_size: itemsPerPage };
       const searchTerm = normalizeProductSearchTerm(debouncedSearch);
+      const barcodeLike = searchTerm.length >= 3 && looksLikeBarcodeSearch(searchTerm);
+
+      const catalogRowPassesFilters = (
+        row: { category: string; product_type: string; size_group_id: string; total_stock: number },
+      ) => {
+        if (selectedCategory !== "all" && row.category !== selectedCategory) return false;
+        if (selectedProductType !== "all" && row.product_type !== selectedProductType) return false;
+        if (selectedSizeGroup !== "all" && row.size_group_id !== selectedSizeGroup) return false;
+        if (selectedStockLevel === "in_stock" && row.total_stock <= 0) return false;
+        if (selectedStockLevel === "out_of_stock" && row.total_stock > 0) return false;
+        if (selectedStockLevel === "low_stock") {
+          if (row.total_stock < 1 || row.total_stock > lowStockThreshold) return false;
+        }
+        return true;
+      };
+
+      // Scanned/typed barcode: the exact variant lookup is indexed and returns in
+      // milliseconds, while the catalog RPC scans every product's barcodes with
+      // ilike (seconds on big catalogs). On an exact hit, show just that product.
+      const exactBarcodeIds = barcodeLike && !minPrice && !maxPrice
+        ? await fetchProductIdsByExactBarcode(currentOrganization.id, searchTerm)
+        : [];
+      if (exactBarcodeIds.length > 0) {
+        const exactRows = (
+          await fetchCatalogRowsForProductIds(currentOrganization.id, exactBarcodeIds)
+        ).filter(catalogRowPassesFilters);
+        return {
+          rows: exactRows.map((row) => ({ ...row, variants: [] })),
+          totalCount: exactRows.length,
+        };
+      }
+
       const { data, error } = await supabase.rpc("get_product_catalog_page", params);
       if (error) throw error;
 
@@ -772,18 +806,7 @@ const ProductDashboard = () => {
           currentOrganization.id,
           missingIds,
         );
-        const passesFilters = (row: (typeof supplemental)[number]) => {
-          if (selectedCategory !== "all" && row.category !== selectedCategory) return false;
-          if (selectedProductType !== "all" && row.product_type !== selectedProductType) return false;
-          if (selectedStockLevel === "in_stock" && row.total_stock <= 0) return false;
-          if (selectedStockLevel === "out_of_stock" && row.total_stock > 0) return false;
-          if (selectedStockLevel === "low_stock") {
-            if (row.total_stock < 1 || row.total_stock > lowStockThreshold) return false;
-          }
-          return true;
-        };
-
-        for (const row of supplemental.filter(passesFilters)) {
+        for (const row of supplemental.filter(catalogRowPassesFilters)) {
           rows.push({
             ...row,
             variants: [],
@@ -793,7 +816,8 @@ const ProductDashboard = () => {
 
       // Barcode + slash/space name supplement so catalog matches Quick Stock
       if (searchTerm.length >= 3) {
-        const barcodeProductIds = await fetchProductIdsByBarcodeSearch(
+        // Exact barcode already checked above (no hit), so only partial is left.
+        const barcodeProductIds = await fetchProductIdsByPartialBarcode(
           currentOrganization.id,
           searchTerm,
         );
@@ -907,6 +931,13 @@ const ProductDashboard = () => {
   const totalCount = catalogData?.totalCount ?? 0;
   const loading = catalogLoading && productRows.length === 0;
   const isRefetching = catalogFetching && productRows.length > 0;
+  // keepPreviousData shows the old list while a new search/filter loads; flag
+  // it so the old "3,335 results" page is not mistaken for the search result.
+  const showingStaleCatalog = catalogIsPlaceholder && catalogFetching;
+  const searchPending =
+    !!searchQuery.trim() &&
+    (normalizeProductSearchTerm(searchQuery) !== normalizeProductSearchTerm(debouncedSearch) ||
+      showingStaleCatalog);
 
   useNavPerfQueryWatch("product-catalog", PERF_PATH, {
     isLoading: catalogLoading,
@@ -1823,7 +1854,13 @@ const ProductDashboard = () => {
             </Popover>
             {searchQuery && (
               <span className="text-sm text-slate-500 whitespace-nowrap">
-                {totalCount.toLocaleString("en-IN")} results
+                {searchPending ? (
+                  <span className="inline-flex items-center gap-1">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
+                  </span>
+                ) : (
+                  `${totalCount.toLocaleString("en-IN")} results`
+                )}
               </span>
             )}
             <div id="erp-toolbar-portal-product" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
@@ -2118,7 +2155,11 @@ const ProductDashboard = () => {
           </Card>
         )}
 
-          <div className="product-dashboard-table-panel min-h-0 flex-1 overflow-y-auto overflow-x-auto">
+          <div
+            className={`product-dashboard-table-panel min-h-0 flex-1 overflow-y-auto overflow-x-auto transition-opacity ${
+              searchPending || showingStaleCatalog ? "opacity-50 pointer-events-none" : ""
+            }`}
+          >
             {filteredRows.length === 0 && !loading ? (
               <div className="text-center py-16 text-muted-foreground">
                 <Package className="h-14 w-14 mx-auto mb-4 opacity-50" />
