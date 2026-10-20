@@ -35,47 +35,59 @@ function escapeIlike(term: string): string {
   return term.replace(/[%_\\]/g, (c) => `\\${c}`);
 }
 
-/** Resolve product ids whose variants match barcode (exact first, then partial). */
-export async function fetchProductIdsByBarcodeSearch(
+/** Product ids whose live variant barcode equals the term exactly (indexed, fast). */
+export async function fetchProductIdsByExactBarcode(
   organizationId: string,
   term: string,
 ): Promise<string[]> {
   const normalized = normalizeProductSearchTerm(term);
   if (!normalized) return [];
 
-  const ids = new Set<string>();
-
-  const { data: exact, error: exactErr } = await supabase
+  const { data, error } = await supabase
     .from("product_variants")
     .select("product_id")
     .eq("organization_id", organizationId)
     .is("deleted_at", null)
     .eq("barcode", normalized);
 
-  if (exactErr) {
-    console.warn("[productDashboardBarcodeSearch] exact barcode lookup failed", exactErr.message);
-  } else {
-    (exact ?? []).forEach((row) => ids.add(row.product_id));
+  if (error) {
+    console.warn("[productDashboardBarcodeSearch] exact barcode lookup failed", error.message);
+    return [];
   }
+  return [...new Set((data ?? []).map((row) => row.product_id))];
+}
 
-  if (ids.size === 0) {
-    const escaped = escapeIlike(normalized);
-    const { data: partial, error: partialErr } = await supabase
-      .from("product_variants")
-      .select("product_id")
-      .eq("organization_id", organizationId)
-      .is("deleted_at", null)
-      .ilike("barcode", `%${escaped}%`)
-      .limit(100);
+/** Product ids whose live variant barcode contains the term (max 100). */
+export async function fetchProductIdsByPartialBarcode(
+  organizationId: string,
+  term: string,
+): Promise<string[]> {
+  const normalized = normalizeProductSearchTerm(term);
+  if (!normalized) return [];
 
-    if (partialErr) {
-      console.warn("[productDashboardBarcodeSearch] partial barcode lookup failed", partialErr.message);
-    } else {
-      (partial ?? []).forEach((row) => ids.add(row.product_id));
-    }
+  const { data, error } = await supabase
+    .from("product_variants")
+    .select("product_id")
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null)
+    .ilike("barcode", `%${escapeIlike(normalized)}%`)
+    .limit(100);
+
+  if (error) {
+    console.warn("[productDashboardBarcodeSearch] partial barcode lookup failed", error.message);
+    return [];
   }
+  return [...new Set((data ?? []).map((row) => row.product_id))];
+}
 
-  return [...ids];
+/** Resolve product ids whose variants match barcode (exact first, then partial). */
+export async function fetchProductIdsByBarcodeSearch(
+  organizationId: string,
+  term: string,
+): Promise<string[]> {
+  const exact = await fetchProductIdsByExactBarcode(organizationId, term);
+  if (exact.length > 0) return exact;
+  return fetchProductIdsByPartialBarcode(organizationId, term);
 }
 
 /** Product ids whose name/brand/style/category match Quick Stock text search. */
