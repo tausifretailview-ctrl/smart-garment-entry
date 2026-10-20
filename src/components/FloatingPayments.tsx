@@ -895,8 +895,8 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
           const newPaid = (bill.paid_amount || 0) + amountToApply;
           const newStatus =
             newPaid >= (bill.net_amount || 0) - 0.01 ? "paid" : newPaid > 0.01 ? "partial" : "unpaid";
-          await supabase.from('purchase_bills').update({ paid_amount: newPaid, payment_status: newStatus }).eq('id', billId);
-          processedBills.push({ bill, amountApplied: amountToApply });
+          // Bills are updated only after the payment vouchers below are saved.
+          processedBills.push({ bill, amountApplied: amountToApply, newPaid, newStatus });
           remainingAmount -= amountToApply;
         }
       }
@@ -918,8 +918,11 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
         allocations: processedBills.map((p) => ({ bill: p.bill, amountApplied: p.amountApplied })),
       });
 
+      // A bill is marked paid only after its payment voucher exists; a failed insert
+      // removes the vouchers already written so nothing is half-recorded.
+      const insertedVoucherIds: string[] = [];
       for (const row of voucherRows) {
-        const { error: voucherError } = await supabase.from("voucher_entries").insert({
+        const { data: ins, error: voucherError } = await supabase.from("voucher_entries").insert({
           organization_id: organizationId,
           voucher_number: `${voucherNumber}${row.voucherNumberSuffix}`,
           voucher_type: "payment",
@@ -934,8 +937,22 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
           }),
           total_amount: row.amount,
           created_by: user?.id ?? null,
-        });
-        if (voucherError) throw voucherError;
+        }).select("id").single();
+        if (voucherError || !ins?.id) {
+          for (const vid of insertedVoucherIds) {
+            await supabase.from("voucher_entries").delete().eq("id", vid);
+          }
+          throw voucherError ?? new Error("Supplier payment voucher insert failed");
+        }
+        insertedVoucherIds.push(ins.id);
+      }
+
+      for (const p of processedBills) {
+        const { error: billError } = await supabase
+          .from("purchase_bills")
+          .update({ paid_amount: p.newPaid, payment_status: p.newStatus })
+          .eq("id", p.bill.id);
+        if (billError) throw billError;
       }
     },
     onSuccess: () => {
