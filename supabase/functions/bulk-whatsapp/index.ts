@@ -82,6 +82,7 @@ serve(async (req) => {
 
   const organizationId = String(body.organizationId ?? "").trim();
   if (!organizationId) return json({ error: "organizationId is required" }, 400);
+  if (action === "platform-link-status") return await platformLinkStatus(admin, userId, organizationId);
   const access = await bulkAccess(admin, userId, organizationId);
   if (!access.allowed) return json({ error: "You do not have the Bulk WhatsApp right in this organization" }, 403);
   if (action === "session-start" || action === "create" || action === "resume" || action === "resend-failed" || action === "inbox-send") {
@@ -192,6 +193,34 @@ serve(async (req) => {
 
   return json({ error: "Unknown action" }, 400);
 });
+
+/**
+ * Platform Admin > WhatsApp Only tab: is each user of this shop linked on the bulk server?
+ * Read-only status calls; it never starts or logs out a session.
+ */
+async function platformLinkStatus(admin: SupabaseClient, userId: string, organizationId: string) {
+  const { data: isPlatformAdmin } = await admin.rpc("has_role", { _user_id: userId, _role: "platform_admin" });
+  if (isPlatformAdmin !== true) return json({ error: "Only platform admins can check this" }, 403);
+  const { data: members, error } = await admin
+    .from("organization_members")
+    .select("user_id")
+    .eq("organization_id", organizationId);
+  if (error) return json({ error: error.message }, 500);
+  const users = await Promise.all(
+    (members ?? []).map(async (m: { user_id: string }) => {
+      const result = await bulkGateway(`/sessions/u_${m.user_id}/status`);
+      if (!result.ok) {
+        return { userId: m.user_id, status: "unknown", connectedNumber: null, error: result.data.error ?? "WhatsApp server error" };
+      }
+      return {
+        userId: m.user_id,
+        status: String(result.data.status ?? "disconnected"),
+        connectedNumber: (result.data.connectedNumber as string | null | undefined) ?? null,
+      };
+    }),
+  );
+  return json({ success: true, users });
+}
 
 async function bulkAccess(admin: SupabaseClient, userId: string, organizationId: string) {
   const { data: isAdmin } = await admin.rpc("has_org_role", {
