@@ -23,6 +23,7 @@ import { reverseBalanceAdjustmentVouchers } from "@/utils/applyAdjustmentToInvoi
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { createCustomerAdvance } from "@/utils/createCustomerAdvance";
 import { deductCustomerAdvanceManually } from "@/utils/deductCustomerAdvanceManually";
+import { escapeHtml } from "@/utils/escapeHtml";
 
 const PAGE_SIZE = 10;
 
@@ -254,15 +255,15 @@ export function RecentBalanceAdjustments({ organizationId, visitedTabs }: Props)
         <p>Date: ${format(new Date(adj.created_at), "dd/MM/yyyy HH:mm")}</p>
       </div>
       <table>
-        <tr><th>Customer</th><td>${adj.customers?.customer_name || "—"}</td></tr>
-        <tr><th>Phone</th><td>${adj.customers?.phone || "—"}</td></tr>
+        <tr><th>Customer</th><td>${escapeHtml(adj.customers?.customer_name || "—")}</td></tr>
+        <tr><th>Phone</th><td>${escapeHtml(adj.customers?.phone || "—")}</td></tr>
         <tr><th>Prev Outstanding</th><td>₹${(adj.previous_outstanding || 0).toLocaleString("en-IN")}</td></tr>
         <tr><th>New Outstanding</th><td>₹${(adj.new_outstanding || 0).toLocaleString("en-IN")}</td></tr>
         <tr><th>Outstanding Change</th><td>${adj.outstanding_difference > 0 ? "+" : ""}${(adj.outstanding_difference || 0).toLocaleString("en-IN")}</td></tr>
         <tr><th>Prev Advance</th><td>₹${(adj.previous_advance || 0).toLocaleString("en-IN")}</td></tr>
         <tr><th>New Advance</th><td>₹${(adj.new_advance || 0).toLocaleString("en-IN")}</td></tr>
         <tr><th>Advance Change</th><td>${adj.advance_difference > 0 ? "+" : ""}${(adj.advance_difference || 0).toLocaleString("en-IN")}</td></tr>
-        <tr><th>Reason</th><td>${adj.reason || "—"}</td></tr>
+        <tr><th>Reason</th><td>${escapeHtml(adj.reason || "—")}</td></tr>
       </table>
       </body></html>
     `);

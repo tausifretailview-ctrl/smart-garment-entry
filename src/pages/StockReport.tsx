@@ -71,6 +71,7 @@ import {
   stockReportOldBarcodeKeyMatches,
 } from "@/utils/posBarcodeCartLookup";
 import { mergeActivityNavigationState } from "@/lib/activityCenterNavigation";
+import { escapeHtml } from "@/utils/escapeHtml";
 import {
   buildStockReportFilterOptions,
   buildStockReportRpcFilters,
@@ -1555,11 +1556,11 @@ export default function StockReport() {
     const rows = filteredStockItems.map((item, i) => `
       <tr style="${i % 2 === 0 ? '' : 'background:#f9f9f9;'}">
         <td style="text-align:center">${i + 1}</td>
-        <td>${item.product_name}</td>
-        ${showBrand ? `<td>${item.brand}</td>` : ""}
-        <td>${item.size}</td>
-        ${showColor ? `<td>${item.color || ""}</td>` : ""}
-        <td>${item.barcode}</td>
+        <td>${escapeHtml(item.product_name)}</td>
+        ${showBrand ? `<td>${escapeHtml(item.brand)}</td>` : ""}
+        <td>${escapeHtml(item.size)}</td>
+        ${showColor ? `<td>${escapeHtml(item.color || "")}</td>` : ""}
+        <td>${escapeHtml(item.barcode)}</td>
         <td style="text-align:right">${item.opening_qty}</td>
         <td style="text-align:right">${item.purchase_qty}</td>
         <td style="text-align:right">${item.purchase_return_qty}</td>
@@ -1596,7 +1597,7 @@ export default function StockReport() {
         th { background: #f0f0f0; font-size: 8px; text-transform: uppercase; }
         @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
       </style></head><body>
-      <h2>${orgName} — Stock Report</h2>
+      <h2>${escapeHtml(orgName)} — Stock Report</h2>
       <div class="sub">Generated: ${dateStr} | Items: ${filteredStockItems.length} | Total Stock: ${totalStock.toLocaleString('en-IN')}</div>
       <table>
         <thead><tr>

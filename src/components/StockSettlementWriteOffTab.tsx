@@ -30,6 +30,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { escapeHtml } from "@/utils/escapeHtml";
 import {
   fetchZeroRunForSession,
   reverseUnscannedStockSettlement,
@@ -195,8 +196,8 @@ export default function StockSettlementWriteOffTab({
         (p, i) =>
           `<tr>
             <td>${i + 1}</td>
-            <td>${p.barcode || "—"}</td>
-            <td>${p.name.replace(/</g, "&lt;")}</td>
+            <td>${escapeHtml(p.barcode || "—")}</td>
+            <td>${escapeHtml(p.name)}</td>
             <td style="text-align:right">${p.softwareStock}</td>
             <td style="text-align:right">${formatInr(p.purPrice)}</td>
             <td style="text-align:right">${formatInr(p.softwareStock * p.purPrice)}</td>

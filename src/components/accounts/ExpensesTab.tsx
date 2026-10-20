@@ -30,6 +30,7 @@ import {
 } from "@/components/accounts/accountsHistoryUi";
 import { AccountingEntriesGuide } from "@/components/accounting/AccountingEntriesGuide";
 import { paymentSubmitInlineClass } from "@/utils/paymentTabLayout";
+import { escapeHtml } from "@/utils/escapeHtml";
 import {
   Tooltip,
   TooltipContent,
@@ -484,19 +485,19 @@ export function ExpensesTab({
         @media print { body { padding: 10px; } }
       </style></head><body>
       <div class="header">
-        <h2>${settings?.business_name || "Business"}</h2>
+        <h2>${escapeHtml(settings?.business_name || "Business")}</h2>
         <h3>EXPENSE VOUCHER</h3>
       </div>
       <div class="meta">
-        <span>Voucher No: <b>${v.voucher_number}</b></span>
+        <span>Voucher No: <b>${escapeHtml(v.voucher_number)}</b></span>
         <span>Date: <b>${format(new Date(v.voucher_date), "dd/MM/yyyy")}</b></span>
       </div>
       <div class="details">
-        <div class="row"><span class="label">Category:</span><span>${v.category || v.description || "—"}</span></div>
-        <div class="row"><span class="label">Narration:</span><span>${v.description || "—"}</span></div>
-        <div class="row"><span class="label">Payment By:</span><span>${(v.payment_method || "cash").replace("_", " ").toUpperCase()}</span></div>
-        <div class="row"><span class="label">Paid By:</span><span>${v.paid_by || "—"}</span></div>
-        <div class="row"><span class="label">Bill/Ref No:</span><span>${v.receipt_number || "—"}</span></div>
+        <div class="row"><span class="label">Category:</span><span>${escapeHtml(v.category || v.description || "—")}</span></div>
+        <div class="row"><span class="label">Narration:</span><span>${escapeHtml(v.description || "—")}</span></div>
+        <div class="row"><span class="label">Payment By:</span><span>${escapeHtml((v.payment_method || "cash").replace("_", " ").toUpperCase())}</span></div>
+        <div class="row"><span class="label">Paid By:</span><span>${escapeHtml(v.paid_by || "—")}</span></div>
+        <div class="row"><span class="label">Bill/Ref No:</span><span>${escapeHtml(v.receipt_number || "—")}</span></div>
       </div>
       <div class="amount-box">AMOUNT: ₹${Number(v.total_amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
       <div class="footer">
