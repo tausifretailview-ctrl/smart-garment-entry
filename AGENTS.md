@@ -3,73 +3,37 @@
 ## Cursor Cloud specific instructions
 
 ### What this project is
-EzzyERP — a single Vite + React + TypeScript web app (multi-tenant retail POS / billing / inventory / accounting for Indian businesses). It also has thin Capacitor (Android) and Electron (Windows) wrappers, but the web app is the primary surface. Package manager is **npm** (`package-lock.json`). All `package.json` scripts call `npm run`. Do not add a second lockfile — Vercel auto-detects the package manager from whichever lockfile is present.
+EzzyERP — one Vite + React + TypeScript web app (multi-tenant retail POS / billing / inventory / accounting for Indian businesses), with thin Capacitor (Android) and Electron (Windows) wrappers; the web app is the primary surface. Package manager is **npm** (`package-lock.json`) and all `package.json` scripts call `npm run`. Never add a second lockfile — Vercel detects the package manager from whichever lockfile is present.
 
 ### Backend
-- The sole backend is a **cloud-hosted Supabase project** (Postgres + Auth + RLS + Edge Functions), owned by Lovable. Credentials are already committed in `.env` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`). No local database/backend needs to be started to run or develop the frontend.
-- The Supabase URL in `.env` points at the **live production** instance used by real tenants. Treat it as production: do NOT create test users, organizations, or sample data against it. `supabase/migrations/*` live in the managed cloud project; this repo keeps copies for review, but applying them (SQL editor / Lovable pipeline) is a separate step from the Vercel frontend build.
-- Edge function source lives in `supabase/functions/`. Merging to `main` and the Vercel build do **not** deploy Deno functions. After changing one, run `supabase functions deploy <name>` (or the team's edge-function pipeline). Until that happens, production keeps serving the old bundle — e.g. a `get-users` paging fix on main is a no-op until `get-users` is redeployed.
+- The sole backend is a **cloud-hosted Supabase project** (Postgres + Auth + RLS + Edge Functions), owned by Lovable. Credentials are committed in `.env` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`); no local backend needs to be started.
+- That URL is the **live production** instance used by real tenants: do NOT create test users, organizations, or sample data against it. `supabase/migrations/*` are copies kept for review; applying them (SQL editor / Lovable pipeline) is separate from the Vercel build.
+- Edge function source lives in `supabase/functions/`. Merging to `main` and the Vercel build do **not** deploy Deno functions — run `supabase functions deploy <name>` (or the team's pipeline), otherwise production keeps serving the old bundle.
 
 ### Running / building (commands live in `package.json`)
-- Dev server: `npm run dev` → Vite on **port 8080** (host `::`). This is the main way to run the app.
+- Dev server: `npm run dev` → Vite on **port 8080** (host `::`).
+- `vite.config.ts` must keep `envDir` pinned and wrap the Supabase stack plugin in `guardEnvDir()`: the sandbox plugin host hands plugin `configResolved` hooks a config whose `envDir` is unset, so the plugin's `loadEnv("production", config.envDir, ...)` throws and the dev server dies on boot.
 - Build: `npm run build` (prod) or `npm run build:dev`. Preview a build with `npm run preview`.
-- Lint: `npm run lint`. NOTE: the existing codebase currently reports thousands of pre-existing eslint errors (mostly `@typescript-eslint/no-explicit-any`); a non-zero lint exit is the repo baseline, not something your change necessarily introduced. Judge lint by the delta on files you touched.
+- Lint: `npm run lint`. Thousands of pre-existing eslint errors (mostly `@typescript-eslint/no-explicit-any`) are the repo baseline; judge by the delta on files you touched.
 
 ### Console / load performance
-- Do **not** add `console.log` / `console.info` on POS, dashboard, or paginated-fetch hot paths. DevTools serializes those on the main thread and the app feels frozen. See `docs/console-perf-protections.md` and `.cursor/rules/console-hot-paths.mdc`.
-- New probes must use `diagConsoleInfo` (`src/lib/diagConsole.ts`) behind a `localStorage` flag. In-memory + `window.__ezzy*.print()` is fine without a flag.
+- Do **not** add `console.log` / `console.info` on POS, dashboard, or paginated-fetch hot paths — DevTools serializes them on the main thread and the app feels frozen. New probes must use `diagConsoleInfo` (`src/lib/diagConsole.ts`) behind a `localStorage` flag. Details: `docs/console-perf-protections.md`, `.cursor/rules/console-hot-paths.mdc`.
 - CI: `npm run check:console-guard`. Do not enable Vite `drop_console` (hides real `console.error`).
 
-### Testing (see `test/README.md` for full detail)
-- `npm test` runs the full Vitest suite. Unit tests need no credentials and pass offline; the 9 integration/seed tests are **skipped** unless a separate staging Supabase is configured via `.env.test` (`SUPABASE_TEST_URL`, `SUPABASE_TEST_SERVICE_ROLE_KEY`). Never point test config at production.
-- `npm run test:money` runs the pure money-path logic tests (settlement, balance, drift) — fast, no DB.
+### Testing (see `test/README.md`)
+- `npm test` runs the full Vitest suite. Unit tests pass offline; the 9 integration/seed tests are **skipped** unless a separate **staging** Supabase is configured via `.env.test` (`SUPABASE_TEST_URL`, `SUPABASE_TEST_SERVICE_ROLE_KEY`) — never point test config at production.
+- `npm run test:money` runs pure money-path logic (settlement, balance, drift) — fast, no DB.
 
 ### Auth / gotcha for end-to-end UI testing
-- There is **no self-service signup** in the UI. Access requires an admin-provisioned account against the live Supabase project. Routes: `/auth` = Platform Admin login; `/:orgSlug` (e.g. `/demo`) = organization login; `/organization-setup` = org entry / create-org (create-org requires an already-authenticated user).
-- Because the backend is live production and there are no test credentials in the environment, an authenticated core-functionality flow (creating a customer, ringing a sale, etc.) cannot be exercised here without either real test credentials for a non-production/demo org or a provisioned staging backend. Loading `/:orgSlug` does prove backend connectivity: the login page fetches real org branding via the `get_org_public_info` RPC and the sign-in button performs a real Supabase auth round-trip.
+- There is **no self-service signup**. Access requires an admin-provisioned account. Routes: `/auth` = Platform Admin login; `/:orgSlug` = organization login; `/organization-setup` = org entry / create-org (create-org requires an already-authenticated user).
+- Because the backend is live production and no test credentials exist here, authenticated flows (creating a customer, ringing a sale) can't be exercised without real test credentials for a demo org or a provisioned staging backend. Loading `/:orgSlug` does prove connectivity: it fetches real org branding via the `get_org_public_info` RPC and sign-in performs a real auth round-trip.
 
 <!-- code-review-graph MCP tools -->
 ## MCP Tools: code-review-graph
 
-**This project has a knowledge graph. Start with the code-review-graph
-MCP tools to narrow scope, then read the source.** The graph is cheaper than scanning files and
-gives you structural context (callers, dependents, test coverage) that file search cannot.
+This project has a knowledge graph. Use it to narrow scope before scanning files, then read the source.
 
-### When to use graph tools FIRST
-
-- **Exploring code**: `semantic_search_nodes_tool` or `query_graph_tool` instead of Grep
-- **Understanding impact**: `get_impact_radius_tool` instead of manually tracing imports
-- **Code review**: `detect_changes_tool` + `get_review_context_tool` instead of reading entire files
-- **Finding relationships**: `query_graph_tool` with callers_of/callees_of/imports_of/tests_for
-- **Architecture questions**: `get_architecture_overview_tool` + `list_communities_tool`
-
-### Verify in the source
-
-- Narrow scope with the graph, then read the source. Do not change code from graph output alone.
-- For any non-trivial change, read the implementation and the relevant tests before concluding.
-- Verify the exact source when touching behavior, database logic, migrations, retries, fallbacks,
-  recovery, or compatibility code.
-- When the graph and the source disagree, the source wins. The graph may be stale or may not
-  model that relationship.
-- An empty graph result can mean "not indexed" or "not statically visible", not "does not exist".
-
-### Key Tools
-
-| Tool | Use when |
-| ------ | ---------- |
-| `detect_changes_tool` | Reviewing code changes — gives risk-scored analysis |
-| `get_review_context_tool` | Need source snippets for review — token-efficient |
-| `get_impact_radius_tool` | Understanding blast radius of a change |
-| `get_affected_flows_tool` | Finding which execution paths are impacted |
-| `query_graph_tool` | Tracing callers, callees, imports, tests, dependencies |
-| `semantic_search_nodes_tool` | Finding functions/classes by name or keyword |
-| `get_architecture_overview_tool` | Understanding high-level codebase structure |
-| `refactor_tool` | Planning renames, finding dead code |
-
-### Workflow
-
-1. The graph auto-updates on file changes (via hooks).
-2. Use `detect_changes_tool` for code review.
-3. Use `get_affected_flows_tool` to understand impact.
-4. Use `query_graph_tool` pattern="tests_for" to check coverage.
+- **Use first**: `semantic_search_nodes_tool` / `query_graph_tool` (exploring; callers_of / callees_of / imports_of / tests_for), `get_impact_radius_tool` (blast radius), `detect_changes_tool` + `get_review_context_tool` (review), `get_affected_flows_tool` (impacted paths), `get_architecture_overview_tool` + `list_communities_tool` (architecture), `refactor_tool` (renames, dead code).
+- **Verify in the source**: never change code from graph output alone; read the implementation and relevant tests for non-trivial changes, especially behavior, database logic, migrations, retries, fallbacks, recovery or compatibility code. Source wins over stale graph output, and an empty result can mean "not indexed", not "does not exist".
+- The graph auto-updates on file changes via hooks.
 <!-- /code-review-graph MCP tools -->

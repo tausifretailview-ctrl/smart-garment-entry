@@ -12283,6 +12283,24 @@ export type Database = {
             }
             Returns: Json
           }
+      platform_whatsapp_shop_activity: {
+        Args: never
+        Returns: {
+          campaigns_running: number
+          campaigns_total: number
+          chats_total: number
+          failed_30d: number
+          last_campaign_at: string
+          last_campaign_name: string
+          last_campaign_status: string
+          last_reply_at: string
+          last_sender_number: string
+          optouts_total: number
+          organization_id: string
+          sent_30d: number
+          unread_total: number
+        }[]
+      }
       post_journal_reversal_for_voucher_ref: {
         Args: { p_org: string; p_voucher_id: string }
         Returns: undefined
