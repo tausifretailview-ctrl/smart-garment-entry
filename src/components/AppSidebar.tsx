@@ -1080,7 +1080,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {(isAdminPermissions || hasMenuAccess("sales_invoice_dashboard")) && (
+                        {(isAdminPermissions || hasMenuAccess("customer_reviews")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/customer-reviews")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
                               <NavLink to="/customer-reviews" className="flex items-center gap-2 group" title="Ratings and comments customers left on their bill">
@@ -1090,7 +1090,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {(isAdminPermissions || hasMenuAccess("sales_invoice_dashboard")) && (
+                        {(isAdminPermissions || hasMenuAccess("customer_notifications")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/customer-notifications")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
                               <NavLink to="/customer-notifications" className="flex items-center gap-2 group" title="Bill notifications sent, read and failed; invite customers to turn on">

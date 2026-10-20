@@ -129,7 +129,7 @@ const ALL_REPORTS: ReportItem[] = [
     path: "/customer-reviews",
     desc: "Ratings and comments customers left on their bill",
     tab: "sales",
-    permission: "sales_invoice_dashboard",
+    permission: "customer_reviews",
   },
   {
     icon: Bell,
@@ -137,7 +137,7 @@ const ALL_REPORTS: ReportItem[] = [
     path: "/customer-notifications",
     desc: "Bill notifications sent, read, failed; invite customers to turn on",
     tab: "sales",
-    permission: "sales_invoice_dashboard",
+    permission: "customer_notifications",
   },
   {
     icon: FileSpreadsheet,
