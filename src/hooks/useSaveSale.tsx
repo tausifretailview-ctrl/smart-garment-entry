@@ -12,6 +12,15 @@ import { useCustomerPoints } from "@/hooks/useCustomerPoints";
 import { invalidateCustomerPointsRelatedQueries } from "@/utils/customerPointsQueryInvalidation";
 import { resolveSaleCrmPointsPrint } from "@/utils/retailErpInvoicePrint";
 import type { SaveSaleRuntimeOptions, PosWhatsAppPdfCaptureMeta } from "@/utils/saveSaleRuntimeOptions";
+import { isNetworkFailure, offlineSaleBlockReason } from "@/lib/offlinePos/offlinePosCore";
+import {
+  allocateOfflineSaleNumber,
+  enqueueOfflineBill,
+  noteNetworkFailure,
+  offlineCatalogUsable,
+  shouldUseOfflineCatalog,
+  type OfflinePosBill,
+} from "@/lib/offlinePos/offlinePosStore";
 import { posWhatsAppReceiptFigures } from "@/utils/trendzoThermalPayment";
 import { useShopName } from "@/hooks/useShopName";
 import { useSettings } from "@/hooks/useSettings";
@@ -1048,6 +1057,114 @@ export const useSaveSale = () => {
     }
   }
 
+  /**
+   * Offline billing: save a paid POS bill on this computer with the counter's
+   * OFL number. It is sent through saveSale (presetSaleNumber) once online.
+   */
+  const saveSaleOffline = (
+    saleData: SaleData,
+    paymentMethod: SavePaymentMethod,
+    paymentBreakdown?: Parameters<typeof resolveSalePaymentFields>[2],
+  ) => {
+    savingLockRef.current = false;
+    const orgId = currentOrganization!.id;
+    const blockReason = offlineSaleBlockReason({
+      saleType: "pos",
+      paymentMethod,
+      netAmount: saleData.netAmount,
+      saleReturnAdjust: saleData.saleReturnAdjust,
+      creditApplied: saleData.creditApplied,
+      advanceApplied: saleData.advanceApplied,
+      refundAmount: saleData.refundAmount,
+      pointsRedeemed: saleData.pointsRedeemed,
+      pointsRedeemedAmount: saleData.pointsRedeemedAmount,
+      hasFinancer: !!saleData.financerDetails?.financer_name,
+      breakdown: paymentBreakdown,
+    });
+    if (blockReason) {
+      toast({
+        title: "No internet — bill not saved",
+        description: `${blockReason} Save it as a cash, UPI or card bill, or wait for the internet.`,
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    let fields: ReturnType<typeof resolveSalePaymentFields>;
+    try {
+      fields = resolveSalePaymentFields(saleData, paymentMethod, paymentBreakdown);
+    } catch (err) {
+      toast({
+        title: "Cannot save sale",
+        description: err instanceof Error ? err.message : "Validation failed",
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    const saleDate = saleData.saleDate || saleDateIsoIst();
+    const saleNumber = allocateOfflineSaleNumber(orgId);
+    const localId = crypto.randomUUID();
+    const stored = JSON.parse(JSON.stringify({ ...saleData, saleDate })) as OfflinePosBill["saleData"];
+    const queued = enqueueOfflineBill({
+      localId,
+      organizationId: orgId,
+      saleNumber,
+      createdAt: Date.now(),
+      saleDate,
+      netAmount: Number(saleData.netAmount) || 0,
+      customerName: resolvePosCustomerName(saleData.customerName),
+      paymentMethod: paymentMethod as OfflinePosBill["paymentMethod"],
+      paymentBreakdown: paymentBreakdown ? JSON.parse(JSON.stringify(paymentBreakdown)) : undefined,
+      saleData: stored,
+      attempts: 0,
+      lastError: null,
+    });
+    if (!queued) {
+      toast({
+        title: "Bill not saved",
+        description: "This computer's storage is full, so the offline bill could not be kept.",
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    toast({
+      title: `Saved offline as ${saleNumber}`,
+      description: "It will be sent automatically when the internet is back.",
+    });
+
+    return {
+      id: `offline-${localId}`,
+      offline: true as const,
+      sale_number: saleNumber,
+      sale_type: "pos",
+      sale_date: saleDate,
+      customer_id: saleData.customerId || null,
+      customer_name: resolvePosCustomerName(saleData.customerName),
+      customer_phone: saleData.customerPhone || null,
+      gross_amount: saleData.grossAmount,
+      discount_amount: saleData.discountAmount,
+      net_amount: saleData.netAmount,
+      round_off: saleData.roundOff,
+      payment_method: fields.finalPaymentMethod,
+      payment_status: fields.payStatus,
+      paid_amount: fields.paidAmt,
+      cash_amount: fields.cashAmt,
+      card_amount: fields.cardAmt,
+      upi_amount: fields.upiAmt,
+      finance_amount: 0,
+      refund_amount: 0,
+      salesman: saleData.salesman || null,
+      notes: saleData.notes || null,
+      tax_type: saleData.taxType || "inclusive",
+      organization_id: orgId,
+      pointsAwarded: 0,
+      pointsBalance: saleData.pointsBalance,
+      pointsRedeemed: saleData.pointsRedeemed,
+    } as any;
+  };
+
   const saveSale = async (
     saleData: SaleData,
     paymentMethod: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later',
@@ -1159,7 +1276,12 @@ export const useSaveSale = () => {
       !!paymentBreakdown?.issueCreditNote ||
       Math.abs(saleData.refundAmount || 0) > 0.005;
     saleData = applyBillCaps(saleData, { settleExcess });
-    saleData = await attachSaleCustomerMasterId(saleData, currentOrganization.id);
+    // Offline billing: internet is down and this counter has the item list saved.
+    const canSaveOffline = saleType === "pos" && !runtimeOptions?.presetSaleNumber;
+    const goOffline = canSaveOffline && shouldUseOfflineCatalog(currentOrganization.id);
+    if (!goOffline) {
+      saleData = await attachSaleCustomerMasterId(saleData, currentOrganization.id);
+    }
 
     try {
       preSaveInvariants({
@@ -1187,9 +1309,14 @@ export const useSaveSale = () => {
       return null;
     }
 
+    if (goOffline) {
+      return saveSaleOffline(saleData, paymentMethod, paymentBreakdown);
+    }
+
     setIsSaving(true);
 
     let insertedSaleIdForRollback: string | null = null;
+    let saleInsertStarted = false;
     try {
       // Refresh access token proactively if it's near expiry — POS terminals
       // often stay visible for hours and can miss auto-refresh, causing "JWT
@@ -1200,7 +1327,10 @@ export const useSaveSale = () => {
       const saleSettings = (orgSettings as any)?.sale_settings as Record<string, any> | null;
       
       // Use POS format for POS sales, Invoice format for regular sales
-      if (saleType === 'pos') {
+      if (runtimeOptions?.presetSaleNumber) {
+        // Offline bill being sent: keep the number already printed on the slip.
+        saleNumber = runtimeOptions.presetSaleNumber;
+      } else if (saleType === 'pos') {
         // Check for custom POS format first
         if (saleSettings?.pos_numbering_format) {
           saleNumber = await generateInvoiceNumber(saleSettings.pos_numbering_format, saleSettings?.pos_series_start, 'pos');
@@ -1248,6 +1378,7 @@ export const useSaveSale = () => {
       // Honor a caller-supplied backdated sale_date (POS date-change) when present.
       const saleDateIso = saleData.saleDate || saleDateIsoIst();
 
+      saleInsertStarted = true;
       const { data: sale, error: saleError } = await supabase
         .from('sales')
         .insert({
@@ -1787,6 +1918,16 @@ export const useSaveSale = () => {
         pointsRedeemed: saleData.pointsRedeemed,
       };
     } catch (error: any) {
+      // Internet dropped before the bill reached the server: keep it on this computer.
+      if (
+        canSaveOffline &&
+        !saleInsertStarted &&
+        isNetworkFailure(error) &&
+        offlineCatalogUsable(currentOrganization.id)
+      ) {
+        noteNetworkFailure();
+        return saveSaleOffline(saleData, paymentMethod, paymentBreakdown);
+      }
       if (insertedSaleIdForRollback) {
         const saleId = insertedSaleIdForRollback;
         try {

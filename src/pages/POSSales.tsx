@@ -24,6 +24,15 @@ import {
   type PurchaseBarcodeStockClient,
 } from "@/utils/stockReportPurchaseBarcodeResolve";
 import { expandBarcodeScanCandidates } from "@/utils/barcodeScanResolve";
+import { findCatalogRowsByBarcode, isNetworkFailure, searchCatalogRows } from "@/lib/offlinePos/offlinePosCore";
+import {
+  getOfflineCatalogIndex,
+  getOfflineCatalogRows,
+  noteNetworkFailure,
+  offlineAvailableStock,
+  offlineCatalogUsable,
+  shouldUseOfflineCatalog,
+} from "@/lib/offlinePos/offlinePosStore";
 import { lookupVariantRowsByScan } from "@/utils/lookupVariantByScan";
 import { splitCardAndFinance } from "@/utils/salesFinanceColumn";
 import { pickBestVariantScanRow } from "@/utils/lookupVariantByScan";
@@ -153,6 +162,7 @@ import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 
 import { toast } from "sonner";
 import { useSaveSale } from "@/hooks/useSaveSale";
+import { useOfflinePosSync } from "@/hooks/useOfflinePosSync";
 import { useStockValidation } from "@/hooks/useStockValidation";
 import { useOpenSettlementVariantIds, SETTLEMENT_LOCK_TOAST_DURATION_MS, settlementLockedAddToast, getSettlementLockedCartItems, settlementLockedSaveToast } from "@/hooks/useOpenSettlementVariantIds";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
@@ -423,12 +433,23 @@ function mapPosVariantLookupRow(
   return { product: row.products, variant: row };
 }
 
+/** Offline billing: exact barcode hits from this computer's saved item list. */
+function offlinePosBarcodeMatches(
+  barcode: string,
+): Array<{ product: PosProductRow; variant: PosVariantRow }> {
+  return findCatalogRowsByBarcode(getOfflineCatalogIndex(), barcode).map((row) => ({
+    product: row.products as unknown as PosProductRow,
+    variant: { ...row, stock_qty: offlineAvailableStock(row.id).stock } as unknown as PosVariantRow,
+  }));
+}
+
 async function fetchPosExactBarcodeMatches(
   orgId: string,
   barcode: string,
 ): Promise<Array<{ product: PosProductRow; variant: PosVariantRow }>> {
   const trimmed = barcode.trim();
   if (!trimmed) return [];
+  if (shouldUseOfflineCatalog(orgId)) return offlinePosBarcodeMatches(trimmed);
 
   const { data, error } = await posVariantBaseQuery(orgId)
     .eq("barcode", trimmed)
@@ -492,14 +513,25 @@ async function resolvePosBarcodeLookupMatchesOnce(
   return { matches: exactBarcodeMatches, mismatch: null };
 }
 
-function resolvePosBarcodeLookupMatches(
+async function resolvePosBarcodeLookupMatches(
   orgId: string,
   trimmedTerm: string,
 ): Promise<{
   matches: Array<{ product: PosProductRow; variant: PosVariantRow }>;
   mismatch: DivergentPurchaseBarcode | null;
 }> {
-  return withJwtRetry(() => resolvePosBarcodeLookupMatchesOnce(orgId, trimmedTerm));
+  const offline = () => ({
+    matches: expandBarcodeScanCandidates(trimmedTerm).flatMap(offlinePosBarcodeMatches),
+    mismatch: null,
+  });
+  if (shouldUseOfflineCatalog(orgId)) return offline();
+  try {
+    return await withJwtRetry(() => resolvePosBarcodeLookupMatchesOnce(orgId, trimmedTerm));
+  } catch (err) {
+    if (!isNetworkFailure(err) || !offlineCatalogUsable(orgId)) throw err;
+    noteNetworkFailure();
+    return offline();
+  }
 }
 
 async function fetchPosVariantByBarcodeOnce(
@@ -613,9 +645,17 @@ function fetchPosVariantByBarcode(
   mobileERPConfig?: Parameters<typeof productRequiresImei>[1],
   lookupOptions: { exactOnly?: boolean } = POS_BARCODE_CART_LOOKUP_EXACT,
 ) {
+  type Hit = Awaited<ReturnType<typeof fetchPosVariantByBarcodeOnceAcrossCandidates>>;
+  const offline = (): Hit =>
+    expandBarcodeScanCandidates(barcode).flatMap(offlinePosBarcodeMatches)[0] ?? null;
+  if (shouldUseOfflineCatalog(orgId)) return Promise.resolve(offline());
   return withJwtRetry(() =>
     fetchPosVariantByBarcodeOnceAcrossCandidates(orgId, barcode, mobileERPConfig, lookupOptions),
-  );
+  ).catch((err): Hit => {
+    if (!isNetworkFailure(err) || !offlineCatalogUsable(orgId)) throw err;
+    noteNetworkFailure();
+    return offline();
+  });
 }
 
 function isStockTrackedPosProduct(product: { product_type?: string | null } | null | undefined): boolean {
@@ -3092,10 +3132,43 @@ export default function POSSales() {
       setProductSearchResults(formatted);
     };
 
+    const runOfflineSearch = () => {
+      const rows = searchCatalogRows(getOfflineCatalogRows(), term, {
+        productType: selectedProductType,
+        limit: 100,
+      });
+      setProductSearchResults(
+        rows.map((row) => {
+          const p = row.products as any;
+          const item = { ...row, stock_qty: offlineAvailableStock(row.id).stock } as any;
+          return {
+            product: p,
+            variant: item,
+            matchedOn: [],
+            displaySalePrice: posVariantEffectiveSalePrice(item, p),
+            displayBarcode: item.barcode,
+            searchText: `${p.product_name || ''} ${item.size || ''} ${item.color || p.color || ''} ${item.barcode || ''} ${p.brand || ''} ${p.category || ''}`.toLowerCase(),
+            quickPriceOverride: undefined as { sale_price: number; mrp: number } | undefined,
+          };
+        }),
+      );
+    };
+
     const startSearch = () => {
+      const orgId = currentOrganization.id;
+      if (shouldUseOfflineCatalog(orgId)) {
+        runOfflineSearch();
+        setIsProductSearchLoading(false);
+        return;
+      }
       withJwtRetry(() => runSearch())
         .catch((error) => {
           if (requestSeq !== productSearchSeqRef.current) return;
+          if (isNetworkFailure(error) && offlineCatalogUsable(orgId)) {
+            noteNetworkFailure();
+            runOfflineSearch();
+            return;
+          }
           console.error('POS product search failed:', error);
           setProductSearchResults([]);
         })
@@ -4838,7 +4911,9 @@ export default function POSSales() {
       }
       
       // Auto-record salesman commission
+      // Offline bills get their commission when they are sent (useOfflinePosSync).
       if (
+        !(result as { offline?: boolean }).offline &&
         shouldCreatePosCommissionOnSave({
           salesmanName: selectedSalesman,
           isEditingExistingSale: !!currentSaleId,
@@ -4916,6 +4991,26 @@ export default function POSSales() {
       await (supabase.from("salesman_commissions" as any) as any).insert(records);
     } catch (err) { console.error("Commission record failed (non-blocking):", err); }
   };
+
+  // Offline billing: keep this counter's item list fresh and send bills saved without internet.
+  useOfflinePosSync({
+    organizationId: currentOrganization?.id,
+    saveSale,
+    isSaving,
+    onBillSent: (sale, bill) => {
+      const salesman = String(bill.saleData.salesman || "");
+      if (shouldCreatePosCommissionOnSave({ salesmanName: salesman, isEditingExistingSale: false })) {
+        void createCommissionRecords(
+          sale.id,
+          sale.sale_number,
+          sale.sale_date || bill.saleDate.slice(0, 10),
+          salesman,
+          Number(sale.net_amount ?? bill.netAmount),
+        );
+      }
+    },
+    onRoundDone: () => refreshPosAfterBillPrint(),
+  });
 
   const handlePaymentMethodChange = (method: 'cash' | 'card' | 'upi') => {
     setPaymentMethod(method);
@@ -5145,7 +5240,9 @@ export default function POSSales() {
       };
       
       // Auto-record salesman commission
+      // Offline bills get their commission when they are sent (useOfflinePosSync).
       if (
+        !(result as { offline?: boolean }).offline &&
         shouldCreatePosCommissionOnSave({
           salesmanName: salesmanForPrint,
           isEditingExistingSale: wasEditing,
@@ -5483,7 +5580,9 @@ export default function POSSales() {
       } : null;
       
       // Auto-record salesman commission
+      // Offline bills get their commission when they are sent (useOfflinePosSync).
       if (
+        !(result as { offline?: boolean }).offline &&
         shouldCreatePosCommissionOnSave({
           salesmanName: selectedSalesman,
           isEditingExistingSale: !!currentSaleId,

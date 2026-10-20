@@ -2,6 +2,13 @@ import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { isNetworkFailure } from "@/lib/offlinePos/offlinePosCore";
+import {
+  noteNetworkFailure,
+  offlineAvailableStock,
+  offlineCatalogUsable,
+  shouldUseOfflineCatalog,
+} from "@/lib/offlinePos/offlinePosStore";
 
 interface StockCheckResult {
   isAvailable: boolean;
@@ -13,6 +20,21 @@ interface StockCheckResult {
 interface OldItem {
   variantId: string;
   quantity: number;
+}
+
+/** Offline billing: stock from this computer's saved item list minus offline bills. */
+function offlineStockCheck(variantId: string, requestedQty: number, freedQty = 0): StockCheckResult {
+  const { known, stock, row } = offlineAvailableStock(variantId);
+  const productName = (row?.products?.product_name as string) || "Product";
+  const size = String(row?.size || "");
+  const productType = (row?.products?.product_type as string) || "goods";
+  // Not in the saved list (e.g. already in the cart before the internet dropped):
+  // the server checks stock again when the bill is sent.
+  if (!known || productType === "service" || productType === "combo") {
+    return { isAvailable: true, availableStock: Math.max(requestedQty, 0), productName, size };
+  }
+  const availableStock = stock + freedQty;
+  return { isAvailable: availableStock >= requestedQty, availableStock, productName, size };
 }
 
 /**
@@ -36,6 +58,9 @@ export const useStockValidation = () => {
     requestedQty: number,
     freedQty: number = 0
   ): Promise<StockCheckResult> => {
+    if (shouldUseOfflineCatalog(currentOrganization?.id)) {
+      return offlineStockCheck(variantId, requestedQty, freedQty);
+    }
     setChecking(true);
     try {
       if (!currentOrganization?.id) {
@@ -81,6 +106,10 @@ export const useStockValidation = () => {
         size: variant.size,
       };
     } catch (error) {
+      if (isNetworkFailure(error) && offlineCatalogUsable(currentOrganization?.id)) {
+        noteNetworkFailure();
+        return offlineStockCheck(variantId, requestedQty, freedQty);
+      }
       console.error("Stock validation error:", error);
       toast({
         title: "Error",
@@ -150,6 +179,27 @@ export const useStockValidation = () => {
       });
     }
 
+    const offlineValidate = () => {
+      for (const [variantId, item] of aggregatedNewItems) {
+        const freedQty = freedQtyMap.get(variantId) || 0;
+        if (item.quantity - freedQty <= 0) continue;
+        const check = offlineStockCheck(variantId, item.quantity, freedQty);
+        if (!check.isAvailable) {
+          insufficientItems.push({
+            productName: check.productName || item.productName || "Product",
+            size: check.size || item.size || "",
+            requested: item.quantity,
+            available: check.availableStock,
+          });
+        }
+      }
+      return insufficientItems;
+    };
+    if (shouldUseOfflineCatalog(currentOrganization?.id)) {
+      setChecking(false);
+      return offlineValidate();
+    }
+
     try {
       if (!currentOrganization?.id) {
         throw new Error("No organization selected");
@@ -204,6 +254,11 @@ export const useStockValidation = () => {
         }
       }
     } catch (error) {
+      if (isNetworkFailure(error) && offlineCatalogUsable(currentOrganization?.id)) {
+        noteNetworkFailure();
+        insufficientItems.length = 0;
+        return offlineValidate();
+      }
       console.error("Stock validation error:", error);
       toast({
         title: "Error",
