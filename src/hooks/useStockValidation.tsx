@@ -352,6 +352,8 @@ export const useStockValidation = () => {
 
   return {
     checkStock,
+    /** Always blocks shortages (delivery challans: their DB trigger still enforces stock). */
+    checkStockStrict,
     validateCartStock,
     allowNegativeStock,
     showStockError,
