@@ -18,6 +18,27 @@ const appBuildId =
   process.env.GITHUB_SHA?.slice(0, 12) ??
   `${pkg.version}-${Date.now()}`;
 
+/**
+ * The sandbox plugin host resolves its plugin config without normalizing
+ * `envDir`, and the Supabase stack plugin's configResolved calls
+ * `loadEnv("production", config.envDir, config.envPrefix)` — which throws on an
+ * undefined path and takes the whole dev server down with it. Guarantee the
+ * field before delegating to the real hook (mutated in place so the plugin's
+ * `api.mcpEntry` getter stays live).
+ */
+function guardEnvDir(plugin: any) {
+  const original = plugin?.configResolved;
+  if (typeof original !== "function") return plugin;
+  plugin.configResolved = function (this: any, config: any) {
+    return original.call(this, {
+      ...config,
+      envDir: config?.envDir ?? __dirname,
+      envPrefix: config?.envPrefix ?? "VITE_",
+    });
+  };
+  return plugin;
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   // The sandbox plugin host does not normalize envDir/envPrefix before running
@@ -36,7 +57,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     mode === "development" && componentTagger(),
-    mcpPlugin(),
+    guardEnvDir(mcpPlugin()),
     process.env.ANALYZE === "1" &&
       (visualizer({
         filename: "/tmp/bundle-report.html",
