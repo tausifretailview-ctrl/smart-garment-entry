@@ -20,6 +20,12 @@ const appBuildId =
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  // The sandbox plugin host does not normalize envDir/envPrefix before running
+  // plugin configResolved hooks, and the Supabase stack plugin calls
+  // loadEnv("production", config.envDir, config.envPrefix) there — an undefined
+  // envDir crashes the dev server on boot. Pin both to Vite's own defaults.
+  envDir: __dirname,
+  envPrefix: "VITE_",
   define: {
     __APP_BUILD_ID__: JSON.stringify(appBuildId),
   },
