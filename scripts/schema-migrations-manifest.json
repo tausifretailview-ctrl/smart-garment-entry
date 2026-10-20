@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-10-19",
-  "count": 862,
-  "fileCount": 880,
+  "generatedAt": "2026-10-20",
+  "count": 863,
+  "fileCount": 881,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -865,7 +865,8 @@
     "20270203120000",
     "20270204120000",
     "20270205120000",
-    "20270206120000"
+    "20270206120000",
+    "20270207120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1747,7 +1748,8 @@
     "20270203120000_user_screen_time.sql",
     "20270204120000_daily_incentive_slab_replaces_piece.sql",
     "20270205120000_bulk_whatsapp_video_size.sql",
-    "20270206120000_bulk_whatsapp_inbox.sql"
+    "20270206120000_bulk_whatsapp_inbox.sql",
+    "20270207120000_customer_birthday_anniversary.sql"
   ],
   "duplicateVersions": [
     {

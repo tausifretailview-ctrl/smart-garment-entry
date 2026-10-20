@@ -53,6 +53,7 @@ import {
   AlertTriangle,
   UserX,
   Loader2,
+  Cake,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -93,6 +94,8 @@ import { ColumnDef } from "@tanstack/react-table";
 import { ERPTable } from "@/components/erp-table";
 import { format } from "date-fns";
 import type * as XLSXType from "xlsx";
+import { CustomerSpecialDaysDialog } from "@/components/customers/CustomerSpecialDaysDialog";
+import { isMissingSpecialDayColumnError, toDateInputValue } from "@/utils/customerSpecialDays";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
 const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
@@ -188,6 +191,8 @@ const CustomerMaster = () => {
     transport_details: "",
     portal_enabled: false,
     points_balance: "",
+    birthday: "",
+    anniversary: "",
   });
   const { toast } = useToast();
   const toastRef = useRef(toast);
@@ -234,6 +239,9 @@ const CustomerMaster = () => {
   );
   const { invalidateCustomers } = useDashboardInvalidation();
   const [showExcelImport, setShowExcelImport] = useState(false);
+  const [showSpecialDays, setShowSpecialDays] = useState(false);
+  /** Birthday/anniversary as loaded for the customer being edited (to know when one was cleared). */
+  const editingSpecialDaysRef = useRef<{ birthday: string; anniversary: string }>({ birthday: "", anniversary: "" });
   const [showLegacyImport, setShowLegacyImport] = useState(false);
   const [showBalanceImport, setShowBalanceImport] = useState(false);
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
@@ -611,6 +619,40 @@ const CustomerMaster = () => {
     staleTime: 5 * 60 * 1000,
   });
 
+  /**
+   * Birthday / anniversary are saved in a second step so a shop that has not run the
+   * birthday SQL yet can still save customers (only these two fields are skipped).
+   */
+  const saveCustomerSpecialDays = async (
+    customerId: string,
+    data: { birthday: string; anniversary: string },
+    previous: { birthday: string; anniversary: string },
+  ) => {
+    if (!currentOrganization?.id) return;
+    const patch: { birthday?: string | null; anniversary?: string | null } = {};
+    for (const key of ["birthday", "anniversary"] as const) {
+      const next = toDateInputValue(data[key]);
+      if (next !== previous[key]) patch[key] = next || null;
+    }
+    if (Object.keys(patch).length === 0) return;
+    const { error } = await supabase
+      .from("customers")
+      .update(patch)
+      .eq("id", customerId)
+      .eq("organization_id", currentOrganization.id);
+    if (error) {
+      toast({
+        title: "Birthday / anniversary not saved",
+        description: isMissingSpecialDayColumnError(error)
+          ? "Run the birthday SQL first. The rest of the customer was saved."
+          : error.message,
+        variant: "destructive",
+      });
+    } else {
+      queryClient.invalidateQueries({ queryKey: ["customer-special-days"] });
+    }
+  };
+
   const createCustomer = useMutation({
     mutationFn: async (data: typeof formData) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
@@ -648,6 +690,9 @@ const CustomerMaster = () => {
         .select("id")
         .single();
       if (error) throw error;
+      if (inserted?.id) {
+        await saveCustomerSpecialDays(inserted.id, data, { birthday: "", anniversary: "" });
+      }
       if (enablePointsSystem && pointsBalance > 0 && inserted?.id) {
         const { error: historyError } = await supabase.from("customer_points_history").insert({
           organization_id: currentOrganization.id,
@@ -721,6 +766,7 @@ const CustomerMaster = () => {
         .eq("id", id)
         .eq("organization_id", currentOrganization.id);
       if (error) throw error;
+      await saveCustomerSpecialDays(id, data, editingSpecialDaysRef.current);
 
       const pointsDelta = nextPoints - previousPoints;
       if (enablePointsSystem && pointsDelta !== 0) {
@@ -806,6 +852,8 @@ const CustomerMaster = () => {
       transport_details: "",
       portal_enabled: false,
       points_balance: "",
+      birthday: "",
+      anniversary: "",
     });
     setEditingCustomer(null);
   };
@@ -835,8 +883,29 @@ const CustomerMaster = () => {
       transport_details: (customer as any).transport_details || "",
       portal_enabled: (customer as any).portal_enabled || false,
       points_balance: String(Math.round(Number(customer.points_balance ?? 0))),
+      birthday: "",
+      anniversary: "",
     });
+    editingSpecialDaysRef.current = { birthday: "", anniversary: "" };
     setIsDialogOpen(true);
+    // Loaded separately: the list query must keep working before the birthday SQL is run.
+    if (currentOrganization?.id) {
+      void supabase
+        .from("customers")
+        .select("birthday, anniversary")
+        .eq("id", customer.id)
+        .eq("organization_id", currentOrganization.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (!data) return;
+          const loaded = {
+            birthday: toDateInputValue(data.birthday),
+            anniversary: toDateInputValue(data.anniversary),
+          };
+          editingSpecialDaysRef.current = loaded;
+          setFormData((prev) => ({ ...prev, ...loaded }));
+        });
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -1500,12 +1569,21 @@ const CustomerMaster = () => {
           subtitle={`${totalCount.toLocaleString()} records`}
           backTo="/"
           rightContent={
-            <button
-              onClick={() => { resetForm(); setIsDialogOpen(true); }}
-              className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-sm active:scale-90 touch-manipulation"
-            >
-              <Plus className="h-5 w-5 text-primary-foreground" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowSpecialDays(true)}
+                aria-label="Birthdays and anniversaries"
+                className="w-9 h-9 bg-pink-100 rounded-xl flex items-center justify-center shadow-sm active:scale-90 touch-manipulation"
+              >
+                <Cake className="h-5 w-5 text-pink-600" />
+              </button>
+              <button
+                onClick={() => { resetForm(); setIsDialogOpen(true); }}
+                className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-sm active:scale-90 touch-manipulation"
+              >
+                <Plus className="h-5 w-5 text-primary-foreground" />
+              </button>
+            </div>
           }
         />
 
@@ -1649,6 +1727,10 @@ const CustomerMaster = () => {
               <div><Label htmlFor="m-name">Customer Name</Label><Input id="m-name" value={formData.customer_name} onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })} placeholder="Enter customer name" /></div>
               <div><Label htmlFor="m-address">Address</Label><Textarea id="m-address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} /></div>
               <div><Label htmlFor="m-gst">GST Number</Label><Input id="m-gst" value={formData.gst_number} onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label htmlFor="m-birthday">Birthday</Label><Input id="m-birthday" type="date" value={formData.birthday} onChange={(e) => setFormData({ ...formData, birthday: e.target.value })} /></div>
+                <div><Label htmlFor="m-anniversary">Anniversary</Label><Input id="m-anniversary" type="date" value={formData.anniversary} onChange={(e) => setFormData({ ...formData, anniversary: e.target.value })} /></div>
+              </div>
               <div><Label htmlFor="m-bal">Opening Balance (₹)</Label><Input id="m-bal" type="number" step="0.01" value={formData.opening_balance} onChange={(e) => setFormData({ ...formData, opening_balance: e.target.value })} /></div>
               {enablePointsSystem && (
                 <div>
@@ -1689,6 +1771,9 @@ const CustomerMaster = () => {
         <UpdateLegacyPhonesDialog open={showUpdatePhonesDialog} onOpenChange={setShowUpdatePhonesDialog} />
         <BrandDiscountDialog open={showBrandDiscountDialog} onOpenChange={setShowBrandDiscountDialog} customer={selectedCustomerForBrandDiscount} />
         <CustomerBalanceImportDialog open={showBalanceImport} onOpenChange={setShowBalanceImport} />
+        {currentOrganization?.id && (
+          <CustomerSpecialDaysDialog organizationId={currentOrganization.id} shopName={currentOrganization.name ?? null} open={showSpecialDays} onOpenChange={setShowSpecialDays} />
+        )}
       </div>
     );
   }
@@ -1817,6 +1902,10 @@ const CustomerMaster = () => {
             )}
 
             <div className="flex gap-2 items-center shrink-0">
+              <Button variant="outline" className="h-9 text-sm px-4 rounded-md" onClick={() => setShowSpecialDays(true)}>
+                <Cake className="h-4 w-4 mr-2 text-pink-500" />
+                Birthdays
+              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="h-9 text-sm px-4 rounded-md">
@@ -1891,6 +1980,16 @@ const CustomerMaster = () => {
                     <div>
                       <Label htmlFor="address" className="text-xs">Address</Label>
                       <Textarea id="address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="min-h-[60px]" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor="birthday" className="text-xs">Birthday</Label>
+                        <Input id="birthday" type="date" value={formData.birthday} onChange={(e) => setFormData({ ...formData, birthday: e.target.value })} className="h-9" />
+                      </div>
+                      <div>
+                        <Label htmlFor="anniversary" className="text-xs">Anniversary</Label>
+                        <Input id="anniversary" type="date" value={formData.anniversary} onChange={(e) => setFormData({ ...formData, anniversary: e.target.value })} className="h-9" />
+                      </div>
                     </div>
                     <div
                       className={cn(
@@ -2033,6 +2132,9 @@ const CustomerMaster = () => {
       <UpdateLegacyPhonesDialog open={showUpdatePhonesDialog} onOpenChange={setShowUpdatePhonesDialog} />
       <BrandDiscountDialog open={showBrandDiscountDialog} onOpenChange={setShowBrandDiscountDialog} customer={selectedCustomerForBrandDiscount} />
       <CustomerBalanceImportDialog open={showBalanceImport} onOpenChange={setShowBalanceImport} />
+      {currentOrganization?.id && (
+        <CustomerSpecialDaysDialog organizationId={currentOrganization.id} shopName={currentOrganization.name ?? null} open={showSpecialDays} onOpenChange={setShowSpecialDays} />
+      )}
 
       {isDesktop && (
         <>
