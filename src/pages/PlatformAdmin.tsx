@@ -469,6 +469,14 @@ const AllUsersTable = ({ organizations }: { organizations: Organization[] }) => 
 
 export default function PlatformAdmin() {
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
+  // Heavy tabs (all-org ledger scan, WhatsApp logs, settings stats) load only once opened,
+  // so landing on Organizations does not fire every platform query at once.
+  const [activeTab, setActiveTab] = useState("organizations");
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(["organizations"]));
+  const openTab = (tab: string) => {
+    setActiveTab(tab);
+    setVisitedTabs((prev) => (prev.has(tab) ? prev : new Set(prev).add(tab)));
+  };
   const [createUserOpen, setCreateUserOpen] = useState(false);
   const [editFeaturesOpen, setEditFeaturesOpen] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
@@ -1075,7 +1083,7 @@ export default function PlatformAdmin() {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="organizations" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={openTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="organizations">Organizations</TabsTrigger>
             <TabsTrigger value="whatsapp-shops">WhatsApp Only</TabsTrigger>
@@ -1094,37 +1102,41 @@ export default function PlatformAdmin() {
 
           {/* WhatsApp-only shops Tab */}
           <TabsContent value="whatsapp-shops" forceMount className={STICKY_TAB_CONTENT_CLASS}>
-            <PlatformWhatsAppShops
-              shops={whatsappOrganizations}
-              members={members}
-              loading={orgsLoading}
-              siteUrl={WHATSAPP_SITE_URL}
-              onCreate={() => openCreateOrg("whatsapp")}
-              onCreateUser={(orgId) => {
-                setUserOrgId(orgId);
-                setCreateUserOpen(true);
-              }}
-              onAssignUser={handleAssignUser}
-              onEditFeatures={(orgId) => {
-                const org = organizations.find((o) => o.id === orgId);
-                if (org) handleEditFeatures(org);
-              }}
-            />
+            {visitedTabs.has("whatsapp-shops") && (
+              <>
+                <PlatformWhatsAppShops
+                  shops={whatsappOrganizations}
+                  members={members}
+                  loading={orgsLoading}
+                  siteUrl={WHATSAPP_SITE_URL}
+                  onCreate={() => openCreateOrg("whatsapp")}
+                  onCreateUser={(orgId) => {
+                    setUserOrgId(orgId);
+                    setCreateUserOpen(true);
+                  }}
+                  onAssignUser={handleAssignUser}
+                  onEditFeatures={(orgId) => {
+                    const org = organizations.find((o) => o.id === orgId);
+                    if (org) handleEditFeatures(org);
+                  }}
+                />
+              </>
+            )}
           </TabsContent>
 
           {/* WhatsApp Tab */}
           <TabsContent value="whatsapp" forceMount className={STICKY_TAB_CONTENT_CLASS}>
-            <PlatformWhatsAppSettings />
+            {visitedTabs.has("whatsapp") && <PlatformWhatsAppSettings />}
           </TabsContent>
 
           {/* WhatsApp Logs Tab */}
           <TabsContent value="whatsapp-logs" forceMount className={STICKY_TAB_CONTENT_CLASS}>
-            <PlatformWhatsAppLogs />
+            {visitedTabs.has("whatsapp-logs") && <PlatformWhatsAppLogs />}
           </TabsContent>
 
           {/* Customer Ledger Health Tab */}
           <TabsContent value="ledger-health" forceMount className={STICKY_TAB_CONTENT_CLASS}>
-            <PlatformLedgerHealth />
+            {visitedTabs.has("ledger-health") && <PlatformLedgerHealth />}
           </TabsContent>
 
           {/* Organizations Tab */}
@@ -1606,43 +1618,47 @@ export default function PlatformAdmin() {
 
           {/* Settings Tab */}
           <TabsContent value="settings" forceMount className={`${STICKY_TAB_CONTENT_CLASS} space-y-6`}>
-            {/* Cloud Usage Widget */}
-            <CloudUsageWidget />
+            {visitedTabs.has("settings") && (
+              <>
+                {/* Cloud Usage Widget */}
+                <CloudUsageWidget />
 
-            {/* Audit Log Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Audit Log
-                </CardTitle>
-                <CardDescription>
-                  View recent platform activities across all organizations
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <AuditLogSection />
-              </CardContent>
-            </Card>
+                {/* Audit Log Section */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      Audit Log
+                    </CardTitle>
+                    <CardDescription>
+                      View recent platform activities across all organizations
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <AuditLogSection />
+                  </CardContent>
+                </Card>
 
-            {/* Database Statistics */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Database className="h-5 w-5" />
-                  Database Statistics
-                </CardTitle>
-                <CardDescription>
-                  Overview of data across all organizations
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <DatabaseStatsSection organizations={organizations} />
-              </CardContent>
-            </Card>
+                {/* Database Statistics */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Database className="h-5 w-5" />
+                      Database Statistics
+                    </CardTitle>
+                    <CardDescription>
+                      Overview of data across all organizations
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <DatabaseStatsSection organizations={organizations} />
+                  </CardContent>
+                </Card>
 
-            {/* Stock Reconciliation */}
-            <StockReconciliation />
+                {/* Stock Reconciliation */}
+                <StockReconciliation />
+              </>
+            )}
           </TabsContent>
         </Tabs>
 

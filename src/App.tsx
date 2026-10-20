@@ -428,7 +428,8 @@ const App = () => {
         if (!isStatementTimeout(error)) return;
         if (query.state.data !== undefined && query.state.data !== null) return;
         const head = String(query.queryKey[0] ?? "").toLowerCase();
-        if (head.includes("platform-admin")) return;
+        // Platform Admin queries (keys "platform-…") show their own inline errors.
+        if (head.startsWith("platform")) return;
         notifyReadTimeout();
       },
     }),
