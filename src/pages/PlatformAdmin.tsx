@@ -33,7 +33,6 @@ import { StockReconciliation } from "@/components/StockReconciliation";
 import { PlatformWhatsAppSettings } from "@/components/PlatformWhatsAppSettings";
 import { PlatformWhatsAppLogs } from "@/components/PlatformWhatsAppLogs";
 import { PlatformWhatsAppShops } from "@/components/PlatformWhatsAppShops";
-import { PlatformLedgerHealth } from "@/components/PlatformLedgerHealth";
 import { CloudUsageWidget } from "@/components/dashboard/CloudUsageWidget";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -469,7 +468,7 @@ const AllUsersTable = ({ organizations }: { organizations: Organization[] }) => 
 
 export default function PlatformAdmin() {
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
-  // Heavy tabs (all-org ledger scan, WhatsApp logs, settings stats) load only once opened,
+  // Heavy tabs (WhatsApp logs, WhatsApp shop activity, settings stats) load only once opened,
   // so landing on Organizations does not fire every platform query at once.
   const [activeTab, setActiveTab] = useState("organizations");
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(["organizations"]));
@@ -1090,7 +1089,6 @@ export default function PlatformAdmin() {
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="whatsapp">WhatsApp API</TabsTrigger>
             <TabsTrigger value="whatsapp-logs">WhatsApp Logs</TabsTrigger>
-            <TabsTrigger value="ledger-health">Ledger Health</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
             <Link
               to="/platform-admin/data-integrity"
@@ -1132,11 +1130,6 @@ export default function PlatformAdmin() {
           {/* WhatsApp Logs Tab */}
           <TabsContent value="whatsapp-logs" forceMount className={STICKY_TAB_CONTENT_CLASS}>
             {visitedTabs.has("whatsapp-logs") && <PlatformWhatsAppLogs />}
-          </TabsContent>
-
-          {/* Customer Ledger Health Tab */}
-          <TabsContent value="ledger-health" forceMount className={STICKY_TAB_CONTENT_CLASS}>
-            {visitedTabs.has("ledger-health") && <PlatformLedgerHealth />}
           </TabsContent>
 
           {/* Organizations Tab */}
