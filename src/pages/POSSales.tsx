@@ -193,6 +193,7 @@ import {
 } from "@/utils/thermalReceiptPrintDocument";
 import { buildPublicInvoiceViewUrl } from "@/utils/publicInvoiceLink";
 import { localDayBounds, todayLocalYmd, saleDateIsoIstForDay } from "@/lib/localDayBounds";
+import { syncFinanceDiscountVoucher } from "@/utils/financeDiscountVoucher";
 import {
   readPersistedLastPosHint,
   persistLastPosHint,
@@ -4841,29 +4842,17 @@ export default function POSSales() {
       // Save financer details if provided
       if (financerDetails?.financer_name) {
         await saveFinancerDetails(result.id, currentOrganization?.id || '', financerDetails);
-        // Create finance discount expense voucher if applicable
-        if (financerDetails.finance_discount > 0 && currentOrganization?.id) {
+        // One voucher per bill: an edited bill updates it instead of adding another.
+        if (currentOrganization?.id) {
           try {
-            const { data: lastVoucher } = await supabase
-              .from("voucher_entries")
-              .select("voucher_number")
-              .eq("organization_id", currentOrganization.id)
-              .eq("voucher_type", "expense")
-              .order("created_at", { ascending: false })
-              .limit(1);
-            const lastNum = (lastVoucher as any)?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
-            await supabase.from("voucher_entries").insert({
-              organization_id: currentOrganization.id,
-              voucher_number: `EXP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`,
-              voucher_type: "expense",
-              voucher_date: buildPosVoucherDate(),
-              reference_type: "sale",
-              reference_id: result.id,
-              description: `Finance Discount — ${financerDetails.financer_name} (${result.sale_number})`,
-              total_amount: financerDetails.finance_discount,
-              category: "finance_discount",
-              payment_method: "bank",
-            } as any);
+            await syncFinanceDiscountVoucher({
+              organizationId: currentOrganization.id,
+              saleId: result.id,
+              saleNumber: result.sale_number,
+              financerName: financerDetails.financer_name,
+              financeDiscount: Number(financerDetails.finance_discount) || 0,
+              voucherDate: buildPosVoucherDate(),
+            });
           } catch (vErr) { console.error("Finance discount voucher failed:", vErr); }
         }
       }
@@ -5158,21 +5147,17 @@ export default function POSSales() {
       // Save financer details if provided
       if (financerDetails?.financer_name) {
         await saveFinancerDetails(result.id, currentOrganization?.id || '', financerDetails);
-        if (financerDetails.finance_discount > 0 && currentOrganization?.id) {
+        // One voucher per bill: an edited bill updates it instead of adding another.
+        if (currentOrganization?.id) {
           try {
-            const { data: lastVoucher } = await supabase
-              .from("voucher_entries").select("voucher_number")
-              .eq("organization_id", currentOrganization.id).eq("voucher_type", "expense")
-              .order("created_at", { ascending: false }).limit(1);
-            const lastNum = (lastVoucher as any)?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
-            await supabase.from("voucher_entries").insert({
-              organization_id: currentOrganization.id,
-              voucher_number: `EXP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`,
-              voucher_type: "expense", voucher_date: buildPosVoucherDate(),
-              reference_type: "sale", reference_id: result.id,
-              description: `Finance Discount — ${financerDetails.financer_name} (${result.sale_number})`,
-              total_amount: financerDetails.finance_discount, category: "finance_discount", payment_method: "bank",
-            } as any);
+            await syncFinanceDiscountVoucher({
+              organizationId: currentOrganization.id,
+              saleId: result.id,
+              saleNumber: result.sale_number,
+              financerName: financerDetails.financer_name,
+              financeDiscount: Number(financerDetails.finance_discount) || 0,
+              voucherDate: buildPosVoucherDate(),
+            });
           } catch (vErr) { console.error("Finance discount voucher failed:", vErr); }
         }
       }
@@ -5438,21 +5423,17 @@ export default function POSSales() {
       // Save financer details if provided
       if (financerDetails?.financer_name) {
         await saveFinancerDetails(result.id, currentOrganization?.id || '', financerDetails);
-        if (financerDetails.finance_discount > 0 && currentOrganization?.id) {
+        // One voucher per bill: an edited bill updates it instead of adding another.
+        if (currentOrganization?.id) {
           try {
-            const { data: lastVoucher } = await supabase
-              .from("voucher_entries").select("voucher_number")
-              .eq("organization_id", currentOrganization.id).eq("voucher_type", "expense")
-              .order("created_at", { ascending: false }).limit(1);
-            const lastNum = (lastVoucher as any)?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
-            await supabase.from("voucher_entries").insert({
-              organization_id: currentOrganization.id,
-              voucher_number: `EXP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`,
-              voucher_type: "expense", voucher_date: buildPosVoucherDate(),
-              reference_type: "sale", reference_id: result.id,
-              description: `Finance Discount — ${financerDetails.financer_name} (${result.sale_number})`,
-              total_amount: financerDetails.finance_discount, category: "finance_discount", payment_method: "bank",
-            } as any);
+            await syncFinanceDiscountVoucher({
+              organizationId: currentOrganization.id,
+              saleId: result.id,
+              saleNumber: result.sale_number,
+              financerName: financerDetails.financer_name,
+              financeDiscount: Number(financerDetails.finance_discount) || 0,
+              voucherDate: buildPosVoucherDate(),
+            });
           } catch (vErr) { console.error("Finance discount voucher failed:", vErr); }
         }
       }
