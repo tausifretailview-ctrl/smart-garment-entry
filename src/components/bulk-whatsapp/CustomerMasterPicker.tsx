@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Loader2, Search, Send, Users } from "lucide-react";
+import { Cake, Check, Loader2, Search, Send, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { formatBulkPhone, normalizeBulkPhone, type BulkContact } from "@/utils/bulkWhatsAppContacts";
 import { lastSendByPhone } from "@/utils/bulkWhatsAppHistory";
+import { upcomingSpecialDays } from "@/utils/customerSpecialDays";
+import { fetchSpecialDayCustomers } from "@/utils/customerSpecialDaysFetch";
 import { CAMPAIGN_LIST_LIMIT, fetchSentHistory, useBulkCampaigns } from "./bulkWhatsAppApi";
 
 const BATCH = 1000;
@@ -63,6 +65,23 @@ export function CustomerMasterPicker({
   const [search, setSearch] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [sentFilter, setSentFilter] = useState<SentFilter>("new");
+  const [specialToday, setSpecialToday] = useState(false);
+  // Birthday / anniversary today. Quietly empty until the birthday SQL is run.
+  const special = useQuery({
+    queryKey: ["customer-special-days", organizationId],
+    queryFn: () => fetchSpecialDayCustomers(organizationId),
+    enabled: open,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  const specialTodayPhones = useMemo(() => {
+    const phones = new Set<string>();
+    for (const d of upcomingSpecialDays(special.data ?? [], new Date(), 0)) {
+      const phone = normalizeBulkPhone(d.customer.phone);
+      if (phone) phones.add(phone);
+    }
+    return phones;
+  }, [special.data]);
   const q = useQuery({
     queryKey: ["bulk-whatsapp-customer-contacts", organizationId],
     queryFn: () => fetchCustomerContacts(organizationId),
@@ -90,9 +109,10 @@ export function CustomerMasterPicker({
     return all.filter(
       (c) =>
         (sentFilter === "all" || !sentMap || (sentFilter === "sent") === sentMap.has(c.phone)) &&
+        (!specialToday || specialTodayPhones.has(c.phone)) &&
         (!s || (c.name ?? "").toLowerCase().includes(s) || (digits.length >= 3 && c.phone.includes(digits))),
     );
-  }, [all, search, sentFilter, sentMap]);
+  }, [all, search, sentFilter, sentMap, specialToday, specialTodayPhones]);
   const allFilteredPicked = filtered.length > 0 && filtered.every((c) => picked.has(c.phone));
 
   const toggle = (phone: string) =>
@@ -116,6 +136,7 @@ export function CustomerMasterPicker({
     setPicked(new Set());
     setSearch("");
     setSentFilter("new");
+    setSpecialToday(false);
     onOpenChange(false);
   };
 
@@ -179,6 +200,21 @@ export function CustomerMasterPicker({
               className="no-uppercase pl-8"
             />
           </div>
+          {specialTodayPhones.size > 0 && (
+            <Button
+              type="button"
+              variant={specialToday ? "default" : "outline"}
+              size="sm"
+              className={cn("h-9", specialToday && "bg-pink-600 hover:bg-pink-700")}
+              onClick={() => {
+                const next = !specialToday;
+                setSpecialToday(next);
+                if (next) setSentFilter("all");
+              }}
+            >
+              <Cake className="mr-1 h-4 w-4" /> Birthday / anniversary today ({specialTodayPhones.size})
+            </Button>
+          )}
           <Button type="button" variant="outline" size="sm" className="h-9" onClick={toggleAllFiltered} disabled={!filtered.length}>
             {allFilteredPicked ? "Unselect" : "Select"} all {search.trim() ? "matching " : ""}({filtered.length.toLocaleString("en-IN")})
           </Button>

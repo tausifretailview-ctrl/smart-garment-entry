@@ -2348,6 +2348,8 @@ export type Database = {
       customers: {
         Row: {
           address: string | null
+          anniversary: string | null
+          birthday: string | null
           created_at: string | null
           customer_name: string
           deleted_at: string | null
@@ -2372,6 +2374,8 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          anniversary?: string | null
+          birthday?: string | null
           created_at?: string | null
           customer_name: string
           deleted_at?: string | null
@@ -2396,6 +2400,8 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          anniversary?: string | null
+          birthday?: string | null
           created_at?: string | null
           customer_name?: string
           deleted_at?: string | null
