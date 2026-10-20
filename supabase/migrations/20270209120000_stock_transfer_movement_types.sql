@@ -26,7 +26,16 @@ BEGIN
   FROM (
     SELECT m[1] AS t FROM regexp_matches(v_def, '''([^'']+)''', 'g') AS m
     UNION
-    SELECT unnest(ARRAY['transfer_out', 'transfer_in', 'transfer_out_cancel', 'transfer_in_cancel'])
+    -- Repo list (20261207140000) so purchase_sku_change_in/out stay allowed, plus the transfer types.
+    SELECT unnest(ARRAY[
+      'purchase', 'sale', 'purchase_return', 'sale_return', 'purchase_delete', 'purchase_increase',
+      'purchase_decrease', 'sale_delete', 'sale_return_delete', 'purchase_return_delete', 'reconciliation',
+      'soft_delete_purchase', 'restore_purchase', 'soft_delete_sale', 'restore_sale',
+      'soft_delete_sale_return', 'restore_sale_return', 'soft_delete_purchase_return',
+      'restore_purchase_return', 'stock_reset', 'sale_update_decrease', 'sale_update_increase',
+      'purchase_edit', 'purchase_sku_change_out', 'purchase_sku_change_in',
+      'transfer_out', 'transfer_in', 'transfer_out_cancel', 'transfer_in_cancel'
+    ])
   ) x;
 
   SELECT string_agg(quote_literal(t) || '::text', ', ') INTO v_list FROM unnest(v_types) t;
