@@ -32,6 +32,7 @@ import {
 import { StockReconciliation } from "@/components/StockReconciliation";
 import { PlatformWhatsAppSettings } from "@/components/PlatformWhatsAppSettings";
 import { PlatformWhatsAppLogs } from "@/components/PlatformWhatsAppLogs";
+import { PlatformWhatsAppShops } from "@/components/PlatformWhatsAppShops";
 import { PlatformLedgerHealth } from "@/components/PlatformLedgerHealth";
 import { CloudUsageWidget } from "@/components/dashboard/CloudUsageWidget";
 import { useAuth } from "@/contexts/AuthContext";
@@ -51,6 +52,7 @@ interface Organization {
   /** NULL for WhatsApp-only shops: they never print barcodes, so they take no barcode series. */
   organization_number: number | null;
   organization_type?: "business" | "school" | "whatsapp";
+  is_suspended?: boolean | null;
 }
 
 interface User {
@@ -654,6 +656,7 @@ export default function PlatformAdmin() {
       // Newest orgs are first (descending created_at) — stay on page 1
       setOrgPage(1);
       queryClient.invalidateQueries({ queryKey: ["platform-organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-whatsapp-shop-activity"] });
     },
     onError: (error: any) => {
       const msg = error.message || "";
@@ -937,10 +940,25 @@ export default function PlatformAdmin() {
   const orgCount = organizations.length;
   const userCount = members.length;
 
+  // WhatsApp-only shops have their own tab; the Organizations tab lists ERP shops only.
+  const erpOrganizations = useMemo(
+    () => organizations.filter((org) => org.organization_type !== "whatsapp"),
+    [organizations],
+  );
+  const whatsappOrganizations = useMemo(
+    () => organizations.filter((org) => org.organization_type === "whatsapp"),
+    [organizations],
+  );
+
+  const openCreateOrg = (type: "business" | "whatsapp") => {
+    setOrgType(type);
+    setCreateOrgOpen(true);
+  };
+
   const filteredOrganizations = useMemo(() => {
     const q = orgSearch.trim().toLowerCase();
-    if (!q) return organizations;
-    return organizations.filter((org) => {
+    if (!q) return erpOrganizations;
+    return erpOrganizations.filter((org) => {
       const num = String(org.organization_number ?? "");
       const name = (org.name || "").toLowerCase();
       const slug = (org.slug || "").toLowerCase();
@@ -955,7 +973,7 @@ export default function PlatformAdmin() {
         `#${num}`.includes(q)
       );
     });
-  }, [organizations, orgSearch]);
+  }, [erpOrganizations, orgSearch]);
 
   const filteredOrgCount = filteredOrganizations.length;
   const orgTotalPages = Math.max(1, Math.ceil(filteredOrgCount / ORG_PAGE_SIZE));
@@ -1060,6 +1078,7 @@ export default function PlatformAdmin() {
         <Tabs defaultValue="organizations" className="space-y-4">
           <TabsList>
             <TabsTrigger value="organizations">Organizations</TabsTrigger>
+            <TabsTrigger value="whatsapp-shops">WhatsApp Only</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="whatsapp">WhatsApp API</TabsTrigger>
             <TabsTrigger value="whatsapp-logs">WhatsApp Logs</TabsTrigger>
@@ -1072,6 +1091,26 @@ export default function PlatformAdmin() {
               Data Integrity →
             </Link>
           </TabsList>
+
+          {/* WhatsApp-only shops Tab */}
+          <TabsContent value="whatsapp-shops" forceMount className={STICKY_TAB_CONTENT_CLASS}>
+            <PlatformWhatsAppShops
+              shops={whatsappOrganizations}
+              members={members}
+              loading={orgsLoading}
+              siteUrl={WHATSAPP_SITE_URL}
+              onCreate={() => openCreateOrg("whatsapp")}
+              onCreateUser={(orgId) => {
+                setUserOrgId(orgId);
+                setCreateUserOpen(true);
+              }}
+              onAssignUser={handleAssignUser}
+              onEditFeatures={(orgId) => {
+                const org = organizations.find((o) => o.id === orgId);
+                if (org) handleEditFeatures(org);
+              }}
+            />
+          </TabsContent>
 
           {/* WhatsApp Tab */}
           <TabsContent value="whatsapp" forceMount className={STICKY_TAB_CONTENT_CLASS}>
@@ -1097,7 +1136,7 @@ export default function PlatformAdmin() {
                   <p className="text-xs text-muted-foreground mt-0.5">
                     Showing {(safeOrgPage - 1) * ORG_PAGE_SIZE + 1}–
                     {Math.min(safeOrgPage * ORG_PAGE_SIZE, filteredOrgCount)} of {filteredOrgCount}
-                    {orgSearch.trim() ? ` (filtered from ${orgCount})` : ""}
+                    {orgSearch.trim() ? ` (filtered from ${erpOrganizations.length})` : ""}
                   </p>
                 )}
               </div>
@@ -1111,16 +1150,14 @@ export default function PlatformAdmin() {
                     className="pl-9"
                   />
                 </div>
+              <Button disabled={orgCount >= 100} onClick={() => openCreateOrg("business")}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Organization
+              </Button>
               <Dialog open={createOrgOpen} onOpenChange={setCreateOrgOpen}>
-                <DialogTrigger asChild>
-                  <Button disabled={orgCount >= 100}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Organization
-                  </Button>
-                </DialogTrigger>
                 <DialogContent className="max-w-md">
                   <DialogHeader>
-                    <DialogTitle>Create New Organization</DialogTitle>
+                    <DialogTitle>{orgType === "whatsapp" ? "Create WhatsApp Only Shop" : "Create New Organization"}</DialogTitle>
                     <DialogDescription>
                       Add a new organization to the platform (Max 5)
                     </DialogDescription>
