@@ -144,6 +144,7 @@ import {
 } from "@/utils/alignPurchaseLineBarcode";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { validateIMEI } from "@/hooks/useMobileERP";
+import { missingGroupSizePlaceholders, type GroupSizePlaceholder } from "@/utils/sizeGroupGridSizes";
 import { getRequiresImeiFormDefault, productRequiresImei, purchaseLineNeedsImeiPerUnit, rememberRequiresImeiFormChoice } from "@/utils/productRequiresImei";
 import {
   resolvePurchaseLineItemsForPriceTiers,
@@ -396,6 +397,8 @@ interface SizeGridVariant {
   stock_qty?: number;
   /** From products.requires_imei — carried through so grid lines aren't treated as serialised. */
   requires_imei?: boolean;
+  /** Size not saved for this product yet (from its size group): created on confirm. */
+  isCustomSize?: boolean;
 }
 
 // Helper function to format product description
@@ -4101,7 +4104,8 @@ const PurchaseEntry = () => {
           default_sale_price,
           purchase_discount_type,
           purchase_discount_value,
-          uom
+          uom,
+          size_group_id
         )
       `)
       .in("product_id", ids)
@@ -4127,8 +4131,41 @@ const PurchaseEntry = () => {
         : data.filter((v: { mrp?: number }) => mrpBucket(v.mrp) === mrpBucket(filterMrp));
     const tierData = variantsForTier.length > 0 ? variantsForTier : data;
 
+    // Sizes added to the product's size group after it was created (Edit Size Group)
+    // have no variant yet: offer them in the grid as new sizes. Read fresh from the DB.
+    const gridProductData = tierData[0].products as any;
+    let groupSizePlaceholders: GroupSizePlaceholder[] = [];
+    if (
+      gridProductData?.size_group_id &&
+      (gridProductData.uom || "NOS") !== "MTR" &&
+      !productRequiresImei({ requires_imei: gridProductData.requires_imei }, mobileERPSettings)
+    ) {
+      const { data: sizeGroup } = await supabase
+        .from("size_groups")
+        .select("sizes")
+        .eq("id", gridProductData.size_group_id)
+        .maybeSingle();
+      groupSizePlaceholders = missingGroupSizePlaceholders({
+        variants: tierData.map((v: any) => ({
+          id: v.id,
+          size: v.size || "",
+          color: v.color || v.products?.color || "",
+          pur_price: Number(v.pur_price) || 0,
+          sale_price: Number(v.sale_price) || 0,
+          mrp: Number(v.mrp) || 0,
+        })),
+        savedVariants: data.map((v: any) => ({
+          size: v.size || "",
+          color: v.color || v.products?.color || "",
+        })),
+        groupSizes: sizeGroup?.sizes,
+        productPurPrice: gridProductData.default_pur_price,
+        productSalePrice: gridProductData.default_sale_price,
+      });
+    }
+
     // If only one variant, add directly (close the loading dialog first)
-    if (tierData.length === 1) {
+    if (tierData.length === 1 && groupSizePlaceholders.length === 0) {
       setShowSizeGrid(false);
       setSizeGridLoading(false);
       const v = tierData[0];
@@ -4203,6 +4240,16 @@ const PurchaseEntry = () => {
       color: v.color || v.products?.color || "",
       requires_imei: v.products?.requires_imei !== false,
     })));
+    if (groupSizePlaceholders.length > 0) {
+      mappedVariants.push(
+        ...groupSizePlaceholders.map((p) => ({ ...p, requires_imei: false })),
+      );
+      mappedVariants.sort((a, b) => {
+        const colorCompare = (a.color || "").localeCompare(b.color || "");
+        if (colorCompare !== 0) return colorCompare;
+        return compareSizes(a.size, b.size);
+      });
+    }
 
     // Check if this is a MTR product and roll-wise entry is enabled
     const productData = tierData[0].products as any;
