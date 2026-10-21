@@ -229,6 +229,7 @@ import {
 } from "@/constants/retailNarrowLabelTemplate";
 import { upsertPrinterPresetRow } from "@/utils/printerPresetDbCompat";
 import { fetchSaleDiscPercentBySkuId } from "@/utils/pricingSaleDiscPercentLookup";
+import { escapeHtml } from "@/utils/escapeHtml";
 
 const precisionPresetStorageKey = (orgId: string) => `precision_active_preset_${orgId}`;
 
@@ -5334,7 +5335,7 @@ export default function BarcodePrinting() {
               align-items: flex-start;
               overflow: hidden;
             ">
-              ${barcodeSvg ? `<div style="height: ${barcodeHeightMm}mm; max-width: 100%; display: flex; align-items: flex-start; flex-shrink: 0;">${barcodeSvg}</div>` : `<span style="font-size: 8px;">${barcode}</span>`}
+              ${barcodeSvg ? `<div style="height: ${barcodeHeightMm}mm; max-width: 100%; display: flex; align-items: flex-start; flex-shrink: 0;">${barcodeSvg}</div>` : `<span style="font-size: 8px;">${escapeHtml(barcode)}</span>`}
             </div>
           `;
         } else {
@@ -5356,7 +5357,7 @@ export default function BarcodePrinting() {
               ${allowsMultiline ? 'word-break: break-word;' : ''}
               overflow: hidden;
               ${allowsMultiline ? '' : 'text-overflow: ellipsis;'}
-            ">${content}</div>
+            ">${escapeHtml(content)}</div>
           `;
         }
       });
@@ -5395,10 +5396,10 @@ export default function BarcodePrinting() {
         if (barcodeSvg) {
           html += `<div style="display: flex; justify-content: center; margin: ${bcPaddingTop}px auto ${bcPaddingBottom}px auto; padding-left: ${bcPaddingLeft}px; padding-right: ${bcPaddingRight}px; height: ${barcodeHeightMm}mm; overflow: hidden;">${barcodeSvg}</div>`;
         } else {
-          html += `<div style="text-align: center; font-size: 10px; font-weight: bold;">${barcode}</div>`;
+          html += `<div style="text-align: center; font-size: 10px; font-weight: bold;">${escapeHtml(barcode)}</div>`;
         }
       } else {
-        html += `<div class="${fieldKey}" style="${getStyle(field)}">${content}</div>`;
+        html += `<div class="${fieldKey}" style="${getStyle(field)}">${escapeHtml(content)}</div>`;
       }
     });
 

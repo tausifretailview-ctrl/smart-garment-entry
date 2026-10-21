@@ -1,5 +1,6 @@
 import JsBarcode from "jsbarcode";
 import { formatLabelSaleDiscPercent } from "@/utils/labelDesignerPlaceholders";
+import { escapeHtml } from "@/utils/escapeHtml";
 
 // Render barcode as inline SVG string for crisp vector output on all printers
 const renderBarcodeToSVG = (code: string, height: number = 30, width: number = 1.5): string => {
@@ -180,7 +181,7 @@ const getAbsolutePositionedLabelHTML = (
           align-items: center;
           overflow: visible;
         ">
-          ${barcodeSvg ? `<div style="height: ${barcodeHeightMm}mm; max-width: 100%; display: flex; align-items: center;">${barcodeSvg}</div>` : `<span style="font-size: 8px;">${content}</span>`}
+          ${barcodeSvg ? `<div style="height: ${barcodeHeightMm}mm; max-width: 100%; display: flex; align-items: center;">${barcodeSvg}</div>` : `<span style="font-size: 8px;">${escapeHtml(content)}</span>`}
         </div>
       `;
     } else {
@@ -199,7 +200,7 @@ const getAbsolutePositionedLabelHTML = (
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-        ">${content}</div>
+        ">${escapeHtml(content)}</div>
       `;
     }
   });
@@ -221,17 +222,17 @@ const getThermalLabelHTML = (
   // Compact thermal layout matching VasyERP style
   return `
     <div style="width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: space-between; padding: 1mm 1.5mm; box-sizing: border-box; font-family: Arial, sans-serif;">
-      <div style="font-size: 8px; font-weight: bold; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${productWithSize}</div>
+      <div style="font-size: 8px; font-weight: bold; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(productWithSize)}</div>
       <div style="font-size: 7px; text-align: center; font-weight: bold;">MRP: ₹${mrp}</div>
       <div style="font-size: 7px; text-align: center; font-weight: bold;">Our Price: ₹${ourPrice}</div>
       <div style="display: flex; justify-content: center; align-items: center; flex: 1; min-height: 8mm;">
         ${(() => {
           const barcodeSvg = renderBarcodeToSVG(barcode, 30, 1.5);
-          return barcodeSvg ? `<div style="height: 8mm; max-width: 100%; display: flex; align-items: center; justify-content: center;">${barcodeSvg}</div>` : `<span style="font-size: 8px;">${barcode}</span>`;
+          return barcodeSvg ? `<div style="height: 8mm; max-width: 100%; display: flex; align-items: center; justify-content: center;">${barcodeSvg}</div>` : `<span style="font-size: 8px;">${escapeHtml(barcode)}</span>`;
         })()}
       </div>
-      <div style="font-size: 7px; text-align: center; font-weight: bold;">${barcode}</div>
-      <div style="font-size: 6px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${brand}</div>
+      <div style="font-size: 7px; text-align: center; font-weight: bold;">${escapeHtml(barcode)}</div>
+      <div style="font-size: 6px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(brand)}</div>
     </div>
   `;
 };
@@ -269,15 +270,15 @@ const getLegacyLabelHTML = (
   let html = '';
   
   if (item.business_name) {
-    html += `<div class="business-name" style="font-size: 8px; font-weight: bold; margin-bottom: 2mm; text-align: ${config.supplierCode.textAlign || 'center'};">${item.business_name}</div>`;
+    html += `<div class="business-name" style="font-size: 8px; font-weight: bold; margin-bottom: 2mm; text-align: ${config.supplierCode.textAlign || 'center'};">${escapeHtml(item.business_name)}</div>`;
   }
   
   if (config.supplierCode.show && item.supplier_code) {
-    html += `<div class="supplier-code" style="font-size: ${config.supplierCode.fontSize}px; font-weight: ${config.supplierCode.bold ? 'bold' : 'normal'}; margin-bottom: 1mm; text-align: ${config.supplierCode.textAlign || 'center'}; color: #666;">Supplier: ${item.supplier_code}</div>`;
+    html += `<div class="supplier-code" style="font-size: ${config.supplierCode.fontSize}px; font-weight: ${config.supplierCode.bold ? 'bold' : 'normal'}; margin-bottom: 1mm; text-align: ${config.supplierCode.textAlign || 'center'}; color: #666;">Supplier: ${escapeHtml(item.supplier_code)}</div>`;
   }
   
   if (config.productName.show) {
-    html += `<div class="prod" style="font-size: ${config.productName.fontSize}px; font-weight: ${config.productName.bold ? 'bold' : 'normal'}; text-align: ${config.productName.textAlign || 'center'}; margin-bottom: 3mm;">${item.product_name}</div>`;
+    html += `<div class="prod" style="font-size: ${config.productName.fontSize}px; font-weight: ${config.productName.bold ? 'bold' : 'normal'}; text-align: ${config.productName.textAlign || 'center'}; margin-bottom: 3mm;">${escapeHtml(item.product_name)}</div>`;
   }
   if (config.price.show) {
     html += `<div class="mrp" style="font-size: ${config.price.fontSize}px; font-weight: ${config.price.bold ? 'bold' : 'normal'}; text-align: ${config.price.textAlign || 'center'}; margin-bottom: 3mm;">MRP: ₹${item.sale_price}</div>`;
@@ -286,16 +287,16 @@ const getLegacyLabelHTML = (
     const barcodeSvg = renderBarcodeToSVG(barcode, 35, 2);
     html += barcodeSvg 
       ? `<div style="margin-bottom: 2mm; max-width: 100%; display: flex; justify-content: center;">${barcodeSvg}</div>`
-      : `<div style="font-size: 10px; text-align: center; margin-bottom: 2mm;">${barcode}</div>`;
+      : `<div style="font-size: 10px; text-align: center; margin-bottom: 2mm;">${escapeHtml(barcode)}</div>`;
   }
-  html += `<div class="meta" style="font-size: ${config.barcodeText.fontSize}px; font-weight: ${config.barcodeText.bold ? 'bold' : 'normal'}; text-align: ${config.barcodeText.textAlign || 'center'}; margin-bottom: 1mm;">${barcode}</div>`;
+  html += `<div class="meta" style="font-size: ${config.barcodeText.fontSize}px; font-weight: ${config.barcodeText.bold ? 'bold' : 'normal'}; text-align: ${config.barcodeText.textAlign || 'center'}; margin-bottom: 1mm;">${escapeHtml(barcode)}</div>`;
   
   if (config.purchaseCode.show && item.purchase_code) {
-    html += `<div class="purchase-code" style="font-size: ${config.purchaseCode.fontSize}px; font-weight: ${config.purchaseCode.bold ? 'bold' : 'normal'}; text-align: ${config.purchaseCode.textAlign || 'center'}; margin-bottom: 1mm; color: #666;">Code: ${item.purchase_code}</div>`;
+    html += `<div class="purchase-code" style="font-size: ${config.purchaseCode.fontSize}px; font-weight: ${config.purchaseCode.bold ? 'bold' : 'normal'}; text-align: ${config.purchaseCode.textAlign || 'center'}; margin-bottom: 1mm; color: #666;">Code: ${escapeHtml(item.purchase_code)}</div>`;
   }
   
   if (config.billNumber.show && item.bill_number) {
-    html += `<div class="bill" style="font-size: ${config.billNumber.fontSize}px; font-weight: ${config.billNumber.bold ? 'bold' : 'normal'}; text-align: ${config.billNumber.textAlign || 'center'}; margin-top: 1.5mm;">Bill: ${item.bill_number}</div>`;
+    html += `<div class="bill" style="font-size: ${config.billNumber.fontSize}px; font-weight: ${config.billNumber.bold ? 'bold' : 'normal'}; text-align: ${config.billNumber.textAlign || 'center'}; margin-top: 1.5mm;">Bill: ${escapeHtml(item.bill_number)}</div>`;
   }
   
   return html;
