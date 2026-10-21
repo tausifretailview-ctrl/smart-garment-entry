@@ -33,6 +33,7 @@ import { StockReconciliation } from "@/components/StockReconciliation";
 import { PlatformWhatsAppSettings } from "@/components/PlatformWhatsAppSettings";
 import { PlatformWhatsAppLogs } from "@/components/PlatformWhatsAppLogs";
 import { PlatformWhatsAppShops } from "@/components/PlatformWhatsAppShops";
+import { PlatformSupportTokens } from "@/components/PlatformSupportTokens";
 import { CloudUsageWidget } from "@/components/dashboard/CloudUsageWidget";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -1090,6 +1091,7 @@ export default function PlatformAdmin() {
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="whatsapp">WhatsApp API</TabsTrigger>
             <TabsTrigger value="whatsapp-logs">WhatsApp Logs</TabsTrigger>
+            <TabsTrigger value="support-tokens">Support Tokens</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
             <Link
               to="/platform-admin/data-integrity"
@@ -1131,6 +1133,11 @@ export default function PlatformAdmin() {
           {/* WhatsApp Logs Tab */}
           <TabsContent value="whatsapp-logs" forceMount className={STICKY_TAB_CONTENT_CLASS}>
             {visitedTabs.has("whatsapp-logs") && <PlatformWhatsAppLogs />}
+          </TabsContent>
+
+          {/* Support Tokens Tab */}
+          <TabsContent value="support-tokens" forceMount className={STICKY_TAB_CONTENT_CLASS}>
+            {visitedTabs.has("support-tokens") && <PlatformSupportTokens />}
           </TabsContent>
 
           {/* Organizations Tab */}

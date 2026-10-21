@@ -1,6 +1,6 @@
 import { DesktopWindowControls } from "@/components/desktop/DesktopWindowControls";
 import { HeaderMenubar } from "@/components/desktop/HeaderMenubar";
-import { Menu, ShoppingCart, Package, Download, LayoutGrid, BoxIcon, Plus, FileText, Banknote, RefreshCw, Settings, Users, Wallet } from "lucide-react";
+import { Menu, ShoppingCart, Package, Download, LayoutGrid, BoxIcon, Plus, FileText, Banknote, RefreshCw, Settings, Users, Wallet, Headset } from "lucide-react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -281,6 +281,7 @@ export const Header = () => {
             orgNavigate={orgNavigate}
             openPosSales={openPosSales}
             onRefresh={handleManualReload}
+            onOpenSupport={() => setSupportOpen(true)}
           />
         </div>
 
@@ -322,6 +323,17 @@ export const Header = () => {
                     {action.label}
                   </Button>
                 ))}
+                <Button
+                  variant="ghost"
+                  className="justify-start md:hidden"
+                  onClick={() => {
+                    setSupportOpen(true);
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  <Headset className="h-4 w-4 mr-2" />
+                  Support
+                </Button>
                 <Button
                   variant="ghost"
                   className="justify-start"

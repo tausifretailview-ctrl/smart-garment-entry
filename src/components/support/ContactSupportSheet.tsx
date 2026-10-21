@@ -1,15 +1,14 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Clock,
   Headset,
   LifeBuoy,
-  Loader2,
   Mail,
   MessageCircle,
   Phone,
-  PhoneCall,
+  Ticket,
 } from "lucide-react";
-import { toast } from "sonner";
 import {
   Sheet,
   SheetContent,
@@ -17,24 +16,19 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   EZZY_SUPPORT,
-  enqueueSupportCallback,
   whatsappSupportUrl,
 } from "@/components/support/supportContacts";
+import { SupportTokenDialog } from "@/components/support/SupportTokenDialog";
+import {
+  SUPPORT_STATUS_LABELS,
+  supportTokensTable,
+  type SupportToken,
+} from "@/components/support/supportTokensApi";
 import { cn } from "@/lib/utils";
 
 type ContactSupportSheetProps = {
@@ -42,58 +36,32 @@ type ContactSupportSheetProps = {
   onOpenChange: (open: boolean) => void;
 };
 
+const STATUS_CHIP: Record<SupportToken["status"], string> = {
+  open: "bg-amber-100 text-amber-800",
+  in_progress: "bg-sky-100 text-sky-800",
+  closed: "bg-emerald-100 text-emerald-800",
+};
+
 export function ContactSupportSheet({ open, onOpenChange }: ContactSupportSheetProps) {
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
-  const [callbackOpen, setCallbackOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [businessName, setBusinessName] = useState("");
-  const [contactName, setContactName] = useState("");
-  const [contactNo, setContactNo] = useState("");
-  const [notes, setNotes] = useState("");
+  const [tokenOpen, setTokenOpen] = useState(false);
 
-  useEffect(() => {
-    if (!callbackOpen) return;
-    setBusinessName(currentOrganization?.name?.trim() || "");
-    setContactName(
-      (user?.user_metadata?.full_name as string | undefined)?.trim() ||
-        user?.email?.split("@")[0] ||
-        currentOrganization?.name?.trim() ||
-        "",
-    );
-    setContactNo("");
-    setNotes("");
-  }, [callbackOpen, currentOrganization?.name, user]);
-
-  const submitCallback = async (e: FormEvent) => {
-    e.preventDefault();
-    const biz = businessName.trim();
-    const name = contactName.trim();
-    const phone = contactNo.replace(/\D/g, "");
-    if (!biz || !name || phone.length < 10) {
-      toast.error("Please enter business name, contact name, and a valid phone number");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      enqueueSupportCallback({
-        businessName: biz,
-        contactName: name,
-        contactNo: phone,
-        notes: notes.trim(),
-        submittedAt: new Date().toISOString(),
-        organizationId: currentOrganization?.id ?? null,
-        organizationName: currentOrganization?.name ?? null,
-        userEmail: user?.email ?? null,
-      });
-      toast.success("Callback request submitted", {
-        description: "Our team will reach out shortly. Collection settings will be updated soon.",
-      });
-      setCallbackOpen(false);
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  // The user's last few tokens (RLS: own rows only). Fails quietly until the SQL is run.
+  const { data: myTokens = [] } = useQuery({
+    queryKey: ["my-support-tokens", user?.id],
+    enabled: open && Boolean(user?.id),
+    staleTime: 30_000,
+    queryFn: async (): Promise<SupportToken[]> => {
+      const { data, error } = await supportTokensTable()
+        .select("id, token_no, category, message, status, created_at, admin_note")
+        .eq("user_id", user!.id)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (error) return [];
+      return (data ?? []) as SupportToken[];
+    },
+  });
 
   const channels = [
     {
@@ -200,16 +168,53 @@ export function ContactSupportSheet({ open, onOpenChange }: ContactSupportSheetP
                 </div>
               );
             })}
+
+            {myTokens.length > 0 && (
+              <div className="pt-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                  My support tokens
+                </p>
+                <div className="space-y-2">
+                  {myTokens.map((t) => (
+                    <div key={t.id} className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-bold text-violet-800">#{t.token_no}</span>
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                            STATUS_CHIP[t.status] ?? STATUS_CHIP.open,
+                          )}
+                        >
+                          {SUPPORT_STATUS_LABELS[t.status] ?? t.status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 mt-1 line-clamp-2">{t.message}</p>
+                      {t.admin_note ? (
+                        <p className="text-xs text-emerald-700 mt-1 line-clamp-2">Support: {t.admin_note}</p>
+                      ) : null}
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        {new Date(t.created_at).toLocaleString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="px-5 pb-5 pt-2 space-y-3 border-t border-slate-100 bg-white">
             <Button
               type="button"
               className="w-full h-11 text-sm font-semibold bg-violet-600 hover:bg-violet-700 text-white gap-2"
-              onClick={() => setCallbackOpen(true)}
+              onClick={() => setTokenOpen(true)}
             >
-              <PhoneCall className="h-4 w-4" />
-              Schedule a Callback
+              <Ticket className="h-4 w-4" />
+              Generate Support Token
             </Button>
             <div className="flex items-center justify-between text-xs text-slate-500">
               <span className="inline-flex items-center gap-1.5">
@@ -225,78 +230,7 @@ export function ContactSupportSheet({ open, onOpenChange }: ContactSupportSheetP
         </SheetContent>
       </Sheet>
 
-      <Dialog open={callbackOpen} onOpenChange={setCallbackOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader className="text-center sm:text-center space-y-1">
-            <DialogTitle className="text-lg font-bold text-slate-800">
-              Talk To Our Expert
-            </DialogTitle>
-            <DialogDescription className="text-sm text-slate-500">
-              Fill in your info — we&apos;ll reach out shortly
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={submitCallback} className="space-y-3 pt-1">
-            <div className="space-y-1.5">
-              <Label htmlFor="support-biz">Business Name</Label>
-              <Input
-                id="support-biz"
-                value={businessName}
-                onChange={(e) => setBusinessName(e.target.value)}
-                placeholder="Business name"
-                className="h-10"
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="support-name">Contact Name</Label>
-              <Input
-                id="support-name"
-                value={contactName}
-                onChange={(e) => setContactName(e.target.value)}
-                placeholder="Contact name"
-                className="h-10"
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="support-phone">Contact No.</Label>
-              <Input
-                id="support-phone"
-                value={contactNo}
-                onChange={(e) => setContactNo(e.target.value)}
-                placeholder="10-digit mobile"
-                inputMode="tel"
-                className="h-10"
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="support-notes">Notes</Label>
-              <Textarea
-                id="support-notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Notes"
-                rows={3}
-              />
-            </div>
-            <Button
-              type="submit"
-              disabled={submitting}
-              className="w-full h-11 text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Submitting…
-                </>
-              ) : (
-                "Submit"
-              )}
-            </Button>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <SupportTokenDialog open={tokenOpen} onOpenChange={setTokenOpen} />
     </>
   );
 }

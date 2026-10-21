@@ -34,6 +34,8 @@ export type HeaderMenubarProps = {
   orgNavigate: (path: string, options?: { state?: Record<string, unknown> }) => void;
   openPosSales: () => void;
   onRefresh: () => void;
+  /** Contact Support sheet (Generate Support Token). */
+  onOpenSupport?: () => void;
   className?: string;
 };
 
@@ -53,6 +55,7 @@ export function HeaderMenubar({
   orgNavigate,
   openPosSales,
   onRefresh,
+  onOpenSupport,
   className,
 }: HeaderMenubarProps) {
   const showFile =
@@ -538,6 +541,9 @@ export function HeaderMenubar({
               App Settings
             </MenubarItem>
             <MenubarSeparator />
+            {onOpenSupport && (
+              <MenubarItem onClick={onOpenSupport}>Generate Support Token</MenubarItem>
+            )}
             <MenubarItem onClick={() => window.open("https://wa.me/917021432520", "_blank")}>
               WhatsApp Support
             </MenubarItem>

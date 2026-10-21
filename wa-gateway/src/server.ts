@@ -63,6 +63,10 @@ app.post("/sessions/:orgId/send-file", wrap(async (req, res) => {
   res.json({ success: true, messageId });
 }));
 
+app.get("/sessions/:orgId/groups", wrap(async (req, res) => {
+  res.json({ success: true, groups: await sessions.groups(req.params.orgId) });
+}));
+
 app.post("/sessions/:orgId/check-number", wrap(async (req, res) => {
   const exists = await sessions.checkNumber(req.params.orgId, String(req.body?.phone ?? ""));
   res.json({ success: true, exists });

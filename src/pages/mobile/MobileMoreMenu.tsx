@@ -19,7 +19,8 @@ import {
   Store,
   Database,
 } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
+import { ContactSupportSheet } from "@/components/support/ContactSupportSheet";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/mobile/PullToRefreshIndicator";
@@ -62,6 +63,8 @@ export default function MobileMoreMenu() {
   const { scrollRef, isRefreshing, pullHandlers } = usePullToRefresh(
     useCallback(() => invalidateActiveHubQueries(queryClient), [queryClient]),
   );
+
+  const [supportOpen, setSupportOpen] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -109,7 +112,7 @@ export default function MobileMoreMenu() {
           : []),
         { icon: Database, label: "Backup", path: "/backup", color: "text-emerald-500" },
         { icon: User, label: "Profile", path: "/profile", color: "text-blue-500" },
-        { icon: HelpCircle, label: "Help & Support", path: "/settings", color: "text-teal-500" },
+        { icon: HelpCircle, label: "Help & Support", action: () => setSupportOpen(true), color: "text-teal-500" },
         { icon: LogOut, label: "Sign Out", action: handleSignOut, color: "text-red-500" },
       ],
     },
@@ -178,6 +181,8 @@ export default function MobileMoreMenu() {
         <p className="text-xs text-muted-foreground">Ezzy ERP Mobile — Reporting</p>
         <p className="text-xs text-muted-foreground mt-1">Made with ❤️ in India</p>
       </div>
+
+      <ContactSupportSheet open={supportOpen} onOpenChange={setSupportOpen} />
     </div>
   );
 }

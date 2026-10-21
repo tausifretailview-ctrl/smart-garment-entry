@@ -86,3 +86,6 @@ verify_jwt = false
 
 [functions.bulk-whatsapp]
 verify_jwt = false
+
+[functions.support-tokens]
+verify_jwt = false
