@@ -17,6 +17,8 @@ import { toast } from "sonner";
 import { AccountsExportButtons } from "@/components/accounts/AccountsExportButtons";
 import { accountsHistoryTableClass, accountsHistoryTableWrapClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import { deleteLedgerEntries } from "@/lib/customerLedger";
+import { CUSTOMER_RECEIPT_DELETE_COLUMNS, deleteCustomerReceipt } from "@/utils/deleteCustomerReceipt";
 
 interface ReconciliationTabProps {
   organizationId: string;
@@ -26,8 +28,7 @@ interface ReconciliationTabProps {
 
 const RECON_LOOKUP_BATCH = 200;
 const RECON_VOUCHER_LIMIT = 500;
-const RECON_VOUCHER_COLUMNS =
-  "id, voucher_number, voucher_date, reference_id, total_amount, description, payment_method";
+const RECON_VOUCHER_COLUMNS = `${CUSTOMER_RECEIPT_DELETE_COLUMNS}, voucher_date`;
 const RECON_SALE_COLUMNS =
   "id, customer_id, customer_name, customer_phone, sale_number, sale_date, net_amount, paid_amount, cash_amount, card_amount, upi_amount, payment_status, payment_method";
 
@@ -163,24 +164,18 @@ export function ReconciliationTab({ organizationId, customers, visitedTabs }: Re
 
   // Delete receipt mutation
   const deleteReceipt = useMutation({
-    mutationFn: async (payment: any) => {
-      const invoiceId = payment.reference_id;
-      const paymentAmount = Number(payment.total_amount);
-      if (invoiceId) {
-        const { data: invoice } = await supabase.from("sales").select("paid_amount, net_amount").eq("id", invoiceId).maybeSingle();
-        if (invoice) {
-          const newPaidAmount = Math.max(0, (invoice.paid_amount || 0) - paymentAmount);
-          const newStatus = newPaidAmount >= invoice.net_amount ? 'completed' : newPaidAmount > 0 ? 'partial' : 'pending';
-          await supabase.from("sales").update({ paid_amount: newPaidAmount, payment_status: newStatus }).eq("id", invoiceId);
-        }
-      }
-      await supabase.from("voucher_items").delete().eq("voucher_id", payment.id);
-      const { error } = await supabase.from("voucher_entries").delete().eq("id", payment.id);
-      if (error) throw error;
-      return { paymentAmount };
-    },
+    // Same reversal as Customer Payment: journal, credit-note / advance
+    // application and bill paid amounts all move back with the receipt.
+    mutationFn: (payment: any) => deleteCustomerReceipt(organizationId, payment),
     onSuccess: (data) => {
+      if (data.voucherNumber) {
+        void deleteLedgerEntries({ organizationId, voucherNo: data.voucherNumber, voucherTypes: ['RECEIPT'] });
+      }
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-receipt-vouchers", organizationId] });
+      queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-advance-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       queryClient.invalidateQueries({ queryKey: ["payment-reconciliation"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
