@@ -298,11 +298,11 @@ const BackupSettings = ({
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <SettingsFieldBlock label="Client ID" htmlFor="clientId">
-                      <Input id="clientId" type="text" placeholder="xxxxx.apps.googleusercontent.com" value={clientId} onChange={(e) => setClientId(e.target.value)} />
+                      <Input id="clientId" type="text" placeholder="xxxxx.apps.googleusercontent.com" value={clientId} onChange={(e) => setClientId(e.target.value)} className="no-uppercase" />
                     </SettingsFieldBlock>
                     <SettingsFieldBlock label="Client Secret" htmlFor="clientSecret">
                       <div className="relative">
-                        <Input id="clientSecret" type={showClientSecret ? "text" : "password"} placeholder="GOCSPX-xxxxxx" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} />
+                        <Input id="clientSecret" type={showClientSecret ? "text" : "password"} placeholder="GOCSPX-xxxxxx" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} className="no-uppercase" />
                         <Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 hover:bg-transparent" onClick={() => setShowClientSecret(!showClientSecret)}>
                           {showClientSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </Button>
@@ -321,7 +321,7 @@ const BackupSettings = ({
                       }
                     >
                       <div className="relative">
-                        <Input id="refreshToken" type={showRefreshToken ? "text" : "password"} placeholder="1//04xxxxxx" value={refreshToken} onChange={(e) => setRefreshToken(e.target.value)} />
+                        <Input id="refreshToken" type={showRefreshToken ? "text" : "password"} placeholder="1//04xxxxxx" value={refreshToken} onChange={(e) => setRefreshToken(e.target.value)} className="no-uppercase" />
                         <Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 hover:bg-transparent" onClick={() => setShowRefreshToken(!showRefreshToken)}>
                           {showRefreshToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </Button>
