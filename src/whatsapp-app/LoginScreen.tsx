@@ -103,7 +103,7 @@ export function LoginScreen() {
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="h-11 pr-10"
+                  className="h-11 pr-10 no-uppercase"
                 />
                 <button
                   type="button"

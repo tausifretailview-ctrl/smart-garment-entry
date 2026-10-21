@@ -439,6 +439,7 @@ const AllUsersTable = ({ organizations }: { organizations: Organization[] }) => 
                   value={editPassword}
                   onChange={(e) => setEditPassword(e.target.value)}
                   placeholder="Leave blank to keep current"
+                  className="no-uppercase"
                 />
                 <button
                   type="button"
