@@ -171,6 +171,33 @@ describe("Instagram link saved in Settings > Bill & Barcode", () => {
     expect(text).toBe("Hi TEST\nInsta: https://instagram.com/shop");
   });
 
+  it("adds Facebook, website and WhatsApp group links from Bill & Barcode", async () => {
+    tableReturning({
+      settings: {
+        business_name: "Shop",
+        bill_barcode_settings: {
+          facebook_link: "https://facebook.com/shop",
+          website_link: "shop.in",
+          whatsapp_group_link: "https://chat.whatsapp.com/AbC123",
+        },
+      },
+      whatsapp_templates: { message_template: "Hello {customer_name}." },
+    });
+    const text = await buildSalesInvoiceWhatsAppCaption("org-1", sale, "Shop");
+    expect(text).toBe(
+      "Hello TEST.\n\n👍 Like us on Facebook: https://facebook.com/shop\n🌐 Visit our website: https://shop.in\n💬 Join our WhatsApp group: https://chat.whatsapp.com/AbC123",
+    );
+  });
+
+  it("does not repeat the group link when the template prints {whatsapp_group_link}", async () => {
+    tableReturning({
+      settings: { business_name: "Shop", bill_barcode_settings: { whatsapp_group_link: "https://chat.whatsapp.com/AbC123" } },
+      whatsapp_templates: { message_template: "Hi {customer_name}\nGroup: {whatsapp_group_link}" },
+    });
+    const text = await buildSalesInvoiceWhatsAppCaption("org-1", sale, "Shop");
+    expect(text).toBe("Hi TEST\nGroup: https://chat.whatsapp.com/AbC123");
+  });
+
   it("prefers the WhatsApp settings link when both are filled", () => {
     expect(
       mergeShopSocialLinks({ instagram: "https://instagram.com/a" }, { instagram_link: "https://instagram.com/b" }).instagram,

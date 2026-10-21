@@ -72,6 +72,8 @@ const OPTIONAL_LINE_PLACEHOLDERS = [
   "instagram_link",
   "google_review_link",
   "website_link",
+  "facebook_link",
+  "whatsapp_group_link",
 ] as const;
 
 /**
@@ -152,6 +154,8 @@ export function applyWhatsAppTemplatePlaceholders(
     instagram_link: String(saleData.instagram_link || saleData.instagram || ""),
     google_review_link: String(saleData.google_review_link || saleData.google_review || ""),
     website_link: String(saleData.website_link || saleData.website || ""),
+    facebook_link: String(saleData.facebook_link || saleData.facebook || ""),
+    whatsapp_group_link: String(saleData.whatsapp_group_link || ""),
     points_earned: pointsText(saleData.points_earned),
     points_balance: pointsText(saleData.points_balance),
   };
@@ -237,14 +241,38 @@ function instagramUrl(value: string): string {
   return /^[A-Za-z0-9._]+$/.test(handle) ? `https://instagram.com/${handle}` : "";
 }
 
-/** The shop's Google review and Instagram links under the bill links, when set and not already in the text. */
-export function appendSocialLinkLines(message: string, googleReviewLink: string, instagram: string): string {
+export interface ShopLinkLines {
+  google_review?: string;
+  instagram?: string;
+  facebook?: string;
+  website?: string;
+  whatsapp_group?: string;
+}
+
+/** "yourstore.com" → "https://yourstore.com"; anything that is not a web address → "". */
+function webUrl(value: string): string {
+  const v = value.trim();
+  if (/^https?:\/\/\S+$/i.test(v)) return v;
+  return /^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(v) ? `https://${v}` : "";
+}
+
+/** The shop's review / social / website / group links under the bill links, when set and not already in the text. */
+export function appendSocialLinkLines(message: string, links: ShopLinkLines): string {
   const lines: string[] = [];
-  const google = googleReviewLink.trim();
+  const has = (url: string, raw: string) => message.includes(url) || message.includes(raw.trim());
+  const google = (links.google_review ?? "").trim();
   if (/^https?:\/\//i.test(google) && !message.includes(google)) lines.push(`📍 Review us on Google: ${google}`);
-  const insta = instagramUrl(instagram);
-  if (insta && !message.includes(insta) && !message.includes(instagram.trim())) {
-    lines.push(`📷 Follow us on Instagram: ${insta}`);
+  const instaRaw = links.instagram ?? "";
+  const insta = instagramUrl(instaRaw);
+  if (insta && !has(insta, instaRaw)) lines.push(`📷 Follow us on Instagram: ${insta}`);
+  const rows: [string | undefined, string][] = [
+    [links.facebook, "👍 Like us on Facebook"],
+    [links.website, "🌐 Visit our website"],
+    [links.whatsapp_group, "💬 Join our WhatsApp group"],
+  ];
+  for (const [raw, label] of rows) {
+    const url = webUrl(raw ?? "");
+    if (url && !has(url, raw ?? "")) lines.push(`${label}: ${url}`);
   }
   if (!lines.length) return message;
   const sep = /(View your bill|Review your shopping):/.test(message.split("\n").pop() ?? "") ? "\n" : "\n\n";
@@ -252,14 +280,14 @@ export function appendSocialLinkLines(message: string, googleReviewLink: string,
 }
 
 /**
- * Instagram / website / Google review links for WhatsApp bills. Settings > WhatsApp
+ * Instagram / Facebook / website / WhatsApp group / Google review links for WhatsApp bills. Settings > WhatsApp
  * saves them in whatsapp_api_settings.social_links; Settings > Bill & Barcode saves the
  * same links in settings.bill_barcode_settings. Use whichever the shop filled.
  */
 export function mergeShopSocialLinks(
   socialLinks: unknown,
   billBarcodeSettings: unknown,
-): { instagram: string; website: string; google_review: string; facebook: string } {
+): { instagram: string; website: string; google_review: string; facebook: string; whatsapp_group: string } {
   const social = (socialLinks && typeof socialLinks === "object" ? socialLinks : {}) as Record<string, unknown>;
   const bill = (billBarcodeSettings && typeof billBarcodeSettings === "object" ? billBarcodeSettings : {}) as Record<string, unknown>;
   const pick = (...values: unknown[]) => values.map((v) => String(v ?? "").trim()).find(Boolean) ?? "";
@@ -267,7 +295,8 @@ export function mergeShopSocialLinks(
     instagram: pick(social.instagram, bill.instagram_link),
     website: pick(social.website, bill.website_link),
     google_review: pick(social.google_review, social.google_review_link, bill.google_review_link),
-    facebook: pick(social.facebook),
+    facebook: pick(social.facebook, bill.facebook_link),
+    whatsapp_group: pick(social.whatsapp_group, bill.whatsapp_group_link),
   };
 }
 
@@ -311,6 +340,8 @@ export async function buildSalesInvoiceWhatsAppCaption(
     instagram_link: saleData.instagram_link || saleData.instagram || social.instagram || "",
     google_review_link: saleData.google_review_link || social.google_review || "",
     website_link: saleData.website_link || social.website || "",
+    facebook_link: saleData.facebook_link || saleData.facebook || social.facebook || "",
+    whatsapp_group_link: saleData.whatsapp_group_link || social.whatsapp_group || "",
     points_earned: saleData.points_earned ?? points?.earned ?? 0,
     points_balance: saleData.points_balance ?? points?.balance ?? 0,
   };
@@ -323,5 +354,11 @@ export async function buildSalesInvoiceWhatsAppCaption(
   const withBillLinks = billLink
     ? appendCustomerPageLinkLine(message, billLink, { billLine: false })
     : appendGoogleReviewLine(message, googleReview);
-  return appendSocialLinkLines(withBillLinks, googleReview, String(withShop.instagram_link || ""));
+  return appendSocialLinkLines(withBillLinks, {
+    google_review: googleReview,
+    instagram: String(withShop.instagram_link || ""),
+    facebook: String(withShop.facebook_link || ""),
+    website: String(withShop.website_link || ""),
+    whatsapp_group: String(withShop.whatsapp_group_link || ""),
+  });
 }
