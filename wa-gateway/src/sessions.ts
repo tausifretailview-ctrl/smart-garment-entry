@@ -103,9 +103,13 @@ const MAX_PER_DAY = Number(process.env.MAX_MSGS_PER_DAY ?? 300);
 const MAX_BULK_PER_DAY = Number(process.env.MAX_BULK_MSGS_PER_DAY ?? 500);
 const MIN_GAP_MS = 2000;
 const MAX_GAP_MS = 5000;
-/** Shop (bill) sessions are keyed by organization id; Bulk WhatsApp sessions by "u_" + user id. */
-const SESSION_ID_RE = /^(u_)?[0-9a-fA-F-]{36}$/;
+/**
+ * Shop (bill) sessions are keyed by organization id; Bulk WhatsApp sessions by "u_" + user id; Ezzy's own
+ * support number (posts support tokens to the Technical Support group) is the one session "support".
+ */
+const SESSION_ID_RE = /^((u_)?[0-9a-fA-F-]{36}|support)$/;
 export const isUserSession = (id: string) => id.startsWith("u_");
+export const isSupportSession = (id: string) => id === "support";
 
 /** A reply to a bulk message that unsubscribes ("stop") or subscribes again ("start"); null for anything else. */
 export function optOutKeyword(text: string): "stop" | "start" | null {
@@ -119,8 +123,10 @@ const logger = pino({ level: process.env.LOG_LEVEL ?? "warn" });
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const today = () => new Date().toISOString().slice(0, 10);
 
-/** Digits only; 10-digit numbers get India's 91 (same rule as the edge function). */
+/** Digits only; 10-digit numbers get India's 91 (same rule as the edge function). A group JID passes through. */
 export function toJid(phone: string): string {
+  const group = phone.trim();
+  if (/^[0-9-]+@g\.us$/.test(group)) return group;
   const digits = phone.replace(/\D/g, "");
   const full = digits.length === 10 ? `91${digits}` : digits;
   if (full.length < 10) throw new Error("Invalid phone number");
@@ -173,7 +179,7 @@ export class SessionManager {
   private billReceiptTimer: ReturnType<typeof setInterval> | null = null;
 
   private queueBillReceipt(orgId: string, messageId: string, status: ReceiptStatus) {
-    if (!APP_EVENT_URL) return;
+    if (!APP_EVENT_URL || isSupportSession(orgId)) return;
     const list = this.billReceipts.get(orgId) ?? [];
     list.push({ messageId, status, at: new Date().toISOString() });
     this.billReceipts.set(orgId, list);
@@ -225,7 +231,8 @@ export class SessionManager {
 
   private async notify(orgId: string, s: Session) {
     // Bulk WhatsApp sessions are not the shop's bill number: the page polls their status instead.
-    if (!APP_EVENT_URL || isUserSession(orgId)) return;
+    // The support number is not a shop either: the platform admin page polls it too.
+    if (!APP_EVENT_URL || isUserSession(orgId) || isSupportSession(orgId)) return;
     try {
       await fetch(APP_EVENT_URL, {
         method: "POST",
@@ -357,7 +364,7 @@ export class SessionManager {
    */
   private async forwardInbound(orgId: string, m: WAMessage) {
     const bulk = isUserSession(orgId);
-    if (m.key.fromMe && !bulk) return;
+    if (isSupportSession(orgId) || (m.key.fromMe && !bulk)) return;
     if (!bulk && !APP_INBOUND_URL) return;
     const key = m.key as WAMessage["key"] & { senderPn?: string; remoteJidAlt?: string };
     let jid = key.remoteJid ?? "";
@@ -567,6 +574,15 @@ export class SessionManager {
     if (!jids.length) return [];
     const found = (await s.sock!.onWhatsApp(...jids)) ?? [];
     return found.filter((r) => r.exists).map((r) => String(r.jid).split("@")[0].split(":")[0]);
+  }
+
+  /** Groups this number is in, so the platform admin can pick the Technical Support group. */
+  async groups(orgId: string): Promise<{ id: string; name: string; size: number }[]> {
+    const s = this.ready(orgId);
+    const all = await s.sock!.groupFetchAllParticipating();
+    return Object.values(all)
+      .map((g) => ({ id: g.id, name: g.subject || g.id, size: g.participants?.length ?? 0 }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 
   async checkNumber(orgId: string, phone: string): Promise<boolean> {

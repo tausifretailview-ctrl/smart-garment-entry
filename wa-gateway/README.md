@@ -35,9 +35,15 @@ Update later: `git pull && docker compose up -d --build`. Linked shops reconnect
 | POST | `/sessions/:orgId/send-text` | `{phone, message}` |
 | POST | `/sessions/:orgId/send-file` | `{phone, fileUrl, filename, caption}` |
 | POST | `/sessions/:orgId/check-number` | `{phone}` → `{exists}` |
+| GET | `/sessions/:orgId/groups` | – → `{groups: [{id, name, size}]}` |
 | POST | `/campaigns` | `{campaignId, sessionId: "u_<userId>", message, media?, minGapMs, maxGapMs, items: [{recipientId, phone, name}]}` |
 | GET | `/campaigns/:id` | – (progress) |
 | POST | `/campaigns/:id/pause` · `/resume` · `/stop` | – |
+
+## Support tokens
+Ezzy's own support number links as session `support` (Platform Admin > Support Tokens). The
+support-tokens edge function sends each new token with `send-text`, `phone` = the group JID
+(`...@g.us`). That session sends no status events, receipts or inbound messages to the app.
 
 ## Bulk WhatsApp
 The Bulk WhatsApp page links each user's own number as session `u_<userId>` (same `/sessions/...`
