@@ -1600,6 +1600,7 @@ export const useSaveSale = () => {
               instagram: shopSocialLinks.instagram,
               facebook: shopSocialLinks.facebook,
               google_review_link: shopSocialLinks.google_review,
+              whatsapp_group_link: shopSocialLinks.whatsapp_group,
               // "" unless Customer page + "Add bill link to WhatsApp" are on.
               customer_page_link: await createCustomerPageLinkForWhatsApp(currentOrganization.id, sale.id),
             };

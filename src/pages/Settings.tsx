@@ -355,6 +355,7 @@ interface BillBarcodeSettings {
   brand_color?: string;
   login_display_name?: string;
   instagram_link?: string;
+  facebook_link?: string;
   website_link?: string;
   google_review_link?: string;
   whatsapp_group_link?: string;
@@ -5015,7 +5016,7 @@ export default function Settings() {
                 <div className="space-y-4 pt-4 border-t">
                   <h4 className="text-sm font-semibold">Social Media Links (for WhatsApp Messages)</h4>
                   <p className="text-xs text-muted-foreground">
-                    These links will be available as placeholders in WhatsApp message templates
+                    Filled links are added at the end of every WhatsApp bill message
                   </p>
                   
                   <div className="space-y-2">
@@ -5033,6 +5034,25 @@ export default function Settings() {
                         })
                       }
                       placeholder="e.g., https://instagram.com/yourstore"
+                      className="no-uppercase"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="facebook_link">Facebook Link</Label>
+                    <Input
+                      id="facebook_link"
+                      value={settings.bill_barcode_settings?.facebook_link || ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...settings.bill_barcode_settings,
+                            facebook_link: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder="e.g., https://facebook.com/yourstore"
                       className="no-uppercase"
                     />
                   </div>

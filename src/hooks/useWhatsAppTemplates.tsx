@@ -52,6 +52,8 @@ interface SocialLinks {
   instagram_link?: string;
   website_link?: string;
   google_review_link?: string;
+  facebook_link?: string;
+  whatsapp_group_link?: string;
 }
 
 export const useWhatsAppTemplates = () => {
@@ -99,6 +101,8 @@ export const useWhatsAppTemplates = () => {
         instagram_link: links.instagram,
         website_link: links.website,
         google_review_link: links.google_review,
+        facebook_link: links.facebook,
+        whatsapp_group_link: links.whatsapp_group,
       } as SocialLinks;
     },
     enabled: !!currentOrganization?.id,
@@ -119,6 +123,12 @@ export const useWhatsAppTemplates = () => {
     if (settings?.google_review_link) {
       links.push(`⭐ Leave a Review: ${settings.google_review_link}`);
     }
+    if (settings?.facebook_link) {
+      links.push(`👍 Facebook: ${settings.facebook_link}`);
+    }
+    if (settings?.whatsapp_group_link) {
+      links.push(`💬 WhatsApp Group: ${settings.whatsapp_group_link}`);
+    }
     return links.length > 0 ? `Follow us:\n${links.join('\n')}` : '';
   };
 
@@ -138,11 +148,17 @@ export const useWhatsAppTemplates = () => {
 
   const formatMessage = (templateType: string, invoice: Invoice, items?: string, customerBalance?: number, extraData?: { invoiceLink?: string; organizationName?: string }) => {
     const template = getTemplate(templateType);
-    // The shop's Instagram / Google review links go under every bill message, even when
+    // The shop's review / social / website / group links go under every bill message, even when
     // its saved template has no {social_links} placeholder.
     const withShopLinks = (text: string) =>
       templateType === "sales_invoice"
-        ? appendSocialLinkLines(text, settings?.google_review_link || "", settings?.instagram_link || "")
+        ? appendSocialLinkLines(text, {
+            google_review: settings?.google_review_link,
+            instagram: settings?.instagram_link,
+            facebook: settings?.facebook_link,
+            website: settings?.website_link,
+            whatsapp_group: settings?.whatsapp_group_link,
+          })
         : text;
     if (!template) {
       // Return default message if no template found
@@ -183,6 +199,8 @@ export const useWhatsAppTemplates = () => {
       .replace(/{social_links}/g, socialLinksText)
       .replace(/{instagram_link}/g, settings?.instagram_link || "")
       .replace(/{website_link}/g, settings?.website_link || "")
+      .replace(/{facebook_link}/g, settings?.facebook_link || "")
+      .replace(/{whatsapp_group_link}/g, settings?.whatsapp_group_link || "")
       .replace(/{google_review_link}/g, settings?.google_review_link || "")
       .replace(/{payment_breakdown}/g, paymentBreakdown)
       .replace(/{cn_adjusted}/g, `₹${Math.round(Number(invoice.sale_return_adjust) || 0).toLocaleString("en-IN")}`)
