@@ -198,6 +198,10 @@ import {
   hasUnsavedPurchaseLinesForBarcodePrint,
   purchaseBarcodePrintBlockedMessage,
 } from "@/utils/purchaseBarcodePrintGuard";
+import {
+  findRemovedSavedPurchaseLines,
+  removedSavedPurchaseLinesMessage,
+} from "@/utils/purchaseEditRemovedLines";
 import { formatPurchaseBillSaveFailedCopy } from "@/utils/purchaseSaveFailedCopy";
 import { fetchProductsByIds, fetchPurchaseItemsByBillId } from "@/utils/fetchAllRows";
 import { isPurchaseBillLoadIncomplete } from "@/utils/purchaseBillLoadIncomplete";
@@ -1672,6 +1676,14 @@ const PurchaseEntry = () => {
       loadedEditBillIdRef.current = data.editingBillId;
       setOriginalLineItems((data.originalLineItems || []).map((item: LineItem) => ({ ...item })));
       editBaselineHeaderRef.current = data.originalHeader ?? null;
+    } else {
+      // A new-bill draft must not inherit a bill opened for edit meanwhile: its saved
+      // lines would count as removed and be deleted on Save.
+      setIsEditMode(false);
+      setEditingBillId(null);
+      loadedEditBillIdRef.current = null;
+      setOriginalLineItems([]);
+      editBaselineHeaderRef.current = null;
     }
   }, [bumpSupplierInvAutoFill]);
 
@@ -6466,6 +6478,18 @@ const PurchaseEntry = () => {
         const itemsToDelete = originalLineItems
           .filter(item => !currentItemsMap.has(item.temp_id))
           .map(item => item.temp_id);
+
+        // Saved lines missing from the grid are deleted below — never silently.
+        const removedSavedLines = findRemovedSavedPurchaseLines(originalLineItems, billLinesForSave);
+        if (
+          removedSavedLines.length > 0 &&
+          !window.confirm(
+            removedSavedPurchaseLinesMessage(softwareBillNo, removedSavedLines, originalLineItems.length),
+          )
+        ) {
+          setLoading(false);
+          return;
+        }
 
         // Client floor + identity freeze (DB trigger is the backstop for stock)
         {
