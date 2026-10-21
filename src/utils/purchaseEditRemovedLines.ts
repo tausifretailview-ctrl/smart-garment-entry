@@ -48,6 +48,21 @@ export function removedSavedPurchaseLinesMessage(
     "",
     ...listed,
     "",
+    "If the new items are a different supplier bill, press Cancel, then click New Bill.",
     "Press OK only if you removed these lines on purpose. Press Cancel to keep them (reopen the bill from Purchase Bills).",
+  ].join("\n");
+}
+
+/** Asked when Remove is clicked on a line that is already saved in the bill being edited. */
+export function removeSavedPurchaseLineMessage(billNo: string, line: PurchaseEditLine): string {
+  const name = String(line.product_name || "Item").trim();
+  const code = String(line.barcode || "").trim();
+  const billLabel = billNo.trim() || "this bill";
+  return [
+    `${name}${code ? ` (${code})` : ""} × ${Number(line.qty) || 0} is already saved in ${billLabel}.`,
+    "Removing it deletes this line from the bill and reduces its stock when you Save. Printed labels for it will have no stock.",
+    "",
+    "To start a different supplier bill, press Cancel and click New Bill.",
+    "Remove this saved line?",
   ].join("\n");
 }

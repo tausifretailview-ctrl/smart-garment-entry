@@ -200,6 +200,7 @@ import {
 } from "@/utils/purchaseBarcodePrintGuard";
 import {
   findRemovedSavedPurchaseLines,
+  removeSavedPurchaseLineMessage,
   removedSavedPurchaseLinesMessage,
 } from "@/utils/purchaseEditRemovedLines";
 import { formatPurchaseBillSaveFailedCopy } from "@/utils/purchaseSaveFailedCopy";
@@ -733,6 +734,8 @@ const PurchaseEntry = () => {
   } | null>(null);
   /** Client temp_ids already inserted during an edit save — blocks re-insert on retry. */
   const editSaveInsertedTempIdsRef = useRef<Set<string>>(new Set());
+  /** Saved lines whose Remove the user already confirmed — Save does not ask again for these. */
+  const confirmedSavedLineRemovalsRef = useRef<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
   const [showSearch, setShowSearch] = useState(false);
@@ -1175,6 +1178,7 @@ const PurchaseEntry = () => {
     setOriginalLineItems([]);
     editBaselineHeaderRef.current = null;
     editSaveInsertedTempIdsRef.current = new Set();
+    confirmedSavedLineRemovalsRef.current = new Set();
     setNavBillIndex(null);
     setSavedBillId(null);
     setSavedPurchaseItems([]);
@@ -2661,6 +2665,7 @@ const PurchaseEntry = () => {
         })();
       }
       editSaveInsertedTempIdsRef.current = new Set();
+      confirmedSavedLineRemovalsRef.current = new Set();
       setVisibleItemCount(Math.min(loadedItems.length, 200));
       setIsEditMode(true);
       setEditingBillId(billId);
@@ -5739,6 +5744,14 @@ const PurchaseEntry = () => {
   const removeLineItem = async (temp_id: string) => {
     // Capture removed item BEFORE state update so we can tag the product
     const removed = lineItems.find((item) => item.temp_id === temp_id);
+    if (
+      removed &&
+      isEditMode &&
+      originalLineItems.some((item) => item.temp_id === temp_id)
+    ) {
+      if (!window.confirm(removeSavedPurchaseLineMessage(softwareBillNo, removed))) return;
+      confirmedSavedLineRemovalsRef.current.add(temp_id);
+    }
     setLineItems((items) => items.filter((item) => item.temp_id !== temp_id));
 
     if (removed?.sku_id && currentOrganization?.id) {
@@ -6480,7 +6493,9 @@ const PurchaseEntry = () => {
           .map(item => item.temp_id);
 
         // Saved lines missing from the grid are deleted below — never silently.
-        const removedSavedLines = findRemovedSavedPurchaseLines(originalLineItems, billLinesForSave);
+        const removedSavedLines = findRemovedSavedPurchaseLines(originalLineItems, billLinesForSave).filter(
+          (line) => !confirmedSavedLineRemovalsRef.current.has(line.temp_id),
+        );
         if (
           removedSavedLines.length > 0 &&
           !window.confirm(
@@ -6884,6 +6899,7 @@ const PurchaseEntry = () => {
         setOriginalLineItems([]);
         setEditingBillId(null);
         editSaveInsertedTempIdsRef.current = new Set();
+        confirmedSavedLineRemovalsRef.current = new Set();
         
         // Clear location state to prevent re-triggering edit mode on refresh
         window.history.replaceState({}, document.title);
@@ -8795,8 +8811,14 @@ const PurchaseEntry = () => {
             </span>
 
             {(softwareBillNo || !isEditMode) && (
-              <span className="bg-green-600 text-white font-mono text-[11px] font-bold px-3 py-1 rounded-md whitespace-nowrap shrink-0">
-                {softwareBillNo || 'NEW'}
+              <span
+                className={cn(
+                  "text-white font-mono text-[11px] font-bold px-3 py-1 rounded-md whitespace-nowrap shrink-0",
+                  isEditMode ? "bg-amber-600" : "bg-green-600",
+                )}
+                title={isEditMode ? "Editing a saved bill. Click New for the next supplier bill." : undefined}
+              >
+                {isEditMode ? `EDITING ${softwareBillNo}` : softwareBillNo || 'NEW'}
               </span>
             )}
             {navBillIndex !== null && allBillIds && (

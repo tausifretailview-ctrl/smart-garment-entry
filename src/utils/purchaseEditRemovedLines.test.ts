@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   findRemovedSavedPurchaseLines,
+  removeSavedPurchaseLineMessage,
   removedSavedPurchaseLinesMessage,
 } from "./purchaseEditRemovedLines";
 
@@ -36,5 +37,13 @@ describe("removedSavedPurchaseLinesMessage", () => {
     expect(msg).toContain("remove 7 saved line(s) (7 qty)");
     expect(msg).toContain("…and 2 more");
     expect(msg).not.toContain("P6");
+  });
+});
+
+describe("removeSavedPurchaseLineMessage", () => {
+  it("names the line, the bill and the New Bill way out", () => {
+    const msg = removeSavedPurchaseLineMessage("PUR/26-27/124", saved[1]);
+    expect(msg).toContain("CRUSH PATOLA (10000294) × 8 is already saved in PUR/26-27/124");
+    expect(msg).toContain("click New Bill");
   });
 });
