@@ -1237,6 +1237,60 @@ export type Database = {
           },
         ]
       }
+      bulk_whatsapp_templates: {
+        Row: {
+          created_at: string
+          id: string
+          media_name: string | null
+          media_type: string | null
+          media_url: string | null
+          message: string
+          name: string
+          organization_id: string
+          user_id: string
+          video_quality: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          media_name?: string | null
+          media_type?: string | null
+          media_url?: string | null
+          message?: string
+          name: string
+          organization_id: string
+          user_id?: string
+          video_quality?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          media_name?: string | null
+          media_type?: string | null
+          media_url?: string | null
+          message?: string
+          name?: string
+          organization_id?: string
+          user_id?: string
+          video_quality?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_whatsapp_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_whatsapp_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       category_quantity_tier_pricing: {
         Row: {
           category: string
@@ -2368,7 +2422,7 @@ export type Database = {
           portal_otp: string | null
           portal_otp_expires_at: string | null
           portal_price_type: string | null
-          shipping_addresses: Json | null
+          shipping_addresses: Json
           total_points_earned: number | null
           transport_details: string | null
           updated_at: string | null
@@ -2395,7 +2449,7 @@ export type Database = {
           portal_otp?: string | null
           portal_otp_expires_at?: string | null
           portal_price_type?: string | null
-          shipping_addresses?: Json | null
+          shipping_addresses?: Json
           total_points_earned?: number | null
           transport_details?: string | null
           updated_at?: string | null
@@ -2422,7 +2476,7 @@ export type Database = {
           portal_otp?: string | null
           portal_otp_expires_at?: string | null
           portal_price_type?: string | null
-          shipping_addresses?: Json | null
+          shipping_addresses?: Json
           total_points_earned?: number | null
           transport_details?: string | null
           updated_at?: string | null
@@ -4415,6 +4469,7 @@ export type Database = {
           id: string
           organization_id: string
           performed_by: string
+          reset_mode: string | null
           tables_cleared: Json | null
         }
         Insert: {
@@ -4424,6 +4479,7 @@ export type Database = {
           id?: string
           organization_id: string
           performed_by: string
+          reset_mode?: string | null
           tables_cleared?: Json | null
         }
         Update: {
@@ -4433,6 +4489,7 @@ export type Database = {
           id?: string
           organization_id?: string
           performed_by?: string
+          reset_mode?: string | null
           tables_cleared?: Json | null
         }
         Relationships: [
@@ -7625,6 +7682,30 @@ export type Database = {
         }
         Relationships: []
       }
+      security_guard_backup_20261020: {
+        Row: {
+          action: string
+          new_def: string | null
+          old_def: string
+          saved_at: string
+          signature: string
+        }
+        Insert: {
+          action: string
+          new_def?: string | null
+          old_def: string
+          saved_at?: string
+          signature: string
+        }
+        Update: {
+          action?: string
+          new_def?: string | null
+          old_def?: string
+          saved_at?: string
+          signature?: string
+        }
+        Relationships: []
+      }
       settings: {
         Row: {
           accounting_engine_enabled: boolean
@@ -8904,6 +8985,105 @@ export type Database = {
           },
           {
             foreignKeyName: "suppliers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      support_settings: {
+        Row: {
+          id: number
+          updated_at: string
+          whatsapp_group_jid: string | null
+          whatsapp_group_name: string | null
+        }
+        Insert: {
+          id?: number
+          updated_at?: string
+          whatsapp_group_jid?: string | null
+          whatsapp_group_name?: string | null
+        }
+        Update: {
+          id?: number
+          updated_at?: string
+          whatsapp_group_jid?: string | null
+          whatsapp_group_name?: string | null
+        }
+        Relationships: []
+      }
+      support_tokens: {
+        Row: {
+          admin_note: string | null
+          category: string
+          closed_at: string | null
+          contact_phone: string
+          created_at: string
+          id: string
+          message: string
+          organization_id: string | null
+          organization_name: string | null
+          page_path: string | null
+          status: string
+          token_no: number
+          updated_at: string
+          user_email: string | null
+          user_id: string | null
+          user_name: string | null
+          whatsapp_error: string | null
+          whatsapp_status: string
+        }
+        Insert: {
+          admin_note?: string | null
+          category?: string
+          closed_at?: string | null
+          contact_phone: string
+          created_at?: string
+          id?: string
+          message: string
+          organization_id?: string | null
+          organization_name?: string | null
+          page_path?: string | null
+          status?: string
+          token_no?: number
+          updated_at?: string
+          user_email?: string | null
+          user_id?: string | null
+          user_name?: string | null
+          whatsapp_error?: string | null
+          whatsapp_status?: string
+        }
+        Update: {
+          admin_note?: string | null
+          category?: string
+          closed_at?: string | null
+          contact_phone?: string
+          created_at?: string
+          id?: string
+          message?: string
+          organization_id?: string | null
+          organization_name?: string | null
+          page_path?: string | null
+          status?: string
+          token_no?: number
+          updated_at?: string
+          user_email?: string | null
+          user_id?: string | null
+          user_name?: string | null
+          whatsapp_error?: string | null
+          whatsapp_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tokens_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_tokens_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "v_dashboard_counts"
@@ -12243,6 +12423,10 @@ export type Database = {
         Returns: string
       }
       normalize_product_name_key: { Args: { p_name: string }; Returns: string }
+      org_allows_negative_stock: {
+        Args: { p_org_id: string }
+        Returns: boolean
+      }
       peek_fee_receipt_number: {
         Args: {
           p_fy_end_year?: number
@@ -12421,6 +12605,16 @@ export type Database = {
           reference_type: string
           voucher_id: string
         }[]
+      }
+      reset_organization_data: {
+        Args: {
+          p_confirmation_name: string
+          p_mode?: string
+          p_organization_id: string
+          p_performed_by: string
+          p_zero_opening_balances?: boolean
+        }
+        Returns: Json
       }
       reset_stock_from_transactions: {
         Args: { p_organization_id: string }
