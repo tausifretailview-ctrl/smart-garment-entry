@@ -45,7 +45,6 @@ import {
   Smartphone,
   Lock,
   Unlock,
-  AlertTriangle,
   Banknote,
   ShieldCheck,
   LayoutList,
@@ -225,22 +224,6 @@ export function AppSidebar() {
               </div>
             )}
           </div>
-        )}
-
-        {/* System Health - hidden by default; enable per-user via User Rights → Special Rights → "System Health". Platform admins always see it. */}
-        {(isPlatformAdmin || hasSpecialPermission('system_health')) && (
-          <SidebarGroup className="pt-0 first:pt-0">
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive("/admin/health")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
-                  <NavLink to="/admin/health" className="flex items-center gap-2 group">
-                    <AlertTriangle className="h-5 w-5 text-amber-500 sidebar-icon group-hover:animate-icon-pulse" />
-                    {open && <span className="font-bold text-sidebar-foreground group-hover:text-primary">System Health</span>}
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroup>
         )}
 
         {/* Platform Admin - Only visible to platform admins */}
