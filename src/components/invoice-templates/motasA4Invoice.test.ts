@@ -207,4 +207,18 @@ describe("MotasA4Template", () => {
     expect(html).toContain("-20.00");
     expect(html).toContain("-50.00");
   });
+
+  it("never prints more discount than the bill stores", () => {
+    // Line discount ₹50 already in Totals; ₹100 points not passed in → gap ₹150.
+    const html = renderToStaticMarkup(
+      createElement(MotasA4Template, {
+        ...baseProps,
+        items: [item(0, { total: 700, discountPercent: 6.67 }), item(1)],
+        discount: 50,
+        grandTotal: 1350,
+      }),
+    );
+    expect(html).toContain("-50.00");
+    expect(html).not.toContain("-150.00");
+  });
 });

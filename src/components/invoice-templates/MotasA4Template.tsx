@@ -325,13 +325,17 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
   const extraCharges = Math.max(0, Number(otherCharges) || 0);
   // `discount` is line + flat discount, but line discounts are already inside each
   // Total (Unit is the net rate). Print only what the Totals column still has to
-  // lose to reach Net Amount, so the box adds up to the bill.
+  // lose to reach Net Amount, so the box adds up to the bill. Capped at the stored
+  // discount so other unstated deductions are never printed as discount.
   const billDiscount =
     (Number(discount) || 0) > 0.005
       ? roundInvoiceMoney(
-          Math.max(
-            0,
-            totalAmount + extraCharges + (Number(roundOff) || 0) - saleReturnAdjust - pointsValue - grandTotal,
+          Math.min(
+            Number(discount) || 0,
+            Math.max(
+              0,
+              totalAmount + extraCharges + (Number(roundOff) || 0) - saleReturnAdjust - pointsValue - grandTotal,
+            ),
           ),
         )
       : 0;
