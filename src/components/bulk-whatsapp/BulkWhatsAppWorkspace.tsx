@@ -317,7 +317,13 @@ export function BulkWhatsAppWorkspace({
    * Master), so they never count as failed. Only numbers not checked before are looked up.
    */
   const checkRun = useRef(0);
-  useEffect(() => () => void (checkRun.current += 1), []);
+  useEffect(
+    () => () => {
+      checkRun.current += 1;
+      saveRun.current += 1;
+    },
+    [],
+  );
   const checkNumbers = async (list: BulkContact[]) => {
     if (!orgId || !list.length) return;
     const run = ++checkRun.current;
@@ -374,11 +380,11 @@ export function BulkWhatsAppWorkspace({
 
   const unchecked = useMemo(() => contacts.filter((c) => !verified.has(c.phone)), [contacts, verified]);
   useEffect(() => {
-    if (!linked || checking || sending || checkError || !unchecked.length) return;
+    if (!linked || checking || savingContacts || sending || checkError || !unchecked.length) return;
     void checkNumbers(unchecked);
     // checkNumbers reads only its argument and stable setters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [linked, checking, sending, checkError, unchecked]);
+  }, [linked, checking, savingContacts, sending, checkError, unchecked]);
 
   const downloadContacts = () => {
     const blob = new Blob([buildContactsVcf(contacts)], { type: "text/vcard;charset=utf-8" });
@@ -479,6 +485,7 @@ export function BulkWhatsAppWorkspace({
     scheduleOk &&
     !sending &&
     !checking &&
+    !savingContacts &&
     (unchecked.length === 0 || checkError !== null);
 
   const send = async () => {
@@ -985,6 +992,11 @@ export function BulkWhatsAppWorkspace({
             </Button>
             {checking && (
               <p className="text-center text-[11px] text-sky-700">Checking numbers for WhatsApp first ({checking.done}/{checking.total})</p>
+            )}
+            {savingContacts && (
+              <p className="text-center text-[11px] text-sky-700">
+                Saving contacts first ({savingContacts.done}/{savingContacts.total}). Wait, or press Stop above.
+              </p>
             )}
           </div>
 
