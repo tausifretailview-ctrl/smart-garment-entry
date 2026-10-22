@@ -2368,6 +2368,7 @@ export type Database = {
           portal_otp: string | null
           portal_otp_expires_at: string | null
           portal_price_type: string | null
+          shipping_addresses: Json | null
           total_points_earned: number | null
           transport_details: string | null
           updated_at: string | null
@@ -2394,6 +2395,7 @@ export type Database = {
           portal_otp?: string | null
           portal_otp_expires_at?: string | null
           portal_price_type?: string | null
+          shipping_addresses?: Json | null
           total_points_earned?: number | null
           transport_details?: string | null
           updated_at?: string | null
@@ -2420,6 +2422,7 @@ export type Database = {
           portal_otp?: string | null
           portal_otp_expires_at?: string | null
           portal_price_type?: string | null
+          shipping_addresses?: Json | null
           total_points_earned?: number | null
           transport_details?: string | null
           updated_at?: string | null

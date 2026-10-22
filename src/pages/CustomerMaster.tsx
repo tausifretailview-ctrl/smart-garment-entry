@@ -96,6 +96,14 @@ import { format } from "date-fns";
 import type * as XLSXType from "xlsx";
 import { CustomerSpecialDaysDialog } from "@/components/customers/CustomerSpecialDaysDialog";
 import { isMissingSpecialDayColumnError, toDateInputValue } from "@/utils/customerSpecialDays";
+import { CustomerShippingAddressesEditor } from "@/components/CustomerShippingAddressesEditor";
+import {
+  type CustomerShippingAddress,
+  cleanCustomerShippingAddresses,
+  fetchCustomerShippingAddresses,
+  isMissingShippingAddressesColumnError,
+  saveCustomerShippingAddresses,
+} from "@/utils/customerShippingAddresses";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
 const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
@@ -242,6 +250,8 @@ const CustomerMaster = () => {
   const [showSpecialDays, setShowSpecialDays] = useState(false);
   /** Birthday/anniversary as loaded for the customer being edited (to know when one was cleared). */
   const editingSpecialDaysRef = useRef<{ birthday: string; anniversary: string }>({ birthday: "", anniversary: "" });
+  const [shippingAddresses, setShippingAddresses] = useState<CustomerShippingAddress[]>([]);
+  const editingShippingAddressesRef = useRef<CustomerShippingAddress[]>([]);
   const [showLegacyImport, setShowLegacyImport] = useState(false);
   const [showBalanceImport, setShowBalanceImport] = useState(false);
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
@@ -653,6 +663,25 @@ const CustomerMaster = () => {
     }
   };
 
+  /** Saved in a second step (like birthdays) so shops without the shipping SQL can still save customers. */
+  const saveShippingAddresses = async (customerId: string, rows: CustomerShippingAddress[]) => {
+    if (!currentOrganization?.id) return;
+    const next = cleanCustomerShippingAddresses(rows);
+    if (JSON.stringify(next) === JSON.stringify(cleanCustomerShippingAddresses(editingShippingAddressesRef.current))) return;
+    const { error } = await saveCustomerShippingAddresses(currentOrganization.id, customerId, next);
+    if (error) {
+      toast({
+        title: "Shipping addresses not saved",
+        description: isMissingShippingAddressesColumnError(error)
+          ? "Run the shipping addresses SQL first. The rest of the customer was saved."
+          : error.message,
+        variant: "destructive",
+      });
+    } else {
+      queryClient.invalidateQueries({ queryKey: ["customer-shipping-addresses"] });
+    }
+  };
+
   const createCustomer = useMutation({
     mutationFn: async (data: typeof formData) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
@@ -692,6 +721,7 @@ const CustomerMaster = () => {
       if (error) throw error;
       if (inserted?.id) {
         await saveCustomerSpecialDays(inserted.id, data, { birthday: "", anniversary: "" });
+        await saveShippingAddresses(inserted.id, shippingAddresses);
       }
       if (enablePointsSystem && pointsBalance > 0 && inserted?.id) {
         const { error: historyError } = await supabase.from("customer_points_history").insert({
@@ -767,6 +797,7 @@ const CustomerMaster = () => {
         .eq("organization_id", currentOrganization.id);
       if (error) throw error;
       await saveCustomerSpecialDays(id, data, editingSpecialDaysRef.current);
+      await saveShippingAddresses(id, shippingAddresses);
 
       const pointsDelta = nextPoints - previousPoints;
       if (enablePointsSystem && pointsDelta !== 0) {
@@ -855,6 +886,8 @@ const CustomerMaster = () => {
       birthday: "",
       anniversary: "",
     });
+    setShippingAddresses([]);
+    editingShippingAddressesRef.current = [];
     setEditingCustomer(null);
   };
 
@@ -887,6 +920,8 @@ const CustomerMaster = () => {
       anniversary: "",
     });
     editingSpecialDaysRef.current = { birthday: "", anniversary: "" };
+    setShippingAddresses([]);
+    editingShippingAddressesRef.current = [];
     setIsDialogOpen(true);
     // Loaded separately: the list query must keep working before the birthday SQL is run.
     if (currentOrganization?.id) {
@@ -905,6 +940,12 @@ const CustomerMaster = () => {
           editingSpecialDaysRef.current = loaded;
           setFormData((prev) => ({ ...prev, ...loaded }));
         });
+      void fetchCustomerShippingAddresses(currentOrganization.id, customer.id)
+        .then((rows) => {
+          editingShippingAddressesRef.current = rows;
+          setShippingAddresses(rows);
+        })
+        .catch(() => undefined);
     }
   };
 
@@ -1726,6 +1767,7 @@ const CustomerMaster = () => {
               <div><Label htmlFor="m-phone">Mobile Number</Label><Input id="m-phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} autoFocus placeholder="Enter mobile number (optional)" /></div>
               <div><Label htmlFor="m-name">Customer Name</Label><Input id="m-name" value={formData.customer_name} onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })} placeholder="Enter customer name" /></div>
               <div><Label htmlFor="m-address">Address</Label><Textarea id="m-address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} /></div>
+              <CustomerShippingAddressesEditor value={shippingAddresses} onChange={setShippingAddresses} />
               <div><Label htmlFor="m-gst">GST Number</Label><Input id="m-gst" value={formData.gst_number} onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label htmlFor="m-birthday">Birthday</Label><Input id="m-birthday" type="date" value={formData.birthday} onChange={(e) => setFormData({ ...formData, birthday: e.target.value })} /></div>
@@ -1981,6 +2023,7 @@ const CustomerMaster = () => {
                       <Label htmlFor="address" className="text-xs">Address</Label>
                       <Textarea id="address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="min-h-[60px]" />
                     </div>
+                    <CustomerShippingAddressesEditor value={shippingAddresses} onChange={setShippingAddresses} compact />
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <Label htmlFor="birthday" className="text-xs">Birthday</Label>
