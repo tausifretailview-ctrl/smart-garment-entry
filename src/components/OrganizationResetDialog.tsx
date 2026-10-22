@@ -130,7 +130,7 @@ const OrganizationResetDialog = () => {
                     <span>
                       <span className="font-medium text-foreground">Keep Customer &amp; Supplier master</span>
                       <span className="block text-xs text-muted-foreground">
-                        Customers and suppliers stay (name, mobile, GST, address, discounts). Everything else is deleted.
+                        Customers and suppliers stay (name, mobile, GST, address, discounts), and students for school shops. Everything else is deleted.
                       </span>
                     </span>
                   </Label>
