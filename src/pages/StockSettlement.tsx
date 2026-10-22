@@ -715,7 +715,10 @@ const StockSettlement = () => {
       queryClient.invalidateQueries({ queryKey: ["open-settlement-variant-ids", currentOrganization.id] });
       toast({
         title: "Settlement Complete",
-        description: `Settled ${result.settled_count} items. Review unscanned stock on the Write Off tab if needed.`,
+        description:
+          result.changed_count != null
+            ? `Settled ${result.settled_count} items, stock changed for ${result.changed_count}. Review unscanned stock on the Write Off tab if needed.`
+            : `Settled ${result.settled_count} items. Review unscanned stock on the Write Off tab if needed.`,
       });
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -1669,7 +1672,7 @@ const StockSettlement = () => {
             <DialogTitle>Confirm Stock Settlement</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-slate-600">
-            You are about to settle <b>{scannedCount}</b> scanned items. This action will update software stock to match physical counts.
+            You are about to settle <b>{scannedCount}</b> scanned items. Items with a difference are set to the physical count (opening qty moves too, so Stock Reconciliation stays matched). Matched items keep their live stock. Changes show as Stock Settlement in Product Tracking and stock history.
           </p>
 
           <div className="grid grid-cols-3 gap-2">

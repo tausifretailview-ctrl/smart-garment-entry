@@ -541,7 +541,7 @@ export default function StockSettlementWriteOffTab({
               ).
             </p>
             <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">
-              This does not create sales. It writes reconciliation stock movements and can be reversed from this tab.
+              This does not create sales. It writes stock movements tagged Stock Settlement in reports and can be reversed from this tab.
             </p>
             <div>
               <Label htmlFor="zero-note" className="text-xs text-slate-500">

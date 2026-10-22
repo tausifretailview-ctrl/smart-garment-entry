@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { format, startOfMonth, endOfMonth, subMonths, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { Package, ShoppingCart, TrendingUp, TrendingDown, RotateCcw, ChevronDown, ChevronUp, Calendar } from "lucide-react";
+import { movementLabelKey } from "@/utils/stockSettlementMovement";
 
 interface ProductHistoryDialogProps {
   isOpen: boolean;
@@ -261,6 +262,7 @@ export const ProductHistoryDialog = ({
       purchase_return:   { label: "Pur Return",      className: "bg-red-100 text-red-700 border-red-300" },
       adjustment:        { label: "Adjustment",      className: "bg-purple-100 text-purple-700 border-purple-300" },
       reconciliation:    { label: "Stock Adjustment", className: "bg-purple-100 text-purple-700 border-purple-300" },
+      stock_settlement:  { label: "Stock Settlement", className: "bg-indigo-100 text-indigo-700 border-indigo-300" },
       purchase_increase: { label: "Stock Added",     className: "bg-teal-100 text-teal-700 border-teal-300" },
       purchase_decrease: { label: "Stock Reduced",   className: "bg-orange-100 text-orange-700 border-orange-300" },
       purchase_delete:   { label: "Bill Deleted",    className: "bg-slate-100 text-slate-600 border-slate-300" },
@@ -595,7 +597,7 @@ export const ProductHistoryDialog = ({
                             {stockMovements.map((movement: any) => (
                               <TableRow key={movement.id}>
                                 <TableCell>{format(new Date(movement.created_at), "dd MMM yy")}</TableCell>
-                                <TableCell>{getMovementTypeBadge(movement.movement_type)}</TableCell>
+                                <TableCell>{getMovementTypeBadge(movementLabelKey(movement.movement_type, movement.notes))}</TableCell>
                                 <TableCell>{movement.bill_number || "-"}</TableCell>
                                 <TableCell className={`text-right font-medium ${movement.quantity > 0 ? "text-green-600" : "text-red-600"}`}>
                                   {movement.quantity > 0 ? "+" : ""}{movement.quantity}
