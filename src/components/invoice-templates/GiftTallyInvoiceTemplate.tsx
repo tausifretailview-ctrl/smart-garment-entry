@@ -37,6 +37,8 @@ export interface GiftTallyInvoiceTemplateProps {
   invoiceTime?: string;
   customerName: string;
   customerAddress?: string;
+  /** Ship-to branch picked on Sale Bill; blank = same as Billed To. */
+  shippingAddress?: string;
   customerMobile?: string;
   customerGSTIN?: string;
   customerTransportDetails?: string;
@@ -177,6 +179,7 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
   invoiceTime,
   customerName,
   customerAddress,
+  shippingAddress: shipToAddress,
   customerMobile: _customerMobile,
   customerGSTIN,
   customerTransportDetails,
@@ -277,7 +280,7 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
       ? termsConditions.filter((t) => t?.trim())
       : DEFAULT_GIFT_TERMS;
 
-  const shippingAddress = customerAddress;
+  const shippingAddress = shipToAddress?.trim() || customerAddress;
   const tagline = customHeaderText?.trim() || documentTitle?.trim() || "";
   const gstDeclaration = declarationText?.trim() || DEFAULT_GST_DECLARATION;
   const supplyDateTime = [

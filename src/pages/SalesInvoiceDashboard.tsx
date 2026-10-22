@@ -2321,6 +2321,7 @@ export default function SalesInvoiceDashboard() {
           dueDate={invoiceToPrint.due_date || null}
           customerName={invoiceToPrint.customer_name}
           customerAddress={invoiceToPrint.customer_address || ""}
+          shippingAddress={invoiceToPrint.shipping_address || ""}
           customerMobile={invoiceToPrint.customer_phone || ""}
           customerGSTIN={invoiceToPrint.customers?.gst_number || ""}
           template={invoiceTemplate}
@@ -3795,6 +3796,7 @@ export default function SalesInvoiceDashboard() {
               dueDate={invoiceToPrint.due_date || null}
               customerName={invoiceToPrint.customer_name}
               customerAddress={invoiceToPrint.customer_address || ""}
+              shippingAddress={invoiceToPrint.shipping_address || ""}
               customerMobile={invoiceToPrint.customer_phone || ""}
               customerGSTIN={invoiceToPrint.customers?.gst_number || ""}
               template={wappConnectCaptureTemplate ?? invoiceTemplate}
@@ -5458,6 +5460,7 @@ export default function SalesInvoiceDashboard() {
               dueDate={invoiceToPrint.due_date || null}
               customerName={invoiceToPrint.customer_name}
               customerAddress={invoiceToPrint.customer_address || ""}
+              shippingAddress={invoiceToPrint.shipping_address || ""}
               customerMobile={invoiceToPrint.customer_phone || ""}
               customerGSTIN={invoiceToPrint.customers?.gst_number || ""}
               template={wappConnectCaptureTemplate ?? invoiceTemplate}

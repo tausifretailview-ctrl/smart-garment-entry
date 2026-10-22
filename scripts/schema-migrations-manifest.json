@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-10-21",
-  "count": 868,
-  "fileCount": 886,
+  "generatedAt": "2026-10-22",
+  "count": 869,
+  "fileCount": 887,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -871,7 +871,8 @@
     "20270209120000",
     "20270210120000",
     "20270211120000",
-    "20270212120000"
+    "20270212120000",
+    "20270213120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1759,7 +1760,8 @@
     "20270209120000_stock_transfer_movement_types.sql",
     "20270210120000_allow_negative_stock_sale.sql",
     "20270211120000_security_reguard_october_definer_functions.sql",
-    "20270212120000_support_tokens.sql"
+    "20270212120000_support_tokens.sql",
+    "20270213120000_customer_shipping_addresses.sql"
   ],
   "duplicateVersions": [
     {

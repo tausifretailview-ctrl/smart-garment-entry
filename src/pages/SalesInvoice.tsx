@@ -67,6 +67,7 @@ import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/li
 import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
+import { fetchCustomerShippingAddresses, formatCustomerShippingAddress } from "@/utils/customerShippingAddresses";
 import { captureElementToPdfBase64 } from "@/utils/captureInvoicePdf";
 import { resendSaleInvoiceWhatsApp } from "@/utils/resendSaleInvoiceWhatsApp";
 import { createCustomerPageLinkForWhatsApp, customerPageBaseDomain } from "@/utils/customerPageLink";
@@ -509,6 +510,16 @@ export default function SalesInvoice() {
   const [showNotesSection, setShowNotesSection] = useState(false);
   const [shippingAddress, setShippingAddress] = useState<string>("");
   const [shippingInstructions, setShippingInstructions] = useState<string>("");
+  const { data: customerShippingAddresses = [] } = useQuery({
+    queryKey: ["customer-shipping-addresses", currentOrganization?.id, selectedCustomerId],
+    enabled: !!currentOrganization?.id && !!selectedCustomerId,
+    staleTime: 60_000,
+    queryFn: () => fetchCustomerShippingAddresses(currentOrganization!.id, selectedCustomerId),
+  });
+  const shippingAddressOptions = useMemo(
+    () => Array.from(new Set(customerShippingAddresses.map(formatCustomerShippingAddress).filter(Boolean))),
+    [customerShippingAddresses],
+  );
   const [isSaving, setIsSaving] = useState(false);
   const mobileERP = useMobileERP();
   const [financerDetails, setFinancerDetails] = useState<FinancerDetails | null>(null);
@@ -2656,6 +2667,7 @@ export default function SalesInvoice() {
         totalDiscount: invoiceData.discount_amount + (invoiceData.flat_discount_amount || 0),
         notes: invoiceData.notes || "",
         otherCharges: Number(invoiceData.other_charges || 0),
+        shippingAddress: invoiceData.shipping_address || "",
         customer: {
           id: invoiceData.customer_id,
           customer_name: customerMeta?.customer_name || invoiceData.customer_name,
@@ -3023,6 +3035,7 @@ export default function SalesInvoice() {
   const handleSelectExistingCustomerFromAddDialog = useCallback((customer: CustomerPhoneLookupRow) => {
     setSelectedCustomerId(customer.id);
     setSelectedCustomer(customer);
+    setShippingAddress("");
     setPointsToRedeem(0);
     customerForm.reset();
     setOpenCustomerDialog(false);
@@ -3055,6 +3068,7 @@ export default function SalesInvoice() {
 
       setSelectedCustomerId(result.customer.id);
       setSelectedCustomer(result.customer);
+      setShippingAddress("");
       
       // Reset form and close dialog
       customerForm.reset();
@@ -3550,6 +3564,7 @@ Thank you for choosing us!`;
           totalDiscount,
           notes,
           otherCharges,
+          shippingAddress,
           customer: selectedCustomer,
           ...crmPointsPrintSnapshot({
             crmEnabled: isPointsEnabled,
@@ -3723,6 +3738,7 @@ Thank you for choosing us!`;
           totalDiscount,
           notes,
           otherCharges,
+          shippingAddress,
           customer: selectedCustomer,
           ...crmPointsPrintSnapshot({
             crmEnabled: isPointsEnabled,
@@ -4407,7 +4423,7 @@ Thank you for choosing us!`;
         <SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={sizeGridProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} showStock validateStock={!allowNegativeStock} title="Enter Size-wise Qty" isLoading={sizeGridLoading} />
         <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
           {savedInvoiceData?.invoiceNumber && (savedInvoiceData?.filledItems?.length ?? 0) > 0 ? (
-            <InvoiceWrapper ref={printRef} template={effectiveInvoicePrintTemplate} billNo={savedInvoiceData.invoiceNumber} date={invoiceDate} dueDate={dueDate} customerName={savedInvoiceData?.customer?.customer_name || selectedCustomer?.customer_name || ""} customerAddress={savedInvoiceData?.customer?.address || ""} customerMobile={savedInvoiceData?.customer?.phone || ""} customerGSTIN={savedInvoiceData?.customer?.gst_number || ""} customerTransportDetails="" items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({ sr: index + 1, particulars: item.productName, productId: item.productId, size: item.size, barcode: item.barcode || "", hsn: item.hsnCode || "", sp: item.salePrice, mrp: item.mrp, qty: item.quantity, rate: item.salePrice, total: item.lineTotal, color: item.color || "", gstPercent: item.gstPercent || 0, discountPercent: item.discountPercent || 0 }))} subTotal={savedInvoiceData?.grossAmount ?? grossAmount} discount={savedInvoiceData?.totalDiscount ?? totalDiscount} grandTotal={savedInvoiceData?.netAmount ?? netAmount} notes={savedInvoiceData?.notes ?? notes} pointsBalance={savedInvoiceData?.pointsBalance} pointsRedeemed={savedInvoiceData?.pointsRedeemed} otherCharges={savedInvoiceData?.otherCharges ?? otherCharges} roundOff={roundOff} paymentMethod="Cash" taxType={taxType} financerDetails={financerDetails} />
+            <InvoiceWrapper ref={printRef} template={effectiveInvoicePrintTemplate} billNo={savedInvoiceData.invoiceNumber} date={invoiceDate} dueDate={dueDate} customerName={savedInvoiceData?.customer?.customer_name || selectedCustomer?.customer_name || ""} customerAddress={savedInvoiceData?.customer?.address || ""} shippingAddress={savedInvoiceData?.shippingAddress || ""} customerMobile={savedInvoiceData?.customer?.phone || ""} customerGSTIN={savedInvoiceData?.customer?.gst_number || ""} customerTransportDetails="" items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({ sr: index + 1, particulars: item.productName, productId: item.productId, size: item.size, barcode: item.barcode || "", hsn: item.hsnCode || "", sp: item.salePrice, mrp: item.mrp, qty: item.quantity, rate: item.salePrice, total: item.lineTotal, color: item.color || "", gstPercent: item.gstPercent || 0, discountPercent: item.discountPercent || 0 }))} subTotal={savedInvoiceData?.grossAmount ?? grossAmount} discount={savedInvoiceData?.totalDiscount ?? totalDiscount} grandTotal={savedInvoiceData?.netAmount ?? netAmount} notes={savedInvoiceData?.notes ?? notes} pointsBalance={savedInvoiceData?.pointsBalance} pointsRedeemed={savedInvoiceData?.pointsRedeemed} otherCharges={savedInvoiceData?.otherCharges ?? otherCharges} roundOff={roundOff} paymentMethod="Cash" taxType={taxType} financerDetails={financerDetails} />
           ) : <div ref={printRef} />}
         </div>
         {historyProduct && currentOrganization && <ProductHistoryDialog isOpen={!!historyProduct} onClose={() => setHistoryProduct(null)} productId={historyProduct.id} productName={historyProduct.name} organizationId={currentOrganization.id} />}
@@ -4707,6 +4723,7 @@ Thank you for choosing us!`;
                                   onSelect={() => {
                                     setSelectedCustomerId(customer.id);
                                     setSelectedCustomer(customer);
+                                    if (customer.id !== selectedCustomerId) setShippingAddress("");
                                     setPointsToRedeem(0);
                                     setOpenCustomerSearch(false);
                                     setCustomerSearchInput("");
@@ -4759,6 +4776,29 @@ Thank you for choosing us!`;
               <span className="inline-flex text-xs font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary mt-1">
                 {selectedCustomer.discount_percent}% Disc
               </span>
+            )}
+            {/* Ship-to branch: blank = customer's main address */}
+            {selectedCustomerId && (shippingAddressOptions.length > 0 || shippingAddress.trim()) && (
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground shrink-0">Ship to:</span>
+                <Select
+                  value={shippingAddress.trim() ? shippingAddress : "__main__"}
+                  onValueChange={(v) => setShippingAddress(v === "__main__" ? "" : v)}
+                >
+                  <SelectTrigger className="h-7 text-xs flex-1 min-w-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__main__" className="text-xs">Main address</SelectItem>
+                    {shippingAddressOptions.map((opt) => (
+                      <SelectItem key={opt} value={opt} className="text-xs">{opt}</SelectItem>
+                    ))}
+                    {shippingAddress.trim() && !shippingAddressOptions.includes(shippingAddress) && (
+                      <SelectItem value={shippingAddress} className="text-xs">{shippingAddress}</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
             {/* Brand discounts / transport */}
             {selectedCustomer && (
@@ -5932,6 +5972,7 @@ Thank you for choosing us!`;
           dueDate={dueDate}
           customerName={savedInvoiceData?.customer.customer_name || selectedCustomer?.customer_name || ""}
           customerAddress={savedInvoiceData?.customer.address || selectedCustomer?.address || ""}
+          shippingAddress={savedInvoiceData?.shippingAddress || ""}
           customerMobile={savedInvoiceData?.customer.phone || selectedCustomer?.phone || ""}
           customerGSTIN={savedInvoiceData?.customer.gst_number || selectedCustomer?.gst_number || ""}
           customerTransportDetails={(savedInvoiceData?.customer as any)?.transport_details || (selectedCustomer as any)?.transport_details || ""}
