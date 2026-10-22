@@ -33,6 +33,8 @@ interface Props {
   rangeLabel: string;
   selectedOrgId: string;
   onSelectOrg: (id: string) => void;
+  /** True while orgStats still holds the previous period (or nothing yet). */
+  statsPending: boolean;
 }
 
 const fmt = (n: number) => Number(n || 0).toLocaleString("en-IN");
@@ -67,8 +69,8 @@ function Tile({
 }
 
 /** Platform admin: cards for one shop (or all) — message balance, used, validity, and period counts. */
-export function PlatformWhatsAppOrgDashboard({ organizations, orgStats, rangeLabel, selectedOrgId, onSelectOrg }: Props) {
-  const { data: credits = [], isError: creditsMissing } = useQuery({
+export function PlatformWhatsAppOrgDashboard({ organizations, orgStats, rangeLabel, selectedOrgId, onSelectOrg, statsPending }: Props) {
+  const { data: credits = [], isError: creditsError, isPending: creditsPending } = useQuery({
     queryKey: ["platform-whatsapp-credits"],
     queryFn: async () => {
       const { data, error } = await (supabase.from("whatsapp_message_credits" as any) as any).select("*");
@@ -78,6 +80,10 @@ export function PlatformWhatsAppOrgDashboard({ organizations, orgStats, rangeLab
     staleTime: 30_000,
   });
 
+  // "-" while loading or when the balance SQL has not been run yet
+  const creditsMissing = creditsError || creditsPending;
+  const creditsNote = creditsError ? "Balance SQL not run yet" : creditsPending ? "Loading…" : undefined;
+  const period = (n: number) => (statsPending ? "…" : fmt(n));
   const all = selectedOrgId === "all";
   const stats = all
     ? orgStats.reduce(
@@ -138,7 +144,7 @@ export function PlatformWhatsAppOrgDashboard({ organizations, orgStats, rangeLab
             <Tile
               label="Balance left (all shops)"
               value={creditsMissing ? "-" : fmt(totalBalance)}
-              sub={creditsMissing ? "Balance SQL not run yet" : `${credits.length} shops on balance`}
+              sub={creditsNote ?? `${credits.length} shops on balance`}
               icon={Wallet}
               tone="text-green-600"
             />
@@ -156,7 +162,7 @@ export function PlatformWhatsAppOrgDashboard({ organizations, orgStats, rangeLab
             <Tile
               label="Message balance"
               value={credit ? fmt(credit.balance) : creditsMissing ? "-" : "No limit"}
-              sub={credit && state ? CREDIT_STATE_LABEL[state] : creditsMissing ? "Balance SQL not run yet" : "No balance added"}
+              sub={credit && state ? CREDIT_STATE_LABEL[state] : creditsNote ?? "No balance added"}
               icon={Wallet}
               tone={balanceTone}
             />
@@ -178,14 +184,14 @@ export function PlatformWhatsAppOrgDashboard({ organizations, orgStats, rangeLab
             />
           </>
         )}
-        <Tile label="Messages in period" value={fmt(stats.total)} sub="All WhatsApp sends" icon={MessageSquare} tone="" />
+        <Tile label="Messages in period" value={period(stats.total)} sub="All WhatsApp sends" icon={MessageSquare} tone="" />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Tile label="Sent" value={fmt(stats.sent)} icon={Send} tone="text-blue-600" />
-        <Tile label="Delivered" value={fmt(stats.delivered)} icon={CheckCircle} tone="text-green-600" />
-        <Tile label="Read" value={fmt(stats.read)} icon={Eye} tone="text-emerald-600" />
-        <Tile label="Failed" value={fmt(stats.failed)} icon={XCircle} tone="text-red-600" />
+        <Tile label="Sent" value={period(stats.sent)} icon={Send} tone="text-blue-600" />
+        <Tile label="Delivered" value={period(stats.delivered)} icon={CheckCircle} tone="text-green-600" />
+        <Tile label="Read" value={period(stats.read)} icon={Eye} tone="text-emerald-600" />
+        <Tile label="Failed" value={period(stats.failed)} icon={XCircle} tone="text-red-600" />
       </div>
     </div>
   );

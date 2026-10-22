@@ -166,7 +166,7 @@ export const PlatformWhatsAppLogs = () => {
   const range = statsRange(statsPreset, statsFrom, statsTo);
 
   // Org-wise counts per day are kept in whatsapp_message_stats (detailed logs only 2 days)
-  const { data: orgStats = [], isLoading: statsLoading, isFetching: statsFetching, refetch: refetchStats } = useQuery({
+  const { data: orgStats = [], isLoading: statsLoading, isFetching: statsFetching, isPlaceholderData: statsIsPrevious, refetch: refetchStats } = useQuery({
     queryKey: ['platform-whatsapp-org-stats', range.start, range.end],
     queryFn: async () => {
       const { data, error } = await supabase.rpc('get_org_whatsapp_stats', {
@@ -387,6 +387,7 @@ export const PlatformWhatsAppLogs = () => {
         rangeLabel={rangeLabel}
         selectedOrgId={dashboardOrgId}
         onSelectOrg={setDashboardOrgId}
+        statsPending={statsLoading || statsIsPrevious}
       />
 
       <PlatformWhatsAppCredits organizations={organizations} />
