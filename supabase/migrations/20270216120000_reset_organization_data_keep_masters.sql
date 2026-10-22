@@ -7,8 +7,8 @@
 -- p_mode:
 --   'all'          delete everything, including customers and suppliers (old behaviour)
 --   'keep_masters' keep Customer Master and Supplier Master rows (plus customer brand
---                  discounts, and students for school shops); delete every bill, payment,
---                  stock, product, employee, size group and log row.
+--                  discounts); delete every bill, payment, stock, product, employee,
+--                  student, size group and log row.
 --                  Customer points go back to 0. Opening balances stay as entered unless
 --                  p_zero_opening_balances is true, so a kept customer's outstanding
 --                  becomes their opening balance.
@@ -73,10 +73,10 @@ DECLARE
     'legacy_invoices', 'drafts', 'bulk_update_history',
     'daily_tally_snapshot', 'invariant_daily_snapshot', 'drift_detection_runs',
     'whatsapp_messages', 'whatsapp_conversations', 'whatsapp_logs', 'sms_logs',
-    'commission_rules', 'size_groups', 'employees', 'ledger_opening_balances'
+    'commission_rules', 'students', 'size_groups', 'employees', 'ledger_opening_balances'
   ];
   v_master_tables text[] := ARRAY[
-    'customer_brand_discounts', 'customers', 'suppliers', 'students'
+    'customer_brand_discounts', 'customers', 'suppliers'
   ];
   v_targets text[] := '{}';
   v_pending text[] := '{}';
