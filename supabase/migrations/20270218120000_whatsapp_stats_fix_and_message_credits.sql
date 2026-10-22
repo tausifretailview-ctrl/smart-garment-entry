@@ -6,9 +6,95 @@
 -- and "Cleanup Old Logs" added the deleted logs a second time. Status columns only ever
 -- saw the insert status ('pending'), so Delivered/Read never moved. Now the stats table
 -- is the one source: insert counts the row, a status change moves it between columns,
--- cleanup only deletes.
+-- cleanup only deletes. New days are India dates (shops are in India; DATE() was UTC,
+-- so 00:00-05:30 IST sends landed on the previous day).
 
--- 1) Move a log between status columns when its status changes.
+-- 0) Repair existing rows before the new triggers run (backup kept). Days that were
+-- cleaned up (status columns other than pending > 0) held each message twice: halve them.
+-- Days whose logs are still live are rebuilt from those logs. Old rows keep their UTC date.
+CREATE TABLE IF NOT EXISTS public.whatsapp_message_stats_backup_20261022 AS
+  SELECT * FROM public.whatsapp_message_stats;
+
+WITH live AS (
+  SELECT organization_id, DATE(created_at) AS stat_date,
+         count(*)::int AS l_total,
+         count(*) FILTER (WHERE status = 'sent')::int AS l_sent,
+         count(*) FILTER (WHERE status = 'delivered')::int AS l_delivered,
+         count(*) FILTER (WHERE status = 'read')::int AS l_read,
+         count(*) FILTER (WHERE status = 'failed')::int AS l_failed,
+         count(*) FILTER (WHERE status = 'pending')::int AS l_pending
+  FROM public.whatsapp_logs
+  GROUP BY 1, 2
+), base AS (
+  SELECT s.*, COALESCE(l.l_total,0) l_total, COALESCE(l.l_sent,0) l_sent, COALESCE(l.l_delivered,0) l_delivered,
+         COALESCE(l.l_read,0) l_read, COALESCE(l.l_failed,0) l_failed, COALESCE(l.l_pending,0) l_pending,
+         (s.sent_count + s.delivered_count + s.read_count + s.failed_count) > 0 AS cleaned
+  FROM public.whatsapp_message_stats s
+  LEFT JOIN live l ON l.organization_id = s.organization_id AND l.stat_date = s.stat_date
+), c AS (
+  SELECT b.*, CASE WHEN cleaned THEN GREATEST(0, (total_count - l_total) / 2) ELSE 0 END AS c_total FROM base b
+), c2 AS (
+  SELECT c.*, LEAST(sent_count, c_total) AS c_sent FROM c
+), c3 AS (
+  SELECT c2.*, LEAST(delivered_count, c_total - c_sent) AS c_delivered FROM c2
+), c4 AS (
+  SELECT c3.*, LEAST(read_count, c_total - c_sent - c_delivered) AS c_read FROM c3
+), c5 AS (
+  SELECT c4.*, LEAST(failed_count, c_total - c_sent - c_delivered - c_read) AS c_failed FROM c4
+), fixed AS (
+  SELECT id,
+    CASE WHEN cleaned THEN c_total + l_total ELSE GREATEST(total_count, l_total) END AS new_total,
+    CASE WHEN cleaned THEN c_sent + l_sent ELSE l_sent END AS new_sent,
+    CASE WHEN cleaned THEN c_delivered + l_delivered ELSE l_delivered END AS new_delivered,
+    CASE WHEN cleaned THEN c_read + l_read ELSE l_read END AS new_read,
+    CASE WHEN cleaned THEN c_failed + l_failed ELSE l_failed END AS new_failed,
+    CASE WHEN cleaned THEN (c_total - c_sent - c_delivered - c_read - c_failed) + l_pending
+         ELSE l_pending + GREATEST(0, total_count - l_total) END AS new_pending
+  FROM c5
+)
+UPDATE public.whatsapp_message_stats s
+SET total_count = f.new_total, sent_count = f.new_sent, delivered_count = f.new_delivered,
+    read_count = f.new_read, failed_count = f.new_failed, pending_count = f.new_pending,
+    updated_at = now()
+FROM fixed f
+WHERE f.id = s.id;
+
+-- 1a) Count each new log on its India date.
+CREATE OR REPLACE FUNCTION public.update_whatsapp_stats_on_log_insert()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  INSERT INTO whatsapp_message_stats (
+    organization_id, stat_date, total_count,
+    sent_count, delivered_count, read_count, failed_count, pending_count
+  )
+  VALUES (
+    NEW.organization_id,
+    (NEW.created_at AT TIME ZONE 'Asia/Kolkata')::date,
+    1,
+    CASE WHEN NEW.status = 'sent' THEN 1 ELSE 0 END,
+    CASE WHEN NEW.status = 'delivered' THEN 1 ELSE 0 END,
+    CASE WHEN NEW.status = 'read' THEN 1 ELSE 0 END,
+    CASE WHEN NEW.status = 'failed' THEN 1 ELSE 0 END,
+    CASE WHEN NEW.status = 'pending' THEN 1 ELSE 0 END
+  )
+  ON CONFLICT (organization_id, stat_date)
+  DO UPDATE SET
+    total_count = whatsapp_message_stats.total_count + 1,
+    sent_count = whatsapp_message_stats.sent_count + CASE WHEN NEW.status = 'sent' THEN 1 ELSE 0 END,
+    delivered_count = whatsapp_message_stats.delivered_count + CASE WHEN NEW.status = 'delivered' THEN 1 ELSE 0 END,
+    read_count = whatsapp_message_stats.read_count + CASE WHEN NEW.status = 'read' THEN 1 ELSE 0 END,
+    failed_count = whatsapp_message_stats.failed_count + CASE WHEN NEW.status = 'failed' THEN 1 ELSE 0 END,
+    pending_count = whatsapp_message_stats.pending_count + CASE WHEN NEW.status = 'pending' THEN 1 ELSE 0 END,
+    updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
+
+-- 1b) Move a log between status columns when its status changes.
 CREATE OR REPLACE FUNCTION public.update_whatsapp_stats_on_log_status_change()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -38,7 +124,7 @@ BEGIN
       - CASE WHEN OLD.status = 'pending' THEN 1 ELSE 0 END),
     updated_at = NOW()
   WHERE organization_id = NEW.organization_id
-    AND stat_date = DATE(NEW.created_at);
+    AND stat_date = (NEW.created_at AT TIME ZONE 'Asia/Kolkata')::date;
 
   RETURN NEW;
 EXCEPTION WHEN OTHERS THEN
@@ -63,7 +149,9 @@ SECURITY DEFINER
 SET search_path TO 'public'
 AS $$
 BEGIN
-  IF auth.uid() IS NOT NULL AND NOT public.has_role(auth.uid(), 'platform_admin'::public.app_role) THEN
+  -- Scheduled job (postgres, no JWT) and service_role may run it; any app user must be platform admin.
+  IF COALESCE(auth.role(), '') <> 'service_role' AND current_user NOT IN ('postgres', 'supabase_admin')
+     AND NOT public.has_role(auth.uid(), 'platform_admin'::public.app_role) THEN
     RAISE EXCEPTION 'Only platform admins can clean up WhatsApp logs';
   END IF;
 
