@@ -8,6 +8,7 @@ import { Package, TrendingDown, History, Search, AlertCircle, CheckCircle2 } fro
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { StockAnalysisSearch, StockAnalysisLoadingSkeleton } from "@/components/StockAnalysisSearch";
+import { movementLabelKey } from "@/utils/stockSettlementMovement";
 
 interface StockItem {
   id: string;
@@ -770,11 +771,12 @@ export default function StockAnalysis() {
                                   purchase_return:   { label: "Purch. Return",     className: "bg-orange-100 text-orange-700 border-orange-300" },
                                   adjustment:        { label: "Adjustment",        className: "bg-purple-100 text-purple-700 border-purple-300" },
                                   reconciliation:    { label: "Stock Adjustment",  className: "bg-purple-100 text-purple-700 border-purple-300" },
+                                  stock_settlement:  { label: "Stock Settlement",  className: "bg-indigo-100 text-indigo-700 border-indigo-300" },
                                   purchase_delete:   { label: "Bill Deleted",      className: "bg-slate-100 text-slate-600 border-slate-300" },
                                   purchase_increase: { label: "Stock Added",       className: "bg-teal-100 text-teal-700 border-teal-300" },
                                   purchase_decrease: { label: "Stock Reduced",     className: "bg-amber-100 text-amber-700 border-amber-300" },
                                 };
-                                const cfg = typeConfig[movement.movement_type] 
+                                const cfg = typeConfig[movementLabelKey(movement.movement_type, movement.notes)]
                                   || { label: movement.movement_type, className: "bg-slate-100 text-slate-600 border-slate-300" };
                                 return (
                                   <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${cfg.className}`}>

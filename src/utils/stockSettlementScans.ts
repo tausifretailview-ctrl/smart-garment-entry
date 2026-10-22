@@ -190,7 +190,7 @@ export async function settleStockSession(
   organizationId: string,
   sessionId: string,
   note?: string,
-): Promise<{ settled_count: number; session_id: string }> {
+): Promise<{ settled_count: number; changed_count?: number; session_id: string }> {
   const { data, error } = await (supabase as any).rpc("settle_stock_session", {
     p_organization_id: organizationId,
     p_session_id: sessionId,
@@ -198,7 +198,7 @@ export async function settleStockSession(
   });
 
   if (error) throw error;
-  return data as { settled_count: number; session_id: string };
+  return data as { settled_count: number; changed_count?: number; session_id: string };
 }
 
 export interface StockSettlementZeroRun {

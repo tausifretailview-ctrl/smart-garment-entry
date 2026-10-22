@@ -37,6 +37,7 @@ import {
   InsightsKpiCard,
   InsightsPanel,
 } from "@/components/business-insights/insightsLayout";
+import { movementLabelKey, STOCK_SETTLEMENT_NOTES_OR_FILTER } from "@/utils/stockSettlementMovement";
 
 // Tab-return stable: keep cached data, never auto-refetch on focus/mount/reconnect.
 const STABLE_TAB_OPTIONS = {
@@ -111,8 +112,8 @@ const columns: ColumnDef<MovementRecord, any>[] = [
     accessorKey: "movement_type",
     header: "Type",
     size: 100,
-    cell: ({ getValue }) => {
-      const type = getValue() as string;
+    cell: ({ row }) => {
+      const type = movementLabelKey(row.original.movement_type, row.original.notes);
       const typeConfig: Record<string, { label: string; className: string }> = {
         purchase:        { label: "Purchase",        className: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
         sale:            { label: "Sale",             className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
@@ -120,6 +121,7 @@ const columns: ColumnDef<MovementRecord, any>[] = [
         purchase_return: { label: "Purchase Return",  className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
         adjustment:      { label: "Adjustment",       className: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
         reconciliation:  { label: "Stock Adjustment", className: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
+        stock_settlement: { label: "Stock Settlement", className: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400" },
         purchase_delete: { label: "Bill Deleted",     className: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
         transfer_in:     { label: "Transfer In",      className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
         transfer_out:    { label: "Transfer Out",     className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
@@ -312,7 +314,9 @@ const ProductTrackingReport = () => {
         .order("created_at", { ascending: false });
 
       // Server-side filters
-      if (movementTypeFilter !== "all") {
+      if (movementTypeFilter === "stock_settlement") {
+        query = query.eq("movement_type", "reconciliation").or(STOCK_SETTLEMENT_NOTES_OR_FILTER);
+      } else if (movementTypeFilter !== "all") {
         query = query.eq("movement_type", movementTypeFilter);
       }
 
@@ -412,7 +416,9 @@ const ProductTrackingReport = () => {
           .lte("created_at", endDate + "T23:59:59")
           .range(from, from + 999);
 
-        if (movementTypeFilter !== "all") {
+        if (movementTypeFilter === "stock_settlement") {
+          query = query.eq("movement_type", "reconciliation").or(STOCK_SETTLEMENT_NOTES_OR_FILTER);
+        } else if (movementTypeFilter !== "all") {
           query = query.eq("movement_type", movementTypeFilter);
         }
         if (searchBarcode) {
@@ -578,6 +584,7 @@ const ProductTrackingReport = () => {
                   <SelectItem value="sale_return">Sale Return (Stock In)</SelectItem>
                   <SelectItem value="purchase_return">Purchase Return (Stock Out)</SelectItem>
                   <SelectItem value="reconciliation">Stock Adjustment</SelectItem>
+                  <SelectItem value="stock_settlement">Stock Settlement</SelectItem>
                   <SelectItem value="transfer_in">Transfer In (Stock In)</SelectItem>
                   <SelectItem value="transfer_out">Transfer Out (Stock Out)</SelectItem>
                 </SelectContent>

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Package, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STOCK_REPORT_LOW_THRESHOLD, stockQtyStatus } from "@/utils/stockReportWebParity";
+import { movementLabelKey } from "@/utils/stockSettlementMovement";
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(v);
@@ -56,7 +57,7 @@ export const OwnerStockProductDetail = ({ productId, onBack }: Props) => {
       const variantIds = variants.map((v) => v.id);
       const { data } = await supabase
         .from("stock_movements")
-        .select("id, variant_id, movement_type, quantity, bill_number, created_at")
+        .select("id, variant_id, movement_type, quantity, bill_number, notes, created_at")
         .eq("organization_id", currentOrganization.id)
         .in("variant_id", variantIds.slice(0, 100))
         .order("created_at", { ascending: false })
@@ -85,6 +86,7 @@ export const OwnerStockProductDetail = ({ productId, onBack }: Props) => {
       case "purchase_return": return { label: "Pur Return", icon: ArrowDownRight, color: "text-destructive" };
       case "adjustment": return { label: "Adjustment", icon: ArrowUpRight, color: "text-info" };
       case "reconciliation": return { label: "Stock Adjustment", icon: ArrowUpRight, color: "text-info" };
+      case "stock_settlement": return { label: "Stock Settlement", icon: ArrowUpRight, color: "text-info" };
       default: return { label: type, icon: ArrowUpRight, color: "text-muted-foreground" };
     }
   };
@@ -196,7 +198,7 @@ export const OwnerStockProductDetail = ({ productId, onBack }: Props) => {
             {movements && movements.length > 0 ? (
               <div className="space-y-0">
                 {movements.map((m, idx) => {
-                  const info = movementLabel(m.movement_type);
+                  const info = movementLabel(movementLabelKey(m.movement_type, m.notes));
                   const Icon = info.icon;
                   const isPositive = ["purchase", "sale_return", "adjustment"].includes(m.movement_type) || (m.movement_type === "reconciliation" && Number(m.quantity) > 0);
                   return (

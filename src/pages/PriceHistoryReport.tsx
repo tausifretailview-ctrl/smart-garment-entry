@@ -64,6 +64,7 @@ import {
   InsightsStaticTh,
   InsightsTableHeader,
 } from "@/components/business-insights/insightsLayout";
+import { movementLabelKey } from "@/utils/stockSettlementMovement";
 
 interface PurchaseHistoryItem {
   id: string;
@@ -800,6 +801,7 @@ const PriceHistoryReport = () => {
       purchase_delete: { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-700 dark:text-red-300", label: "Pur Delete" },
       sale_delete: { bg: "bg-pink-100 dark:bg-pink-900/30", text: "text-pink-700 dark:text-pink-300", label: "Sale Delete" },
       reconciliation: { bg: "bg-violet-100 dark:bg-violet-900/30", text: "text-violet-700 dark:text-violet-300", label: "Stock Adjustment" },
+      stock_settlement: { bg: "bg-indigo-100 dark:bg-indigo-900/30", text: "text-indigo-700 dark:text-indigo-300", label: "Stock Settlement" },
     };
     const badge = badges[type] || { bg: "bg-gray-100 dark:bg-gray-800", text: "text-gray-700 dark:text-gray-300", label: type };
     return <span className={`px-2 py-1 rounded text-xs font-medium ${badge.bg} ${badge.text}`}>{badge.label}</span>;
@@ -1624,7 +1626,7 @@ const PriceHistoryReport = () => {
                           <TableCell className="font-mono text-sm">
                             {item.created_at ? format(new Date(item.created_at), "dd/MM/yy HH:mm") : "-"}
                           </TableCell>
-                          <TableCell>{getMovementTypeBadge(item.movement_type)}</TableCell>
+                          <TableCell>{getMovementTypeBadge(movementLabelKey(item.movement_type, item.notes))}</TableCell>
                           <TableCell className="font-mono text-sm">{item.bill_number || "-"}</TableCell>
                           <TableCell className="font-mono text-sm">{item.barcode}</TableCell>
                           <TableCell className="max-w-[200px] truncate">{item.product_name}</TableCell>
