@@ -18,8 +18,11 @@ export type ActivityLogRow = {
 
 export type ActivityCategoryId =
   | "all"
+  | "important"
+  | "invoices_created"
   | "invoice_edits"
   | "invoice_deletes"
+  | "invoice_cancels"
   | "discounts"
   | "payments"
   | "credit_notes"
@@ -34,16 +37,44 @@ export type ActivityCategory = {
   actions: string[] | null;
 };
 
+/** Edits, deletes and cancels of bills, payments and returns. */
+const IMPORTANT_ACTION_LIST: string[] = [
+  "SALE_UPDATED",
+  "SALE_DELETED",
+  "SALE_PERMANENTLY_DELETED",
+  "SALE_CANCELLED",
+  "SALE_UNCANCELLED",
+  "SALE_RESTORED",
+  "PURCHASE_UPDATED",
+  "PURCHASE_DELETED",
+  "PURCHASE_CANCELLED",
+  "PURCHASE_RESTORED",
+  "PAYMENT_UPDATED",
+  "PAYMENT_DELETED",
+  "CREDIT_NOTE_DELETED",
+  "SALE_RETURN_DELETED",
+  "PURCHASE_RETURN_DELETED",
+];
+
 export const ACTIVITY_CATEGORIES: ReadonlyArray<ActivityCategory> = [
   { id: "all", label: "All activity", actions: null },
+  // Narrowed on the client to isImportantActivity.
+  {
+    id: "important",
+    label: "Edits, deletes & cancels",
+    actions: IMPORTANT_ACTION_LIST,
+  },
+  { id: "invoices_created", label: "Invoices created", actions: ["SALE_CREATED"] },
+  // Payment/settlement writes right after a save are dropped on the client.
   { id: "invoice_edits", label: "Invoice edits", actions: ["SALE_UPDATED"] },
   {
     id: "invoice_deletes",
-    label: "Invoice deletes / cancels",
-    actions: ["SALE_DELETED", "SALE_CANCELLED", "SALE_RESTORED"],
+    label: "Invoice deletes",
+    actions: ["SALE_DELETED", "SALE_PERMANENTLY_DELETED", "SALE_RESTORED"],
   },
-  // SALE_UPDATED rows are narrowed to discount changes on the client.
-  { id: "discounts", label: "Discounts", actions: ["DISCOUNT_GIVEN", "SALE_UPDATED"] },
+  { id: "invoice_cancels", label: "Invoice cancels", actions: ["SALE_CANCELLED", "SALE_UNCANCELLED"] },
+  // SALE_CREATED / SALE_UPDATED rows are narrowed to discounts on the client.
+  { id: "discounts", label: "Discounts", actions: ["DISCOUNT_GIVEN", "SALE_CREATED", "SALE_UPDATED"] },
   {
     id: "payments",
     label: "Payments & receipts",
@@ -72,7 +103,17 @@ export const ACTIVITY_CATEGORIES: ReadonlyArray<ActivityCategory> = [
   {
     id: "purchases",
     label: "Purchases",
-    actions: ["PURCHASE_CREATED", "PURCHASE_UPDATED", "PURCHASE_DELETED"],
+    actions: [
+      "PURCHASE_CREATED",
+      "PURCHASE_UPDATED",
+      "PURCHASE_DELETED",
+      "PURCHASE_RESTORED",
+      "PURCHASE_CANCELLED",
+      "PURCHASE_RETURN_CREATED",
+      "PURCHASE_RETURN_UPDATED",
+      "PURCHASE_RETURN_DELETED",
+      "PURCHASE_RETURN_RESTORED",
+    ],
   },
   { id: "products", label: "Products & prices", actions: ["PRICE_CHANGE", "CREATE", "UPDATE", "DELETE"] },
   {
@@ -100,7 +141,9 @@ const ACTION_LABELS: Record<string, { label: string; tone: ActivityTone }> = {
   SALE_CREATED: { label: "Invoice created", tone: "create" },
   SALE_UPDATED: { label: "Invoice edited", tone: "edit" },
   SALE_DELETED: { label: "Invoice deleted", tone: "delete" },
+  SALE_PERMANENTLY_DELETED: { label: "Invoice permanently deleted", tone: "delete" },
   SALE_CANCELLED: { label: "Invoice cancelled", tone: "delete" },
+  SALE_UNCANCELLED: { label: "Invoice un-cancelled", tone: "edit" },
   SALE_RESTORED: { label: "Invoice restored", tone: "create" },
   DISCOUNT_GIVEN: { label: "Discount given", tone: "edit" },
   SALE_ADVANCE_ADJUST_UPDATED: { label: "Advance adjusted on invoice", tone: "edit" },
@@ -115,6 +158,12 @@ const ACTION_LABELS: Record<string, { label: string; tone: ActivityTone }> = {
   PURCHASE_CREATED: { label: "Purchase bill created", tone: "create" },
   PURCHASE_UPDATED: { label: "Purchase bill edited", tone: "edit" },
   PURCHASE_DELETED: { label: "Purchase bill deleted", tone: "delete" },
+  PURCHASE_RESTORED: { label: "Purchase bill restored", tone: "create" },
+  PURCHASE_CANCELLED: { label: "Purchase bill cancelled", tone: "delete" },
+  PURCHASE_RETURN_CREATED: { label: "Purchase return created", tone: "create" },
+  PURCHASE_RETURN_UPDATED: { label: "Purchase return updated", tone: "edit" },
+  PURCHASE_RETURN_DELETED: { label: "Purchase return deleted", tone: "delete" },
+  PURCHASE_RETURN_RESTORED: { label: "Purchase return restored", tone: "create" },
   PRICE_CHANGE: { label: "Price changed", tone: "edit" },
   LOGIN: { label: "Logged in", tone: "neutral" },
   ROLE_ASSIGNED: { label: "Role assigned", tone: "create" },
@@ -133,7 +182,7 @@ const PAYMENT_VERBS: Record<string, { verb: string; tone: ActivityTone }> = {
 export const AUTO_UPDATE_WINDOW_SECONDS = 60;
 
 export function isAutoUpdateAfterSave(row: Pick<ActivityLogRow, "action" | "metadata">): boolean {
-  if (row.action !== "SALE_UPDATED") return false;
+  if (row.action !== "SALE_UPDATED" && row.action !== "PURCHASE_UPDATED") return false;
   const secs = Number(row.metadata?.seconds_since_created);
   return Number.isFinite(secs) && secs >= 0 && secs < AUTO_UPDATE_WINDOW_SECONDS;
 }
@@ -152,6 +201,9 @@ export function describeActivity(row: Pick<ActivityLogRow, "action" | "entity_ty
   }
   if (row.action === "SALE_UPDATED" && isAutoUpdateAfterSave(row)) {
     return { label: "Invoice saved (payment update)", tone: "neutral" };
+  }
+  if (row.action === "PURCHASE_UPDATED" && isAutoUpdateAfterSave(row)) {
+    return { label: "Purchase bill saved (totals update)", tone: "neutral" };
   }
   const known = ACTION_LABELS[row.action];
   if (known) return known;
@@ -203,6 +255,17 @@ export function activityAmount(row: Pick<ActivityLogRow, "old_values" | "new_val
 const FIELD_LABELS: Record<string, string> = {
   sale_number: "Invoice no.",
   sale_type: "Invoice type",
+  salesman: "Salesman",
+  cancelled_reason: "Cancel reason",
+  software_bill_no: "Purchase bill no.",
+  supplier_invoice_no: "Supplier invoice no.",
+  supplier_name: "Supplier",
+  bill_date: "Bill date",
+  gst_amount: "GST",
+  other_charges: "Other charges",
+  round_off: "Round off",
+  total_qty: "Total qty",
+  original_bill_number: "Original purchase bill",
   sale_date: "Invoice date",
   customer_name: "Customer",
   gross_amount: "Gross amount",
@@ -333,28 +396,56 @@ const DISCOUNT_KEYS = ["discount_amount", "flat_discount_amount", "flat_discount
 
 export function isDiscountChange(row: Pick<ActivityLogRow, "action" | "old_values" | "new_values">): boolean {
   if (row.action === "DISCOUNT_GIVEN") return true;
+  if (row.action === "SALE_CREATED") {
+    return DISCOUNT_KEYS.some((k) => Number(row.new_values?.[k] ?? 0) > 0);
+  }
   if (row.action !== "SALE_UPDATED" || !row.old_values || !row.new_values) return false;
   return DISCOUNT_KEYS.some((k) => !sameValue(k, row.old_values?.[k], row.new_values?.[k]));
+}
+
+const IMPORTANT_ACTIONS = new Set(IMPORTANT_ACTION_LIST);
+
+/** Edits, deletes and cancels the owner should see first (highlighted in the report). */
+export function isImportantActivity(row: Pick<ActivityLogRow, "action" | "metadata">): boolean {
+  return IMPORTANT_ACTIONS.has(row.action) && !isAutoUpdateAfterSave(row);
 }
 
 /** Client-side narrowing the server action filter cannot express. */
 export function matchesActivityCategory(row: ActivityLogRow, categoryId: ActivityCategoryId): boolean {
   if (categoryId === "discounts") return isDiscountChange(row);
+  if (categoryId === "important") return isImportantActivity(row);
+  if (categoryId === "invoice_edits") return !isAutoUpdateAfterSave(row);
   return true;
 }
+
+export type InvoiceAlertCounts = { edits: number; deletes: number; cancels: number };
+
+/** Counts for the invoice edit / delete / cancel tiles. */
+export function countInvoiceAlerts(rows: ReadonlyArray<Pick<ActivityLogRow, "action" | "metadata">>): InvoiceAlertCounts {
+  const out: InvoiceAlertCounts = { edits: 0, deletes: 0, cancels: 0 };
+  for (const r of rows) {
+    if (r.action === "SALE_UPDATED" && !isAutoUpdateAfterSave(r)) out.edits += 1;
+    else if (r.action === "SALE_DELETED" || r.action === "SALE_PERMANENTLY_DELETED") out.deletes += 1;
+    else if (r.action === "SALE_CANCELLED") out.cancels += 1;
+  }
+  return out;
+}
+
+export const INVOICE_ALERT_ACTIONS = ["SALE_UPDATED", "SALE_DELETED", "SALE_PERMANENTLY_DELETED", "SALE_CANCELLED"];
 
 function csvCell(value: string): string {
   return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
 export function activityRowsToCsv(rows: ActivityLogRow[], formatTime: (iso: string) => string): string {
-  const header = ["Date & time", "Operator", "Activity", "Document", "Party", "Amount", "Changes"];
+  const header = ["Date & time", "Operator", "Activity", "Important", "Document", "Party", "Amount", "Changes"];
   const lines = rows.map((r) => {
     const amount = activityAmount(r);
     return [
       formatTime(r.created_at),
       r.user_email || "System",
       describeActivity(r).label,
+      isImportantActivity(r) ? "Yes" : "",
       activityDocumentNumber(r) ?? "",
       activityParty(r) ?? "",
       amount == null ? "" : amount.toFixed(2),

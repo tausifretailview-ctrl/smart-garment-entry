@@ -3,11 +3,13 @@ import {
   activityChangeSummary,
   activityDocumentNumber,
   activityRowsToCsv,
+  countInvoiceAlerts,
   describeActivity,
   diffActivityValues,
   getActivityCategory,
   isAutoUpdateAfterSave,
   isDiscountChange,
+  isImportantActivity,
   matchesActivityCategory,
   type ActivityLogRow,
 } from "./activityLog";
@@ -110,7 +112,44 @@ describe("summary and CSV", () => {
       () => "08/10/2026 15:30",
     );
     const [header, line] = csv.split("\n");
-    expect(header).toBe("Date & time,Operator,Activity,Document,Party,Amount,Changes");
-    expect(line).toBe('08/10/2026 15:30,cashier@shop.in,Discount given,POS/1,"Khan, A",10.00,');
+    expect(header).toBe("Date & time,Operator,Activity,Important,Document,Party,Amount,Changes");
+    expect(line).toBe('08/10/2026 15:30,cashier@shop.in,Discount given,,POS/1,"Khan, A",10.00,');
+  });
+});
+
+describe("all bills and highlighted edits / deletes / cancels", () => {
+  it("counts a new bill as a discount only when it carries one", () => {
+    expect(isDiscountChange(row({ action: "SALE_CREATED", new_values: { discount_amount: 0, flat_discount_amount: 20 } }))).toBe(true);
+    expect(isDiscountChange(row({ action: "SALE_CREATED", new_values: { discount_amount: 0 } }))).toBe(false);
+    expect(describeActivity(row({ action: "SALE_CREATED" })).label).toBe("Invoice created");
+  });
+
+  it("highlights real edits, deletes and cancels but not the save-time payment update", () => {
+    expect(isImportantActivity(row({ metadata: { seconds_since_created: 600 } }))).toBe(true);
+    expect(isImportantActivity(row({ metadata: { seconds_since_created: 3 } }))).toBe(false);
+    expect(isImportantActivity(row({ action: "SALE_CANCELLED" }))).toBe(true);
+    expect(isImportantActivity(row({ action: "PURCHASE_DELETED" }))).toBe(true);
+    expect(isImportantActivity(row({ action: "SALE_CREATED" }))).toBe(false);
+    expect(matchesActivityCategory(row({ metadata: { seconds_since_created: 3 } }), "invoice_edits")).toBe(false);
+  });
+
+  it("counts invoice edits, deletes and cancels for the tiles", () => {
+    expect(
+      countInvoiceAlerts([
+        row({ metadata: { seconds_since_created: 900 } }),
+        row({ metadata: { seconds_since_created: 5 } }),
+        row({ action: "SALE_DELETED" }),
+        row({ action: "SALE_PERMANENTLY_DELETED" }),
+        row({ action: "SALE_CANCELLED" }),
+      ]),
+    ).toEqual({ edits: 1, deletes: 2, cancels: 1 });
+  });
+
+  it("names purchase bill cancels and purchase returns", () => {
+    expect(describeActivity(row({ action: "PURCHASE_CANCELLED" }))).toEqual({ label: "Purchase bill cancelled", tone: "delete" });
+    expect(describeActivity(row({ action: "PURCHASE_RETURN_CREATED" })).label).toBe("Purchase return created");
+    expect(
+      activityDocumentNumber(row({ new_values: { software_bill_no: "PUR/26-27/9", supplier_invoice_no: "A-1" } })),
+    ).toBe("PUR/26-27/9");
   });
 });

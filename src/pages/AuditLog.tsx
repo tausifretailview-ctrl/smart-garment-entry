@@ -15,10 +15,11 @@ import { Button } from "@/components/ui/button";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Download, FileText, RefreshCw } from "lucide-react";
+import { AlertTriangle, Ban, CalendarIcon, Download, FileText, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { addDays, format, startOfDay, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   ACTIVITY_CATEGORIES,
@@ -27,9 +28,12 @@ import {
   activityDocumentNumber,
   activityParty,
   activityRowsToCsv,
+  countInvoiceAlerts,
   describeActivity,
   diffActivityValues,
   getActivityCategory,
+  INVOICE_ALERT_ACTIONS,
+  isImportantActivity,
   matchesActivityCategory,
   type ActivityCategoryId,
   type ActivityLogRow,
@@ -38,6 +42,8 @@ import {
 import { UserScreenTimeReport } from "@/components/audit/UserScreenTimeReport";
 
 const PAGE_SIZE = 200;
+/** Rows read for the edit / delete / cancel tiles. */
+const ALERT_COUNT_LIMIT = 5000;
 const ALL_OPERATORS = "all";
 
 const TONE_BADGE: Record<ActivityTone, "default" | "secondary" | "destructive" | "outline" | "success"> = {
@@ -51,6 +57,13 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : (error as { message?: string })?.message || fallback;
 }
 
+const PERIODS = [
+  { id: "today", label: "Today", from: 0, to: 0 },
+  { id: "yesterday", label: "Yesterday", from: 1, to: 1 },
+  { id: "7d", label: "7 days", from: 6, to: 0 },
+  { id: "30d", label: "30 days", from: 29, to: 0 },
+] as const;
+
 function fmtMoney(n: number): string {
   return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -60,6 +73,7 @@ export default function AuditLog() {
   const { currentOrganization } = useOrganization();
   const { session } = useAuth();
   const orgId = currentOrganization?.id;
+  const isMobile = useIsMobile();
 
   const [view, setView] = useState<"activity" | "screen-time">("activity");
   const [category, setCategory] = useState<string>("all");
@@ -140,6 +154,28 @@ export default function AuditLog() {
     [orgId, category, operatorId, dateFrom, dateTo],
   );
 
+  // Invoice edit / delete / cancel counts for the period, whatever chip is picked.
+  const { data: alertCounts, refetch: refetchAlertCounts } = useQuery({
+    queryKey: ["activity-log-invoice-alerts", orgId, operatorId, dateFrom.toISOString(), dateTo.toISOString()],
+    queryFn: async () => {
+      let query = supabase
+        .from("audit_logs")
+        .select("action, metadata")
+        .eq("organization_id", orgId as string)
+        .in("action", INVOICE_ALERT_ACTIONS)
+        .gte("created_at", startOfDay(dateFrom).toISOString())
+        .lt("created_at", addDays(startOfDay(dateTo), 1).toISOString())
+        .limit(ALERT_COUNT_LIMIT);
+      if (operatorId !== ALL_OPERATORS) query = query.eq("user_id", operatorId);
+      const { data, error } = await query;
+      if (error) throw error;
+      return countInvoiceAlerts((data || []) as unknown as Pick<ActivityLogRow, "action" | "metadata">[]);
+    },
+    enabled: !!orgId,
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
   const loadFirstPage = useCallback(async () => {
     const req = ++requestRef.current;
     setLoading(true);
@@ -198,6 +234,28 @@ export default function AuditLog() {
     });
   }, [logs, category, search]);
 
+  const activePeriod = PERIODS.find(
+    (p) =>
+      startOfDay(subDays(new Date(), p.from)).getTime() === dateFrom.getTime() &&
+      startOfDay(subDays(new Date(), p.to)).getTime() === dateTo.getTime(),
+  )?.id;
+
+  const pickPeriod = (p: (typeof PERIODS)[number]) => {
+    setDateFrom(startOfDay(subDays(new Date(), p.from)));
+    setDateTo(startOfDay(subDays(new Date(), p.to)));
+  };
+
+  const handleRefresh = () => {
+    void loadFirstPage();
+    void refetchAlertCounts();
+  };
+
+  const alertTiles = [
+    { id: "invoice_edits", label: "Invoice edits", count: alertCounts?.edits, icon: Pencil, tone: "text-amber-600" },
+    { id: "invoice_deletes", label: "Invoice deletes", count: alertCounts?.deletes, icon: Trash2, tone: "text-red-600" },
+    { id: "invoice_cancels", label: "Invoice cancels", count: alertCounts?.cancels, icon: Ban, tone: "text-red-600" },
+  ];
+
   const handleClearFilters = () => {
     setCategory("all");
     setOperatorId(ALL_OPERATORS);
@@ -220,32 +278,51 @@ export default function AuditLog() {
 
   const selectedDiff = selectedLog ? diffActivityValues(selectedLog.old_values, selectedLog.new_values) : [];
 
+  const datePicker = (label: string, value: Date, onPick: (d: Date) => void) => (
+    <div>
+      <Label>{label}</Label>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" className="w-full justify-start text-left font-normal">
+            <CalendarIcon className="mr-2 h-4 w-4" />
+            {format(value, isMobile ? "dd MMM yy" : "dd MMM yyyy")}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0">
+          <Calendar mode="single" selected={value} onSelect={(d) => d && onPick(startOfDay(d))} initialFocus />
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-background px-6 py-6">
+    <div className={cn("min-h-screen bg-background", isMobile ? "px-3 py-3 pb-24" : "px-6 py-6")}>
       <div className="w-full">
-        <BackToDashboard />
+        {!isMobile && <BackToDashboard />}
 
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <FileText className="h-8 w-8 text-primary" />
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">Activity Log</h1>
+          <div className="flex items-center gap-3 min-w-0">
+            <FileText className={cn("text-primary shrink-0", isMobile ? "h-6 w-6" : "h-8 w-8")} />
+            <div className="min-w-0">
+              <h1 className={cn("font-bold text-foreground", isMobile ? "text-xl" : "text-3xl")}>Activity Log</h1>
               <p className="text-sm text-muted-foreground">
                 {view === "activity"
-                  ? "Who edited or deleted invoices, gave discounts, recorded payments or changed credit notes, and when."
+                  ? "Every bill, edit, delete, cancel, discount, payment and return, by every login (admins too), with time."
                   : "When each user logged in and out, which screens they used, and how long they were working."}
               </p>
             </div>
           </div>
           {view === "activity" && (
             <div className="flex gap-2">
-              <Button onClick={handleExport} variant="outline" size="sm" disabled={visibleLogs.length === 0}>
-                <Download className="h-4 w-4 mr-2" />
-                Export CSV
-              </Button>
-              <Button onClick={() => void loadFirstPage()} variant="outline" size="sm">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
+              {!isMobile && (
+                <Button onClick={handleExport} variant="outline" size="sm" disabled={visibleLogs.length === 0}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export CSV
+                </Button>
+              )}
+              <Button onClick={handleRefresh} variant="outline" size="sm">
+                <RefreshCw className={cn("h-4 w-4", !isMobile && "mr-2")} />
+                {!isMobile && "Refresh"}
               </Button>
             </div>
           )}
@@ -268,15 +345,64 @@ export default function AuditLog() {
           <UserScreenTimeReport orgId={orgId} operators={operators} />
         ) : (
           <>
+            {/* Period */}
+            <div className="mb-3 flex flex-wrap gap-2">
+              {PERIODS.map((p) => (
+                <Button
+                  key={p.id}
+                  size="sm"
+                  variant={activePeriod === p.id ? "default" : "outline"}
+                  className="rounded-full"
+                  onClick={() => pickPeriod(p)}
+                >
+                  {p.label}
+                </Button>
+              ))}
+            </div>
+
+            {/* Invoice edit / delete / cancel tiles */}
+            <div className="mb-4 grid grid-cols-3 gap-2 sm:gap-3 max-w-2xl">
+              {alertTiles.map((t) => {
+                const Icon = t.icon;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setCategory(t.id)}
+                    className={cn(
+                      "rounded-xl border bg-card p-3 text-left shadow-sm transition-colors touch-manipulation",
+                      category === t.id ? "border-primary ring-1 ring-primary" : "hover:bg-muted/50",
+                      (t.count ?? 0) > 0 && "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30",
+                    )}
+                  >
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Icon className={cn("h-3.5 w-3.5", t.tone)} />
+                      {t.label}
+                    </div>
+                    <div className={cn("mt-1 text-2xl font-bold", (t.count ?? 0) > 0 ? t.tone : "text-foreground")}>
+                      {t.count ?? "–"}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
             {/* Activity chips */}
-            <div className="mb-4 flex flex-wrap gap-2">
+            <div
+              className={cn(
+                "mb-4 flex gap-2",
+                isMobile ? "-mx-3 overflow-x-auto px-3 pb-1 [scrollbar-width:none]" : "flex-wrap",
+              )}
+            >
               {ACTIVITY_CATEGORIES.map((c) => (
                 <Button
                   key={c.id}
                   variant={category === c.id ? "default" : "outline"}
                   size="sm"
+                  className={cn("shrink-0", c.id === "important" && category !== c.id && "border-red-300 text-red-700")}
                   onClick={() => setCategory(c.id)}
                 >
+                  {c.id === "important" && <AlertTriangle className="h-3.5 w-3.5 mr-1" />}
                   {c.label}
                 </Button>
               ))}
@@ -284,49 +410,12 @@ export default function AuditLog() {
 
             {/* Filters */}
             <Card className="mb-4">
-              <CardContent className="pt-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                  <div>
-                    <Label>From</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left font-normal">
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {format(dateFrom, "dd MMM yyyy")}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={dateFrom}
-                          onSelect={(d) => d && setDateFrom(startOfDay(d))}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
+              <CardContent className={isMobile ? "p-3" : "pt-6"}>
+                <div className={cn("grid gap-4", isMobile ? "grid-cols-2 gap-3" : "grid-cols-1 md:grid-cols-2 lg:grid-cols-5")}>
+                  {datePicker("From", dateFrom, setDateFrom)}
+                  {datePicker("To", dateTo, setDateTo)}
 
-                  <div>
-                    <Label>To</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full justify-start text-left font-normal">
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {format(dateTo, "dd MMM yyyy")}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={dateTo}
-                          onSelect={(d) => d && setDateTo(startOfDay(d))}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  <div>
+                  <div className={cn(isMobile && "col-span-2")}>
                     <Label>Operator</Label>
                     <Select value={operatorId} onValueChange={setOperatorId}>
                       <SelectTrigger>
@@ -343,23 +432,25 @@ export default function AuditLog() {
                     </Select>
                   </div>
 
-                  <div>
-                    <Label>Activity</Label>
-                    <Select value={category} onValueChange={setCategory}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ACTIVITY_CATEGORIES.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {!isMobile && (
+                    <div>
+                      <Label>Activity</Label>
+                      <Select value={category} onValueChange={setCategory}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ACTIVITY_CATEGORIES.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
 
-                  <div>
+                  <div className={cn(isMobile && "col-span-2")}>
                     <Label>Search</Label>
                     <Input
                       placeholder="Bill no., customer, operator"
@@ -378,17 +469,60 @@ export default function AuditLog() {
             </Card>
 
             <Card>
-              <CardHeader>
-                <CardTitle>
+              <CardHeader className={isMobile ? "p-3 pb-2" : undefined}>
+                <CardTitle className={isMobile ? "text-base" : undefined}>
                   {visibleLogs.length} {visibleLogs.length === 1 ? "entry" : "entries"}
                   {hasMore ? " (more available)" : ""}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className={isMobile ? "p-3 pt-0" : undefined}>
                 {loading ? (
                   <div className="text-center py-8 text-muted-foreground">Loading activity…</div>
                 ) : visibleLogs.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">No activity for these filters</div>
+                ) : isMobile ? (
+                  <div className="space-y-2">
+                    {visibleLogs.map((log) => {
+                      const { label, tone } = describeActivity(log);
+                      const amount = activityAmount(log);
+                      const important = isImportantActivity(log);
+                      const changes = activityChangeSummary(log, 2);
+                      return (
+                        <button
+                          key={log.id}
+                          type="button"
+                          onClick={() => setSelectedLog(log)}
+                          className={cn(
+                            "w-full rounded-xl border bg-card p-3 text-left shadow-sm active:bg-muted/50 touch-manipulation",
+                            important && "border-l-4 border-l-red-500 bg-red-50/60 dark:bg-red-950/20",
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <Badge variant={TONE_BADGE[tone]} className="whitespace-nowrap">
+                              {important && <AlertTriangle className="h-3 w-3 mr-1" />}
+                              {label}
+                            </Badge>
+                            <span className="text-sm font-semibold whitespace-nowrap">
+                              {amount == null ? "" : fmtMoney(amount)}
+                            </span>
+                          </div>
+                          <div className="mt-1.5 flex items-center justify-between gap-2 text-sm">
+                            <span className="font-medium truncate">
+                              {activityDocumentNumber(log) ?? "—"}
+                              {activityParty(log) ? ` · ${activityParty(log)}` : ""}
+                            </span>
+                          </div>
+                          {changes && <div className="mt-1 text-xs text-muted-foreground line-clamp-2">{changes}</div>}
+                          <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                            <span className="truncate">{log.user_email || "System"}</span>
+                            <span className="whitespace-nowrap">
+                              {format(new Date(log.created_at), "dd MMM, hh:mm:ss a")}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <Table>
@@ -407,14 +541,23 @@ export default function AuditLog() {
                         {visibleLogs.map((log) => {
                           const { label, tone } = describeActivity(log);
                           const amount = activityAmount(log);
+                          const important = isImportantActivity(log);
                           return (
-                            <TableRow key={log.id} className="cursor-pointer" onClick={() => setSelectedLog(log)}>
+                            <TableRow
+                              key={log.id}
+                              className={cn(
+                                "cursor-pointer",
+                                important && "bg-red-50 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/50",
+                              )}
+                              onClick={() => setSelectedLog(log)}
+                            >
                               <TableCell className="whitespace-nowrap text-sm">
                                 {format(new Date(log.created_at), "dd MMM yyyy, hh:mm:ss a")}
                               </TableCell>
                               <TableCell className="text-sm">{log.user_email || "System"}</TableCell>
                               <TableCell>
                                 <Badge variant={TONE_BADGE[tone]} className="whitespace-nowrap">
+                                  {important && <AlertTriangle className="h-3 w-3 mr-1" />}
                                   {label}
                                 </Badge>
                               </TableCell>
@@ -451,7 +594,7 @@ export default function AuditLog() {
         )}
 
         <Dialog open={!!selectedLog} onOpenChange={(open) => !open && setSelectedLog(null)}>
-          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto w-[calc(100vw-1.5rem)] sm:w-full">
             <DialogHeader>
               <DialogTitle>{selectedLog ? describeActivity(selectedLog).label : ""}</DialogTitle>
               <DialogDescription>
