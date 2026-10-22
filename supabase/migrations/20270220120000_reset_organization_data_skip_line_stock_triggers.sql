@@ -10,8 +10,12 @@
 -- sale / purchase / return lines deleted_at = reset time. The line delete triggers
 -- already skip rows with deleted_at set, and the line update triggers skip
 -- deleted_at-only updates (no qty / sku change). Only rows whose parent bill belongs to
--- this shop are marked. Normal purchase edits keep the stock check. Everything else in
--- the function is unchanged.
+-- this shop are marked. Normal purchase edits keep the stock check.
+--
+-- Second DEMO dry run stopped on a loop of links between two tables being deleted
+-- (sales.credit_note_id -> credit_notes, credit_notes.sale_id -> sales). When a delete
+-- pass makes no progress, the reset now clears nullable links between the tables still
+-- waiting (this shop's rows only) once, then tries again.
 
 CREATE OR REPLACE FUNCTION public.reset_organization_data(
   p_organization_id uuid,
@@ -73,6 +77,8 @@ DECLARE
   v_last_err text;
   v_blockers text[] := '{}';
   v_found boolean;
+  v_cycles_cut boolean := false;
+  v_pending_tables text[];
   v_org_name text;
   v_org_number integer;
   r record;
@@ -245,7 +251,44 @@ BEGIN
     END LOOP;
     EXIT WHEN cardinality(v_next) = 0;
     IF NOT v_progress THEN
-      RAISE EXCEPTION 'Reset stopped, nothing was deleted. %', v_last_err;
+      IF v_cycles_cut THEN
+        RAISE EXCEPTION 'Reset stopped, nothing was deleted. %', v_last_err;
+      END IF;
+      v_cycles_cut := true;
+      SELECT array_agg(CASE WHEN x LIKE 'child:%' THEN split_part(x, ':', 2) ELSE substr(x, 5) END)
+      INTO v_pending_tables FROM unnest(v_next) AS x;
+      FOR r IN
+        SELECT cl.relname AS child_table, ca.attname AS child_col,
+               pl.relname AS parent_table, pa.attname AS parent_col
+        FROM pg_constraint con
+        JOIN pg_class cl ON cl.oid = con.conrelid
+        JOIN pg_namespace cn ON cn.oid = cl.relnamespace AND cn.nspname = 'public'
+        JOIN pg_class pl ON pl.oid = con.confrelid
+        JOIN pg_namespace pn ON pn.oid = pl.relnamespace AND pn.nspname = 'public'
+        JOIN pg_attribute ca ON ca.attrelid = con.conrelid AND ca.attnum = con.conkey[1]
+        JOIN pg_attribute pa ON pa.attrelid = con.confrelid AND pa.attnum = con.confkey[1]
+        WHERE con.contype = 'f'
+          AND cardinality(con.conkey) = 1
+          AND con.confdeltype IN ('a', 'r')
+          AND NOT ca.attnotnull
+          AND cl.relname = ANY (v_pending_tables)
+          AND pl.relname = ANY (v_pending_tables)
+          AND con.conrelid <> con.confrelid
+          AND EXISTS (SELECT 1 FROM pg_attribute x WHERE x.attrelid = con.conrelid
+                        AND x.attname = 'organization_id' AND NOT x.attisdropped)
+          AND EXISTS (SELECT 1 FROM pg_attribute y WHERE y.attrelid = con.confrelid
+                        AND y.attname = 'organization_id' AND NOT y.attisdropped)
+      LOOP
+        EXECUTE format(
+          'WITH u AS (UPDATE public.%I c SET %I = NULL
+                      WHERE c.organization_id = $1 AND c.%I IS NOT NULL
+                      RETURNING 1) SELECT count(*) FROM u',
+          r.child_table, r.child_col, r.child_col
+        ) INTO v_n USING p_organization_id;
+        IF v_n > 0 THEN
+          v_counts := v_counts || jsonb_build_object('unlinked:' || r.child_table || '.' || r.child_col, v_n);
+        END IF;
+      END LOOP;
     END IF;
     v_pending := v_next;
   END LOOP;
