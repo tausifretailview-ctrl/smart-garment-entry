@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarClock,
   CheckCheck,
+  Download,
   FileSpreadsheet,
   FileText,
   ImagePlus,
@@ -47,6 +48,7 @@ import { BulkWhatsAppTemplates } from "./BulkWhatsAppTemplates";
 import { CustomerMasterPicker } from "./CustomerMasterPicker";
 import {
   buildBulkLinkLines,
+  buildContactsVcf,
   EMPTY_BULK_LINKS,
   estimateBulkMinutes,
   fillBulkMessage,
@@ -371,6 +373,19 @@ export function BulkWhatsAppWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linked, checking, sending, checkError, unchecked]);
 
+  const downloadContacts = () => {
+    const blob = new Blob([buildContactsVcf(contacts)], { type: "text/vcard;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bulk-contacts-${format(new Date(), "yyyy-MM-dd")}.vcf`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast.success(`${contacts.length.toLocaleString("en-IN")} contacts downloaded`, {
+      description: "Open the file on the shop phone, or import it at contacts.google.com with that phone's Google account, to save them all.",
+    });
+  };
+
   const clearContacts = () => {
     checkRun.current += 1;
     setChecking(null);
@@ -623,7 +638,7 @@ export function BulkWhatsAppWorkspace({
             hint={contacts.length ? `${contacts.length.toLocaleString("en-IN")} ready to send` : showCustomerMaster ? "Customer Master, Excel or type" : "Excel import or type"}
             action={
               contacts.length > 0 && (
-                <div className="flex items-center gap-1">
+                <div className="flex flex-wrap items-center gap-1">
                   {checking ? (
                     <span className="flex h-7 items-center rounded-md bg-sky-50 px-2 text-xs font-medium text-sky-700">
                       <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
@@ -646,6 +661,16 @@ export function BulkWhatsAppWorkspace({
                       <ShieldCheck className="mr-1 h-3.5 w-3.5" /> All on WhatsApp
                     </span>
                   ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    title="Download these numbers as a contacts file to save them all on the shop phone"
+                    onClick={downloadContacts}
+                  >
+                    <Download className="mr-1 h-3.5 w-3.5" /> Contacts (.vcf)
+                  </Button>
                   <Button
                     type="button"
                     size="sm"
