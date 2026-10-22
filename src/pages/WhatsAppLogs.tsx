@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { useWhatsAppAPI, WhatsAppLog } from "@/hooks/useWhatsAppAPI";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { WhatsAppMessageBalance } from "@/components/whatsapp/WhatsAppMessageBalance";
 import { 
   MessageSquare, 
   Send, 
@@ -276,6 +277,8 @@ const WhatsAppLogs = () => {
             </Button>
           </div>
         </div>
+
+        <WhatsAppMessageBalance />
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
