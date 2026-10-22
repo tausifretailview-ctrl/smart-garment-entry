@@ -56,6 +56,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { PlatformWhatsAppCredits } from "@/components/PlatformWhatsAppCredits";
+import { PlatformWhatsAppOrgDashboard } from "@/components/PlatformWhatsAppOrgDashboard";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
@@ -146,6 +147,7 @@ export const PlatformWhatsAppLogs = () => {
   const [statsFrom, setStatsFrom] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
   const [statsTo, setStatsTo] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [statsOrgSearch, setStatsOrgSearch] = useState("");
+  const [dashboardOrgId, setDashboardOrgId] = useState("all");
   const queryClient = useQueryClient();
 
   // Fetch all organizations
@@ -379,6 +381,14 @@ export const PlatformWhatsAppLogs = () => {
         </div>
       </div>
 
+      <PlatformWhatsAppOrgDashboard
+        organizations={organizations}
+        orgStats={orgStats}
+        rangeLabel={rangeLabel}
+        selectedOrgId={dashboardOrgId}
+        onSelectOrg={setDashboardOrgId}
+      />
+
       <PlatformWhatsAppCredits organizations={organizations} />
 
       {/* Organization stats for a date range (from daily aggregated table) */}
@@ -467,7 +477,15 @@ export const PlatformWhatsAppLogs = () => {
                 </TableHeader>
                 <TableBody>
                   {visibleOrgStats.map((stat) => (
-                    <TableRow key={stat.organization_id}>
+                    <TableRow
+                      key={stat.organization_id}
+                      className={`cursor-pointer ${dashboardOrgId === stat.organization_id ? "bg-primary/10" : ""}`}
+                      onClick={() => {
+                        setDashboardOrgId(stat.organization_id);
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                      title="Show this organization in the cards above"
+                    >
                       <TableCell className="font-medium">{stat.organization_name}</TableCell>
                       <TableCell className="text-center font-bold">{Number(stat.total_count).toLocaleString()}</TableCell>
                       <TableCell className="text-center text-blue-600">{Number(stat.sent_count).toLocaleString()}</TableCell>
