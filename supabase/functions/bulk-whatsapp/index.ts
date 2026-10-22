@@ -601,6 +601,9 @@ async function gatewayInbox(admin: SupabaseClient, body: Record<string, unknown>
   const text = String(body.text ?? "").slice(0, 4000);
   const parsed = new Date(String(body.at ?? ""));
   const at = Number.isNaN(parsed.getTime()) || parsed.getTime() > Date.now() + 60_000 ? new Date().toISOString() : parsed.toISOString();
+  // A reply means the customer opened the chat, so bulk messages sent to them before it count as read
+  // (customers with blue ticks off never send a read receipt).
+  if (!fromMe) await markRepliedAsRead(admin, userId, phone, at);
   const preview = (text || (mediaType ? MEDIA_LABEL[mediaType] : "") || "Message").slice(0, 200);
   const pushName = typeof body.name === "string" ? body.name.trim().slice(0, 80) || null : null;
   const messageId = body.messageId ? String(body.messageId).slice(0, 128) : null;
@@ -654,6 +657,29 @@ async function gatewayInbox(admin: SupabaseClient, body: Record<string, unknown>
       .eq("id", chat.id);
   }
   return json({ success: true, tracked: true });
+}
+
+async function markRepliedAsRead(admin: SupabaseClient, userId: string, phone: string, at: string) {
+  const { data: rows, error } = await admin
+    .from("bulk_whatsapp_recipients")
+    .select("id, campaign_id, delivered_at, bulk_whatsapp_campaigns!inner(user_id)")
+    .eq("phone", phone)
+    .eq("bulk_whatsapp_campaigns.user_id", userId)
+    .in("status", ["sent", "delivered"])
+    .lte("sent_at", at)
+    .limit(200);
+  if (error || !rows?.length) return;
+  const ids = rows.map((r) => r.id as string);
+  const noDelivery = rows.filter((r) => !r.delivered_at).map((r) => r.id as string);
+  if (noDelivery.length) await admin.from("bulk_whatsapp_recipients").update({ delivered_at: at }).in("id", noDelivery);
+  await admin
+    .from("bulk_whatsapp_recipients")
+    .update({ status: "read", read_at: at })
+    .in("id", ids)
+    .in("status", ["sent", "delivered"]);
+  for (const id of new Set(rows.map((r) => r.campaign_id as string))) {
+    await admin.rpc("refresh_bulk_whatsapp_counts", { p_campaign_id: id });
+  }
 }
 
 /** Inbox actions from the page: reply (from the user's own linked number), mark read, set tags. */

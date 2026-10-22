@@ -428,8 +428,8 @@ function CampaignDetail({
             )}
 
             <p className="text-xs text-slate-500">
-              Showing {num(rows.length)} of {num(q.data?.length ?? campaign.total_count)} numbers. Read shows only when the
-              customer has blue ticks on; otherwise it stays Delivered.
+              Showing {num(rows.length)} of {num(q.data?.length ?? campaign.total_count)} numbers. Read shows when the
+              customer opens the message with blue ticks on, or replies to you; otherwise it stays Delivered.
             </p>
 
             <div className="max-h-[calc(100dvh-8rem)] min-h-[240px] overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm">
