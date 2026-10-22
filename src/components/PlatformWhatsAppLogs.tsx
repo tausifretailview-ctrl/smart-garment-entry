@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { format, startOfDay, endOfDay, subDays } from "date-fns";
+import { format, startOfDay, endOfDay, subDays, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +55,7 @@ import {
   BarChart3
 } from "lucide-react";
 import { toast } from "sonner";
+import { PlatformWhatsAppCredits } from "@/components/PlatformWhatsAppCredits";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
@@ -83,6 +84,45 @@ interface Organization {
   name: string;
 }
 
+type StatsPreset = "today" | "yesterday" | "last7" | "last30" | "this_month" | "last_month" | "all" | "custom";
+
+const STATS_PRESET_LABELS: Record<StatsPreset, string> = {
+  today: "Today",
+  yesterday: "Yesterday",
+  last7: "Last 7 days",
+  last30: "Last 30 days",
+  this_month: "This month",
+  last_month: "Last month",
+  all: "All time",
+  custom: "From – To",
+};
+
+const ymd = (d: Date) => format(d, "yyyy-MM-dd");
+
+/** Inclusive yyyy-MM-dd range for the org stats; null ends = open. */
+function statsRange(preset: StatsPreset, from: string, to: string, now = new Date()): { start: string | null; end: string | null } {
+  switch (preset) {
+    case "today":
+      return { start: ymd(now), end: ymd(now) };
+    case "yesterday":
+      return { start: ymd(subDays(now, 1)), end: ymd(subDays(now, 1)) };
+    case "last7":
+      return { start: ymd(subDays(now, 6)), end: ymd(now) };
+    case "last30":
+      return { start: ymd(subDays(now, 29)), end: ymd(now) };
+    case "this_month":
+      return { start: ymd(startOfMonth(now)), end: ymd(now) };
+    case "last_month": {
+      const m = subMonths(now, 1);
+      return { start: ymd(startOfMonth(m)), end: ymd(endOfMonth(m)) };
+    }
+    case "custom":
+      return { start: from || null, end: to || null };
+    default:
+      return { start: null, end: null };
+  }
+}
+
 interface OrgStats {
   organization_id: string;
   organization_name: string;
@@ -102,6 +142,10 @@ export const PlatformWhatsAppLogs = () => {
   const [selectedLog, setSelectedLog] = useState<WhatsAppLog | null>(null);
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [showCleanupConfirm, setShowCleanupConfirm] = useState(false);
+  const [statsPreset, setStatsPreset] = useState<StatsPreset>("this_month");
+  const [statsFrom, setStatsFrom] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [statsTo, setStatsTo] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [statsOrgSearch, setStatsOrgSearch] = useState("");
   const queryClient = useQueryClient();
 
   // Fetch all organizations
@@ -117,16 +161,33 @@ export const PlatformWhatsAppLogs = () => {
     },
   });
 
-  // Fetch aggregated stats from DB function (all-time stats per organization)
-  const { data: orgStats = [], isLoading: statsLoading, refetch: refetchStats } = useQuery({
-    queryKey: ['platform-whatsapp-org-stats'],
+  const range = statsRange(statsPreset, statsFrom, statsTo);
+
+  // Org-wise counts per day are kept in whatsapp_message_stats (detailed logs only 2 days)
+  const { data: orgStats = [], isLoading: statsLoading, isFetching: statsFetching, refetch: refetchStats } = useQuery({
+    queryKey: ['platform-whatsapp-org-stats', range.start, range.end],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_org_whatsapp_stats');
+      const { data, error } = await supabase.rpc('get_org_whatsapp_stats', {
+        p_start_date: range.start ?? undefined,
+        p_end_date: range.end ?? undefined,
+      });
       if (error) throw error;
       return (data || []) as OrgStats[];
     },
     staleTime: 60000,
+    placeholderData: (prev) => prev,
   });
+
+  const visibleOrgStats = useMemo(() => {
+    const q = statsOrgSearch.trim().toLowerCase();
+    return q ? orgStats.filter((o) => o.organization_name?.toLowerCase().includes(q)) : orgStats;
+  }, [orgStats, statsOrgSearch]);
+
+  const rangeLabel = statsPreset === "all"
+    ? "All time"
+    : statsPreset === "custom"
+      ? `${statsFrom ? format(new Date(statsFrom), 'dd/MM/yyyy') : 'start'} – ${statsTo ? format(new Date(statsTo), 'dd/MM/yyyy') : 'today'}`
+      : `${STATS_PRESET_LABELS[statsPreset]}${range.start ? ` (${format(new Date(range.start), 'dd/MM')}${range.end && range.end !== range.start ? ` – ${format(new Date(range.end), 'dd/MM')}` : ''})` : ''}`;
 
   // Calculate max date (only allow last 2 days)
   const minDate = format(subDays(new Date(), 2), 'yyyy-MM-dd');
@@ -203,9 +264,9 @@ export const PlatformWhatsAppLogs = () => {
     };
   }, [logs]);
 
-  // All-time totals from aggregated stats
+  // Totals for the selected stats range
   const totalStats = useMemo(() => {
-    return orgStats.reduce((acc, org) => ({
+    return visibleOrgStats.reduce((acc, org) => ({
       total: acc.total + Number(org.total_count),
       sent: acc.sent + Number(org.sent_count),
       delivered: acc.delivered + Number(org.delivered_count),
@@ -213,7 +274,7 @@ export const PlatformWhatsAppLogs = () => {
       failed: acc.failed + Number(org.failed_count),
       pending: acc.pending + Number(org.pending_count),
     }), { total: 0, sent: 0, delivered: 0, read: 0, failed: 0, pending: 0 });
-  }, [orgStats]);
+  }, [visibleOrgStats]);
 
   const filteredLogs = logs.filter(log => {
     if (!searchQuery) return true;
@@ -318,29 +379,80 @@ export const PlatformWhatsAppLogs = () => {
         </div>
       </div>
 
-      {/* All-Time Organization Stats (from aggregated table) */}
+      <PlatformWhatsAppCredits organizations={organizations} />
+
+      {/* Organization stats for a date range (from daily aggregated table) */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            All-Time Message Stats by Organization
-          </CardTitle>
-          <CardDescription>
-            Aggregated message counts across all time (Total: {totalStats.total.toLocaleString()} messages)
-          </CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Message Stats by Organization
+                {statsFetching && !statsLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+              </CardTitle>
+              <CardDescription>
+                {rangeLabel}: {totalStats.total.toLocaleString()} messages from {visibleOrgStats.length} organizations
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={statsPreset} onValueChange={(v) => setStatsPreset(v as StatsPreset)}>
+                <SelectTrigger className="w-[150px]">
+                  <Calendar className="h-4 w-4 mr-1 text-muted-foreground" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(STATS_PRESET_LABELS) as StatsPreset[]).map((k) => (
+                    <SelectItem key={k} value={k}>{STATS_PRESET_LABELS[k]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {statsPreset === "custom" && (
+                <>
+                  <Input
+                    type="date"
+                    value={statsFrom}
+                    max={statsTo || maxDate}
+                    onChange={(e) => setStatsFrom(e.target.value)}
+                    className="w-[150px]"
+                    aria-label="From date"
+                  />
+                  <span className="text-sm text-muted-foreground">to</span>
+                  <Input
+                    type="date"
+                    value={statsTo}
+                    min={statsFrom || undefined}
+                    max={maxDate}
+                    onChange={(e) => setStatsTo(e.target.value)}
+                    className="w-[150px]"
+                    aria-label="To date"
+                  />
+                </>
+              )}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Find organization"
+                  value={statsOrgSearch}
+                  onChange={(e) => setStatsOrgSearch(e.target.value)}
+                  className="pl-8 w-[180px]"
+                />
+              </div>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {statsLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
-          ) : orgStats.length === 0 ? (
+          ) : visibleOrgStats.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No message stats found</p>
+              <p>No messages in this period</p>
             </div>
           ) : (
-            <div className="border rounded-lg overflow-hidden">
+            <div className="border rounded-lg overflow-auto max-h-[480px]">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -350,10 +462,11 @@ export const PlatformWhatsAppLogs = () => {
                     <TableHead className="text-center">Delivered</TableHead>
                     <TableHead className="text-center">Read</TableHead>
                     <TableHead className="text-center">Failed</TableHead>
+                    <TableHead className="text-center">Pending</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {orgStats.map((stat) => (
+                  {visibleOrgStats.map((stat) => (
                     <TableRow key={stat.organization_id}>
                       <TableCell className="font-medium">{stat.organization_name}</TableCell>
                       <TableCell className="text-center font-bold">{Number(stat.total_count).toLocaleString()}</TableCell>
@@ -361,8 +474,20 @@ export const PlatformWhatsAppLogs = () => {
                       <TableCell className="text-center text-green-600">{Number(stat.delivered_count).toLocaleString()}</TableCell>
                       <TableCell className="text-center text-emerald-600">{Number(stat.read_count).toLocaleString()}</TableCell>
                       <TableCell className="text-center text-red-600">{Number(stat.failed_count).toLocaleString()}</TableCell>
+                      <TableCell className="text-center text-yellow-600">{Number(stat.pending_count).toLocaleString()}</TableCell>
                     </TableRow>
                   ))}
+                  {visibleOrgStats.length > 1 && (
+                    <TableRow className="bg-muted/50 font-semibold">
+                      <TableCell>Total</TableCell>
+                      <TableCell className="text-center">{totalStats.total.toLocaleString()}</TableCell>
+                      <TableCell className="text-center text-blue-600">{totalStats.sent.toLocaleString()}</TableCell>
+                      <TableCell className="text-center text-green-600">{totalStats.delivered.toLocaleString()}</TableCell>
+                      <TableCell className="text-center text-emerald-600">{totalStats.read.toLocaleString()}</TableCell>
+                      <TableCell className="text-center text-red-600">{totalStats.failed.toLocaleString()}</TableCell>
+                      <TableCell className="text-center text-yellow-600">{totalStats.pending.toLocaleString()}</TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </div>
@@ -376,7 +501,9 @@ export const PlatformWhatsAppLogs = () => {
           <CardContent className="pt-4">
             <div className="text-center">
               <div className="text-3xl font-bold">{dailyStats.total}</div>
-              <div className="text-sm text-muted-foreground">Today's Total</div>
+              <div className="text-sm text-muted-foreground">
+                {selectedDate === maxDate ? "Today's Total" : `Total ${format(new Date(selectedDate), 'dd/MM')}`}
+              </div>
             </div>
           </CardContent>
         </Card>
