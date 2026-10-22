@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { getEdgeFunctionErrorMessage } from "@/utils/edgeFunctionError";
 import { WhatsAppLinkMethods, type LinkMethod } from "@/components/whatsapp/WhatsAppLinkMethods";
+import { WhatsAppMessageBalance } from "@/components/whatsapp/WhatsAppMessageBalance";
 
 type GatewayStatus = "connected" | "connecting" | "qr" | "disconnected" | "logged_out";
 
@@ -144,14 +145,14 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
 
   return (
     <div className="space-y-4">
+      <WhatsAppMessageBalance />
       <Alert>
         <Smartphone className="h-4 w-4" />
         <AlertTitle>Ezzy ERP WhatsApp — send from your own number</AlertTitle>
         <AlertDescription className="text-sm space-y-1">
           <p>
             Click Connect WhatsApp, then on the shop phone open WhatsApp → Settings → Linked devices → Link a
-            device and scan the QR below (or use Link with phone number to type a code instead). Bills, reminders and offers then go from your own number, with no
-            per-message charge.
+            device and scan the QR below (or use Link with phone number to type a code instead). Bills, reminders and offers then go from your own number.
           </p>
           <p className="text-xs text-muted-foreground">
             After it shows Connected, turn the integration on and click Save Settings so sends use it.

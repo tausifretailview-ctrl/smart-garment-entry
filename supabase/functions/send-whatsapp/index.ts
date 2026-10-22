@@ -9,6 +9,7 @@ import { normalizeWhatsAppApiBaseUrl, normalizeWhatsAppApiVersion } from "../_sh
 import { buildPublicInvoiceViewUrl, WHATSAPP_FALLBACK_HEADER_IMAGE_URL } from "../_shared/publicInvoiceLink.ts";
 import { formatPhoneNumber } from "../_shared/whatsappPhone.ts";
 import { getGatewayConfig, sendViaBuiltinGateway } from "../_shared/builtinGatewaySend.ts";
+import { loadCreditBlockReason } from "../_shared/whatsappCredits.ts";
 import { isBspSendAccepted } from "../_shared/whatsappStatusWebhook.ts";
 import {
   missingWhatsAppTemplateError,
@@ -661,6 +662,13 @@ serve(async (req) => {
           );
         }
         // No builtin_status check here: the saved status can lag a reconnect; the gateway answers live.
+        const creditBlock = await loadCreditBlockReason(supabase, organizationId);
+        if (creditBlock) {
+          return new Response(
+            JSON.stringify({ success: false, code: 'whatsapp_credits_over', error: creditBlock }),
+            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          );
+        }
       } else {
         const { data: wappConnectSecret, error: secretError } = await supabase
           .from('whatsapp_wappconnect_secrets')
