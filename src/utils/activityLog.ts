@@ -35,6 +35,8 @@ export type ActivityCategory = {
   label: string;
   /** Server-side action filter; null = no filter. */
   actions: string[] | null;
+  /** Server-side PostgREST `or` filter, used instead of `actions` when set. */
+  or?: string;
 };
 
 /** Edits, deletes and cancels of bills, payments and returns. */
@@ -47,6 +49,7 @@ const IMPORTANT_ACTION_LIST: string[] = [
   "SALE_RESTORED",
   "PURCHASE_UPDATED",
   "PURCHASE_DELETED",
+  "PURCHASE_PERMANENTLY_DELETED",
   "PURCHASE_CANCELLED",
   "PURCHASE_RESTORED",
   "PAYMENT_UPDATED",
@@ -65,7 +68,7 @@ export const ACTIVITY_CATEGORIES: ReadonlyArray<ActivityCategory> = [
     actions: IMPORTANT_ACTION_LIST,
   },
   { id: "invoices_created", label: "Invoices created", actions: ["SALE_CREATED"] },
-  // Payment/settlement writes right after a save are dropped on the client.
+  // Save-time payment writes are SALE_AUTO_UPDATED; older ones are dropped on the client.
   { id: "invoice_edits", label: "Invoice edits", actions: ["SALE_UPDATED"] },
   {
     id: "invoice_deletes",
@@ -73,8 +76,13 @@ export const ACTIVITY_CATEGORIES: ReadonlyArray<ActivityCategory> = [
     actions: ["SALE_DELETED", "SALE_PERMANENTLY_DELETED", "SALE_RESTORED"],
   },
   { id: "invoice_cancels", label: "Invoice cancels", actions: ["SALE_CANCELLED", "SALE_UNCANCELLED"] },
-  // SALE_CREATED / SALE_UPDATED rows are narrowed to discounts on the client.
-  { id: "discounts", label: "Discounts", actions: ["DISCOUNT_GIVEN", "SALE_CREATED", "SALE_UPDATED"] },
+  // SALE_UPDATED rows are narrowed to discount changes on the client.
+  {
+    id: "discounts",
+    label: "Discounts",
+    actions: ["DISCOUNT_GIVEN", "SALE_CREATED", "SALE_UPDATED"],
+    or: "action.eq.DISCOUNT_GIVEN,action.eq.SALE_UPDATED,and(action.eq.SALE_CREATED,metadata->>has_discount.eq.true)",
+  },
   {
     id: "payments",
     label: "Payments & receipts",
@@ -106,7 +114,9 @@ export const ACTIVITY_CATEGORIES: ReadonlyArray<ActivityCategory> = [
     actions: [
       "PURCHASE_CREATED",
       "PURCHASE_UPDATED",
+      "PURCHASE_AUTO_UPDATED",
       "PURCHASE_DELETED",
+      "PURCHASE_PERMANENTLY_DELETED",
       "PURCHASE_RESTORED",
       "PURCHASE_CANCELLED",
       "PURCHASE_RETURN_CREATED",
@@ -140,6 +150,7 @@ export type ActivityTone = "create" | "edit" | "delete" | "neutral";
 const ACTION_LABELS: Record<string, { label: string; tone: ActivityTone }> = {
   SALE_CREATED: { label: "Invoice created", tone: "create" },
   SALE_UPDATED: { label: "Invoice edited", tone: "edit" },
+  SALE_AUTO_UPDATED: { label: "Invoice saved (payment update)", tone: "neutral" },
   SALE_DELETED: { label: "Invoice deleted", tone: "delete" },
   SALE_PERMANENTLY_DELETED: { label: "Invoice permanently deleted", tone: "delete" },
   SALE_CANCELLED: { label: "Invoice cancelled", tone: "delete" },
@@ -157,7 +168,9 @@ const ACTION_LABELS: Record<string, { label: string; tone: ActivityTone }> = {
   SALE_RETURN_RESTORED: { label: "Sale return restored", tone: "create" },
   PURCHASE_CREATED: { label: "Purchase bill created", tone: "create" },
   PURCHASE_UPDATED: { label: "Purchase bill edited", tone: "edit" },
+  PURCHASE_AUTO_UPDATED: { label: "Purchase bill saved (totals update)", tone: "neutral" },
   PURCHASE_DELETED: { label: "Purchase bill deleted", tone: "delete" },
+  PURCHASE_PERMANENTLY_DELETED: { label: "Purchase bill permanently deleted", tone: "delete" },
   PURCHASE_RESTORED: { label: "Purchase bill restored", tone: "create" },
   PURCHASE_CANCELLED: { label: "Purchase bill cancelled", tone: "delete" },
   PURCHASE_RETURN_CREATED: { label: "Purchase return created", tone: "create" },
@@ -178,7 +191,10 @@ const PAYMENT_VERBS: Record<string, { verb: string; tone: ActivityTone }> = {
   PAYMENT_RESTORED: { verb: "restored", tone: "create" },
 };
 
-/** POS writes settlement fields right after insert; those are not operator edits. */
+/**
+ * POS writes settlement fields right after insert; those are not operator edits.
+ * New rows say so in the action (SALE_AUTO_UPDATED); this catches older rows.
+ */
 export const AUTO_UPDATE_WINDOW_SECONDS = 60;
 
 export function isAutoUpdateAfterSave(row: Pick<ActivityLogRow, "action" | "metadata">): boolean {

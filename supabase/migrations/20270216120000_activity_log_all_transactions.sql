@@ -15,6 +15,14 @@
 --    (before, the row went to the user's first shop).
 -- 3. Purchase returns: PURCHASE_RETURN_CREATED / _UPDATED / _DELETED / _RESTORED.
 --
+-- 4. Saves that only write payment / totals fields within 60 s of the bill being
+--    created are logged as SALE_AUTO_UPDATED / PURCHASE_AUTO_UPDATED, so
+--    "Invoice edits" lists only real edits (the app hid these on the client).
+-- 5. Recycle-bin permanent deletes (rows already soft deleted) are logged as
+--    SALE_PERMANENTLY_DELETED / PURCHASE_PERMANENTLY_DELETED / PURCHASE_RETURN_DELETED. Hard
+--    deletes of live rows (only Reset Organization Data does that, and it clears
+--    its own log rows) are not logged.
+--
 -- All writes go through log_audit_safe, so a failed log write never blocks a save.
 -- Re-runnable.
 
@@ -116,7 +124,13 @@ BEGIN
       NEW.id,
       NULL,
       v_new,
-      jsonb_build_object('table', 'sales', 'organization_id', NEW.organization_id)
+      jsonb_build_object(
+        'table', 'sales',
+        'organization_id', NEW.organization_id,
+        'has_discount', (COALESCE(NEW.discount_amount, 0) > 0
+                         OR COALESCE(NEW.flat_discount_amount, 0) > 0
+                         OR COALESCE(NEW.flat_discount_percent, 0) > 0)
+      )
     );
   ELSIF TG_OP = 'UPDATE' THEN
     IF OLD.deleted_at IS NULL AND NEW.deleted_at IS NOT NULL THEN
@@ -129,6 +143,8 @@ BEGIN
       v_action := 'SALE_UNCANCELLED';
     ELSIF OLD.payment_status = 'hold' AND NEW.payment_status IS DISTINCT FROM 'hold' THEN
       v_action := 'SALE_CREATED';
+    ELSIF now() - NEW.created_at < interval '60 seconds' THEN
+      v_action := 'SALE_AUTO_UPDATED';
     ELSE
       v_action := 'SALE_UPDATED';
     END IF;
@@ -142,7 +158,10 @@ BEGIN
       jsonb_build_object(
         'table', 'sales',
         'organization_id', NEW.organization_id,
-        'seconds_since_created', round(EXTRACT(EPOCH FROM (now() - NEW.created_at)))
+        'seconds_since_created', round(EXTRACT(EPOCH FROM (now() - NEW.created_at))),
+        'has_discount', (COALESCE(NEW.discount_amount, 0) > 0
+                         OR COALESCE(NEW.flat_discount_amount, 0) > 0
+                         OR COALESCE(NEW.flat_discount_percent, 0) > 0)
       )
     );
   ELSIF TG_OP = 'DELETE' THEN
@@ -197,6 +216,14 @@ WHEN (
   OR OLD.card_amount           IS DISTINCT FROM NEW.card_amount
   OR OLD.salesman              IS DISTINCT FROM NEW.salesman
 )
+EXECUTE FUNCTION public.audit_sales_changes();
+
+-- Recycle-bin permanent delete (bill was soft deleted first).
+DROP TRIGGER IF EXISTS audit_sales_delete_trigger ON public.sales;
+CREATE TRIGGER audit_sales_delete_trigger
+AFTER DELETE ON public.sales
+FOR EACH ROW
+WHEN (OLD.deleted_at IS NOT NULL)
 EXECUTE FUNCTION public.audit_sales_changes();
 
 -- ---------------------------------------------------------------------------
@@ -254,13 +281,15 @@ BEGIN
   IF TG_OP = 'INSERT' THEN
     v_action := 'PURCHASE_CREATED';
   ELSIF TG_OP = 'DELETE' THEN
-    v_action := 'PURCHASE_DELETED';
+    v_action := 'PURCHASE_PERMANENTLY_DELETED';
   ELSIF OLD.deleted_at IS NULL AND NEW.deleted_at IS NOT NULL THEN
     v_action := 'PURCHASE_DELETED';
   ELSIF OLD.deleted_at IS NOT NULL AND NEW.deleted_at IS NULL THEN
     v_action := 'PURCHASE_RESTORED';
   ELSIF COALESCE(OLD.is_cancelled, false) = false AND COALESCE(NEW.is_cancelled, false) = true THEN
     v_action := 'PURCHASE_CANCELLED';
+  ELSIF now() - NEW.created_at < interval '60 seconds' THEN
+    v_action := 'PURCHASE_AUTO_UPDATED';
   ELSE
     v_action := 'PURCHASE_UPDATED';
   END IF;
@@ -308,6 +337,13 @@ WHEN (
   OR OLD.is_locked           IS DISTINCT FROM NEW.is_locked
   OR OLD.is_dc_purchase      IS DISTINCT FROM NEW.is_dc_purchase
 )
+EXECUTE FUNCTION public.audit_purchase_changes();
+
+DROP TRIGGER IF EXISTS audit_purchase_delete_trigger ON public.purchase_bills;
+CREATE TRIGGER audit_purchase_delete_trigger
+AFTER DELETE ON public.purchase_bills
+FOR EACH ROW
+WHEN (OLD.deleted_at IS NOT NULL)
 EXECUTE FUNCTION public.audit_purchase_changes();
 
 -- ---------------------------------------------------------------------------
@@ -386,4 +422,11 @@ WHEN (
   OR OLD.return_date   IS DISTINCT FROM NEW.return_date
   OR OLD.credit_status IS DISTINCT FROM NEW.credit_status
 )
+EXECUTE FUNCTION public.audit_purchase_return_activity();
+
+DROP TRIGGER IF EXISTS audit_purchase_return_delete_trigger ON public.purchase_returns;
+CREATE TRIGGER audit_purchase_return_delete_trigger
+AFTER DELETE ON public.purchase_returns
+FOR EACH ROW
+WHEN (OLD.deleted_at IS NOT NULL)
 EXECUTE FUNCTION public.audit_purchase_return_activity();

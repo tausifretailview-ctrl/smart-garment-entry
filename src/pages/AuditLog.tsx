@@ -145,7 +145,8 @@ export default function AuditLog() {
         .order("created_at", { ascending: false })
         .range(offset, offset + PAGE_SIZE - 1);
       if (operatorId !== ALL_OPERATORS) query = query.eq("user_id", operatorId);
-      if (cat.actions) query = query.in("action", cat.actions);
+      if (cat.or) query = query.or(cat.or);
+      else if (cat.actions) query = query.in("action", cat.actions);
       const { data, error } = await query;
       if (error) throw error;
       const rows = (data || []) as unknown as ActivityLogRow[];
@@ -165,6 +166,7 @@ export default function AuditLog() {
         .in("action", INVOICE_ALERT_ACTIONS)
         .gte("created_at", startOfDay(dateFrom).toISOString())
         .lt("created_at", addDays(startOfDay(dateTo), 1).toISOString())
+        .order("created_at", { ascending: false })
         .limit(ALERT_COUNT_LIMIT);
       if (operatorId !== ALL_OPERATORS) query = query.eq("user_id", operatorId);
       const { data, error } = await query;

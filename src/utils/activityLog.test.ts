@@ -153,3 +153,15 @@ describe("all bills and highlighted edits / deletes / cancels", () => {
     ).toBe("PUR/26-27/9");
   });
 });
+
+describe("save-time updates and permanent deletes", () => {
+  it("labels the new auto-update and permanent-delete actions", () => {
+    expect(describeActivity(row({ action: "SALE_AUTO_UPDATED" }))).toEqual({
+      label: "Invoice saved (payment update)",
+      tone: "neutral",
+    });
+    expect(isImportantActivity(row({ action: "SALE_AUTO_UPDATED" }))).toBe(false);
+    expect(isImportantActivity(row({ action: "PURCHASE_PERMANENTLY_DELETED" }))).toBe(true);
+    expect(getActivityCategory("discounts").or).toContain("has_discount");
+  });
+});
