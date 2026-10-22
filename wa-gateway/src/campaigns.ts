@@ -174,11 +174,11 @@ export class CampaignRunner {
   /** Last report URL a campaign brought; delivery / read ticks are not tied to one campaign. */
   private lastReportUrl = "";
 
-  private async post(body: Record<string, unknown>, reportUrl?: string) {
+  private async post(body: Record<string, unknown>, reportUrl?: string): Promise<boolean> {
     const url = reportUrl || this.lastReportUrl || APP_BULK_URL;
     if (!url) {
       console.error("Bulk WhatsApp: no report URL, results cannot reach the app");
-      return;
+      return false;
     }
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
@@ -187,19 +187,30 @@ export class CampaignRunner {
           headers: { "Content-Type": "application/json", "x-api-key": API_KEY },
           body: JSON.stringify(body),
         });
-        if (res.ok) return;
+        if (res.ok) return true;
         console.error(`Bulk WhatsApp report rejected (${res.status}): ${(await res.text()).slice(0, 300)}`);
       } catch (e) {
         console.error(`Bulk WhatsApp report failed: ${e instanceof Error ? e.message : String(e)}`);
       }
       await sleep(2000 * (attempt + 1));
     }
+    return false;
   }
 
+  private flushing = false;
   private async flushReceipts() {
-    if (!this.receipts.length) return;
-    const batch = this.receipts.splice(0, 200);
-    await this.post({ action: "gateway-receipts", receipts: batch });
+    if (this.flushing || !this.receipts.length) return;
+    this.flushing = true;
+    try {
+      const batch = this.receipts.splice(0, 200);
+      // Kept for the next round when the app cannot be reached, so delivered / read ticks are not lost.
+      if (!(await this.post({ action: "gateway-receipts", receipts: batch }))) {
+        this.receipts.unshift(...batch);
+        if (this.receipts.length > 20_000) this.receipts.splice(0, this.receipts.length - 20_000);
+      }
+    } finally {
+      this.flushing = false;
+    }
   }
 
   private report(job: CampaignJob, note: string | null = null) {
