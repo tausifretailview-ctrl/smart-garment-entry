@@ -38,6 +38,8 @@ export interface A4GstClassicInvoiceTemplateProps {
   invoiceTime?: string;
   customerName: string;
   customerAddress?: string;
+  /** Ship-to branch picked on Sale Bill; blank = same as Billed To. */
+  shippingAddress?: string;
   customerMobile?: string;
   customerGSTIN?: string;
   customerTransportDetails?: string;
@@ -156,6 +158,7 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
   invoiceDate,
   customerName,
   customerAddress,
+  shippingAddress: shipToAddress,
   customerMobile,
   customerGSTIN,
   customerTransportDetails,
@@ -304,8 +307,9 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
       ? totalTax
       : cgstAmount + sgstAmount + igstAmount;
 
+  const shippedToAddress = shipToAddress?.trim() || customerAddress;
   const station =
-    customerAddress
+    shippedToAddress
       ?.split(/[\n,]/)
       .map((s) => s.trim())
       .filter(Boolean)
@@ -528,9 +532,9 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
               Shipped To
             </div>
             <div style={{ fontWeight: 800, fontSize: "14px" }}>{customerName || "Walk-in Customer"}</div>
-            {customerAddress && (
+            {shippedToAddress && (
               <div style={{ whiteSpace: "pre-line", marginTop: "3px", lineHeight: 1.4, fontSize: "12px" }}>
-                {customerAddress}
+                {shippedToAddress}
               </div>
             )}
             {customerMobile && <div style={{ marginTop: "3px", fontSize: "12px" }}>Ph: {customerMobile}</div>}

@@ -106,6 +106,8 @@ interface InvoiceWrapperProps {
   // Customer Details
   customerName: string;
   customerAddress?: string;
+  /** Ship-to branch picked on Sale Bill (sales.shipping_address). Blank = main address. */
+  shippingAddress?: string;
   customerMobile?: string;
   customerGSTIN?: string;
   customerTransportDetails?: string;
@@ -215,6 +217,9 @@ interface InvoiceWrapperProps {
   /** 'second' prints the 2nd firm header (Settings > Reports > 2nd billing details). */
   printFirm?: PrintFirm;
 }
+
+/** Invoice formats with a separate "Shipped To" box next to Billed To. */
+const SHIP_TO_BOX_TEMPLATES = new Set(['a4-gst-classic', 'a4-electronic', 'gift_tally']);
 
 export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperProps>(
   (props, ref) => {
@@ -605,6 +610,12 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       ? (defaultSizeGroup!.sizes as unknown[]).map((s) => String(s))
       : undefined;
 
+    // A picked ship-to branch prints in the existing address area. Formats that already
+    // have their own "Shipped To" box keep the main address as Billed To.
+    const shipToAddress = (props.shippingAddress || '').trim();
+    const hasShipToBox = SHIP_TO_BOX_TEMPLATES.has(templateForFormat);
+    const printedCustomerAddress = shipToAddress && !hasShipToBox ? shipToAddress : customerAddress;
+
     // Common props for all templates
     const commonProps = {
       businessName: settings?.business_name || '',
@@ -623,7 +634,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           : props.date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
       
       customerName: props.customerName,
-      customerAddress,
+      customerAddress: printedCustomerAddress,
+      shippingAddress: shipToAddress || undefined,
       customerMobile: props.customerMobile,
       customerGSTIN: props.customerGSTIN,
       customerTransportDetails: props.customerTransportDetails,
@@ -1016,7 +1028,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             date={props.date}
             customerName={props.customerName}
             customerPhone={props.customerMobile}
-            customerAddress={customerAddress}
+            customerAddress={printedCustomerAddress}
             items={props.items.map((item, idx) => ({
               sr: idx + 1,
               particulars: item.particulars,
