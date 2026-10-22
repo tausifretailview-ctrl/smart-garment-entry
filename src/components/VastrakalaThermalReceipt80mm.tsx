@@ -396,7 +396,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
         </div>
       </div>
 
-      <div style={dashed} />
+      <div className="vk-rule" style={dashed} />
 
       <div className="vk-meta vk-section" style={{ marginBottom: layout.sectionGap }}>
         <div>
@@ -413,7 +413,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
         </div>
       </div>
 
-      <div style={dashed} />
+      <div className="vk-rule" style={dashed} />
 
       <div
         className="vk-items-head"
@@ -431,7 +431,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
         {showMrp ? <span style={{ ...itemNumStyle, gridColumn: 4 }}>MRP</span> : null}
         <span style={{ ...itemNumStyle, gridColumn: showMrp ? 5 : 4 }}>AMOUNT</span>
       </div>
-      <div style={dashed} />
+      <div className="vk-rule" style={dashed} />
       <div className="vk-items-body" style={{ marginBottom: layout.sectionGap }}>
         {items.map((item, i) => {
           const { line1, line2 } = vastrakalaParticularsLines(item.particulars, item.itemNotes, {
@@ -512,10 +512,10 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
         })}
       </div>
 
-      <div style={dashed} />
+      <div className="vk-rule" style={dashed} />
 
       <div className="vk-totals vk-section" style={{ display: "flex", justifyContent: "space-between", gap: 6, paddingRight: "0.5mm", marginBottom: layout.sectionGap }}>
-        <div style={{ minWidth: 0 }}>
+        <div className="vk-totals-left" style={{ minWidth: 0 }}>
           <div>Tot.QTY : {totalQty}</div>
           {paymentLines.map((line) => (
             <div key={line.label}>
@@ -524,14 +524,14 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
           ))}
         </div>
         <div className="vk-totals-right" style={{ textAlign: "right", flexShrink: 0, paddingRight: "1mm" }}>
-          <div>TOTAL AMT. : {fmtDec(totalAmt)}</div>
-          {mrpDiscount > 0 ? <div>DISCOUNT : {fmtDec(mrpDiscount)}</div> : null}
-          {saleReturnAdjust > 0 ? <div>S/R : {fmtDec(saleReturnAdjust)}</div> : null}
-          {roundOff !== 0 ? <div>ROUND : {fmtDec(roundOff)}</div> : null}
-          <div className="vk-net-amt" style={{ fontSize: layout.netFont }}>
-            NET AMT. : {fmtDec(grandTotal)}
+          <div className="vk-kv"><span>TOTAL AMT. :</span> <span>{fmtDec(totalAmt)}</span></div>
+          {mrpDiscount > 0 ? <div className="vk-kv"><span>DISCOUNT :</span> <span>{fmtDec(mrpDiscount)}</span></div> : null}
+          {saleReturnAdjust > 0 ? <div className="vk-kv"><span>S/R :</span> <span>{fmtDec(saleReturnAdjust)}</span></div> : null}
+          {roundOff !== 0 ? <div className="vk-kv"><span>ROUND :</span> <span>{fmtDec(roundOff)}</span></div> : null}
+          <div className="vk-net-amt vk-kv" style={{ fontSize: layout.netFont }}>
+            <span>NET AMT. :</span> <span>{fmtDec(grandTotal)}</span>
           </div>
-          {refundCash > 0 ? <div>REFUND : {fmtDec(refundCash)}</div> : null}
+          {refundCash > 0 ? <div className="vk-kv"><span>REFUND :</span> <span>{fmtDec(refundCash)}</span></div> : null}
           <ThermalPartyLines
             previousBalance={previousBalance}
             unusedAdvance={unusedAdvance}
@@ -540,7 +540,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
         </div>
       </div>
 
-      <div style={dashed} />
+      <div className="vk-rule" style={dashed} />
 
       <div className="vk-terms vk-section" style={{ marginBottom: layout.sectionGap }}>
         <div className="vk-terms-label">TERMS:</div>

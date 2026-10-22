@@ -2,6 +2,7 @@ import type html2canvasType from "html2canvas";
 import type jsPDFType from "jspdf";
 import { applyWappConnectInvoicePdfCloneFixes } from "@/utils/wappConnectInvoicePdfCapture";
 import { resolveInvoicePdfRasterOptions } from "@/utils/invoicePdfRaster";
+import { applyThermalPdfColourTheme } from "@/utils/thermalPdfColourTheme";
 
 /** Lazily loaded — keeps html2canvas + jsPDF (~350 KB gz) off the initial payload. */
 let html2canvasPromise: Promise<typeof html2canvasType> | null = null;
@@ -58,13 +59,12 @@ async function rasterizeElement(
     backgroundColor: "#ffffff",
     scrollX: 0,
     scrollY: 0,
-    ...(wappConnectPdf
-      ? {
-          onclone: (clonedDoc: Document, clonedElement: HTMLElement) => {
-            applyWappConnectInvoicePdfCloneFixes(clonedDoc, clonedElement);
-          },
-        }
-      : {}),
+    onclone: (clonedDoc: Document, clonedElement: HTMLElement) => {
+      if (wappConnectPdf) applyWappConnectInvoicePdfCloneFixes(clonedDoc, clonedElement);
+      // Colour look for thermal bill PDFs (WhatsApp / Download / Share). Clone only —
+      // the thermal printer keeps printing black & white.
+      applyThermalPdfColourTheme(clonedDoc, clonedElement);
+    },
   });
 }
 
