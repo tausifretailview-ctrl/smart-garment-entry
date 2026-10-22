@@ -506,12 +506,15 @@ export class SessionManager {
   /** Why a campaign on this number is waiting, in the user's words. */
   offlineNote(id: string): string {
     const s = this.sessions.get(id);
-    if (!s || s.status === "logged_out" || (!s.sock && !s.starting && s.status !== "disconnected")) {
+    // A saved, finished link reconnects by itself; without one (unlinked, logged out, a new QR or code
+    // still waiting) only linking again helps.
+    const linked = s?.status !== "logged_out" && hasLinkedCreds(path.join(this.dir(id), "creds.json"));
+    if (!linked) {
       return s?.lastClose?.code === DisconnectReason.loggedOut
         ? s.lastClose.reason
         : "Your WhatsApp is not linked. Link it again on the Send page; sending continues from here.";
     }
-    return s.lastClose?.reason ?? "Waiting for your WhatsApp to reconnect";
+    return s?.lastClose?.reason ?? "Waiting for your WhatsApp to reconnect";
   }
 
   isConnected(id: string): boolean {

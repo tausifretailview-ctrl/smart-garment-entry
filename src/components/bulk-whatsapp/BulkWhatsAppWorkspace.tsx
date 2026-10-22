@@ -97,6 +97,8 @@ interface SavedMedia {
   url: string;
   type: string;
   name: string;
+  /** False when the video is known not to fit WhatsApp's original size (then Small / Medium only). */
+  originalOk?: boolean;
 }
 
 /** Numbers are checked 50 at a time with a short pause, so WhatsApp sees a slow, normal lookup. */
@@ -251,7 +253,7 @@ export function BulkWhatsAppWorkspace({
     if (media) {
       url = await uploadMedia(media);
       // Sending reuses the uploaded file instead of uploading it again.
-      const uploaded = { url, type: media.type, name: media.name };
+      const uploaded = { url, type: media.type, name: media.name, originalOk: canSendOriginal(media) };
       if (mediaPreview) URL.revokeObjectURL(mediaPreview);
       setMedia(null);
       setMediaPreview(null);
@@ -273,7 +275,17 @@ export function BulkWhatsAppWorkspace({
     if (mediaPreview) URL.revokeObjectURL(mediaPreview);
     setMedia(null);
     setMediaPreview(null);
-    setSavedMedia(t.media_url ? { url: t.media_url, type: t.media_type ?? "image/jpeg", name: t.media_name ?? "poster" } : null);
+    setSavedMedia(
+      t.media_url
+        ? {
+            url: t.media_url,
+            type: t.media_type ?? "image/jpeg",
+            name: t.media_name ?? "poster",
+            // The file size is not kept: Original only when the template was saved as Original.
+            originalOk: !t.media_type?.startsWith("video/") || t.video_quality === "original",
+          }
+        : null,
+    );
     if (t.video_quality) setVideoQuality(t.video_quality);
     if (!name.trim()) setName(t.name);
     toast.success(`Template "${t.name}" loaded. Add numbers and send.`);
@@ -566,7 +578,9 @@ export function BulkWhatsAppWorkspace({
                 <div className="text-[11px] font-medium text-slate-600">Video size sent to customers</div>
                 <div className="grid grid-cols-3 gap-1.5">
                   {VIDEO_QUALITIES.map((v) => {
-                    const disabled = v.id === "original" && media !== null && !canSendOriginal(media);
+                    const disabled =
+                      v.id === "original" &&
+                      (media !== null ? !canSendOriginal(media) : savedMedia?.originalOk === false);
                     return (
                       <button
                         key={v.id}
