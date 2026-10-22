@@ -98,9 +98,6 @@ function preloadWhatsAppTab() {
   preloadWhatsAppTemplatePanel();
   preloadCustomerPagePanel();
 }
-const LazyStockReconciliation = lazyWithRetry(() =>
-  import("@/components/StockReconciliation").then((m) => ({ default: m.StockReconciliation })),
-);
 import { CompanyProfileBankAccounts } from "@/components/settings/CompanyProfileBankAccounts";
 
 const LazyDesktopPrintSettings = lazyWithRetry(() =>
@@ -6416,27 +6413,6 @@ export default function Settings() {
                 </p>
                 <Button onClick={() => navigate("/stock-adjustment")}>
                   Open Stock Adjustment Tool
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Stock Reconciliation Tool */}
-            <div className="mt-6">
-              <LazySettingsPanel>
-                <LazyStockReconciliation />
-              </LazySettingsPanel>
-            </div>
-
-            <Card className="mt-3 h-fit settings-panel-card">
-              <CardHeader>
-                <CardTitle>Stock Reconciliation Report</CardTitle>
-                <CardDescription>
-                  Read-only parity check: stored stock vs purchase/sale/return/challan transaction history
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button onClick={() => navigate("/stock-reconciliation")}>
-                  🔍 Open Stock Reconciliation Report
                 </Button>
               </CardContent>
             </Card>
