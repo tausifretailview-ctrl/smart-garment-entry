@@ -93,9 +93,13 @@ const { Panel: CustomerPagePanel, preload: preloadCustomerPagePanel } = createSe
   import("@/components/settings/CustomerPageSettings").then((m) => ({ default: m.CustomerPageSettings })),
 );
 
+// Settings > WhatsApp "Message templates" editor is hidden for now. Saved
+// templates are still used for sends. Set to true to show the editor again.
+const SHOW_WHATSAPP_MESSAGE_TEMPLATES = false;
+
 function preloadWhatsAppTab() {
   preloadWhatsAppAPIPanel();
-  preloadWhatsAppTemplatePanel();
+  if (SHOW_WHATSAPP_MESSAGE_TEMPLATES) preloadWhatsAppTemplatePanel();
   preloadCustomerPagePanel();
 }
 import { CompanyProfileBankAccounts } from "@/components/settings/CompanyProfileBankAccounts";
@@ -6478,11 +6482,13 @@ export default function Settings() {
                     <WhatsAppAPIPanel />
                   </div>
                 </SettingsSection>
-                <SettingsSection title="Message templates">
-                  <div className="px-3 py-2.5">
-                    <WhatsAppTemplatePanel />
-                  </div>
-                </SettingsSection>
+                {SHOW_WHATSAPP_MESSAGE_TEMPLATES && (
+                  <SettingsSection title="Message templates">
+                    <div className="px-3 py-2.5">
+                      <WhatsAppTemplatePanel />
+                    </div>
+                  </SettingsSection>
+                )}
                 <SettingsSection title="Customer page & notifications">
                   <div className="px-3 py-2.5">
                     <CustomerPagePanel />
