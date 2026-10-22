@@ -17,7 +17,8 @@
 --   * service role only (EXECUTE revoked from users, and the body refuses user JWTs)
 --   * p_performed_by must be an admin of p_organization_id
 --   * every DELETE is "WHERE organization_id = shop" or a child row whose parent is in
---     the shop; stock transfers are deleted only where this shop is one side
+--     the shop; a shop that has stock transfers with another shop is refused, because
+--     those transfer rows also belong to (and feed the stock of) the other shop
 --   * before deleting, any ON DELETE CASCADE / SET NULL link from another shop's row to
 --     this shop's rows stops the reset with nothing deleted
 --   * kept rows of this shop that point at deleted rows (for example teachers.employee_id)
@@ -129,7 +130,16 @@ BEGIN
   END LOOP;
 
   IF to_regclass('public.stock_transfers') IS NOT NULL THEN
-    v_pending := v_pending || 'transfers'::text;
+    SELECT string_agg(DISTINCT o.name, ', ') INTO v_last_err
+    FROM public.stock_transfers st
+    JOIN public.organizations o
+      ON o.id = CASE WHEN st.from_organization_id = p_organization_id
+                     THEN st.to_organization_id ELSE st.from_organization_id END
+    WHERE st.from_organization_id = p_organization_id OR st.to_organization_id = p_organization_id;
+    IF v_last_err IS NOT NULL THEN
+      RAISE EXCEPTION 'Reset stopped, nothing was deleted: this shop has stock transfers with % . Those transfers also belong to the other shop, so they cannot be deleted from here.',
+        v_last_err;
+    END IF;
   END IF;
 
   FOREACH v_t IN ARRAY v_org_tables LOOP
@@ -214,14 +224,7 @@ BEGIN
     v_progress := false;
     FOREACH v_item IN ARRAY v_pending LOOP
       BEGIN
-        IF v_item = 'transfers' THEN
-          v_t := 'stock_transfers';
-          WITH d AS (
-            DELETE FROM public.stock_transfers
-            WHERE from_organization_id = p_organization_id OR to_organization_id = p_organization_id
-            RETURNING 1
-          ) SELECT count(*) INTO v_n FROM d;
-        ELSIF v_item LIKE 'child:%' THEN
+        IF v_item LIKE 'child:%' THEN
           v_t := split_part(v_item, ':', 2);
           EXECUTE format(
             'WITH d AS (DELETE FROM public.%I WHERE %I IN (SELECT id FROM public.%I WHERE organization_id = $1) RETURNING 1)
