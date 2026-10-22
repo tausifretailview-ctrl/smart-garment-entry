@@ -42,7 +42,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { BulkWhatsAppLink } from "./BulkWhatsAppLink";
 import { BulkWhatsAppReport, BulkWhatsAppStats } from "./BulkWhatsAppReport";
-import { callBulkWhatsApp, fetchOptOutCount, type BulkCampaignMessage } from "./bulkWhatsAppApi";
+import { callBulkWhatsApp, fetchOptOutCount, saveTemplate, type BulkCampaignMessage, type BulkTemplate } from "./bulkWhatsAppApi";
+import { BulkWhatsAppTemplates } from "./BulkWhatsAppTemplates";
 import { CustomerMasterPicker } from "./CustomerMasterPicker";
 import {
   buildBulkLinkLines,
@@ -96,6 +97,8 @@ interface SavedMedia {
   url: string;
   type: string;
   name: string;
+  /** False when the video is known not to fit WhatsApp's original size (then Small / Medium only). */
+  originalOk?: boolean;
 }
 
 /** Numbers are checked 50 at a time with a short pause, so WhatsApp sees a slow, normal lookup. */
@@ -227,6 +230,67 @@ export function BulkWhatsAppWorkspace({
     setMediaPreview(file && file.type.startsWith("image/") ? URL.createObjectURL(file) : null);
   };
 
+  /** Puts the poster in storage and returns its public link (sent by link, saved in templates). */
+  const uploadMedia = async (file: File): Promise<string> => {
+    const safe = file.name.replace(/[^\w.-]+/g, "_").slice(-60);
+    const path = `${orgId}/${crypto.randomUUID()}-${safe}`;
+    const { error } = await supabase.storage
+      .from("bulk-whatsapp-media")
+      .upload(path, file, { contentType: file.type, upsert: false });
+    if (error) {
+      throw new Error(
+        file.size > MAX_MEDIA_BYTES && /size|large/i.test(error.message)
+          ? "Videos over 16 MB need the new storage setting (SQL from the update). For now pick a video under 16 MB."
+          : `Poster upload failed: ${error.message}`,
+      );
+    }
+    return supabase.storage.from("bulk-whatsapp-media").getPublicUrl(path).data.publicUrl;
+  };
+
+  /** Saves the message as typed (without the links and STOP line, which are added at send) and the poster. */
+  const saveAsTemplate = async (templateName: string) => {
+    let url = savedMedia?.url ?? null;
+    if (media) {
+      url = await uploadMedia(media);
+      // Sending reuses the uploaded file instead of uploading it again.
+      const uploaded = { url, type: media.type, name: media.name, originalOk: canSendOriginal(media) };
+      if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+      setMedia(null);
+      setMediaPreview(null);
+      setSavedMedia(uploaded);
+    }
+    const type = media?.type ?? savedMedia?.type ?? null;
+    await saveTemplate(orgId, {
+      name: templateName,
+      message: message.trim() ? message : "",
+      media_url: url,
+      media_type: url ? type : null,
+      media_name: url ? (media?.name ?? savedMedia?.name ?? null) : null,
+      video_quality: type?.startsWith("video/") ? videoQuality : null,
+    });
+  };
+
+  const pickTemplate = (t: BulkTemplate) => {
+    setMessage(t.message);
+    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+    setMedia(null);
+    setMediaPreview(null);
+    setSavedMedia(
+      t.media_url
+        ? {
+            url: t.media_url,
+            type: t.media_type ?? "image/jpeg",
+            name: t.media_name ?? "poster",
+            // The file size is not kept: Original only when the template was saved as Original.
+            originalOk: !t.media_type?.startsWith("video/") || t.video_quality === "original",
+          }
+        : null,
+    );
+    if (t.video_quality) setVideoQuality(t.video_quality);
+    if (!name.trim()) setName(t.name);
+    toast.success(`Template "${t.name}" loaded. Add numbers and send.`);
+  };
+
   /** "Use this message again" from a report: text without the added footer and links, same poster. */
   const reuse = (m: BulkCampaignMessage) => {
     setMessage(stripBulkExtras(m.message ?? ""));
@@ -344,21 +408,7 @@ export function BulkWhatsAppWorkspace({
     setSending(true);
     try {
       let mediaUrl: string | null = savedMedia?.url ?? null;
-      if (media) {
-        const safe = media.name.replace(/[^\w.-]+/g, "_").slice(-60);
-        const path = `${orgId}/${crypto.randomUUID()}-${safe}`;
-        const { error } = await supabase.storage
-          .from("bulk-whatsapp-media")
-          .upload(path, media, { contentType: media.type, upsert: false });
-        if (error) {
-          throw new Error(
-            media.size > MAX_MEDIA_BYTES && /size|large/i.test(error.message)
-              ? "Videos over 16 MB need the new storage setting (SQL from the update). For now pick a video under 16 MB."
-              : `Poster upload failed: ${error.message}`,
-          );
-        }
-        mediaUrl = supabase.storage.from("bulk-whatsapp-media").getPublicUrl(path).data.publicUrl;
-      }
+      if (media) mediaUrl = await uploadMedia(media);
       const res = await callBulkWhatsApp<{ total?: number; unsubscribed?: number; alreadySent?: number }>(orgId, "create", {
         name: name.trim(),
         message: outgoing,
@@ -417,7 +467,20 @@ export function BulkWhatsAppWorkspace({
       <div className="grid min-w-0 items-start gap-3 2xl:grid-cols-2">
         {/* Step 1: message */}
         <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <StepTitle step={1} title="Message" hint="Text, customer name and poster" />
+          <StepTitle
+            step={1}
+            title="Message"
+            hint="Text, customer name and poster"
+            action={
+              <BulkWhatsAppTemplates
+                organizationId={orgId}
+                canSave={message.trim() !== "" || attachment !== null}
+                defaultName={name}
+                onSave={saveAsTemplate}
+                onPick={pickTemplate}
+              />
+            }
+          />
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-slate-600">Campaign name (for the report)</Label>
             <Input
@@ -515,7 +578,9 @@ export function BulkWhatsAppWorkspace({
                 <div className="text-[11px] font-medium text-slate-600">Video size sent to customers</div>
                 <div className="grid grid-cols-3 gap-1.5">
                   {VIDEO_QUALITIES.map((v) => {
-                    const disabled = v.id === "original" && media !== null && !canSendOriginal(media);
+                    const disabled =
+                      v.id === "original" &&
+                      (media !== null ? !canSendOriginal(media) : savedMedia?.originalOk === false);
                     return (
                       <button
                         key={v.id}
@@ -865,7 +930,7 @@ export function BulkWhatsAppWorkspace({
 
 function StepTitle({ step, title, hint, action }: { step: number; title: string; hint: string; action?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex items-center gap-2.5">
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-xs font-bold text-white shadow-sm">
           {step}

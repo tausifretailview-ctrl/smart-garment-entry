@@ -65,6 +65,25 @@ interface Session {
   /** Recently sent messages, so WhatsApp retry requests can be answered (else "Waiting for this message"). */
   sent: Map<string, proto.IMessage>;
   mediaCache: ReturnType<typeof makeMediaCache>;
+  /** Why WhatsApp last closed the connection, shown on the page and in campaign notes. */
+  lastClose: { code: number | null; reason: string; at: string } | null;
+}
+
+/** Plain words for WhatsApp's close codes (Baileys DisconnectReason). */
+function closeReason(code: number | undefined): string {
+  switch (code) {
+    case DisconnectReason.loggedOut:
+      return "WhatsApp logged this number out: it was unlinked on the phone (Linked devices), or WhatsApp stopped it after too many bulk messages. Link it again to continue.";
+    case DisconnectReason.forbidden:
+      return "WhatsApp blocked this number from sending (often after many messages to people who have not saved it). Check WhatsApp on the phone.";
+    case DisconnectReason.connectionReplaced:
+      return "This number was opened on another WhatsApp Web or server, which pushed this link off. Reconnecting.";
+    case DisconnectReason.badSession:
+    case DisconnectReason.multideviceMismatch:
+      return "WhatsApp rejected the saved link. Unlink and link the number again.";
+    default:
+      return "The connection to WhatsApp dropped (network or WhatsApp restart). Reconnecting by itself.";
+  }
 }
 
 const SENT_CACHE_SIZE = 3000;
@@ -219,6 +238,7 @@ export class SessionManager {
         sentToday: 0, day: today(), lastSendAt: 0, queue: Promise.resolve(), retries: 0, stopped: false,
         sent: new Map(),
         mediaCache: makeMediaCache(),
+        lastClose: null,
       };
       this.sessions.set(orgId, s);
     }
@@ -309,6 +329,7 @@ export class SessionManager {
           s.qr = null;
           s.pairingCode = null;
           s.retries = 0;
+          if (s.lastClose) logger.info({ orgId, after: s.lastClose.code }, "WhatsApp reconnected");
           s.number = sock.user?.id?.split(":")[0]?.split("@")[0] ?? null;
           await this.notify(orgId, s);
         } else if (connection === "close") {
@@ -319,6 +340,10 @@ export class SessionManager {
           s.pairingCode = null;
           // `account` is written only when the phone accepts the link; a pairing-code request already sets `me`.
           const linked = Boolean(state.creds.account);
+          if (linked && !s.stopped && code !== DisconnectReason.restartRequired) {
+            s.lastClose = { code: code ?? null, reason: closeReason(code), at: new Date().toISOString() };
+            logger.warn({ orgId, code, error: lastDisconnect?.error?.message }, "WhatsApp connection closed");
+          }
           if (code === DisconnectReason.loggedOut) {
             s.status = "logged_out";
             s.number = null;
@@ -444,7 +469,13 @@ export class SessionManager {
   async status(orgId: string) {
     this.assertOrg(orgId);
     const s = this.get(orgId);
-    return { status: s.status, qr: s.qr, pairingCode: s.pairingCode, connectedNumber: s.number };
+    return {
+      status: s.status,
+      qr: s.qr,
+      pairingCode: s.pairingCode,
+      connectedNumber: s.number,
+      lastDisconnect: s.status === "connected" ? null : s.lastClose,
+    };
   }
 
   async logout(orgId: string) {
@@ -461,6 +492,7 @@ export class SessionManager {
     s.qr = null;
     s.pairingCode = null;
     s.number = null;
+    s.lastClose = null;
     fs.rmSync(this.dir(orgId), { recursive: true, force: true });
   }
 
@@ -469,6 +501,20 @@ export class SessionManager {
     const s = this.get(orgId);
     if (s.status !== "connected" || !s.sock) throw new Error("WhatsApp session is not connected");
     return s;
+  }
+
+  /** Why a campaign on this number is waiting, in the user's words. */
+  offlineNote(id: string): string {
+    const s = this.sessions.get(id);
+    // A saved, finished link reconnects by itself; without one (unlinked, logged out, a new QR or code
+    // still waiting) only linking again helps.
+    const linked = s?.status !== "logged_out" && hasLinkedCreds(path.join(this.dir(id), "creds.json"));
+    if (!linked) {
+      return s?.lastClose?.code === DisconnectReason.loggedOut
+        ? s.lastClose.reason
+        : "Your WhatsApp is not linked. Link it again on the Send page; sending continues from here.";
+    }
+    return s?.lastClose?.reason ?? "Waiting for your WhatsApp to reconnect";
   }
 
   isConnected(id: string): boolean {
