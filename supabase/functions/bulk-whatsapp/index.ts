@@ -122,6 +122,23 @@ serve(async (req) => {
     return json({ success: true, checked: phones, onWhatsApp: result.data.onWhatsApp ?? [] });
   }
 
+  // Up to 10 numbers per call: saved as contacts on the user's linked WhatsApp (the page loops in batches).
+  if (action === "save-contacts") {
+    const contacts = (Array.isArray(body.contacts) ? body.contacts : []).slice(0, 10).flatMap((c) => {
+      const row = (c ?? {}) as { phone?: unknown; name?: unknown };
+      const phone = normalizePhone(String(row.phone ?? ""));
+      const name = String(row.name ?? "").replace(/\s+/g, " ").trim().slice(0, 100);
+      return phone && name ? [{ phone, name }] : [];
+    });
+    if (!contacts.length) return json({ success: true, saved: [], failed: [] });
+    const result = await bulkGateway(`${sessionPath}/save-contacts`, { method: "POST", body: { contacts } });
+    if (result.status === 404) {
+      return json({ error: "The bulk WhatsApp server needs the latest update (Railway redeploy) to save contacts" }, 502);
+    }
+    if (!result.ok) return json({ error: result.data.error ?? "WhatsApp server error" }, result.status || 502);
+    return json({ success: true, saved: result.data.saved ?? [], failed: result.data.failed ?? [] });
+  }
+
   // New campaign with the same message and poster to the numbers that failed for a passing reason.
   if (action === "resend-failed") {
     const campaignId = String(body.campaignId ?? "");

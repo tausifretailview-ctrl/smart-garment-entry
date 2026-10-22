@@ -622,6 +622,42 @@ export class SessionManager {
     return found.filter((r) => r.exists).map((r) => String(r.jid).split("@")[0].split(":")[0]);
   }
 
+  /**
+   * Saves numbers as contacts on this WhatsApp, like "New contact" on WhatsApp Web (also saved to the
+   * phone's address book). One at a time with a short pause, at most 10 per call; not counted as sends.
+   */
+  async saveContacts(
+    orgId: string,
+    contacts: { phone: string; name: string }[],
+  ): Promise<{ saved: string[]; failed: { phone: string; error: string }[] }> {
+    const s = this.ready(orgId);
+    const list = contacts.slice(0, 10);
+    const saved: string[] = [];
+    const failed: { phone: string; error: string }[] = [];
+    for (const [i, c] of list.entries()) {
+      const phone = String(c.phone ?? "").replace(/\D/g, "");
+      const name = String(c.name ?? "").replace(/\s+/g, " ").trim().slice(0, 100);
+      try {
+        if (!name) throw new Error("name is required");
+        if (s.status !== "connected" || !s.sock) throw new Error("WhatsApp session is not connected");
+        const jid = toJid(phone);
+        const lid = await s.sock.signalRepository.lidMapping.getLIDForPN(jid).catch(() => null);
+        await s.sock.addOrEditContact(jid, {
+          fullName: name,
+          firstName: name.split(" ")[0],
+          ...(lid ? { lidJid: lid } : {}),
+          saveOnPrimaryAddressbook: true,
+        });
+        saved.push(phone);
+      } catch (e) {
+        failed.push({ phone, error: e instanceof Error ? e.message : String(e) });
+      }
+      if (i < list.length - 1) await sleep(1000 + Math.random() * 1500);
+    }
+    if (failed.length) logger.warn({ orgId, saved: saved.length, failed: failed.length, error: failed[0].error }, "Save contacts failed");
+    return { saved, failed };
+  }
+
   /** Groups this number is in, so the platform admin can pick the Technical Support group. */
   async groups(orgId: string): Promise<{ id: string; name: string; size: number }[]> {
     const s = this.ready(orgId);

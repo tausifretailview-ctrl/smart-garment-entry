@@ -19,6 +19,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Trash2,
+  UserPlus,
   Users,
   X,
 } from "lucide-react";
@@ -106,6 +107,8 @@ interface SavedMedia {
 /** Numbers are checked 50 at a time with a short pause, so WhatsApp sees a slow, normal lookup. */
 const CHECK_BATCH = 50;
 const CHECK_PAUSE_MS = 1500;
+/** Contacts are saved on the linked WhatsApp 10 per call; the server pauses 1-2.5 s between numbers. */
+const SAVE_CONTACTS_BATCH = 10;
 /** datetime-local value (local time, minutes). */
 const localInput = (d: Date) => format(d, "yyyy-MM-dd'T'HH:mm");
 
@@ -157,6 +160,10 @@ export function BulkWhatsAppWorkspace({
   const [showRemoved, setShowRemoved] = useState(false);
   /** Set when a check fails (e.g. WhatsApp server not updated yet): no automatic retry until Check again. */
   const [checkError, setCheckError] = useState<string | null>(null);
+  const [savingContacts, setSavingContacts] = useState<{ done: number; total: number } | null>(null);
+  /** Numbers saved as contacts on the linked WhatsApp from this page, so a second press skips them. */
+  const [savedContacts, setSavedContacts] = useState<Set<string>>(() => new Set());
+  const saveRun = useRef(0);
   const [contacts, setContacts] = useState<BulkContact[]>([]);
   const [typed, setTyped] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -386,8 +393,64 @@ export function BulkWhatsAppWorkspace({
     });
   };
 
+  const saveToWhatsApp = async () => {
+    if (!orgId || savingContacts) return;
+    const list = contacts.filter((c) => !savedContacts.has(c.phone));
+    if (!list.length) {
+      toast.success("These numbers are already saved in your WhatsApp");
+      return;
+    }
+    const minutes = Math.max(1, Math.round((list.length * 2) / 60));
+    if (
+      !window.confirm(
+        `Save ${list.length.toLocaleString("en-IN")} numbers as contacts in your linked WhatsApp and on that phone?\n\n` +
+          `It saves one number every 1-2 seconds (about ${minutes} min). Keep this page open until it finishes.`,
+      )
+    ) {
+      return;
+    }
+    const run = ++saveRun.current;
+    let saved = 0;
+    let failed = 0;
+    let error = "";
+    setSavingContacts({ done: 0, total: list.length });
+    try {
+      for (let i = 0; i < list.length && run === saveRun.current; i += SAVE_CONTACTS_BATCH) {
+        const batch = list.slice(i, i + SAVE_CONTACTS_BATCH);
+        const res = await callBulkWhatsApp<{ saved?: string[]; failed?: { phone: string; error: string }[] }>(
+          orgId,
+          "save-contacts",
+          { contacts: batch.map((c) => ({ phone: c.phone, name: c.name?.trim() || formatBulkPhone(c.phone) })) },
+        );
+        const ok = res.saved ?? [];
+        saved += ok.length;
+        failed += res.failed?.length ?? 0;
+        error ||= res.failed?.[0]?.error ?? "";
+        setSavedContacts((cur) => new Set([...cur, ...ok]));
+        if (run === saveRun.current) setSavingContacts({ done: Math.min(list.length, i + batch.length), total: list.length });
+        // A whole batch failing (e.g. WhatsApp disconnected) will not get better on the next one.
+        if (!ok.length) break;
+      }
+    } catch (e) {
+      error = e instanceof Error ? e.message : "Could not save the contacts";
+    } finally {
+      if (run === saveRun.current) setSavingContacts(null);
+    }
+    const stopped = run !== saveRun.current;
+    const done = `${saved.toLocaleString("en-IN")} ${saved === 1 ? "contact" : "contacts"} saved in your WhatsApp`;
+    if (error && !saved) toast.error(`Contacts not saved: ${error}`);
+    else if (error || failed) toast.warning(`${done}, ${(list.length - saved).toLocaleString("en-IN")} not saved`, { description: error });
+    else toast.success(stopped ? `Stopped: ${done}` : done);
+  };
+
+  const stopSavingContacts = () => {
+    saveRun.current += 1;
+    setSavingContacts(null);
+  };
+
   const clearContacts = () => {
     checkRun.current += 1;
+    stopSavingContacts();
     setChecking(null);
     setContacts([]);
     setRemovedNoWa([]);
@@ -671,6 +734,35 @@ export function BulkWhatsAppWorkspace({
                   >
                     <Download className="mr-1 h-3.5 w-3.5" /> Contacts (.vcf)
                   </Button>
+                  {savingContacts ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 border-sky-200 bg-sky-50 text-xs text-sky-700 hover:bg-sky-100"
+                      title="Stop saving contacts"
+                      onClick={stopSavingContacts}
+                    >
+                      <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                      Saving contacts {savingContacts.done}/{savingContacts.total} · Stop
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      disabled={!linked || sending || checking !== null}
+                      title={
+                        linked
+                          ? "Save these numbers as contacts in your linked WhatsApp and on that phone"
+                          : "Link your WhatsApp above first"
+                      }
+                      onClick={() => void saveToWhatsApp()}
+                    >
+                      <UserPlus className="mr-1 h-3.5 w-3.5" /> Save to WhatsApp
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     size="sm"
