@@ -166,4 +166,45 @@ describe("MotasA4Template", () => {
     expect(html).toContain("Integrated Tax");
     expect(html).not.toContain("Central Tax");
   });
+
+  it("prints the flat bill discount in the totals box so it adds up to Net Amount", () => {
+    // Totals column ₹1,500 (2 × 750, line discount ₹50 already inside), flat 11% = ₹165.
+    const html = renderToStaticMarkup(
+      createElement(MotasA4Template, {
+        ...baseProps,
+        items: [item(0, { total: 700, discountPercent: 6.67 }), item(1)],
+        discount: 50 + 165,
+        grandTotal: 1285,
+      }),
+    );
+    expect(html).toContain("Less: Discount");
+    expect(html).toContain("-165.00");
+  });
+
+  it("shows no Discount row when only line discounts were given", () => {
+    const html = renderToStaticMarkup(
+      createElement(MotasA4Template, {
+        ...baseProps,
+        items: [item(0, { total: 675, discountPercent: 10 })],
+        discount: 75,
+        grandTotal: 675,
+      }),
+    );
+    expect(html).not.toContain("Less: Discount");
+  });
+
+  it("shows points redeemed and keeps the discount row to the flat part", () => {
+    const html = renderToStaticMarkup(
+      createElement(MotasA4Template, {
+        ...baseProps,
+        items: [item(0)],
+        discount: 50,
+        pointsRedemptionValue: 20,
+        grandTotal: 680,
+      }),
+    );
+    expect(html).toContain("Less: Points Redeemed");
+    expect(html).toContain("-20.00");
+    expect(html).toContain("-50.00");
+  });
 });

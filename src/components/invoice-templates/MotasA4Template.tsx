@@ -49,6 +49,8 @@ export interface MotasA4TemplateProps {
   saleReturnAdjust?: number;
   roundOff: number;
   grandTotal: number;
+  pointsRedemptionValue?: number;
+  otherCharges?: number;
   termsConditions?: string[];
   customHeaderText?: string;
   customFooterText?: string;
@@ -169,12 +171,15 @@ export const estimateMotasClosingMm = (opts: {
   terms: string[];
   hasNotes: boolean;
   hasWordsOverflow: boolean;
+  /** Rows in the totals box above Net Amount (Taxable + GST + optional ones). */
+  totalsRows?: number;
 }) => {
   const totalRow = 7.5;
     // Amount in words, tax summary and note share the band beside the totals.
   const amountsBand = Math.max(
     30,
     12 + Math.max(1, opts.taxRows) * 4.6 + (opts.hasNotes ? 5 : 0) + (opts.hasWordsOverflow ? 4 : 0),
+    11 + (opts.totalsRows ?? 2) * 6,
   );
   // Terms and bank details sit side by side, next to the signature.
   const termsBand = Math.max(33, 9 + opts.terms.reduce((n, t) => n + wrappedLines(t, 40), 0) * 4);
@@ -247,9 +252,12 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
   customerGSTIN,
   taxType: taxTypeProp = "inclusive",
   items,
+  discount,
   saleReturnAdjust = 0,
   roundOff,
   grandTotal,
+  pointsRedemptionValue = 0,
+  otherCharges = 0,
   termsConditions,
   customHeaderText,
   customFooterText,
@@ -313,6 +321,26 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
   // Stamp box inside the signatory column (46mm wide); the image keeps its aspect ratio.
   const stampMaxH = stampSize === "small" ? "13mm" : stampSize === "large" ? "21mm" : "17mm";
   const hasRoundOff = Math.abs(Number(roundOff) || 0) >= 0.005;
+  const pointsValue = Math.max(0, Number(pointsRedemptionValue) || 0);
+  const extraCharges = Math.max(0, Number(otherCharges) || 0);
+  // `discount` is line + flat discount, but line discounts are already inside each
+  // Total (Unit is the net rate). Print only what the Totals column still has to
+  // lose to reach Net Amount, so the box adds up to the bill.
+  const billDiscount =
+    (Number(discount) || 0) > 0.005
+      ? roundInvoiceMoney(
+          Math.max(
+            0,
+            totalAmount + extraCharges + (Number(roundOff) || 0) - saleReturnAdjust - pointsValue - grandTotal,
+          ),
+        )
+      : 0;
+  const hasBillDiscount = billDiscount >= 0.5;
+  const hasPoints = pointsValue >= 0.005;
+  const hasOtherCharges = extraCharges >= 0.005;
+  const totalsRows =
+    2 +
+    [hasBillDiscount, hasOtherCharges, hasPoints, hasRoundOff, saleReturnAdjust > 0].filter(Boolean).length;
   const amountWords = numberToWords(grandTotal);
 
   const headerMm = estimateMotasHeaderMm({
@@ -326,6 +354,7 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
     terms,
     hasNotes: Boolean(clean(notes)),
     hasWordsOverflow: amountWords.length > 90,
+    totalsRows,
   });
 
   // Measure real heights once per content change (hidden copy, removed before
@@ -354,8 +383,7 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
     qrCodeUrl,
     upiId,
     hsnRows.length,
-    hasRoundOff,
-    saleReturnAdjust > 0,
+    totalsRows,
     amountWords,
     stampImageBase64,
     stampSize,
@@ -809,6 +837,24 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
                 <td style={sumLabel}>GST Amount</td>
                 <td style={sumValue}>{rupee(fmt(taxTotal))}</td>
               </tr>
+              {hasBillDiscount ? (
+                <tr>
+                  <td style={sumLabel}>Less: Discount</td>
+                  <td style={sumValue}>-{fmt(billDiscount)}</td>
+                </tr>
+              ) : null}
+              {hasOtherCharges ? (
+                <tr>
+                  <td style={sumLabel}>Other Charges</td>
+                  <td style={sumValue}>{fmt(extraCharges)}</td>
+                </tr>
+              ) : null}
+              {hasPoints ? (
+                <tr>
+                  <td style={sumLabel}>Less: Points Redeemed</td>
+                  <td style={sumValue}>-{fmt(pointsValue)}</td>
+                </tr>
+              ) : null}
               {hasRoundOff ? (
                 <tr>
                   <td style={sumLabel}>Round Off</td>
