@@ -20,6 +20,8 @@
 --     the shop; stock transfers are deleted only where this shop is one side
 --   * before deleting, any ON DELETE CASCADE / SET NULL link from another shop's row to
 --     this shop's rows stops the reset with nothing deleted
+--   * kept rows of this shop that point at deleted rows (for example teachers.employee_id)
+--     get that link set to NULL; per-employee commission rules are deleted
 --   * any error rolls back the whole reset
 
 ALTER TABLE public.organization_reset_audit
@@ -70,7 +72,7 @@ DECLARE
     'legacy_invoices', 'drafts', 'bulk_update_history',
     'daily_tally_snapshot', 'invariant_daily_snapshot', 'drift_detection_runs',
     'whatsapp_messages', 'whatsapp_conversations', 'whatsapp_logs', 'sms_logs',
-    'size_groups', 'employees', 'ledger_opening_balances'
+    'commission_rules', 'size_groups', 'employees', 'ledger_opening_balances'
   ];
   v_master_tables text[] := ARRAY[
     'customer_brand_discounts', 'customers', 'suppliers', 'students'
@@ -174,6 +176,38 @@ BEGIN
     RAISE EXCEPTION 'Reset stopped, nothing was deleted: another shop has rows linked to this shop (%)',
       array_to_string(v_blockers, ', ');
   END IF;
+
+  FOR r IN
+    SELECT cl.relname AS child_table, ca.attname AS child_col,
+           pl.relname AS parent_table, pa.attname AS parent_col
+    FROM pg_constraint con
+    JOIN pg_class cl ON cl.oid = con.conrelid
+    JOIN pg_namespace cn ON cn.oid = cl.relnamespace AND cn.nspname = 'public'
+    JOIN pg_class pl ON pl.oid = con.confrelid
+    JOIN pg_namespace pn ON pn.oid = pl.relnamespace AND pn.nspname = 'public'
+    JOIN pg_attribute ca ON ca.attrelid = con.conrelid AND ca.attnum = con.conkey[1]
+    JOIN pg_attribute pa ON pa.attrelid = con.confrelid AND pa.attnum = con.confkey[1]
+    WHERE con.contype = 'f'
+      AND cardinality(con.conkey) = 1
+      AND con.confdeltype IN ('a', 'r')
+      AND NOT ca.attnotnull
+      AND pl.relname = ANY (v_targets)
+      AND NOT (cl.relname = ANY (v_targets))
+      AND EXISTS (SELECT 1 FROM pg_attribute x WHERE x.attrelid = con.conrelid
+                    AND x.attname = 'organization_id' AND NOT x.attisdropped)
+      AND EXISTS (SELECT 1 FROM pg_attribute y WHERE y.attrelid = con.confrelid
+                    AND y.attname = 'organization_id' AND NOT y.attisdropped)
+  LOOP
+    EXECUTE format(
+      'WITH u AS (UPDATE public.%I c SET %I = NULL FROM public.%I p
+                  WHERE p.%I = c.%I AND p.organization_id = $1 AND c.organization_id = $1
+                  RETURNING 1) SELECT count(*) FROM u',
+      r.child_table, r.child_col, r.parent_table, r.parent_col, r.child_col
+    ) INTO v_n USING p_organization_id;
+    IF v_n > 0 THEN
+      v_counts := v_counts || jsonb_build_object('unlinked:' || r.child_table || '.' || r.child_col, v_n);
+    END IF;
+  END LOOP;
 
   LOOP
     v_next := '{}';
