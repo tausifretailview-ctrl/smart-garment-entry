@@ -1,7 +1,7 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-10-22",
-  "count": 869,
+  "count": 870,
   "fileCount": 888,
   "versions": [
     "20251106190718",
@@ -872,7 +872,8 @@
     "20270210120000",
     "20270211120000",
     "20270212120000",
-    "20270213120000"
+    "20270213120000",
+    "20270214120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1761,8 +1762,8 @@
     "20270210120000_allow_negative_stock_sale.sql",
     "20270211120000_security_reguard_october_definer_functions.sql",
     "20270212120000_support_tokens.sql",
-    "20270213120000_bulk_whatsapp_templates.sql",
-    "20270213120000_customer_shipping_addresses.sql"
+    "20270213120000_customer_shipping_addresses.sql",
+    "20270214120000_bulk_whatsapp_templates.sql"
   ],
   "duplicateVersions": [
     {
@@ -1889,13 +1890,6 @@
       "files": [
         "20261030120000_get_customer_segment_index.sql",
         "20261030120000_public_storefront_phase1.sql"
-      ]
-    },
-    {
-      "version": "20270213120000",
-      "files": [
-        "20270213120000_bulk_whatsapp_templates.sql",
-        "20270213120000_customer_shipping_addresses.sql"
       ]
     }
   ],
