@@ -10,6 +10,14 @@ interface ResetProgress {
   totalSteps: number;
 }
 
+export type OrganizationResetMode = "all" | "keep_masters";
+
+export interface OrganizationResetOptions {
+  mode: OrganizationResetMode;
+  /** keep_masters only: also set customer and supplier opening balances to 0. */
+  zeroOpeningBalances?: boolean;
+}
+
 interface DataCounts {
   products: number;
   product_variants: number;
@@ -29,9 +37,6 @@ export const useOrganizationReset = () => {
   const { currentOrganization } = useOrganization();
   const [isResetting, setIsResetting] = useState(false);
   const [progress, setProgress] = useState<ResetProgress | null>(null);
-
-  // Barcode sequences now use prefix-based table; reset always starts at 1
-  const getBarcodeStartValue = (): number => 1;
 
   // Fetch data counts for the current organization
   const { data: dataCounts, isLoading: isLoadingCounts, refetch: refetchCounts } = useQuery({
@@ -103,7 +108,10 @@ export const useOrganizationReset = () => {
     enabled: !!currentOrganization?.id,
   });
 
-  const resetOrganization = async (confirmationName: string): Promise<boolean> => {
+  const resetOrganization = async (
+    confirmationName: string,
+    options: OrganizationResetOptions = { mode: "all" },
+  ): Promise<boolean> => {
     if (!currentOrganization?.id) {
       toast.error("No organization selected");
       return false;
@@ -117,10 +125,11 @@ export const useOrganizationReset = () => {
     });
 
     try {
-      const barcodeStartValue = getBarcodeStartValue();
-
       setProgress({
-        currentStep: "Deleting organization data...",
+        currentStep:
+          options.mode === "keep_masters"
+            ? "Deleting data (keeping customers & suppliers)..."
+            : "Deleting organization data...",
         stepsCompleted: 0,
         totalSteps: 1,
       });
@@ -128,8 +137,9 @@ export const useOrganizationReset = () => {
       const { data, error } = await supabase.functions.invoke("reset-organization", {
         body: {
           organizationId: currentOrganization.id,
-          barcodeStartValue,
           confirmationName,
+          mode: options.mode,
+          zeroOpeningBalances: options.mode === "keep_masters" && options.zeroOpeningBalances === true,
         },
       });
 
@@ -151,7 +161,10 @@ export const useOrganizationReset = () => {
       await refetchCounts();
 
       toast.success("Organization data has been reset successfully", {
-        description: `Barcode sequence reset to ${barcodeStartValue}`,
+        description:
+          options.mode === "keep_masters"
+            ? "Customer and Supplier master kept. Bills and barcodes start again from the beginning."
+            : "Bills and barcodes start again from the beginning.",
       });
 
       return true;
@@ -173,6 +186,5 @@ export const useOrganizationReset = () => {
     resetOrganization,
     isResetting,
     progress,
-    barcodeStartValue: getBarcodeStartValue(),
   };
 };
