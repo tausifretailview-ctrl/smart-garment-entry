@@ -18,6 +18,7 @@ import {
   Building2,
   Store,
   Database,
+  History,
 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { ContactSupportSheet } from "@/components/support/ContactSupportSheet";
@@ -56,8 +57,10 @@ interface MenuSection {
 export default function MobileMoreMenu() {
   const { orgNavigate } = useOrgNavigation();
   const { signOut } = useAuth();
-  const { hasMenuAccess, isAdmin: isAdminPermissions } = useUserPermissions();
-  const { isAdmin } = useUserRoles();
+  const { hasMenuAccess, hasSpecialPermission, isAdmin: isAdminPermissions } = useUserPermissions();
+  const { isAdmin, isManager } = useUserRoles();
+  // Same gate as desktop Tools → Activity Log; the route allows admin / manager.
+  const canSeeActivityLog = (isAdmin || isManager) && hasSpecialPermission("audit_logs");
   const canAccessWebsite = isAdmin || isAdminPermissions || hasMenuAccess("website_settings");
   const queryClient = useQueryClient();
   const { scrollRef, isRefreshing, pullHandlers } = usePullToRefresh(
@@ -101,6 +104,9 @@ export default function MobileMoreMenu() {
         { icon: BookOpen, label: "Customer Ledger", path: "/customer-ledger-report", color: "text-blue-600" },
         { icon: ShieldCheck, label: "Customer Audit", path: "/customer-audit-report", color: "text-indigo-600" },
         { icon: FileText, label: "Purchase Bills", path: "/purchase-bills", color: "text-orange-600" },
+        ...(canSeeActivityLog
+          ? [{ icon: History, label: "Activity Log", path: "/audit-log", color: "text-red-600" } satisfies MenuItem]
+          : []),
       ],
     },
     {
