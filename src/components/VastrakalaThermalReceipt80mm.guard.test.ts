@@ -57,4 +57,11 @@ describe("Vastrakala 80mm receipt layout", () => {
     expect(tsx).toContain("fontWeight: 700,");
     expect(tsx).not.toContain("fontWeight: 400");
   });
+
+  it("keeps the hooks the colour WhatsApp / Download PDF styles (print stays plain)", () => {
+    expect(tsx.match(/className="vk-rule"/g)?.length).toBe(5);
+    expect(tsx).toContain('className="vk-totals-left"');
+    expect(tsx).toContain('className="vk-net-amt vk-kv"');
+    expect(tsx).toContain('<span>TOTAL AMT. :</span> <span>{fmtDec(totalAmt)}</span>');
+  });
 });
