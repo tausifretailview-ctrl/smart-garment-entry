@@ -15,10 +15,10 @@
 --    (before, the row went to the user's first shop).
 -- 3. Purchase returns: PURCHASE_RETURN_CREATED / _UPDATED / _DELETED / _RESTORED.
 --
--- 4. Saves that only write payment / totals fields within 60 s of the bill being
---    created are logged as SALE_AUTO_UPDATED / PURCHASE_AUTO_UPDATED, so
+-- 4. Updates within 60 s of the bill being created that leave customer /
+--    supplier, date, discounts (and for sales, amounts) unchanged are logged as SALE_AUTO_UPDATED / PURCHASE_AUTO_UPDATED, so
 --    "Invoice edits" lists only real edits (the app hid these on the client).
--- 5. Recycle-bin permanent deletes (rows already soft deleted) are logged as
+-- 5. Recycle-bin permanent deletes (rows soft deleted or cancelled first) are logged as
 --    SALE_PERMANENTLY_DELETED / PURCHASE_PERMANENTLY_DELETED / PURCHASE_RETURN_DELETED. Hard
 --    deletes of live rows (only Reset Organization Data does that, and it clears
 --    its own log rows) are not logged.
@@ -143,7 +143,17 @@ BEGIN
       v_action := 'SALE_UNCANCELLED';
     ELSIF OLD.payment_status = 'hold' AND NEW.payment_status IS DISTINCT FROM 'hold' THEN
       v_action := 'SALE_CREATED';
-    ELSIF now() - NEW.created_at < interval '60 seconds' THEN
+    ELSIF now() - NEW.created_at < interval '60 seconds'
+      AND OLD.net_amount IS NOT DISTINCT FROM NEW.net_amount
+      AND OLD.gross_amount IS NOT DISTINCT FROM NEW.gross_amount
+      AND OLD.discount_amount IS NOT DISTINCT FROM NEW.discount_amount
+      AND OLD.flat_discount_amount IS NOT DISTINCT FROM NEW.flat_discount_amount
+      AND OLD.flat_discount_percent IS NOT DISTINCT FROM NEW.flat_discount_percent
+      AND OLD.customer_id IS NOT DISTINCT FROM NEW.customer_id
+      AND OLD.customer_name IS NOT DISTINCT FROM NEW.customer_name
+      AND OLD.sale_date IS NOT DISTINCT FROM NEW.sale_date
+      AND OLD.sale_type IS NOT DISTINCT FROM NEW.sale_type THEN
+      -- Only payment / settlement fields changed right after the save.
       v_action := 'SALE_AUTO_UPDATED';
     ELSE
       v_action := 'SALE_UPDATED';
@@ -218,12 +228,12 @@ WHEN (
 )
 EXECUTE FUNCTION public.audit_sales_changes();
 
--- Recycle-bin permanent delete (bill was soft deleted first).
+-- Recycle-bin permanent delete (bill was soft deleted or cancelled first).
 DROP TRIGGER IF EXISTS audit_sales_delete_trigger ON public.sales;
 CREATE TRIGGER audit_sales_delete_trigger
 AFTER DELETE ON public.sales
 FOR EACH ROW
-WHEN (OLD.deleted_at IS NOT NULL)
+WHEN (OLD.deleted_at IS NOT NULL OR COALESCE(OLD.is_cancelled, false))
 EXECUTE FUNCTION public.audit_sales_changes();
 
 -- ---------------------------------------------------------------------------
@@ -288,7 +298,13 @@ BEGIN
     v_action := 'PURCHASE_RESTORED';
   ELSIF COALESCE(OLD.is_cancelled, false) = false AND COALESCE(NEW.is_cancelled, false) = true THEN
     v_action := 'PURCHASE_CANCELLED';
-  ELSIF now() - NEW.created_at < interval '60 seconds' THEN
+  ELSIF now() - NEW.created_at < interval '60 seconds'
+    AND OLD.supplier_id IS NOT DISTINCT FROM NEW.supplier_id
+    AND OLD.supplier_name IS NOT DISTINCT FROM NEW.supplier_name
+    AND OLD.supplier_invoice_no IS NOT DISTINCT FROM NEW.supplier_invoice_no
+    AND OLD.bill_date IS NOT DISTINCT FROM NEW.bill_date
+    AND OLD.discount_amount IS NOT DISTINCT FROM NEW.discount_amount THEN
+    -- Only totals written while the bill's lines were being saved.
     v_action := 'PURCHASE_AUTO_UPDATED';
   ELSE
     v_action := 'PURCHASE_UPDATED';
@@ -343,7 +359,7 @@ DROP TRIGGER IF EXISTS audit_purchase_delete_trigger ON public.purchase_bills;
 CREATE TRIGGER audit_purchase_delete_trigger
 AFTER DELETE ON public.purchase_bills
 FOR EACH ROW
-WHEN (OLD.deleted_at IS NOT NULL)
+WHEN (OLD.deleted_at IS NOT NULL OR COALESCE(OLD.is_cancelled, false))
 EXECUTE FUNCTION public.audit_purchase_changes();
 
 -- ---------------------------------------------------------------------------
