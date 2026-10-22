@@ -12,52 +12,61 @@
 -- 0) Repair existing rows before the new triggers run (backup kept). Days that were
 -- cleaned up (status columns other than pending > 0) held each message twice: halve them.
 -- Days whose logs are still live are rebuilt from those logs. Old rows keep their UTC date.
-CREATE TABLE IF NOT EXISTS public.whatsapp_message_stats_backup_20261022 AS
-  SELECT * FROM public.whatsapp_message_stats;
+-- Runs once: the backup table marks it done (a second run would halve again).
+DO $repair$
+BEGIN
+  IF to_regclass('public.whatsapp_message_stats_backup_20261022') IS NOT NULL THEN
+    RAISE NOTICE 'WhatsApp stats already repaired, skipping';
+    RETURN;
+  END IF;
+  CREATE TABLE public.whatsapp_message_stats_backup_20261022 AS
+    SELECT * FROM public.whatsapp_message_stats;
 
-WITH live AS (
-  SELECT organization_id, DATE(created_at) AS stat_date,
-         count(*)::int AS l_total,
-         count(*) FILTER (WHERE status = 'sent')::int AS l_sent,
-         count(*) FILTER (WHERE status = 'delivered')::int AS l_delivered,
-         count(*) FILTER (WHERE status = 'read')::int AS l_read,
-         count(*) FILTER (WHERE status = 'failed')::int AS l_failed,
-         count(*) FILTER (WHERE status = 'pending')::int AS l_pending
-  FROM public.whatsapp_logs
-  GROUP BY 1, 2
-), base AS (
-  SELECT s.*, COALESCE(l.l_total,0) l_total, COALESCE(l.l_sent,0) l_sent, COALESCE(l.l_delivered,0) l_delivered,
-         COALESCE(l.l_read,0) l_read, COALESCE(l.l_failed,0) l_failed, COALESCE(l.l_pending,0) l_pending,
-         (s.sent_count + s.delivered_count + s.read_count + s.failed_count) > 0 AS cleaned
-  FROM public.whatsapp_message_stats s
-  LEFT JOIN live l ON l.organization_id = s.organization_id AND l.stat_date = s.stat_date
-), c AS (
-  SELECT b.*, CASE WHEN cleaned THEN GREATEST(0, (total_count - l_total) / 2) ELSE 0 END AS c_total FROM base b
-), c2 AS (
-  SELECT c.*, LEAST(sent_count, c_total) AS c_sent FROM c
-), c3 AS (
-  SELECT c2.*, LEAST(delivered_count, c_total - c_sent) AS c_delivered FROM c2
-), c4 AS (
-  SELECT c3.*, LEAST(read_count, c_total - c_sent - c_delivered) AS c_read FROM c3
-), c5 AS (
-  SELECT c4.*, LEAST(failed_count, c_total - c_sent - c_delivered - c_read) AS c_failed FROM c4
-), fixed AS (
-  SELECT id,
-    CASE WHEN cleaned THEN c_total + l_total ELSE GREATEST(total_count, l_total) END AS new_total,
-    CASE WHEN cleaned THEN c_sent + l_sent ELSE l_sent END AS new_sent,
-    CASE WHEN cleaned THEN c_delivered + l_delivered ELSE l_delivered END AS new_delivered,
-    CASE WHEN cleaned THEN c_read + l_read ELSE l_read END AS new_read,
-    CASE WHEN cleaned THEN c_failed + l_failed ELSE l_failed END AS new_failed,
-    CASE WHEN cleaned THEN (c_total - c_sent - c_delivered - c_read - c_failed) + l_pending
-         ELSE l_pending + GREATEST(0, total_count - l_total) END AS new_pending
-  FROM c5
-)
-UPDATE public.whatsapp_message_stats s
-SET total_count = f.new_total, sent_count = f.new_sent, delivered_count = f.new_delivered,
-    read_count = f.new_read, failed_count = f.new_failed, pending_count = f.new_pending,
-    updated_at = now()
-FROM fixed f
-WHERE f.id = s.id;
+  WITH live AS (
+    SELECT organization_id, DATE(created_at) AS stat_date,
+           count(*)::int AS l_total,
+           count(*) FILTER (WHERE status = 'sent')::int AS l_sent,
+           count(*) FILTER (WHERE status = 'delivered')::int AS l_delivered,
+           count(*) FILTER (WHERE status = 'read')::int AS l_read,
+           count(*) FILTER (WHERE status = 'failed')::int AS l_failed,
+           count(*) FILTER (WHERE status = 'pending')::int AS l_pending
+    FROM public.whatsapp_logs
+    GROUP BY 1, 2
+  ), base AS (
+    SELECT s.*, COALESCE(l.l_total,0) l_total, COALESCE(l.l_sent,0) l_sent, COALESCE(l.l_delivered,0) l_delivered,
+           COALESCE(l.l_read,0) l_read, COALESCE(l.l_failed,0) l_failed, COALESCE(l.l_pending,0) l_pending,
+           (s.sent_count + s.delivered_count + s.read_count + s.failed_count) > 0 AS cleaned
+    FROM public.whatsapp_message_stats s
+    LEFT JOIN live l ON l.organization_id = s.organization_id AND l.stat_date = s.stat_date
+  ), c AS (
+    SELECT b.*, CASE WHEN cleaned THEN GREATEST(0, (total_count - l_total) / 2) ELSE 0 END AS c_total FROM base b
+  ), c2 AS (
+    SELECT c.*, LEAST(sent_count, c_total) AS c_sent FROM c
+  ), c3 AS (
+    SELECT c2.*, LEAST(delivered_count, c_total - c_sent) AS c_delivered FROM c2
+  ), c4 AS (
+    SELECT c3.*, LEAST(read_count, c_total - c_sent - c_delivered) AS c_read FROM c3
+  ), c5 AS (
+    SELECT c4.*, LEAST(failed_count, c_total - c_sent - c_delivered - c_read) AS c_failed FROM c4
+  ), fixed AS (
+    SELECT id,
+      CASE WHEN cleaned THEN c_total + l_total ELSE GREATEST(total_count, l_total) END AS new_total,
+      CASE WHEN cleaned THEN c_sent + l_sent ELSE l_sent END AS new_sent,
+      CASE WHEN cleaned THEN c_delivered + l_delivered ELSE l_delivered END AS new_delivered,
+      CASE WHEN cleaned THEN c_read + l_read ELSE l_read END AS new_read,
+      CASE WHEN cleaned THEN c_failed + l_failed ELSE l_failed END AS new_failed,
+      CASE WHEN cleaned THEN (c_total - c_sent - c_delivered - c_read - c_failed) + l_pending
+           ELSE l_pending + GREATEST(0, total_count - l_total) END AS new_pending
+    FROM c5
+  )
+  UPDATE public.whatsapp_message_stats s
+  SET total_count = f.new_total, sent_count = f.new_sent, delivered_count = f.new_delivered,
+      read_count = f.new_read, failed_count = f.new_failed, pending_count = f.new_pending,
+      updated_at = now()
+  FROM fixed f
+  WHERE f.id = s.id;
+END;
+$repair$;
 
 -- 1a) Count each new log on its India date.
 CREATE OR REPLACE FUNCTION public.update_whatsapp_stats_on_log_insert()
