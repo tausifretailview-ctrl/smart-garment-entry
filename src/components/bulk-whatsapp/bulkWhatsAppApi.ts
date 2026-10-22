@@ -244,3 +244,58 @@ export async function fetchPhoneCampaignSends(phone: string, campaignIds: string
   if (error) throw error;
   return (data ?? []) as PhoneCampaignSend[];
 }
+
+export interface BulkTemplate {
+  id: string;
+  user_id: string;
+  name: string;
+  message: string;
+  media_url: string | null;
+  media_type: string | null;
+  media_name: string | null;
+  video_quality: "small" | "medium" | "original" | null;
+  created_at: string;
+}
+
+/** The shop's saved templates, newest first; null when the templates SQL has not been run yet. */
+export async function fetchTemplates(organizationId: string): Promise<BulkTemplate[] | null> {
+  const { data, error } = await db
+    .from("bulk_whatsapp_templates")
+    .select("id, user_id, name, message, media_url, media_type, media_name, video_quality, created_at")
+    .eq("organization_id", organizationId)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error) {
+    if (isMissingTable(error)) return null;
+    throw error;
+  }
+  return (data ?? []) as BulkTemplate[];
+}
+
+export function useTemplates(organizationId: string) {
+  return useQuery({
+    queryKey: ["bulk-whatsapp-templates", organizationId],
+    queryFn: () => fetchTemplates(organizationId),
+    enabled: Boolean(organizationId),
+    staleTime: 30_000,
+  });
+}
+
+export async function saveTemplate(
+  organizationId: string,
+  t: Pick<BulkTemplate, "name" | "message" | "media_url" | "media_type" | "media_name" | "video_quality">,
+): Promise<void> {
+  const { error } = await db.from("bulk_whatsapp_templates").insert({ organization_id: organizationId, ...t });
+  if (error) {
+    throw new Error(
+      isMissingTable(error) ? "Templates need the new SQL from the update. Ask your admin to run it." : error.message,
+    );
+  }
+}
+
+/** False when nothing was deleted (someone else's template, and not an admin). */
+export async function deleteTemplate(id: string): Promise<boolean> {
+  const { data, error } = await db.from("bulk_whatsapp_templates").delete().eq("id", id).select("id");
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}

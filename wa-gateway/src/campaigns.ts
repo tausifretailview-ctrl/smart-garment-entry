@@ -411,7 +411,7 @@ export class CampaignRunner {
 
       // Number unlinked or offline, or today's cap used up: wait without failing anyone.
       let note: string | null = null;
-      if (!this.sessions.isConnected(sessionId)) note = "Waiting for your WhatsApp to reconnect";
+      if (!this.sessions.isConnected(sessionId)) note = this.sessions.offlineNote(sessionId);
       else if (this.sessions.remainingToday(sessionId) <= 0) note = "Daily limit reached; continues tomorrow";
       if (note) {
         if (note !== waitingNote) this.report(job, note);

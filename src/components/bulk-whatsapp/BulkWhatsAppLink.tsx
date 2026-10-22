@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { format } from "date-fns";
 import { Loader2, LogOut, QrCode, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -13,9 +14,13 @@ interface LinkResponse {
   qr?: string | null;
   pairingCode?: string | null;
   connectedNumber?: string | null;
+  /** Why WhatsApp last dropped this number (null while linked). */
+  lastDisconnect?: { code: number | null; reason: string; at: string } | null;
 }
 
 const POLL_MS = 3000;
+/** While not linking: notice a drop (or the automatic reconnect) without reloading the page. */
+const WATCH_MS = 30_000;
 
 /** The logged-in user's own WhatsApp for bulk sends (separate from the shop's bill number). */
 export function BulkWhatsAppLink({
@@ -33,6 +38,7 @@ export function BulkWhatsAppLink({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
+  const [drop, setDrop] = useState<LinkResponse["lastDisconnect"]>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const apply = useCallback(
@@ -41,6 +47,7 @@ export function BulkWhatsAppLink({
       setQr(res.qr ?? null);
       setPairingCode(res.pairingCode ?? null);
       setNumber(res.connectedNumber ?? null);
+      setDrop(res.status === "connected" ? null : res.lastDisconnect ?? null);
       onChange(res.status === "connected");
     },
     [onChange],
@@ -86,6 +93,16 @@ export function BulkWhatsAppLink({
       if (timer.current) clearTimeout(timer.current);
     };
   }, [polling, organizationId, apply]);
+
+  useEffect(() => {
+    if (polling || !status || status === "qr") return;
+    const id = setInterval(() => {
+      callBulkWhatsApp<LinkResponse>(organizationId, "session-status")
+        .then(apply)
+        .catch(() => undefined);
+    }, WATCH_MS);
+    return () => clearInterval(id);
+  }, [polling, status, organizationId, apply]);
 
   const run = async (action: "session-start" | "session-logout", phone?: string) => {
     setBusy(true);
@@ -173,6 +190,11 @@ export function BulkWhatsAppLink({
         </div>
       </div>
       {error && <p className="text-xs text-destructive">{error}</p>}
+      {!connected && drop && (
+        <p className="rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-900">
+          <b>Disconnected at {format(new Date(drop.at), "dd MMM, hh:mm a")}:</b> {drop.reason}
+        </p>
+      )}
       {!connected && status && (
         <WhatsAppLinkMethods
           method={method}
