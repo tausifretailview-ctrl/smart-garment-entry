@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildBulkLinkLines,
+  buildContactsVcf,
   fillBulkMessage,
   formatBulkPhone,
   instagramLink,
@@ -127,5 +128,39 @@ describe("stripBulkExtras", () => {
 
   it("keeps a message with nothing added", () => {
     expect(stripBulkExtras("Hello {name}")).toBe("Hello {name}");
+  });
+});
+
+describe("buildContactsVcf", () => {
+  it("writes one vCard per number, named or under the number", () => {
+    const vcf = buildContactsVcf([
+      { phone: "919876543210", name: "Ravi  Kumar" },
+      { phone: "918369466179", name: null },
+    ]);
+    expect(vcf).toBe(
+      [
+        "BEGIN:VCARD",
+        "VERSION:3.0",
+        "FN:Ravi Kumar",
+        "N:;Ravi Kumar;;;",
+        "TEL;TYPE=CELL:+919876543210",
+        "END:VCARD",
+        "BEGIN:VCARD",
+        "VERSION:3.0",
+        "FN:+91 83694 66179",
+        "N:;+91 83694 66179;;;",
+        "TEL;TYPE=CELL:+918369466179",
+        "END:VCARD",
+        "",
+      ].join("\r\n"),
+    );
+  });
+
+  it("escapes commas and semicolons in names", () => {
+    expect(buildContactsVcf([{ phone: "919876543210", name: "Shah, A; B\\C" }])).toContain("FN:Shah\\, A\\; B\\\\C\r\n");
+  });
+
+  it("is empty for no contacts", () => {
+    expect(buildContactsVcf([])).toBe("");
   });
 });

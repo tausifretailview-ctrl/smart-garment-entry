@@ -117,6 +117,25 @@ export function mergeContacts(existing: BulkContact[], added: BulkContact[]): { 
   return { contacts: [...byPhone.values()], duplicates };
 }
 
+/** vCard text value: backslash, comma, semicolon and line breaks escaped. */
+function vcardText(v: string): string {
+  return v.replace(/\\/g, "\\\\").replace(/[,;]/g, (m) => `\\${m}`).replace(/\r?\n/g, "\\n");
+}
+
+/**
+ * Contacts file (.vcf, vCard 3.0) to import into Google Contacts / the phone, so the shop phone has
+ * every number saved. A number with no name is saved under its phone number.
+ */
+export function buildContactsVcf(contacts: BulkContact[]): string {
+  return contacts
+    .map((c) => {
+      const name = vcardText((c.name ?? "").replace(/\s+/g, " ").trim() || formatBulkPhone(c.phone));
+      return ["BEGIN:VCARD", "VERSION:3.0", `FN:${name}`, `N:;${name};;;`, `TEL;TYPE=CELL:+${c.phone}`, "END:VCARD"].join("\r\n");
+    })
+    .join("\r\n")
+    .concat(contacts.length ? "\r\n" : "");
+}
+
 /** {name} → contact name, or "Customer" when the number has no name. */
 export function fillBulkMessage(message: string, name: string | null): string {
   const n = (name ?? "").trim();
