@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { vastrakalaParticularsLines } from "@/utils/vastrakalaThermalParticulars";
+import { vastrakalaBarcodeFontPx, vastrakalaParticularsLines } from "@/utils/vastrakalaThermalParticulars";
 
 describe("vastrakalaParticularsLines", () => {
   it("keeps short names on line 1 only", () => {
@@ -54,5 +54,23 @@ describe("vastrakalaParticularsLines — zero-width line 1", () => {
       line1: "",
       line2: "KIDS SHOES RED 5 D-102",
     });
+  });
+});
+
+describe("vastrakalaBarcodeFontPx", () => {
+  it("prints a 9-digit barcode at the item font in the 80mm MRP column", () => {
+    expect(vastrakalaBarcodeFontPx("100003548", 19, { maxPx: 12.35, minPx: 9 })).toBe(12.35);
+  });
+
+  it("shrinks a 13-digit EAN to fit before QTY", () => {
+    const px = vastrakalaBarcodeFontPx("8901326030868", 19, { maxPx: 12.35, minPx: 9 });
+    expect(px).not.toBeNull();
+    expect(px!).toBeLessThan(12.35);
+    expect(px! * 0.556 * 13).toBeLessThanOrEqual(19 * 3.78);
+  });
+
+  it("returns null when the column is too narrow (58mm with MRP) or there is no barcode", () => {
+    expect(vastrakalaBarcodeFontPx("100003548", 1, { maxPx: 9.5, minPx: 7 })).toBeNull();
+    expect(vastrakalaBarcodeFontPx("", 19, { maxPx: 12.35, minPx: 9 })).toBeNull();
   });
 });

@@ -6,6 +6,7 @@ import { instagramHandleFromLink } from "@/utils/kidsCampThermalReceipt";
 import { fitThermalHeaderFontPx, splitVastrakalaShopHeader } from "@/utils/vastrakalaThermalHeader";
 import { ThermalPartyLines } from "@/components/thermal/ThermalPartyLines";
 import {
+  vastrakalaBarcodeFontPx,
   vastrakalaLineDiscount,
   vastrakalaParticularsLines,
 } from "@/utils/vastrakalaThermalParticulars";
@@ -14,6 +15,8 @@ import "@/styles/vastrakala-thermal-receipt.css";
 export interface VastrakalaThermalItem {
   sr?: number;
   particulars: string;
+  /** Product barcode — printed on line 1 before QTY; the name then prints in full on line 2. */
+  barcode?: string;
   /** Optional second line under Particulars — e.g. a set/piece note ("3 PC"). */
   itemNotes?: string;
   mrp?: number;
@@ -148,6 +151,11 @@ function layoutForPaper(paper: PosThermalPaper, showMrp: boolean) {
      * goes on line 2 there.
      */
     particularsLine1MaxChars: is58 ? (showMrp ? 0 : 7) : showMrp ? 9 : 14,
+    /** Width of that narrow Particulars column (content width − fixed columns − 1mm gaps). */
+    particularsColMm: is58 ? (showMrp ? 1 : 15) : showMrp ? 19 : 35,
+    /** Item row font (0.95em of base) and the smallest size a long barcode may shrink to. */
+    itemFontPx: is58 ? 9.5 : 12.35,
+    barcodeMinPx: is58 ? 7 : 9,
     itemGridColumns,
   };
 }
@@ -434,9 +442,20 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
       <div className="vk-rule" style={dashed} />
       <div className="vk-items-body" style={{ marginBottom: layout.sectionGap }}>
         {items.map((item, i) => {
-          const { line1, line2 } = vastrakalaParticularsLines(item.particulars, item.itemNotes, {
-            narrowMaxChars: layout.particularsLine1MaxChars,
+          // Barcode on line 1 (before QTY), full name + notes in one row on line 2. When the
+          // barcode can't fit the narrow column (58mm + MRP) it leads line 2 instead.
+          const barcode = (item.barcode || "").trim();
+          const barcodeFont = barcode
+            ? vastrakalaBarcodeFontPx(barcode, layout.particularsColMm, {
+                maxPx: layout.itemFontPx,
+                minPx: layout.barcodeMinPx,
+              })
+            : null;
+          const split = vastrakalaParticularsLines(item.particulars, item.itemNotes, {
+            narrowMaxChars: barcode ? 0 : layout.particularsLine1MaxChars,
           });
+          const line1 = barcode && barcodeFont ? barcode : split.line1;
+          const line2 = barcode && !barcodeFont ? [barcode, split.line2].filter(Boolean).join(" ") : split.line2;
           const qtyCol = 3;
           const mrpCol = 4;
           const amtCol = showMrp ? 5 : 4;
@@ -466,8 +485,14 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
                 {item.sr ?? i + 1}
               </span>
               <div
-                className="vk-particular-line1"
-                style={{ gridColumn: 2, gridRow: 1, minWidth: 0, lineHeight: 1.3 }}
+                className={barcode && barcodeFont ? "vk-particular-line1 vk-item-barcode" : "vk-particular-line1"}
+                style={{
+                  gridColumn: 2,
+                  gridRow: 1,
+                  minWidth: 0,
+                  lineHeight: 1.3,
+                  ...(barcode && barcodeFont ? { fontSize: `${barcodeFont}px` } : null),
+                }}
               >
                 {line1}
               </div>
@@ -475,7 +500,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
                 <div
                   className="vk-particular-line2"
                   style={{
-                    gridColumn: `2 / ${amtCol}`,
+                    gridColumn: "2 / -1",
                     gridRow: 2,
                     minWidth: 0,
                     lineHeight: 1.3,

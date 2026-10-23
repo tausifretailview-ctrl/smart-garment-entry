@@ -340,6 +340,7 @@ export default function PublicInvoiceView() {
             items={saleItems.map((item: any, index: number) => ({
               sr: index + 1,
               particulars: item.product_name,
+              barcode: item.barcode || undefined,
               itemNotes: item.item_notes || undefined,
               mrp: item.mrp ?? item.unit_price,
               qty: item.quantity,

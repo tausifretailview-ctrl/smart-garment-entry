@@ -47,3 +47,21 @@ export function vastrakalaLineDiscount(item: { mrp?: number; qty: number; total:
   const percentLabel = Math.abs(pct - Math.round(pct)) < 0.05 ? String(Math.round(pct)) : pct.toFixed(1);
   return { mrp, amount, percentLabel };
 }
+
+/**
+ * Font size (px) for the item barcode printed on line 1 in the narrow Particulars column
+ * (before QTY). Shrinks long codes (13-digit EAN) down to `minPx`; null when even that
+ * won't fit (58mm with MRP on), so the caller puts the barcode on line 2 instead.
+ */
+export function vastrakalaBarcodeFontPx(
+  barcode: string,
+  columnWidthMm: number,
+  opts: { maxPx: number; minPx: number },
+): number | null {
+  const code = (barcode || "").trim();
+  if (!code) return null;
+  // Bold Arial digits are ~0.556em wide; 3.78 px per mm; keep 5% slack so it never clips.
+  const fitPx = (columnWidthMm * 3.78 * 0.95) / (code.length * 0.556);
+  if (fitPx < opts.minPx) return null;
+  return Math.min(opts.maxPx, Math.floor(fitPx * 10) / 10);
+}
