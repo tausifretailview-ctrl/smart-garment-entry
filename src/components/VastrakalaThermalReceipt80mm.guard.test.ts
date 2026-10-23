@@ -65,3 +65,11 @@ describe("Vastrakala 80mm receipt layout", () => {
     expect(tsx).toContain('<span>TOTAL AMT. :</span> <span>{fmtDec(totalAmt)}</span>');
   });
 });
+
+describe("Vastrakala item barcode", () => {
+  it("prints the barcode on line 1 and the full name in one row on line 2", () => {
+    expect(tsx).toContain("narrowMaxChars: barcode ? 0 : layout.particularsLine1MaxChars");
+    expect(tsx).toContain("vk-item-barcode");
+    expect(tsx).toContain('gridColumn: "2 / -1"');
+  });
+});
