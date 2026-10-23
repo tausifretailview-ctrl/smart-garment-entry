@@ -7824,6 +7824,7 @@ const PurchaseEntry = () => {
         qty,
         pur_price: effectivePurPrice,
         sale_price: parseLocalizedNumber(row.sale_price) || 0,
+        mrp: parseLocalizedNumber(row.mrp) || 0,
         gst_per: normalizeImportGstPercent(parseLocalizedNumber(row.gst_per)),
         hsn_code: row.hsn_code?.toString().trim() || '',
         barcode,
