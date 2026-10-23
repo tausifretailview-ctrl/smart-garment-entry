@@ -18,6 +18,9 @@ verify_jwt = false
 [functions.ai-assistant]
 verify_jwt = false
 
+[functions.read-purchase-bill]
+verify_jwt = false
+
 [functions.create-payment-link]
 verify_jwt = false
 

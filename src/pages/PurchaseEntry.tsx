@@ -26,7 +26,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, ChevronLeft, ChevronRight, Check, AlertTriangle, SkipBack, Search, Save, Trash2, Pencil, Lock, LockOpen, RotateCcw } from "lucide-react";
+import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, Camera, ChevronLeft, ChevronRight, Check, AlertTriangle, SkipBack, Search, Save, Trash2, Pencil, Lock, LockOpen, RotateCcw } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -109,6 +109,7 @@ import {
 } from "@/utils/purchaseImportErrors";
 import { cleanProductName } from "@/utils/productNameMerge";
 import { productNameMatchKey } from "@/utils/productNameDedupe";
+import { PHOTO_IMPORT_FEATURE } from "@/utils/purchasePhotoImport";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
@@ -668,6 +669,9 @@ function clearPurchaseFinalizedMarker(orgId: string, userId: string): void {
 const ExcelImportDialog = lazy(() =>
   import("@/components/ExcelImportDialog").then((m) => ({ default: m.ExcelImportDialog })),
 );
+const PhotoPurchaseImportDialog = lazy(() =>
+  import("@/components/purchase/PhotoPurchaseImportDialog").then((m) => ({ default: m.PhotoPurchaseImportDialog })),
+);
 const SizeGridDialog = lazy(() =>
   import("@/components/SizeGridDialog").then((m) => ({ default: m.SizeGridDialog })),
 );
@@ -692,7 +696,7 @@ const PurchaseEntry = () => {
   const { orgNavigate: navigate } = useOrgNavigation();
   const routerNavigate = useNavigate();
   const location = useLocation();
-  const { currentOrganization, organizationRole } = useOrganization();
+  const { currentOrganization, organizationRole, hasFeature } = useOrganization();
   const { user } = useAuth();
   const initialBrowserSnapshotRef = useRef<PurchaseEntrySnapshot | null | undefined>(undefined);
   if (initialBrowserSnapshotRef.current === undefined) {
@@ -826,6 +830,8 @@ const PurchaseEntry = () => {
   /** Blocks session flush/clear while async restore, edit load, or Excel import is in flight. */
   const entryPersistenceBlockedRef = useRef(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
+  const [showPhotoImport, setShowPhotoImport] = useState(false);
+  const photoImportOn = hasFeature(PHOTO_IMPORT_FEATURE);
   const [showProductDialog, setShowProductDialog] = useState(false);
   /** Prefill for Add New Product when search-bar scan finds no master match. */
   const [productDialogInitialBarcode, setProductDialogInitialBarcode] = useState("");
@@ -8706,6 +8712,18 @@ const PurchaseEntry = () => {
             </div>
           </DialogContent>
         </Dialog>
+        {photoImportOn && currentOrganization && (
+          <LazyOpen open={showPhotoImport}>
+            <PhotoPurchaseImportDialog
+              open={showPhotoImport}
+              onClose={() => setShowPhotoImport(false)}
+              organizationId={currentOrganization.id}
+              onImport={async (rows) => {
+                await handleExcelImport(rows);
+              }}
+            />
+          </LazyOpen>
+        )}
         <LazyOpen open={showExcelImport}><ExcelImportDialog open={showExcelImport} onClose={() => setShowExcelImport(false)} targetFields={purchaseBillFields} onImport={handleExcelImport} title="Import Purchase Bill" sampleData={purchaseBillSampleData} sampleFileName="Purchase_Bill_Sample.xlsx" /></LazyOpen>
         <ProductEntryDialogGate
           open={showProductDialog}
@@ -9308,6 +9326,19 @@ const PurchaseEntry = () => {
                   <FileSpreadsheet className="h-4 w-4" />
                   <span className="hidden xl:inline">Import&nbsp;</span>Excel
                 </Button>
+                {photoImportOn && (
+                  <Button
+                    onClick={() => setShowPhotoImport(true)}
+                    variant="outline"
+                    size="sm"
+                    className="h-10 gap-2 border-teal-300 text-teal-700"
+                    disabled={excelImportLoading !== null || isBillLocked}
+                    title="Read a supplier bill photo into this purchase"
+                  >
+                    <Camera className="h-4 w-4" />
+                    Photo
+                  </Button>
+                )}
                 <Button
                   onClick={() => void openAddProductDialog()}
                   onMouseEnter={prefetchProductEntryDialog}
