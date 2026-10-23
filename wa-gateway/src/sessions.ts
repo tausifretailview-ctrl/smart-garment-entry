@@ -11,6 +11,7 @@ import makeWASocket, {
   type WASocket,
   type proto,
 } from "@whiskeysockets/baileys";
+import { isDiskFull, pruneSessionDir } from "./storage.js";
 
 /**
  * Uploaded posters, so a bulk campaign uploads its poster to WhatsApp once instead of once per number
@@ -105,6 +106,24 @@ function hasLinkedCreds(file: string): boolean {
   }
 }
 
+/** "linked", a link that never finished (with its age), or a creds file that cannot be read. */
+function credsState(file: string): "linked" | "unreadable" | { age: number } {
+  let text: string;
+  let age: number;
+  try {
+    text = fs.readFileSync(file, "utf8");
+    age = Date.now() - fs.statSync(file).mtimeMs;
+  } catch (e) {
+    // No creds file: nothing was ever linked here.
+    return (e as NodeJS.ErrnoException).code === "ENOENT" ? { age: Infinity } : "unreadable";
+  }
+  try {
+    return (JSON.parse(text) as { account?: unknown }).account ? "linked" : { age };
+  } catch {
+    return "unreadable";
+  }
+}
+
 function remember(s: Session, res: WAMessage | undefined) {
   const id = res?.key?.id;
   if (!id || !res?.message) return;
@@ -138,6 +157,9 @@ export function optOutKeyword(text: string): "stop" | "start" | null {
   return null;
 }
 const logger = pino({ level: process.env.LOG_LEVEL ?? "warn" });
+/** Shown in the app instead of "ENOSPC: no space left on device". */
+export const DISK_FULL_MESSAGE =
+  "The WhatsApp server's storage is full. Old files are being cleared now; try again in a minute. If it keeps happening, give the server's volume more space.";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const today = () => new Date().toISOString().slice(0, 10);
@@ -302,7 +324,12 @@ export class SessionManager {
         mediaCache: s.mediaCache,
       });
       s.sock = sock;
-      sock.ev.on("creds.update", saveCreds);
+      sock.ev.on("creds.update", () => {
+        saveCreds().catch((e: unknown) => {
+          logger.warn({ orgId, err: e }, "saving WhatsApp keys failed");
+          if (isDiskFull(e)) this.freeSpaceNow();
+        });
+      });
       sock.ev.on("messages.upsert", ({ messages, type }) => {
         if (type !== "notify") return;
         for (const m of messages) void this.forwardInbound(orgId, m);
@@ -456,7 +483,17 @@ export class SessionManager {
     const s = this.get(orgId);
     const digits = phone ? linkPhone(phone) : null;
     if (phone && !digits) throw new Error("Enter the WhatsApp number with country code, e.g. 919876543210");
-    await this.connect(orgId); // no-op while a socket is open; the QR refreshes on its own
+    try {
+      await this.connect(orgId); // no-op while a socket is open; the QR refreshes on its own
+    } catch (e) {
+      if (!isDiskFull(e)) throw e;
+      this.freeSpaceNow(true);
+      try {
+        await this.connect(orgId);
+      } catch (again) {
+        throw isDiskFull(again) ? new Error(DISK_FULL_MESSAGE) : again;
+      }
+    }
     // Give Baileys a moment to emit the first QR (the socket must be ready before a pairing code too)
     for (let i = 0; i < 40 && s.status !== "qr" && s.status !== "connected"; i++) await sleep(250);
     if (digits && s.status === "qr" && s.sock) {
@@ -464,6 +501,46 @@ export class SessionManager {
       s.pairingCode = code.length === 8 ? `${code.slice(0, 4)}-${code.slice(4)}` : code;
     }
     return this.status(orgId);
+  }
+
+  /**
+   * Frees space on the volume: folders of numbers that never finished linking (and are not being linked
+   * now), and per-customer key files not used for `maxAgeDays` in linked numbers.
+   */
+  cleanStorage(maxAgeDays: number): { folders: number; files: number } {
+    let folders = 0;
+    let files = 0;
+    let ids: string[] = [];
+    try {
+      ids = fs.readdirSync(AUTH_DIR);
+    } catch {
+      return { folders, files };
+    }
+    for (const id of ids) {
+      if (!SESSION_ID_RE.test(id)) continue;
+      const dir = this.dir(id);
+      const state = credsState(path.join(dir, "creds.json"));
+      if (state === "linked") {
+        files += pruneSessionDir(dir, maxAgeDays);
+        continue;
+      }
+      // Only a readable link that never finished, an hour old, is an abandoned QR / code. A creds file cut
+      // short by a full disk is unreadable and stays, so a linked shop is never wiped by mistake.
+      const s = this.sessions.get(id);
+      if (state === "unreadable" || s?.starting || s?.sock || s?.status === "qr" || state.age < 60 * 60 * 1000) continue;
+      fs.rmSync(dir, { recursive: true, force: true });
+      folders++;
+    }
+    return { folders, files };
+  }
+
+  private lastEmergencyClean = 0;
+  /** Disk full right now: clear customer files older than 3 days (at most every 10 minutes unless forced). */
+  freeSpaceNow(force = false) {
+    if (!force && Date.now() - this.lastEmergencyClean < 10 * 60 * 1000) return;
+    this.lastEmergencyClean = Date.now();
+    const freed = this.cleanStorage(3);
+    logger.warn({ ...freed }, "WhatsApp server storage full: removed old files");
   }
 
   async status(orgId: string) {

@@ -1,6 +1,8 @@
+import path from "node:path";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { SessionManager } from "./sessions.js";
 import { CampaignRunner } from "./campaigns.js";
+import { describeDisk, describeFolders, diskLow, diskUsage, fileKinds, folderFileCounts } from "./storage.js";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const API_KEY = process.env.GATEWAY_API_KEY ?? "";
@@ -98,7 +100,43 @@ app.post("/campaigns/:id/:action(pause|resume|stop)", wrap(async (req, res) => {
   res.json({ success: true, ...campaigns.setStatus(req.params.id, action) });
 }));
 
+// ---- Volume upkeep: per-customer key files pile up with every bill / campaign message ----
+const AUTH_DIR = process.env.AUTH_DIR ?? "./data/sessions";
+const DATA_DIR = path.dirname(AUTH_DIR);
+/** Customer key files unused this long are removed (WhatsApp rebuilds them on the next message). */
+const KEEP_DAYS = Math.max(3, Number(process.env.KEEP_CUSTOMER_KEYS_DAYS ?? 30) || 30);
+const UPKEEP_EVERY_MS = 6 * 60 * 60 * 1000;
+
+function upkeep(reason: string, videos = true) {
+  try {
+    const low = diskLow(diskUsage(DATA_DIR));
+    const freed = sessions.cleanStorage(low ? 3 : KEEP_DAYS);
+    const oldVideos = videos ? campaigns.cleanVideos() : 0;
+    const after = diskUsage(DATA_DIR);
+    console.log(
+      `Storage (${reason}): ${describeDisk(after)}; removed ${freed.files} old customer files, ` +
+        `${freed.folders} unlinked number folders, ${oldVideos} old videos`,
+    );
+    if (reason === "startup" || diskLow(after)) {
+      const line =
+        `Biggest number folders: ${describeFolders(folderFileCounts(AUTH_DIR)) || "none"}. ` +
+        `Files by kind: ${fileKinds(AUTH_DIR) || "none"}`;
+      if (diskLow(after)) console.error(`Storage almost full. ${line}`);
+      else console.log(line);
+    }
+  } catch (e) {
+    console.error(`Storage upkeep failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
 app.listen(PORT, () => {
   console.log(`wa-gateway listening on :${PORT}`);
-  void sessions.restoreAll().then(() => campaigns.restoreAll());
+  // Before any number reconnects, so nothing is being written while old files go. Videos wait until
+  // the saved campaigns are loaded, so a running campaign keeps its encoded video.
+  upkeep("startup", false);
+  setInterval(() => upkeep("every 6 hours"), UPKEEP_EVERY_MS).unref();
+  void sessions.restoreAll().then(() => {
+    campaigns.restoreAll();
+    campaigns.cleanVideos();
+  });
 });

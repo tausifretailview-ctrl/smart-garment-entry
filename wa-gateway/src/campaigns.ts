@@ -3,6 +3,7 @@ import path from "node:path";
 import pino from "pino";
 import { type BulkContent, type InboxEvent, type ReceiptStatus, type SessionManager } from "./sessions.js";
 import { removeCampaignVideos, shrinkVideo, type VideoQuality } from "./video.js";
+import { pruneVideos } from "./storage.js";
 
 /**
  * Bulk WhatsApp campaigns. Each job is saved on the volume and sent one number at a time with a
@@ -331,6 +332,11 @@ export class CampaignRunner {
         if (job.status === "running") this.kick(job.sessionId);
       }, wait + 1000),
     );
+  }
+
+  /** Encoded videos of campaigns no longer on this server (finished, or lost before a restart). */
+  cleanVideos(): number {
+    return pruneVideos(VIDEO_DIR, new Set(this.jobs.keys()));
   }
 
   private finish(job: CampaignJob) {

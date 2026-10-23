@@ -61,3 +61,12 @@ Ban protection: sends are serialized per org with a 2–5 s random gap and a dai
 (`MAX_MSGS_PER_DAY`, default 300). An unscanned QR stops after WhatsApp's QR timeout instead of
 looping. Run a single replica (sessions live in memory). This uses the unofficial WhatsApp Web
 protocol, like WappConnect; WhatsApp may restrict or ban numbers that send bulk or spam.
+
+## Storage (/data)
+Each linked number keeps a small file per customer device (Signal session, identity key, group sender
+keys). On start and every 6 hours the server removes those not used for `KEEP_CUSTOMER_KEYS_DAYS`
+(default 30; WhatsApp rebuilds them on the next message), folders of numbers whose QR / code was never
+finished, and encoded videos of campaigns no longer on the server. When the volume is under 10% free
+(space or file slots), or a link fails with "no space left on device", it keeps only the last 3 days.
+Account keys, pre-keys, app-state keys and LID mappings are never removed. The start-up log line
+`Storage (startup): …` shows usage, the biggest number folders and file counts by kind.
