@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Coins, Plus, Search, RefreshCw, Undo2, IndianRupee, TrendingUp, Wallet, ChevronLeft, ChevronRight, Pencil, Printer, Trash2 } from "lucide-react";
+import { Coins, Gift, Plus, Search, RefreshCw, Undo2, IndianRupee, TrendingUp, Wallet, ChevronLeft, ChevronRight, Pencil, Printer, Trash2 } from "lucide-react";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -131,6 +131,7 @@ export default function AdvanceBookingDashboard() {
   };
 
    const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [sellGiftVoucher, setSellGiftVoucher] = useState(false);
    const [refundDialogOpen, setRefundDialogOpen] = useState(false);
    const [editDialogOpen, setEditDialogOpen] = useState(false);
    const [selectedAdvance, setSelectedAdvance] = useState<any>(null);
@@ -567,10 +568,22 @@ export default function AdvanceBookingDashboard() {
           </div>
         </div>
          <Button
-          onClick={() => setAddDialogOpen(true)}
+          onClick={() => {
+            setSellGiftVoucher(false);
+            setAddDialogOpen(true);
+          }}
           className="h-9 px-4 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold gap-1.5"
         >
           <Plus className="h-4 w-4" /> New Advance
+        </Button>
+        <Button
+          onClick={() => {
+            setSellGiftVoucher(true);
+            setAddDialogOpen(true);
+          }}
+          className="h-9 px-4 bg-pink-600 hover:bg-pink-700 text-white text-sm font-semibold gap-1.5"
+        >
+          <Gift className="h-4 w-4" /> Gift Voucher
         </Button>
         {selectedIds.size > 0 && (
           <Button
@@ -806,6 +819,7 @@ export default function AdvanceBookingDashboard() {
             }
           }}
           organizationId={orgId}
+          giftVoucher={sellGiftVoucher}
         />
       )}
 

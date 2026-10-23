@@ -154,7 +154,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronDown, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Play, Loader2, AlertCircle, Clock, Coins, Package, History, BookmarkPlus, Search, Calendar as CalendarIcon } from "lucide-react";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronDown, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Play, Loader2, AlertCircle, Clock, Coins, Package, History, BookmarkPlus, Search, Gift, Calendar as CalendarIcon } from "lucide-react";
 import { MobilePOSLayout } from "@/components/mobile/MobilePOSLayout";
 import { FloatingPOSReports } from "@/components/FloatingPOSReports";
 import { FloatingSaleReturn } from "@/components/FloatingSaleReturn";
@@ -300,6 +300,8 @@ import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { DcSaleTransferDialog } from "@/components/DcSaleTransferDialog";
 import { FinancerDetailsForm, FinancerDetails, saveFinancerDetails } from "@/components/FinancerDetailsForm";
 import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
+import { RedeemGiftVoucherDialog } from "@/components/pos/RedeemGiftVoucherDialog";
+import type { GiftVoucherLookup } from "@/utils/giftVoucher";
 import {
   CustomerPhoneLookupInput,
   type CustomerPhoneLookupRow,
@@ -1234,6 +1236,9 @@ export default function POSSales() {
   const [showFloatingStockReport, setShowFloatingStockReport] = useState(false);
   const [showFloatingSaleReturn, setShowFloatingSaleReturn] = useState(false);
   const [showAdvanceBooking, setShowAdvanceBooking] = useState(false);
+  const [showRedeemVoucher, setShowRedeemVoucher] = useState(false);
+  /** Gift voucher picked in POS: applied once that customer's advance balance has loaded. */
+  const pendingVoucherRef = useRef<{ customerId: string; amount: number; code: string } | null>(null);
   // Quick service product dialog state
   const [showQuickServiceDialog, setShowQuickServiceDialog] = useState(false);
   const [quickServiceCode, setQuickServiceCode] = useState("");
@@ -4735,6 +4740,32 @@ export default function POSSales() {
     setAdvanceApplied(maxApplicable);
   };
 
+  // Gift voucher: apply its amount (not more) as soon as the voucher customer's advance is loaded.
+  useEffect(() => {
+    const pending = pendingVoucherRef.current;
+    if (!pending) return;
+    if (pending.customerId !== customerId) {
+      if (customerId) pendingVoucherRef.current = null;
+      return;
+    }
+    if (availableAdvanceBalance <= 0.01 || finalAmount <= 0.01) return;
+    pendingVoucherRef.current = null;
+    handleApplyAdvance(Math.min(pending.amount, availableAdvanceBalance));
+    toast.success(`Gift voucher ${pending.code} applied`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerId, availableAdvanceBalance, finalAmount]);
+
+  const handleUseGiftVoucher = (voucher: GiftVoucherLookup) => {
+    if (voucher.customerId === customerId && availableAdvanceBalance > 0.01 && finalAmount > 0.01) {
+      handleApplyAdvance(Math.min(voucher.remaining, availableAdvanceBalance));
+      toast.success(`Gift voucher ${voucher.code} applied`);
+      return;
+    }
+    pendingVoucherRef.current = { customerId: voucher.customerId, amount: voucher.remaining, code: voucher.code };
+    applyCustomerFromPhoneLookup({ id: voucher.customerId, customer_name: voucher.customerName, phone: voucher.customerPhone });
+    if (items.length === 0) toast.message(`Voucher for ${voucher.customerName} picked. It applies when you add items.`);
+  };
+
   const applyAdvanceAfterSave = async (result: { id: string; sale_number?: string | null }) => {
     if (!(advanceApplied > 0.01 && customerId && result?.id && currentOrganization?.id)) return;
     try {
@@ -8011,6 +8042,17 @@ export default function POSSales() {
               onUniqueExactMatch={applyCustomerFromPhoneLookup}
             />
           </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setShowRedeemVoucher(true)}
+            className="h-10 shrink-0 self-end gap-1 border-pink-300 px-2.5 text-pink-700 hover:bg-pink-50"
+            title="Redeem a gift voucher on this bill"
+          >
+            <Gift className="h-4 w-4" />
+            <span className="hidden 2xl:inline">Voucher</span>
+          </Button>
           
           {/* Customer Discount & Points moved to bottom after Note section */}
 
@@ -9829,6 +9871,15 @@ export default function POSSales() {
           onOpenChange={setShowAdvanceBooking}
           organizationId={currentOrganization?.id || ""}
         />
+
+        {currentOrganization?.id && (
+          <RedeemGiftVoucherDialog
+            open={showRedeemVoucher}
+            onOpenChange={setShowRedeemVoucher}
+            organizationId={currentOrganization.id}
+            onUse={handleUseGiftVoucher}
+          />
+        )}
 
         <QuickServiceProductDialog
           open={showQuickServiceDialog}
