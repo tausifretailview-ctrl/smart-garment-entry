@@ -13,6 +13,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const SESSION_FILE_RE = /^session-(.+)$/;
 const SENDER_KEY_RE = /^sender-key-/;
 const IDENTITY_FILE_RE = /^identity-key-(.+)$/;
+/** Half-written key files left by a restart in the middle of a save (see authState.ts). */
+const TMP_FILE_RE = /\.tmp-\d+-\d+$/;
 
 export interface DiskUsage {
   bytesTotal: number;
@@ -65,15 +67,27 @@ function mtime(file: string): number | null {
 /**
  * Removes a linked number's per-customer files not used for `maxAgeDays`: Signal sessions and group
  * sender keys (WhatsApp sets them up again on the next message), and the identity key of a customer
- * whose session is gone. Account keys, pre-keys, app-state keys and LID mappings are never touched.
+ * whose session is gone. Account keys, pre-keys, app-state keys and LID mappings are never touched, nor
+ * the files of the number's own phone and other linked devices (`ownUsers`: its phone number and LID),
+ * which carry the link itself.
  */
-export function pruneSessionDir(sessionDir: string, maxAgeDays: number, now = Date.now()): number {
+export function pruneSessionDir(sessionDir: string, maxAgeDays: number, now = Date.now(), ownUsers: string[] = []): number {
   const cutoff = now - maxAgeDays * DAY_MS;
   const names = list(sessionDir);
   const live = new Set<string>();
+  const isOwn = (address: string) => ownUsers.some((u) => address.startsWith(`${u}.`) || address.startsWith(`${u}_`));
   let removed = 0;
   for (const name of names) {
+    if (TMP_FILE_RE.test(name)) {
+      const at = mtime(path.join(sessionDir, name));
+      if (at !== null && at < now - 60 * 60 * 1000) {
+        fs.rmSync(path.join(sessionDir, name), { force: true });
+        removed++;
+      }
+      continue;
+    }
     const session = SESSION_FILE_RE.exec(name);
+    if (session && isOwn(session[1])) continue;
     if (!session && !SENDER_KEY_RE.test(name)) continue;
     const file = path.join(sessionDir, name);
     const at = mtime(file);
@@ -86,7 +100,7 @@ export function pruneSessionDir(sessionDir: string, maxAgeDays: number, now = Da
   }
   for (const name of names) {
     const identity = IDENTITY_FILE_RE.exec(name);
-    if (!identity || live.has(identity[1])) continue;
+    if (!identity || live.has(identity[1]) || isOwn(identity[1])) continue;
     const file = path.join(sessionDir, name);
     const at = mtime(file);
     if (at !== null && at < cutoff) {
