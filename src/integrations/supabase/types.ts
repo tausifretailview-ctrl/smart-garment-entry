@@ -9858,6 +9858,10 @@ export type Database = {
           auto_send_quotation: boolean
           auto_send_sale_order: boolean
           builtin_connected_number: string | null
+          builtin_group_id: string | null
+          builtin_group_invite_fallback: boolean
+          builtin_group_name: string | null
+          builtin_save_contacts: boolean
           builtin_status: string | null
           business_hours_enabled: boolean | null
           business_hours_end: string | null
@@ -9928,6 +9932,10 @@ export type Database = {
           auto_send_quotation?: boolean
           auto_send_sale_order?: boolean
           builtin_connected_number?: string | null
+          builtin_group_id?: string | null
+          builtin_group_invite_fallback?: boolean
+          builtin_group_name?: string | null
+          builtin_save_contacts?: boolean
           builtin_status?: string | null
           business_hours_enabled?: boolean | null
           business_hours_end?: string | null
@@ -9998,6 +10006,10 @@ export type Database = {
           auto_send_quotation?: boolean
           auto_send_sale_order?: boolean
           builtin_connected_number?: string | null
+          builtin_group_id?: string | null
+          builtin_group_invite_fallback?: boolean
+          builtin_group_name?: string | null
+          builtin_save_contacts?: boolean
           builtin_status?: string | null
           business_hours_enabled?: boolean | null
           business_hours_end?: string | null
@@ -10209,6 +10221,60 @@ export type Database = {
           },
           {
             foreignKeyName: "whatsapp_credit_topups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      whatsapp_group_joins: {
+        Row: {
+          contact_status: string | null
+          created_at: string
+          customer_name: string | null
+          detail: string | null
+          group_id: string
+          group_status: string
+          id: string
+          organization_id: string
+          phone: string
+          updated_at: string
+        }
+        Insert: {
+          contact_status?: string | null
+          created_at?: string
+          customer_name?: string | null
+          detail?: string | null
+          group_id?: string
+          group_status?: string
+          id?: string
+          organization_id: string
+          phone: string
+          updated_at?: string
+        }
+        Update: {
+          contact_status?: string | null
+          created_at?: string
+          customer_name?: string | null
+          detail?: string | null
+          group_id?: string
+          group_status?: string
+          id?: string
+          organization_id?: string
+          phone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_group_joins_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_group_joins_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "v_dashboard_counts"
@@ -11529,6 +11595,7 @@ export type Database = {
         }
         Returns: Json
       }
+      dc_hide_mode_ready: { Args: never; Returns: boolean }
       delete_child_rows_for_org: {
         Args: {
           p_child_table: string
@@ -11647,6 +11714,10 @@ export type Database = {
           p_organization_id: string
           p_year: string
         }
+        Returns: string
+      }
+      generate_dc_number_atomic: {
+        Args: { p_organization_id: string }
         Returns: string
       }
       generate_delivery_challan_number: {
@@ -12144,9 +12215,9 @@ export type Database = {
       get_product_catalog_page: {
         Args: {
           p_category?: string
+          p_hide_dc?: boolean
           p_max_price?: number
           p_min_price?: number
-          p_hide_dc?: boolean
           p_org_id: string
           p_page?: number
           p_page_size?: number
@@ -12179,9 +12250,9 @@ export type Database = {
       get_product_dashboard_stats: {
         Args: {
           p_category?: string
+          p_hide_dc?: boolean
           p_max_price?: number
           p_min_price?: number
-          p_hide_dc?: boolean
           p_org_id: string
           p_product_type?: string
           p_search?: string
@@ -12462,10 +12533,10 @@ export type Database = {
       }
       get_stock_report: {
         Args: {
-          p_hide_dc?: boolean
           p_brand?: string
           p_category?: string
           p_color?: string
+          p_hide_dc?: boolean
           p_in_stock?: boolean
           p_limit?: number
           p_low_stock?: boolean
@@ -12508,10 +12579,10 @@ export type Database = {
       }
       get_stock_report_filtered_totals: {
         Args: {
-          p_hide_dc?: boolean
           p_brand?: string
           p_category?: string
           p_color?: string
+          p_hide_dc?: boolean
           p_in_stock?: boolean
           p_low_stock?: boolean
           p_low_stock_band?: boolean
