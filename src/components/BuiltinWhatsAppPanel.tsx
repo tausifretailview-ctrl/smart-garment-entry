@@ -10,6 +10,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { getEdgeFunctionErrorMessage } from "@/utils/edgeFunctionError";
 import { WhatsAppLinkMethods, type LinkMethod } from "@/components/whatsapp/WhatsAppLinkMethods";
 import { WhatsAppMessageBalance } from "@/components/whatsapp/WhatsAppMessageBalance";
+import { BillCustomerGroupSettings } from "@/components/whatsapp/BillCustomerGroupSettings";
 
 type GatewayStatus = "connected" | "connecting" | "qr" | "disconnected" | "logged_out";
 
@@ -211,6 +212,8 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
       {!connected && !qr && lastStatus && status !== "connecting" && (
         <p className="text-xs text-muted-foreground">Last known status: {lastStatus}</p>
       )}
+
+      {connected && <BillCustomerGroupSettings />}
 
       {!connected && status && orgId && (
         <WhatsAppLinkMethods

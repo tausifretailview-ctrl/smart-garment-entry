@@ -86,6 +86,22 @@ app.post("/sessions/:orgId/save-contacts", wrap(async (req, res) => {
   res.json({ success: true, ...(await sessions.saveContacts(req.params.orgId, contacts)) });
 }));
 
+// A bill customer: save as contact and/or add to the shop's chosen group (invite link when privacy blocks it).
+app.post("/sessions/:orgId/join-customer", wrap(async (req, res) => {
+  const b = req.body ?? {};
+  res.json({
+    success: true,
+    ...(await sessions.joinCustomer(req.params.orgId, {
+      phone: String(b.phone ?? ""),
+      name: b.name ? String(b.name) : undefined,
+      saveContact: b.saveContact === true,
+      groupId: b.groupId ? String(b.groupId) : undefined,
+      inviteFallback: b.inviteFallback === true,
+      inviteText: b.inviteText ? String(b.inviteText).slice(0, 500) : undefined,
+    })),
+  });
+}));
+
 // ---- Bulk WhatsApp campaigns (sessions "u_<userId>") ----
 app.post("/campaigns", wrap(async (req, res) => {
   res.json({ success: true, ...campaigns.create(req.body ?? {}) });
