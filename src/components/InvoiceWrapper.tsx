@@ -219,7 +219,7 @@ interface InvoiceWrapperProps {
 }
 
 /** Invoice formats with a separate "Shipped To" box next to Billed To. */
-const SHIP_TO_BOX_TEMPLATES = new Set(['a4-gst-classic', 'a4-electronic', 'gift_tally']);
+const SHIP_TO_BOX_TEMPLATES = new Set(['a4-gst-classic', 'a4-electronic', 'gift_tally', 'modern-wholesale']);
 
 export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperProps>(
   (props, ref) => {
