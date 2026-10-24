@@ -5,7 +5,13 @@
  * same as an Excel import.
  */
 
-export const PHOTO_IMPORT_FEATURE = "purchase_photo_import";
+/**
+ * Photo button on Purchase Entry: on for every shop unless the shop turns it off in
+ * Settings > Purchase (purchase_settings.photo_import_enabled = false).
+ */
+export function isPhotoImportEnabled(purchaseSettings: unknown): boolean {
+  return (purchaseSettings as { photo_import_enabled?: boolean } | null | undefined)?.photo_import_enabled !== false;
+}
 export const PHOTO_IMPORT_MAX_PAGES = 4;
 /** Sale price for a new item when the bill prints no MRP: purchase rate + this %. */
 export const DEFAULT_PHOTO_MARKUP_PERCENT = 30;

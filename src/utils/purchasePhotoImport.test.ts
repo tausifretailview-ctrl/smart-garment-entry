@@ -3,6 +3,7 @@ import {
   billChecks,
   billToReviewRows,
   defaultSalePrice,
+  isPhotoImportEnabled,
   reviewRowsToImportRows,
   rowIssues,
   type CatalogMatch,
@@ -65,5 +66,12 @@ describe("bill photo import", () => {
     expect(out[0]).toMatchObject({ bill_supplier_name: "ABC Traders", bill_supplier_invoice_no: "INV-77", bill_other_charges: 50, qty: 5, pur_price: 200 });
     expect(out[1].bill_supplier_name).toBeUndefined();
     expect(out[1]).toMatchObject({ product_name: "LUX SOAP 100G", sale_price: 65 });
+  });
+
+  it("is on for every shop unless Settings > Purchase turns it off", () => {
+    expect(isPhotoImportEnabled(undefined)).toBe(true);
+    expect(isPhotoImportEnabled({})).toBe(true);
+    expect(isPhotoImportEnabled({ photo_import_enabled: true })).toBe(true);
+    expect(isPhotoImportEnabled({ photo_import_enabled: false })).toBe(false);
   });
 });

@@ -78,8 +78,6 @@ const AVAILABLE_FEATURES = [
   "custom_branding",
   "api_access",
   "bulk_operations",
-  // Purchase Entry > Photo (read supplier bill photos with AI)
-  "purchase_photo_import",
 ];
 
 // Audit Log Section Component

@@ -109,7 +109,7 @@ import {
 } from "@/utils/purchaseImportErrors";
 import { cleanProductName } from "@/utils/productNameMerge";
 import { productNameMatchKey } from "@/utils/productNameDedupe";
-import { PHOTO_IMPORT_FEATURE } from "@/utils/purchasePhotoImport";
+import { isPhotoImportEnabled } from "@/utils/purchasePhotoImport";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
@@ -696,7 +696,7 @@ const PurchaseEntry = () => {
   const { orgNavigate: navigate } = useOrgNavigation();
   const routerNavigate = useNavigate();
   const location = useLocation();
-  const { currentOrganization, organizationRole, hasFeature } = useOrganization();
+  const { currentOrganization, organizationRole } = useOrganization();
   const { user } = useAuth();
   const initialBrowserSnapshotRef = useRef<PurchaseEntrySnapshot | null | undefined>(undefined);
   if (initialBrowserSnapshotRef.current === undefined) {
@@ -831,7 +831,6 @@ const PurchaseEntry = () => {
   const entryPersistenceBlockedRef = useRef(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showPhotoImport, setShowPhotoImport] = useState(false);
-  const photoImportOn = hasFeature(PHOTO_IMPORT_FEATURE);
   const [showProductDialog, setShowProductDialog] = useState(false);
   /** Prefill for Add New Product when search-bar scan finds no master match. */
   const [productDialogInitialBarcode, setProductDialogInitialBarcode] = useState("");
@@ -2215,6 +2214,7 @@ const PurchaseEntry = () => {
   }, [lineItems.length, currentOrganization?.id, currentOrganization?.organization_number]);
 
   const { data: settings } = useSettings();
+  const photoImportOn = isPhotoImportEnabled(settings?.purchase_settings);
 
   /** Org flag only — drives search grouping MRP splits (independent of column visibility). */
   const purchaseShowMrp = (settings?.purchase_settings as any)?.show_mrp === true;
