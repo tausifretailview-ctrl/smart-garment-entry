@@ -107,6 +107,15 @@ async function sendToOwners(
     }
   }
   await db.from("owner_push_log").update({ sent_count: sent, failed_count: failed }).eq("id", logId);
+  // Text + tap data for the app's Notifications page. Separate update: these columns
+  // come from the notifications history SQL, and a shop without it must still log counts.
+  const { error: textErr } = await db
+    .from("owner_push_log")
+    .update({ title: msg.title, body: msg.body, data })
+    .eq("id", logId);
+  if (textErr && !/column|schema cache/i.test(textErr.message ?? "")) {
+    console.error("owner-alerts history text failed", textErr.message);
+  }
   return { sent, failed };
 }
 

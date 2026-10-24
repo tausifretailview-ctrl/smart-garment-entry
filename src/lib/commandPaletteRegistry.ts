@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Bell,
   BarChart3,
   BookOpen,
   FileText,
@@ -256,6 +257,15 @@ export const COMMAND_PALETTE_REGISTRY: CommandPaletteRegistryItem[] = [
     path: "/customer-notifications",
     keywords: ["notification", "push", "sent", "read", "failed", "invite", "customer app"],
     permission: "customer_notifications",
+  },
+  {
+    id: "nav-notifications",
+    group: "Go to",
+    label: "Notifications",
+    subtitle: "Shop alerts sent to the owner's phone: bills, reports, low stock",
+    icon: Bell,
+    path: "/notifications",
+    keywords: ["notification", "alert", "owner", "bell", "missed", "history", "day end"],
   },
   {
     id: "nav-customer-reviews",

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useParams, useSearchParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight, FileText, Receipt, Undo2, Users, X } from "lucide-react";
 import { MobileInvoiceDetail } from "@/components/mobile/MobileInvoiceDetail";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,20 +10,28 @@ import { salesmanTotals, type SalesmanTotal } from "../../supabase/functions/_sh
 
 /**
  * Screens opened by tapping an owner alert on the phone: just the bill, or a colour
- * report for the day, without the app's menus. Close goes to the app home.
+ * report for the day, without the app's menus. Close goes to the app home, or back
+ * to Notifications when the alert was opened from there.
  */
+
+function useCloseAlertScreen(): () => void {
+  const { orgNavigate } = useOrgNavigation();
+  const location = useLocation();
+  const fromNotifications = !!(location.state as { fromNotifications?: boolean } | null)?.fromNotifications;
+  return () => orgNavigate(fromNotifications ? "/notifications" : "/");
+}
 
 /** Bill alert → that bill's details with Print / PDF, WhatsApp and Edit. */
 export function OwnerAlertBill() {
   const { saleId } = useParams<{ saleId: string }>();
-  const { orgNavigate } = useOrgNavigation();
+  const close = useCloseAlertScreen();
   return (
     <div className="min-h-[100dvh] bg-muted/30">
       <MobileInvoiceDetail
         saleId={saleId ?? null}
         open
         onOpenChange={(open) => {
-          if (!open) orgNavigate("/");
+          if (!open) close();
         }}
       />
     </div>
@@ -105,6 +113,8 @@ export function OwnerAlertReport() {
   const [params, setParams] = useSearchParams();
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
+  const location = useLocation();
+  const close = useCloseAlertScreen();
   const orgId = currentOrganization?.id;
   const today = istToday();
   const raw = params.get("date") ?? "";
@@ -117,7 +127,7 @@ export function OwnerAlertReport() {
     staleTime: 30_000,
   });
 
-  const goTo = (d: string) => setParams(d === today ? {} : { date: d }, { replace: true });
+  const goTo = (d: string) => setParams(d === today ? {} : { date: d }, { replace: true, state: location.state });
   const label = new Date(`${date}T00:00:00Z`).toLocaleDateString("en-IN", {
     weekday: "short",
     day: "numeric",
@@ -149,7 +159,7 @@ export function OwnerAlertReport() {
           <button
             type="button"
             aria-label="Close"
-            onClick={() => orgNavigate("/")}
+            onClick={close}
             className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center active:scale-90 touch-manipulation"
           >
             <X className="h-5 w-5" />

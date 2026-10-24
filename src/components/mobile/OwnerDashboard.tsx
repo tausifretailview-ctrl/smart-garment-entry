@@ -38,6 +38,7 @@ import { useCustomerPartyBalanceOrgWindow } from "@/hooks/useCustomerPartyBalanc
 import { useSupplierOrgBalanceWindow } from "@/hooks/useSupplierOrgBalanceWindow";
 import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
 import { useMobileUiTheme } from "@/hooks/useMobileUiTheme";
+import { OwnerNotificationsButton } from "@/components/OwnerNotificationsButton";
 import { ShellHeader, ShellButton, StatCell, SectionHead, ListRow } from "@/components/mobile/premium";
 
 /* ─── helpers ─── */
@@ -511,12 +512,18 @@ export const OwnerDashboard = () => {
           title={`${greeting}`}
           kicker={`${currentOrganization?.name ?? ""} · ${format(new Date(), "EEE, d MMM")}`}
           action={
-            <ShellButton onClick={handleRefresh} ariaLabel="Refresh dashboard">
-              <span className="flex items-center gap-1.5">
-                <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
-                {lastFetchedLabel || (dashLoading ? "Loading" : "Refresh")}
-              </span>
-            </ShellButton>
+            <div className="flex shrink-0 items-center gap-2">
+              <OwnerNotificationsButton
+                className="h-[36px] w-[36px] border-2 border-[var(--ez-shell-line)] text-[var(--ez-shell-text)] active:bg-[#1c1f25]"
+                badgeClassName="-top-1.5 -right-1.5"
+              />
+              <ShellButton onClick={handleRefresh} ariaLabel="Refresh dashboard">
+                <span className="flex items-center gap-1.5">
+                  <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
+                  {lastFetchedLabel || (dashLoading ? "Loading" : "Refresh")}
+                </span>
+              </ShellButton>
+            </div>
           }
         >
           <div className="mb-2.5 flex border-2 border-[var(--ez-shell-line)]">
@@ -728,6 +735,11 @@ export const OwnerDashboard = () => {
             <p className="text-xs text-white/60 mt-0.5">{currentOrganization?.name}</p>
           </div>
           <div className="flex flex-col items-end gap-0.5">
+            <div className="flex items-center gap-2">
+            <OwnerNotificationsButton
+              className="w-8 h-8 rounded-full bg-white/10 text-white/80 active:scale-90 transition-all"
+              badgeClassName="-top-1 -right-1"
+            />
             <button
               onClick={handleRefresh}
               className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center active:scale-90 transition-all touch-manipulation"
@@ -735,6 +747,7 @@ export const OwnerDashboard = () => {
             >
               <RefreshCw className={cn("h-4 w-4 text-white/70", isRefreshing && "animate-spin")} />
             </button>
+            </div>
             {lastFetchedLabel ? (
               <p className="max-w-[7.5rem] text-right text-[9px] font-medium tabular-nums text-white/50">
                 {lastFetchedLabel}
