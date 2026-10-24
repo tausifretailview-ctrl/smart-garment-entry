@@ -18,7 +18,7 @@ const TOUCH_EVERY_MS = 30_000;
 export function DcVisibilityController() {
   const { user } = useAuth();
   const { currentOrganization } = useOrganization();
-  const { mode, flipped, canFlip, toggle, reset } = useDcVisibility();
+  const { mode, flipped, canFlip, dcReady, toggle, reset } = useDcVisibility();
   const key =
     user?.id && currentOrganization?.id
       ? dcVisibilityStorageKey(user.id, currentOrganization.id)
@@ -63,10 +63,14 @@ export function DcVisibilityController() {
       type="button"
       onClick={reset}
       className="fixed bottom-3 left-3 z-[150] flex items-center gap-1.5 rounded-full border border-orange-300 bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-800 shadow-md dark:border-orange-700 dark:bg-orange-950 dark:text-orange-200 print:hidden"
-      title="Click or press Ctrl+Shift+H to go back"
+      title={
+        hiddenNow && !dcReady
+          ? "DC hiding needs the DC database update (Settings > Purchase). Click to go back."
+          : "Click or press Ctrl+Shift+H to go back"
+      }
     >
       {hiddenNow ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-      {hiddenNow ? "DC hidden" : "DC visible"}
+      {hiddenNow ? (dcReady ? "DC hidden" : "DC hide: update pending") : "DC visible"}
     </button>
   );
 }

@@ -11911,7 +11911,12 @@ export type Database = {
       }
       get_deleted_cn_adjust_without_sra_digest: { Args: never; Returns: Json }
       get_erp_dashboard_stats: {
-        Args: { p_end_date: string; p_org_id: string; p_start_date: string }
+        Args: {
+          p_end_date: string
+          p_hide_dc?: boolean
+          p_org_id: string
+          p_start_date: string
+        }
         Returns: Json
       }
       get_expense_by_category: {
@@ -12028,7 +12033,12 @@ export type Database = {
         Returns: Json
       }
       get_net_profit_kpis: {
-        Args: { p_from_date: string; p_org_id: string; p_to_date: string }
+        Args: {
+          p_from_date: string
+          p_hide_dc?: boolean
+          p_org_id: string
+          p_to_date: string
+        }
         Returns: Json
       }
       get_org_public_info: { Args: { p_slug: string }; Returns: Json }

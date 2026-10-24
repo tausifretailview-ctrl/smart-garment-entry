@@ -1,6 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
+import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
@@ -69,6 +71,7 @@ const SummarySkeleton = () => (
 
 export const MobileDashboard = () => {
   const { currentOrganization } = useOrganization();
+  const { hideDc } = useDcVisibility();
   const { orgNavigate } = useOrgNavigation();
   const { isOnline } = useNetworkStatus();
   const queryClient = useQueryClient();
@@ -118,21 +121,24 @@ export const MobileDashboard = () => {
 
   // Today's POS + invoice totals (local-day bounds — includes early-morning POS bills)
   const { data: todaySalesLive, isLoading: todaySalesLoading } = useQuery({
-    queryKey: ["mobile-dashboard-today-sales", currentOrganization?.id, today],
+    queryKey: ["mobile-dashboard-today-sales", currentOrganization?.id, today, hideDc],
     queryFn: async () => {
       if (!currentOrganization) return null;
       return withMobileQueryTimeout(async () => {
-        const { data, error } = await supabase
+        let query = supabase
           .from("sales")
-          .select("net_amount, sale_type")
+          .select("id, net_amount, sale_type")
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
           .eq("is_cancelled", false)
           .in("sale_type", [...MOBILE_HOME_SALE_TYPES])
           .gte("sale_date", todayStartIso)
           .lte("sale_date", todayEndIso);
+        // DC hidden: all-DC bills out, DC share of mixed bills out.
+        if (hideDc) query = query.eq("is_dc_bill", false);
+        const { data, error } = await query;
         if (error) throw error;
-        const rows = data || [];
+        const rows = hideDc ? await saleRowsWithoutDc(supabase, data || []) : data || [];
         const total = rows.reduce((sum, r) => sum + (Number(r.net_amount) || 0), 0);
         return { total, count: rows.length };
       });
@@ -149,7 +155,7 @@ export const MobileDashboard = () => {
     isError,
     refetch
   } = useQuery({
-    queryKey: ["mobile-dashboard-stats", currentOrganization?.id, today],
+    queryKey: ["mobile-dashboard-stats", currentOrganization?.id, today, hideDc],
     queryFn: async () => {
       if (!currentOrganization) return null;
       return withMobileQueryTimeout(async () => {
@@ -157,6 +163,7 @@ export const MobileDashboard = () => {
           p_org_id: currentOrganization.id,
           p_start_date: today,
           p_end_date: today,
+          ...(hideDc ? { p_hide_dc: true } : {}),
         });
         if (error) throw error;
         return data as ErpDashboardStats;
@@ -173,7 +180,7 @@ export const MobileDashboard = () => {
   const monthEnd = format(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0), "yyyy-MM-dd");
 
   const { data: monthDashStats, isLoading: monthDashLoading } = useQuery({
-    queryKey: ["mobile-dashboard-stats", currentOrganization?.id, monthStart, monthEnd],
+    queryKey: ["mobile-dashboard-stats", currentOrganization?.id, monthStart, monthEnd, hideDc],
     queryFn: async () => {
       if (!currentOrganization) return null;
       return withMobileQueryTimeout(async () => {
@@ -181,6 +188,7 @@ export const MobileDashboard = () => {
           p_org_id: currentOrganization.id,
           p_start_date: monthStart,
           p_end_date: monthEnd,
+          ...(hideDc ? { p_hide_dc: true } : {}),
         });
         if (error) throw error;
         return data as ErpDashboardStats;

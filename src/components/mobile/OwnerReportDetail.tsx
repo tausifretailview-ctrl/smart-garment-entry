@@ -10,6 +10,8 @@ import { STOCK_REPORT_LOW_THRESHOLD } from "@/utils/stockReportWebParity";
 import { STALE_FREQUENT } from "@/lib/queryStaleTimes";
 import { withMobileQueryTimeout } from "@/lib/mobileQueryTimeout";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
+import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -236,17 +238,20 @@ function saleDateBounds(start: string, end: string) {
 /* 1. Daily Sales */
 const DailySalesReport = ({ orgId, start, end }: RProps) => {
   const tableRef = useRef<HTMLDivElement>(null);
+  const { hideDc } = useDcVisibility();
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["rpt-daily-sales", orgId, start, end],
+    queryKey: ["rpt-daily-sales", orgId, start, end, hideDc],
     enabled: !!orgId,
     queryFn: async () => {
       const { startIso, endIso } = saleDateBounds(start!, end!);
-      const { data: sales } = await supabase.from("sales")
+      let query = supabase.from("sales")
         .select("id, sale_number, customer_name, net_amount, sale_date, payment_status")
         .eq("organization_id", orgId!).is("deleted_at", null).eq("is_cancelled", false)
-        .gte("sale_date", startIso).lte("sale_date", endIso)
-        .order("sale_date", { ascending: false }).limit(500);
-      return sales || [];
+        .gte("sale_date", startIso).lte("sale_date", endIso);
+      // DC hidden: all-DC bills out, DC share of mixed bills out.
+      if (hideDc) query = query.eq("is_dc_bill", false);
+      const { data: sales } = await query.order("sale_date", { ascending: false }).limit(500);
+      return hideDc ? saleRowsWithoutDc(supabase, sales || []) : sales || [];
     },
   });
 
@@ -329,15 +334,17 @@ const DailySalesReport = ({ orgId, start, end }: RProps) => {
 /* 2. Daily Purchase */
 const DailyPurchaseReport = ({ orgId, start, end }: RProps) => {
   const tableRef = useRef<HTMLDivElement>(null);
+  const { hideDc } = useDcVisibility();
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["rpt-daily-purchase", orgId, start, end],
+    queryKey: ["rpt-daily-purchase", orgId, start, end, hideDc],
     enabled: !!orgId,
     queryFn: async () => {
-      const { data: bills } = await supabase.from("purchase_bills")
+      let query = supabase.from("purchase_bills")
         .select("id, software_bill_no, supplier_name, net_amount, bill_date, supplier_invoice_no")
         .eq("organization_id", orgId!).is("deleted_at", null)
-        .gte("bill_date", start!).lte("bill_date", end!)
-        .order("bill_date", { ascending: false }).limit(500);
+        .gte("bill_date", start!).lte("bill_date", end!);
+      if (hideDc) query = query.or("is_dc_purchase.is.null,is_dc_purchase.eq.false");
+      const { data: bills } = await query.order("bill_date", { ascending: false }).limit(500);
       return bills || [];
     },
   });
@@ -409,18 +416,23 @@ const DailyPurchaseReport = ({ orgId, start, end }: RProps) => {
 
 /* 3. Profit & Loss */
 const ProfitLossReport = ({ orgId, start, end }: RProps) => {
+  const { hideDc } = useDcVisibility();
   const { data, isLoading } = useQuery({
-    queryKey: ["rpt-pnl", orgId, start, end],
+    queryKey: ["rpt-pnl", orgId, start, end, hideDc],
     enabled: !!orgId,
     queryFn: async () => {
       const { startIso, endIso } = saleDateBounds(start!, end!);
-      const [salesRes, purchaseRes] = await Promise.all([
-        supabase.from("sales").select("net_amount").eq("organization_id", orgId!).is("deleted_at", null).eq("is_cancelled", false)
-          .gte("sale_date", startIso).lte("sale_date", endIso),
-        supabase.from("purchase_bills").select("net_amount").eq("organization_id", orgId!).is("deleted_at", null)
-          .gte("bill_date", start!).lte("bill_date", end!),
-      ]);
-      const totalSale = (salesRes.data || []).reduce((s, r) => s + (r.net_amount || 0), 0);
+      let salesQuery = supabase.from("sales").select("id, net_amount").eq("organization_id", orgId!).is("deleted_at", null).eq("is_cancelled", false)
+        .gte("sale_date", startIso).lte("sale_date", endIso);
+      let purchaseQuery = supabase.from("purchase_bills").select("net_amount").eq("organization_id", orgId!).is("deleted_at", null)
+        .gte("bill_date", start!).lte("bill_date", end!);
+      if (hideDc) {
+        salesQuery = salesQuery.eq("is_dc_bill", false);
+        purchaseQuery = purchaseQuery.or("is_dc_purchase.is.null,is_dc_purchase.eq.false");
+      }
+      const [salesRes, purchaseRes] = await Promise.all([salesQuery, purchaseQuery]);
+      const saleRows = hideDc ? await saleRowsWithoutDc(supabase, salesRes.data || []) : salesRes.data || [];
+      const totalSale = saleRows.reduce((s, r) => s + (r.net_amount || 0), 0);
       const totalPurchase = (purchaseRes.data || []).reduce((s, r) => s + (r.net_amount || 0), 0);
       return { totalSale, totalPurchase, profit: totalSale - totalPurchase };
     },
@@ -448,8 +460,9 @@ const ProfitLossReport = ({ orgId, start, end }: RProps) => {
 /* 4. Stock Summary — same RPCs as web Stock Report / Item-wise Stock */
 const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
   const tableRef = useRef<HTMLDivElement>(null);
+  const { hideDc } = useDcVisibility();
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["rpt-stock-summary", orgId],
+    queryKey: ["rpt-stock-summary", orgId, hideDc],
     enabled: !!orgId,
     staleTime: STALE_FREQUENT,
     queryFn: () =>
@@ -463,9 +476,10 @@ const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
           supplierFilter: "__all__",
           barcodeFilter: "",
           closingStockFilter: "all" as const,
+          ...(hideDc ? { hideDc: true } : {}),
         };
         const [totals, productTotals, page] = await Promise.all([
-          fetchWebStockReportTotals(orgId!),
+          fetchWebStockReportTotals(orgId!, hideDc),
           fetchItemWiseStockTotals(orgId!, filters),
           fetchItemWiseStockPage(orgId!, filters, 1, 150),
         ]);
@@ -572,7 +586,9 @@ const GSTReport = ({ orgId, start, end }: RProps) => {
         .select("gst_percent, line_total, quantity, unit_price, sale_id, sales!inner(organization_id, sale_date, deleted_at, is_cancelled)")
         .eq("sales.organization_id", orgId!)
         .is("sales.deleted_at", null).eq("sales.is_cancelled", false)
-        .gte("sales.sale_date", startIso).lte("sales.sale_date", endIso);
+        .gte("sales.sale_date", startIso).lte("sales.sale_date", endIso)
+        // DC (No GST) lines never count in GST figures, like the web GST reports.
+        .not("is_dc_item", "is", true);
       return items || [];
     },
   });
@@ -656,16 +672,19 @@ const GSTReport = ({ orgId, start, end }: RProps) => {
 /* 8. Brand Sales */
 const BrandSalesReport = ({ orgId, start, end }: RProps) => {
   const tableRef = useRef<HTMLDivElement>(null);
+  const { hideDc } = useDcVisibility();
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["rpt-brand-sales", orgId, start, end],
+    queryKey: ["rpt-brand-sales", orgId, start, end, hideDc],
     enabled: !!orgId,
     queryFn: async () => {
       const { startIso, endIso } = saleDateBounds(start!, end!);
-      const { data: items } = await supabase.from("sale_items")
+      let itemsQuery = supabase.from("sale_items")
         .select("product_id, quantity, line_total, sale_id, sales!inner(organization_id, sale_date, deleted_at, is_cancelled)")
         .eq("sales.organization_id", orgId!)
         .is("sales.deleted_at", null).eq("sales.is_cancelled", false)
         .gte("sales.sale_date", startIso).lte("sales.sale_date", endIso);
+      if (hideDc) itemsQuery = itemsQuery.not("is_dc_item", "is", true);
+      const { data: items } = await itemsQuery;
 
       const prodIds = [...new Set((items || []).map((i: any) => i.product_id))];
       if (!prodIds.length) return [];
@@ -742,16 +761,19 @@ const BrandSalesReport = ({ orgId, start, end }: RProps) => {
 /* 9. Size Sales */
 const SizeSalesReport = ({ orgId, start, end }: RProps) => {
   const tableRef = useRef<HTMLDivElement>(null);
+  const { hideDc } = useDcVisibility();
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["rpt-size-sales", orgId, start, end],
+    queryKey: ["rpt-size-sales", orgId, start, end, hideDc],
     enabled: !!orgId,
     queryFn: async () => {
       const { startIso, endIso } = saleDateBounds(start!, end!);
-      const { data: items } = await supabase.from("sale_items")
+      let itemsQuery = supabase.from("sale_items")
         .select("size, quantity, line_total, sale_id, sales!inner(organization_id, sale_date, deleted_at, is_cancelled)")
         .eq("sales.organization_id", orgId!)
         .is("sales.deleted_at", null).eq("sales.is_cancelled", false)
         .gte("sales.sale_date", startIso).lte("sales.sale_date", endIso);
+      if (hideDc) itemsQuery = itemsQuery.not("is_dc_item", "is", true);
+      const { data: items } = await itemsQuery;
 
       const map = new Map<string, { qty: number; total: number }>();
       (items || []).forEach((i: any) => {
@@ -818,16 +840,19 @@ const SizeSalesReport = ({ orgId, start, end }: RProps) => {
 
 /* 10. Payment Collection */
 const PaymentCollectionReport = ({ orgId, start, end }: RProps) => {
+  const { hideDc } = useDcVisibility();
   const { data, isLoading } = useQuery({
-    queryKey: ["rpt-payment-collection", orgId, start, end],
+    queryKey: ["rpt-payment-collection", orgId, start, end, hideDc],
     enabled: !!orgId,
     queryFn: async () => {
       const { startIso, endIso } = saleDateBounds(start!, end!);
-      const { data: sales } = await supabase.from("sales")
-        .select("cash_amount, upi_amount, card_amount, net_amount, sale_date")
+      let query = supabase.from("sales")
+        .select("id, cash_amount, upi_amount, card_amount, net_amount, sale_date")
         .eq("organization_id", orgId!).is("deleted_at", null).eq("is_cancelled", false)
         .gte("sale_date", startIso).lte("sale_date", endIso);
-      return sales || [];
+      if (hideDc) query = query.eq("is_dc_bill", false);
+      const { data: sales } = await query;
+      return hideDc ? saleRowsWithoutDc(supabase, sales || []) : sales || [];
     },
   });
 

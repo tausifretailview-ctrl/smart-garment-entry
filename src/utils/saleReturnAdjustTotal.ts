@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { localDayBounds } from "@/lib/localDayBounds";
+import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
 
 const PAGE_SIZE = 1000;
 
@@ -12,11 +13,12 @@ export async function fetchSaleReturnAdjustTotal(
   orgId: string,
   startYmd: string,
   endYmd: string,
+  hideDc = false,
 ): Promise<number> {
   const { startIso, endIso } = localDayBounds(startYmd, endYmd);
   let total = 0;
   for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await supabase
+    let query = supabase
       .from("sales")
       .select("id, sale_return_adjust")
       .eq("organization_id", orgId)
@@ -24,12 +26,14 @@ export async function fetchSaleReturnAdjustTotal(
       .or("is_cancelled.is.null,is_cancelled.eq.false")
       .gt("sale_return_adjust", 0)
       .gte("sale_date", startIso)
-      .lte("sale_date", endIso)
-      .order("id")
-      .range(from, from + PAGE_SIZE - 1);
+      .lte("sale_date", endIso);
+    // DC hidden: same bills and shares as the DC-hidden dashboard total.
+    if (hideDc) query = query.eq("is_dc_bill", false);
+    const { data, error } = await query.order("id").range(from, from + PAGE_SIZE - 1);
     if (error) throw error;
     const rows = data ?? [];
-    for (const r of rows) total += Number(r.sale_return_adjust) || 0;
+    const counted = hideDc ? await saleRowsWithoutDc(supabase, rows) : rows;
+    for (const r of counted) total += Number(r.sale_return_adjust) || 0;
     if (rows.length < PAGE_SIZE) break;
   }
   return total;
@@ -44,14 +48,17 @@ export async function fetchErpDashboardStatsAfterSr<T extends { total_sales: num
   orgId: string,
   startYmd: string,
   endYmd: string,
+  hideDc = false,
 ): Promise<T | null> {
   const [{ data, error }, srAdjust] = await Promise.all([
     supabase.rpc("get_erp_dashboard_stats", {
       p_org_id: orgId,
       p_start_date: startYmd,
       p_end_date: endYmd,
+      // DC (No GST) out of the tiles; sent only when hiding, so old databases keep working.
+      ...(hideDc ? { p_hide_dc: true } : {}),
     }),
-    fetchSaleReturnAdjustTotal(orgId, startYmd, endYmd).catch(() => 0),
+    fetchSaleReturnAdjustTotal(orgId, startYmd, endYmd, hideDc).catch(() => 0),
   ]);
   if (error) throw error;
   const stats = data as unknown as T | null;

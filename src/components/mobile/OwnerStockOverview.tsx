@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import {
@@ -54,6 +55,8 @@ const BASE_ITEM_FILTERS: Omit<ItemWiseStockFilters, "searchQuery" | "barcodeFilt
 
 export const OwnerStockOverview = ({ onViewProduct }: Props) => {
   const { currentOrganization } = useOrganization();
+  const { hideDc } = useDcVisibility();
+  const dcArg = hideDc ? { hideDc: true } : {};
   const { openScan } = useMobileScan();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -76,32 +79,34 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
     searchQuery: searchRpc.searchQuery,
     barcodeFilter: searchRpc.barcodeFilter,
     closingStockFilter: productClosingFilterForStatus(stockFilter),
+    ...dcArg,
   };
   const listStale = debouncedSearch.trim() ? STALE_LIVE : STALE_PAGINATED;
 
   const { data: webTotals, isLoading: totalsLoading } = useQuery({
-    queryKey: ["stock-report-global-totals", orgId],
-    queryFn: () => fetchWebStockReportTotals(orgId!),
+    queryKey: ["stock-report-global-totals", orgId, hideDc],
+    queryFn: () => fetchWebStockReportTotals(orgId!, hideDc),
     enabled: !!orgId,
     staleTime: STALE_FREQUENT,
   });
 
   const { data: productTotals } = useQuery({
-    queryKey: ["owner-stock-product-totals", orgId],
+    queryKey: ["owner-stock-product-totals", orgId, hideDc],
     queryFn: () =>
       fetchItemWiseStockTotals(orgId!, {
         ...BASE_ITEM_FILTERS,
         searchQuery: "",
         barcodeFilter: "",
         closingStockFilter: "all",
+        ...dcArg,
       }),
     enabled: !!orgId,
     staleTime: STALE_FREQUENT,
   });
 
   const { data: statusCounts } = useQuery({
-    queryKey: ["owner-stock-status-counts", orgId],
-    queryFn: () => fetchStockReportStatusVariantCounts(orgId!),
+    queryKey: ["owner-stock-status-counts", orgId, hideDc],
+    queryFn: () => fetchStockReportStatusVariantCounts(orgId!, undefined, hideDc),
     enabled: !!orgId,
     staleTime: STALE_FREQUENT,
   });
@@ -113,7 +118,7 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
     fetchNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ["owner-stock-product-pages", orgId, debouncedSearch, stockFilter],
+    queryKey: ["owner-stock-product-pages", orgId, debouncedSearch, stockFilter, hideDc],
     queryFn: ({ pageParam }) => fetchItemWiseStockPage(orgId!, listFilters, pageParam, PAGE_SIZE),
     initialPageParam: 1,
     getNextPageParam: (lastPage, pages) => {

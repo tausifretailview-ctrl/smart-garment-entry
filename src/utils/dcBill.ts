@@ -19,3 +19,14 @@ export function isMissingDcNumberFunction(error: unknown): boolean {
     /generate_dc_number_atomic/i.test(String(e.message || ""))
   );
 }
+
+/** True when the DC hide SQL is not on the database yet (marker function missing). */
+export function isMissingDcHideSql(error: unknown): boolean {
+  const e = error as { code?: string; message?: string } | null;
+  if (!e) return false;
+  return (
+    e.code === "PGRST202" ||
+    e.code === "42883" ||
+    /dc_hide_mode_ready/i.test(String(e.message || ""))
+  );
+}

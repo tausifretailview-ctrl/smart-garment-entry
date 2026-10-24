@@ -1,4 +1,6 @@
 import { useCallback, useSyncExternalStore } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
@@ -12,6 +14,7 @@ import {
   subscribeDcVisibility,
   type DcVisibilityMode,
 } from "@/lib/dcVisibility";
+import { isMissingDcHideSql } from "@/utils/dcBill";
 
 export type DcVisibility = {
   mode: DcVisibilityMode;
@@ -20,6 +23,8 @@ export type DcVisibility = {
   /** This tab differs from the shop's mode (Ctrl+Shift+H pressed). */
   flipped: boolean;
   canFlip: boolean;
+  /** False while the DC database update is not run yet; screens then show everything. */
+  dcReady: boolean;
   toggle: () => void;
   reset: () => void;
 };
@@ -43,6 +48,25 @@ export function useDcVisibility(): DcVisibility {
     () => false,
   );
   const canFlip = canFlipDcVisibility(mode, organizationRole);
+  const wantHide = shouldHideDc(mode, flipped && canFlip);
+
+  // Hiding needs the DC SQL (new columns and RPC arguments). Until it is run, show everything
+  // instead of failing every list. Checked once; a "not yet" answer is re-checked each minute.
+  const { data: ready } = useQuery({
+    queryKey: ["dc-hide-ready", currentOrganization?.id],
+    queryFn: async () => {
+      const { error } = await (supabase.rpc as unknown as (fn: string) => Promise<{ error: unknown }>)(
+        "dc_hide_mode_ready",
+      );
+      if (!error) return true;
+      if (isMissingDcHideSql(error)) return false;
+      throw error;
+    },
+    enabled: wantHide && !!currentOrganization?.id,
+    staleTime: (query) => (query.state.data === true ? Infinity : 60_000),
+    retry: 1,
+  });
+  const dcReady = ready !== false;
 
   const toggle = useCallback(() => {
     if (!key || !canFlip) return;
@@ -55,9 +79,10 @@ export function useDcVisibility(): DcVisibility {
 
   return {
     mode,
-    hideDc: shouldHideDc(mode, flipped && canFlip),
+    hideDc: wantHide && dcReady,
     flipped: flipped && canFlip,
     canFlip,
+    dcReady,
     toggle,
     reset,
   };

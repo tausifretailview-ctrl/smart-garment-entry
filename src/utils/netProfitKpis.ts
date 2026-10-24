@@ -94,11 +94,13 @@ export async function fetchNetProfitKpis(
   organizationId: string,
   fromDate: string,
   toDate: string,
+  hideDc = false,
 ): Promise<NetProfitKpis> {
   const { data, error } = await supabase.rpc("get_net_profit_kpis", {
     p_org_id: organizationId,
     p_from_date: fromDate,
     p_to_date: toDate,
+    ...(hideDc ? { p_hide_dc: true } : {}),
   });
   if (error) throw error;
   return parseNetProfitKpis(data);
