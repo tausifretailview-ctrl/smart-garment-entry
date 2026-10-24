@@ -28,14 +28,11 @@ import {
   WHATSAPP_SEND_PROVIDER_LABELS,
   BUILTIN_WHATSAPP_NAME,
   type WhatsAppSendProvider,
-  isWappConnectSendProvider,
   normalizeSendProvider,
 } from "@/constants/whatsappSendProvider";
 import { normalizeWhatsAppAccessToken } from "@/lib/whatsappApiAuth";
 import { getWhatsAppErrorHint } from "@/utils/whatsappErrorHints";
 import { validateWappConnectInstanceId } from "@/utils/wappConnectInstanceIdValidation";
-import { getEffectiveWhatsAppLogStatus, getWappConnectRequestUrl } from "@/utils/whatsappLogStatus";
-import { isWappConnectSignedStorageUrl } from "@/utils/wappConnectPdfUrl";
 import { normalizeWhatsAppApiBaseUrl, normalizeWhatsAppApiVersion } from "@/lib/whatsappApiUrl";
 import { WHATSAPP_WEBHOOK_URL, WHATSAPP_WEBHOOK_VERIFY_TOKEN } from "@/constants/whatsappWebhook";
 import { InvoiceTemplateSelectItems } from "@/components/settings/InvoiceTemplateSelectItems";
@@ -170,7 +167,6 @@ export const WhatsAppAPISettings = () => {
     maskedWappConnectInstanceId,
     lastSendStatus,
     refetchLastSendStatus,
-    fetchMessageLogs,
     saveWappConnectInstanceAsync,
     clearWappConnectInstanceAsync,
     isSavingWappConnectInstance,
@@ -337,13 +333,6 @@ export const WhatsAppAPISettings = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: recentWappConnectLogs, isFetching: recentLogsFetching, refetch: refetchRecentLogs } = useQuery({
-    queryKey: ['whatsapp-recent-wappconnect-logs'],
-    queryFn: () => fetchMessageLogs({ limit: 8 }),
-    enabled: formData.send_provider === 'wappconnect' || formData.send_provider === 'builtin',
-    staleTime: 30 * 1000,
-  });
-
   // "Ezzy ERP WhatsApp" shows up once its gateway server is set up and answering.
   const { data: gatewayReady = false } = useQuery({
     queryKey: ['whatsapp-gateway-ready'],
@@ -358,14 +347,19 @@ export const WhatsAppAPISettings = () => {
     retry: false,
   });
 
+  const [recentLogsFetching, setRecentLogsFetching] = useState(false);
   const handleReloadWhatsAppLogs = async () => {
-    await Promise.all([
-      refetchRecentLogs(),
-      refetchLastSendStatus(),
-      queryClient.invalidateQueries({ queryKey: ['whatsapp-logs'] }),
-      queryClient.invalidateQueries({ queryKey: ['whatsapp-stats'] }),
-    ]);
-    toast.success("WhatsApp logs refreshed");
+    setRecentLogsFetching(true);
+    try {
+      await Promise.all([
+        refetchLastSendStatus(),
+        queryClient.invalidateQueries({ queryKey: ['whatsapp-logs'] }),
+        queryClient.invalidateQueries({ queryKey: ['whatsapp-stats'] }),
+      ]);
+      toast.success("WhatsApp logs refreshed");
+    } finally {
+      setRecentLogsFetching(false);
+    }
   };
 
   const handleInputChange = (field: string, value: string | boolean | number | string[] | TemplateParam[] | SocialLinks) => {
@@ -1996,132 +1990,6 @@ export const WhatsAppAPISettings = () => {
           </div>
         </CardContent>
       </Card>
-
-      {isWappConnect && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4" />
-                  Recent {providerName} sends
-                </CardTitle>
-                <CardDescription>
-                  Latest log entries for this org. Open WhatsApp Logs for full history and API response details.
-                </CardDescription>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="shrink-0"
-                onClick={() => void handleReloadWhatsAppLogs()}
-                disabled={recentLogsFetching}
-              >
-                {recentLogsFetching ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                <span className="ml-2">Reload</span>
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {(() => {
-              const sendProviderKey = isBuiltin ? "builtin" : "wappconnect";
-              const wappConnectOnly = recentWappConnectLogs?.filter((log) => log.provider === sendProviderKey) ?? [];
-              const metaMisrouted = recentWappConnectLogs?.filter(
-                (log) => !isWappConnectSendProvider(log.provider) && log.status === "failed",
-              ) ?? [];
-              const needsEdgeDeploy = wappConnectOnly.some((log) =>
-                isWappConnectSignedStorageUrl(getWappConnectRequestUrl(log.provider_response)),
-              );
-
-              return (
-                <>
-                  {!isBuiltin && needsEdgeDeploy && (
-                    <Alert className="mb-3 border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30">
-                      <AlertCircle className="h-4 w-4 text-red-700" />
-                      <AlertDescription className="text-sm text-red-900 dark:text-red-100">
-                        Recent invoice PDF sends still used a <strong>signed storage URL</strong> — WappConnect cannot read
-                        that link. Deploy <code className="text-xs">serve-wappconnect-pdf</code> and{" "}
-                        <code className="text-xs">send-whatsapp</code> in Supabase, hard refresh (↻), then save a new
-                        POS sale to test. The app now uploads PDFs to a stable serve URL before sending.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                  {metaMisrouted.length > 0 && (
-                    <Alert className="mb-3 border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
-                      <AlertCircle className="h-4 w-4 text-amber-700" />
-                      <AlertDescription className="text-sm text-amber-900 dark:text-amber-100">
-                        {metaMisrouted.length} recent failed send(s) used the <strong>Meta API path</strong> (Provider:
-                        Legacy), not {providerName}. Errors like &quot;Re-engagement message&quot; are Meta&apos;s 24-hour rule —
-                        they do <strong>not</strong> apply to {providerName}. Save Send provider = {providerName}, deploy{" "}
-                        <code className="text-xs">send-whatsapp</code>, hard refresh (↻), then retry.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                  {!wappConnectOnly.length ? (
-                    <p className="text-sm text-muted-foreground">
-                      No {providerName} sends logged yet.
-                      {metaMisrouted.length > 0
-                        ? ` See the warning above — recent failures may be Meta path, not ${providerName}.`
-                        : ""}
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {wappConnectOnly.slice(0, 5).map((log) => {
-                        const wc = log.provider_response as Record<string, unknown> | null;
-                        const endpoint = wc?.endpoint ? String(wc.endpoint) : null;
-                        const effectiveStatus = getEffectiveWhatsAppLogStatus(log);
-                        const hint = getWhatsAppErrorHint(log.error_message, log.provider_response, log.provider);
-                        return (
-                          <div key={log.id} className="rounded-lg border p-3 text-sm space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Badge
-                                variant={
-                                  effectiveStatus === "sent"
-                                    ? "default"
-                                    : effectiveStatus === "failed"
-                                      ? "destructive"
-                                      : "secondary"
-                                }
-                              >
-                                {effectiveStatus}
-                              </Badge>
-                              <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-300">
-                                {providerName}
-                              </Badge>
-                              <span className="font-mono tabular-nums text-xs text-muted-foreground">
-                                {log.phone_number}
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                {log.sent_at
-                                  ? format(new Date(log.sent_at), "PPp")
-                                  : format(new Date(log.created_at), "PPp")}
-                              </span>
-                            </div>
-                            <p className="text-xs truncate">{log.message || log.template_type}</p>
-                            {endpoint && <p className="text-xs font-mono text-muted-foreground">{endpoint}</p>}
-                            {hint ? (
-                              <p className="text-xs text-destructive font-medium">{hint.title}</p>
-                            ) : (
-                              log.error_message && (
-                                <p className="text-xs text-destructive">{log.error_message}</p>
-                              )
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </>
-              );
-            })()}
-          </CardContent>
-        </Card>
-      )}
 
       {/* Save Button */}
       <div className="flex justify-end">
