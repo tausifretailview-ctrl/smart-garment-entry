@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   SILENT_UPDATE_BANNER_FALLBACK_MS,
+  SILENT_UPDATE_HIDDEN_MS,
   SILENT_UPDATE_IDLE_MS,
   hasAnyPosCartItemsInSession,
   isBlockingUiOverlayOpen,
@@ -133,6 +134,7 @@ describe("startSilentUpdateWhenSafe", () => {
       onFallbackBanner,
       bannerFallbackMs: 120_000,
       pollMs: 10_000,
+      hiddenMs: 0,
     });
     await vi.advanceTimersByTimeAsync(30_000);
     expect(window.location.reload).not.toHaveBeenCalled();
@@ -145,7 +147,7 @@ describe("startSilentUpdateWhenSafe", () => {
     resetUnsavedWorkSourcesForTests();
   });
 
-  it("reloads when tab becomes hidden with empty cart", async () => {
+  it("reloads only after the tab stays hidden long enough, with empty cart", async () => {
     const onFallbackBanner = vi.fn();
     let visibility: DocumentVisibilityState = "visible";
     Object.defineProperty(document, "visibilityState", {
@@ -157,8 +159,9 @@ describe("startSilentUpdateWhenSafe", () => {
       getOrganizationId: () => null,
       onFallbackBanner,
       idleMs: 60_000,
-      bannerFallbackMs: 120_000,
+      bannerFallbackMs: 300_000,
       pollMs: 10_000,
+      hiddenMs: 60_000,
     });
 
     expect(window.location.reload).not.toHaveBeenCalled();
@@ -166,7 +169,22 @@ describe("startSilentUpdateWhenSafe", () => {
     visibility = "hidden";
     document.dispatchEvent(new Event("visibilitychange"));
     await vi.advanceTimersByTimeAsync(0);
+    // Quick switch to another app — must not come back to a reloaded screen.
+    expect(window.location.reload).not.toHaveBeenCalled();
 
+    await vi.advanceTimersByTimeAsync(30_000);
+    visibility = "visible";
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(40_000);
+    expect(window.location.reload).not.toHaveBeenCalled();
+
+    // Hidden again — the clock restarts and the reload waits the full minute.
+    visibility = "hidden";
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(50_000);
+    expect(window.location.reload).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(20_000);
     expect(window.location.reload).toHaveBeenCalled();
     expect(onFallbackBanner).not.toHaveBeenCalled();
   });
@@ -223,8 +241,9 @@ describe("startSilentUpdateWhenSafe", () => {
     expect(onFallbackBanner).toHaveBeenCalledTimes(1);
   });
 
-  it("exports the production idle and banner timings", () => {
+  it("exports the production idle, hidden and banner timings", () => {
     expect(SILENT_UPDATE_IDLE_MS).toBe(45_000);
-    expect(SILENT_UPDATE_BANNER_FALLBACK_MS).toBe(2 * 60 * 60 * 1000);
+    expect(SILENT_UPDATE_HIDDEN_MS).toBe(10 * 60 * 1000);
+    expect(SILENT_UPDATE_BANNER_FALLBACK_MS).toBe(10 * 60 * 1000);
   });
 });

@@ -590,7 +590,19 @@ export async function refreshChunkHttpCache(
  * When the first failure is a chunk the server no longer has (deploy skew), skip
  * the ~5s of pointless retries and reload onto the new build straight away.
  */
-export async function importWithRetry<T>(importFn: () => Promise<T>): Promise<T> {
+export type ImportWithRetryOptions = {
+  /**
+   * Reload onto the new build when the file is gone after a deploy (default true).
+   * Background warms pass false: a prefetch the user never asked for must not
+   * reload the screen they are working on. Opening the page still recovers.
+   */
+  recoverStaleChunk?: boolean;
+};
+
+export async function importWithRetry<T>(
+  importFn: () => Promise<T>,
+  options?: ImportWithRetryOptions,
+): Promise<T> {
   let lastError: unknown;
 
   for (let attempt = 0; attempt < MAX_IMPORT_RETRIES; attempt++) {
@@ -617,7 +629,11 @@ export async function importWithRetry<T>(importFn: () => Promise<T>): Promise<T>
 
   // Stale deploy / HTML-for-JS: recover immediately so the user never sits on
   // "Something went wrong" for a POSSales chunk the server no longer has.
-  if (isChunkLoadError(lastError) && attemptStaleChunkRecovery(lastError)) {
+  if (
+    options?.recoverStaleChunk !== false &&
+    isChunkLoadError(lastError) &&
+    attemptStaleChunkRecovery(lastError)
+  ) {
     return new Promise<T>(() => {});
   }
   throw lastError;

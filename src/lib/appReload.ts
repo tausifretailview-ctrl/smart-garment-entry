@@ -15,13 +15,19 @@ function getElectronAPI(): ElectronReloadApi | undefined {
 
 /** Idle with no pointer/keyboard activity — not used for visible-tab silent reload. */
 export const SILENT_UPDATE_IDLE_MS = 45_000;
-/** If no safe moment arrives, show the existing update banner. */
-export const SILENT_UPDATE_BANNER_FALLBACK_MS = 2 * 60 * 60 * 1000;
 /**
- * Installed Windows/Android PWA — show update banner sooner. Busy shops otherwise
- * stay on a waiting SW all day and hit MIME text/html chunk skew after deploy.
+ * If no safe moment arrives, show the small "Update available" banner so the shop
+ * reloads when it suits them. Short on purpose: after each publish the next page
+ * they open has to load the new build anyway, so better they choose the moment.
  */
-export const SILENT_UPDATE_BANNER_FALLBACK_STANDALONE_MS = 15 * 60 * 1000;
+export const SILENT_UPDATE_BANNER_FALLBACK_MS = 10 * 60 * 1000;
+/** Installed Windows/Android PWA — same short banner delay. */
+export const SILENT_UPDATE_BANNER_FALLBACK_STANDALONE_MS = 10 * 60 * 1000;
+/**
+ * Silent reload only after the tab/window has stayed hidden this long. A quick
+ * switch to WhatsApp or another tab must not come back to a reloaded screen.
+ */
+export const SILENT_UPDATE_HIDDEN_MS = 10 * 60 * 1000;
 /** How often installed PWAs should call registration.update(). */
 export const STANDALONE_SW_UPDATE_CHECK_MS = 5 * 60 * 1000;
 
@@ -138,14 +144,15 @@ export async function reloadAppWithUpdateCheck(
 }
 
 export type SilentUpdateWhenSafeOptions = {
-  /** Resolved on each safety check so org switches do not restart the 2h ceiling. */
+  /** Resolved on each safety check so org switches do not restart the banner timer. */
   getOrganizationId?: () => string | null | undefined;
-  /** Called once when the 2h ceiling elapses without a silent reload. */
+  /** Called once when the banner delay elapses without a silent reload. */
   onFallbackBanner: () => void;
   /** Optional pre-reload hook (e.g. activate waiting service worker). */
   beforeReload?: () => void | Promise<void>;
   /** Overrides for tests. */
   idleMs?: number;
+  hiddenMs?: number;
   bannerFallbackMs?: number;
   pollMs?: number;
   now?: () => number;
@@ -169,9 +176,10 @@ let silentReloadInFlight = false;
  * after {@link SILENT_UPDATE_BANNER_FALLBACK_MS}.
  *
  * Safe moment = no POS cart + no unsaved entry screen (purchase, invoice, order…)
- * + no open dialog/sheet, and the tab is hidden
- * (minimize / switch app). A visible idle dashboard must stay put — shops
- * were losing the current page to auto-refresh after every deploy.
+ * + no open dialog/sheet, and the tab has stayed hidden for
+ * {@link SILENT_UPDATE_HIDDEN_MS} (shop closed the window / walked away). A visible
+ * page, or one hidden for a quick switch, must stay put — shops were losing the
+ * current page to auto-refresh after every deploy.
  *
  * Calling again while a prior session is active stops the old timers and
  * restarts the 2-hour banner ceiling (no stacking).
@@ -183,6 +191,10 @@ export function startSilentUpdateWhenSafe(
 
   const bannerFallbackMs = options.bannerFallbackMs ?? SILENT_UPDATE_BANNER_FALLBACK_MS;
   const pollMs = options.pollMs ?? SILENT_UPDATE_POLL_MS;
+  const hiddenMs = options.hiddenMs ?? SILENT_UPDATE_HIDDEN_MS;
+  const now = options.now ?? Date.now;
+  let hiddenSince: number | null =
+    typeof document !== "undefined" && document.visibilityState === "hidden" ? now() : null;
 
   let stopped = false;
   let bannerFired = false;
@@ -210,6 +222,7 @@ export function startSilentUpdateWhenSafe(
       typeof document !== "undefined" && document.visibilityState === "hidden";
     // Never reload a visible page — idle dashboards must stick.
     if (!tabHidden) return;
+    if (hiddenSince === null || now() - hiddenSince < hiddenMs) return;
 
     silentReloadInFlight = true;
     stop();
@@ -230,7 +243,10 @@ export function startSilentUpdateWhenSafe(
 
   const onVisibility = () => {
     if (document.visibilityState === "hidden") {
+      hiddenSince ??= now();
       void trySilentReload();
+    } else {
+      hiddenSince = null;
     }
   };
 
