@@ -27,7 +27,7 @@ export function DcVisibilityController() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (!e.ctrlKey || !e.shiftKey || e.altKey || e.metaKey) return;
-      if (e.code !== "KeyH" && e.key.toLowerCase() !== "h") return;
+      if (e.code !== "KeyH" && (e.key ?? "").toLowerCase() !== "h") return;
       if (!canFlip) return;
       e.preventDefault();
       toggle();

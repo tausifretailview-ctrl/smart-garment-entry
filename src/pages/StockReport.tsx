@@ -386,7 +386,7 @@ export default function StockReport() {
   // Global keyboard shortcut for Ctrl+G
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key.toLowerCase() === "g") {
+      if (e.ctrlKey && (e.key ?? "").toLowerCase() === "g") {
         e.preventDefault();
         setActiveTab("sizewise");
       }
