@@ -298,7 +298,7 @@ export default function AuditLog() {
   );
 
   return (
-    <div className={cn("min-h-screen bg-background", isMobile ? "px-3 py-3 pb-24" : "px-6 py-6")}>
+    <div className={cn("h-full min-h-0 w-full overflow-y-auto bg-background", isMobile ? "px-3 py-3 pb-24" : "px-6 py-6")}>
       <div className="w-full">
         {!isMobile && <BackToDashboard />}
 
