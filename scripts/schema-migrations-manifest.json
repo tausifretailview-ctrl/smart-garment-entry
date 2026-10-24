@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-10-24",
-  "count": 880,
-  "fileCount": 898,
+  "count": 881,
+  "fileCount": 899,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -883,7 +883,8 @@
     "20270221120000",
     "20270222120000",
     "20270223120000",
-    "20270224120000"
+    "20270224120000",
+    "20270225120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1783,7 +1784,8 @@
     "20270221120000_customer_balance_check_speedup.sql",
     "20270222120000_purchase_photo_reads.sql",
     "20270223120000_gift_vouchers_on_advances.sql",
-    "20270224120000_owner_alert_history.sql"
+    "20270224120000_owner_alert_history.sql",
+    "20270225120000_whatsapp_customer_group_join.sql"
   ],
   "duplicateVersions": [
     {
