@@ -6,6 +6,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { ownerAlertsDb } from "@/lib/ownerPush";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
+import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
 import { salesmanTotals, type SalesmanTotal } from "../../supabase/functions/_shared/ownerAlertSchedule";
 
 /**
@@ -72,26 +74,32 @@ interface DayReport {
   salesmen: SalesmanTotal[];
 }
 
-async function fetchDayReport(orgId: string, date: string): Promise<DayReport> {
+async function fetchDayReport(orgId: string, date: string, hideDc = false): Promise<DayReport> {
   const { from, to } = istDayRange(date);
-  const [stats, bills] = await Promise.all([
+  let billsQuery = ownerAlertsDb
+    .from("sales")
+    .select("id, salesman, net_amount")
+    .eq("organization_id", orgId)
+    .is("deleted_at", null)
+    .eq("is_cancelled", false)
+    .neq("payment_status", "hold")
+    .gte("sale_date", from)
+    .lte("sale_date", to);
+  // DC (No GST) hidden: all-DC bills out, DC share of mixed bills out (same as POS Dashboard).
+  if (hideDc) billsQuery = billsQuery.eq("is_dc_bill", false);
+  const [stats, fetchedBills] = await Promise.all([
     ownerAlertsDb.rpc("get_pos_dashboard_stats", {
       p_organization_id: orgId,
       p_date_from: from,
       p_date_to: to,
-      p_filters: {},
+      p_filters: hideDc ? { hideDc: true } : {},
     }),
-    ownerAlertsDb
-      .from("sales")
-      .select("salesman, net_amount")
-      .eq("organization_id", orgId)
-      .is("deleted_at", null)
-      .eq("is_cancelled", false)
-      .neq("payment_status", "hold")
-      .gte("sale_date", from)
-      .lte("sale_date", to)
-      .limit(5000),
+    billsQuery.limit(5000),
   ]);
+  const bills =
+    hideDc && !fetchedBills.error
+      ? { error: null, data: await saleRowsWithoutDc(ownerAlertsDb, fetchedBills.data ?? []) }
+      : fetchedBills;
   if (stats.error) throw stats.error;
   const t = (stats.data ?? {}) as Record<string, number>;
   const n = (k: string) => Number(t[k]) || 0;
@@ -116,13 +124,14 @@ export function OwnerAlertReport() {
   const location = useLocation();
   const close = useCloseAlertScreen();
   const orgId = currentOrganization?.id;
+  const { hideDc } = useDcVisibility();
   const today = istToday();
   const raw = params.get("date") ?? "";
   const date = /^\d{4}-\d{2}-\d{2}$/.test(raw) && raw <= today ? raw : today;
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["owner-alert-report", orgId, date],
-    queryFn: () => fetchDayReport(orgId!, date),
+    queryKey: ["owner-alert-report", orgId, date, hideDc],
+    queryFn: () => fetchDayReport(orgId!, date, hideDc),
     enabled: !!orgId,
     staleTime: 30_000,
   });
