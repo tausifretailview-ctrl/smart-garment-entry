@@ -21,6 +21,8 @@ export function buildTrendzoPaymentLines(opts: {
   creditPaid?: number;
   paidAmount?: number;
   paymentMethod?: string;
+  /** Advance / gift voucher adjusted on the bill. */
+  advanceAdjusted?: number;
 }): TrendzoPaymentLine[] {
   const cash = Number(opts.cashPaid) || 0;
   const upi = Number(opts.upiPaid) || 0;
@@ -31,8 +33,9 @@ export function buildTrendzoPaymentLines(opts: {
   if (upi > 0.005) lines.push({ label: "UPI", amount: upi });
   if (card > 0.005) lines.push({ label: "CARD", amount: card });
   if (credit > 0.005) lines.push({ label: "CREDIT", amount: credit });
+  const advance = Math.max(0, Number(opts.advanceAdjusted) || 0);
   if (lines.length === 0) {
-    const paid = Number(opts.paidAmount) || 0;
+    const paid = (Number(opts.paidAmount) || 0) - advance;
     if (paid > 0.005) {
       lines.push({
         label: (opts.paymentMethod || "CASH").toUpperCase().replace(/_/g, " "),
@@ -40,6 +43,7 @@ export function buildTrendzoPaymentLines(opts: {
       });
     }
   }
+  if (advance > 0.5) lines.push({ label: "ADV/VOUCHER", amount: advance });
   return lines;
 }
 

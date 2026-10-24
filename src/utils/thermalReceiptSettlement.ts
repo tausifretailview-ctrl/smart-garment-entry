@@ -23,6 +23,8 @@ export function normalizeThermalReceiptMoney(input: {
   cardPaid?: number;
   creditPaid?: number;
   refundCash?: number;
+  /** Advance / gift voucher adjusted on the bill: settled, but not counter tender. */
+  advanceAdjusted?: number;
 }): {
   grandTotal: number;
   paidAmount: number;
@@ -67,11 +69,13 @@ export function normalizeThermalReceiptMoney(input: {
     }
   }
 
+  // paid without tender columns may already hold the advance (saved bill), so it is not added twice.
+  const advance = grand > 0.005 ? Math.max(0, round2(input.advanceAdjusted || 0)) : 0;
   const collected = round2(cash + upi + card);
   const shown = trendzoDisplayedSettlement({
     grandTotal: grand,
     saleReturnAdjust: input.saleReturnAdjust,
-    collected: collected > 0.005 ? collected : paid,
+    collected: round2((collected > 0.005 ? collected : Math.max(0, paid - advance)) + advance),
     refundCash: refund,
   });
 
@@ -87,15 +91,21 @@ export function normalizeThermalReceiptMoney(input: {
   };
 }
 
-/** Saved sale row → thermal tender. Never uses net_amount as cash received. */
-export function saleRowThermalTender(sale: {
-  payment_method?: string | null;
-  paid_amount?: number | null;
-  cash_amount?: number | null;
-  card_amount?: number | null;
-  upi_amount?: number | null;
-  credit_amount?: number | null;
-}): {
+/**
+ * Saved sale row → thermal tender. Never uses net_amount as cash received.
+ * `advanceAdjusted` (advance / gift voucher on the bill) is in paid_amount but is not a tender mode.
+ */
+export function saleRowThermalTender(
+  sale: {
+    payment_method?: string | null;
+    paid_amount?: number | null;
+    cash_amount?: number | null;
+    card_amount?: number | null;
+    upi_amount?: number | null;
+    credit_amount?: number | null;
+  },
+  advanceAdjusted = 0,
+): {
   cashPaid: number;
   upiPaid: number;
   cardPaid: number;
@@ -109,11 +119,12 @@ export function saleRowThermalTender(sale: {
   let credit = Math.max(0, round2(sale.credit_amount || 0));
   const sum = round2(cash + card + upi + credit);
   const method = String(sale.payment_method || "").toLowerCase();
-  if (sum <= 0.5 && paid > 0.5) {
-    if (method === "upi") upi = paid;
-    else if (method === "card") card = paid;
-    else if (method === "pay_later" || method === "credit") credit = paid;
-    else if (method === "cash") cash = paid;
+  const counterPaid = Math.max(0, round2(paid - Math.max(0, Number(advanceAdjusted) || 0)));
+  if (sum <= 0.5 && counterPaid > 0.5) {
+    if (method === "upi") upi = counterPaid;
+    else if (method === "card") card = counterPaid;
+    else if (method === "pay_later" || method === "credit") credit = counterPaid;
+    else if (method === "cash") cash = counterPaid;
   }
   return { cashPaid: cash, upiPaid: upi, cardPaid: card, creditPaid: credit, paidAmount: paid };
 }

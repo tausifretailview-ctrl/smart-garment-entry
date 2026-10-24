@@ -67,6 +67,8 @@ interface TrendzoPosThermalReceipt80mmProps {
   previousBalance?: number;
   unusedAdvance?: number;
   refundCash?: number;
+  /** Advance / gift voucher adjusted on this bill: prints as its own payment line. */
+  advanceAdjusted?: number;
   documentType?: "invoice" | "quotation" | "sale-order" | "pos";
   salesman?: string;
   cashier?: string;
@@ -132,6 +134,7 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
     paidAmount = 0,
     unusedAdvance = 0,
     refundCash = 0,
+    advanceAdjusted = 0,
     documentType = "pos",
     salesman,
     cashier,
@@ -203,7 +206,9 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
   const itemCount = items.length;
   const breakdownPaid = cashPaid + upiPaid + cardPaid + creditPaid;
-  const totalPaid = breakdownPaid > 0 ? breakdownPaid : paidAmount;
+  // Tender columns leave out the advance / gift voucher; paidAmount already holds it.
+  const totalPaid =
+    breakdownPaid > 0 ? breakdownPaid + Math.max(0, Number(advanceAdjusted) || 0) : paidAmount;
   const shownSettlement = trendzoDisplayedSettlement({
     grandTotal,
     saleReturnAdjust,
@@ -266,6 +271,7 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
     creditPaid,
     paidAmount: totalPaid,
     paymentMethod,
+    advanceAdjusted,
   });
   const paymentModeLabel = formatTrendzoPaymentModeLabel(paymentLines, paymentMethod);
   const mixAmountPair = trendzoMixAmountPair(paymentLines);

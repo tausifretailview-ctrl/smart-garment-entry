@@ -127,6 +127,8 @@ interface InvoiceWrapperProps {
   tenderAmount?: number;
   cashPaid?: number;
   refundCash?: number;
+  /** Advance / gift voucher adjusted on the bill (thermal payment line). */
+  advanceAdjusted?: number;
   upiPaid?: number;
   /** Mode split when the columns are empty but the method still tells us where the money went. */
   cardPaid?: number;
@@ -768,6 +770,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       cardPaid: props.cardPaid || props.cardAmount,
       creditPaid: props.creditPaid || props.creditAmount,
       refundCash: props.refundCash,
+      advanceAdjusted: props.advanceAdjusted,
     });
 
     // Select template component based on settings
@@ -803,6 +806,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               creditPaid={thermalMoney.creditPaid}
               paidAmount={thermalMoney.paidAmount}
               refundCash={thermalMoney.refundCash}
+              advanceAdjusted={props.advanceAdjusted || 0}
               previousBalance={props.previousBalance ?? 0}
               unusedAdvance={props.unusedAdvance ?? 0}
               documentType={props.documentType || 'pos'}
@@ -869,6 +873,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               previousBalance={props.previousBalance ?? 0}
               unusedAdvance={props.unusedAdvance ?? 0}
               refundCash={thermalMoney.refundCash}
+              advanceAdjusted={props.advanceAdjusted || 0}
               documentType={props.documentType || 'pos'}
               salesman={props.salesman}
               thermalPaper={thermalPaper}
@@ -947,6 +952,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               creditPaid={thermalMoney.creditPaid}
               paidAmount={thermalMoney.paidAmount}
               refundCash={thermalMoney.refundCash}
+              advanceAdjusted={props.advanceAdjusted || 0}
               previousBalance={props.previousBalance ?? 0}
               unusedAdvance={props.unusedAdvance ?? 0}
               documentType={props.documentType || 'pos'}

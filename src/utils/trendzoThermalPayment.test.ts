@@ -124,3 +124,23 @@ describe("POS/26-27/167 exchange refund on the WhatsApp receipt", () => {
     ).toMatchObject({ grandTotal: 2300, paid: 2300, balanceDue: 0 });
   });
 });
+
+describe("buildTrendzoPaymentLines with an advance / gift voucher", () => {
+  it("prints cash and the voucher as separate lines", () => {
+    expect(
+      buildTrendzoPaymentLines({ cashPaid: 398, paidAmount: 798, paymentMethod: "cash", advanceAdjusted: 400 }),
+    ).toEqual([
+      { label: "CASH", amount: 398 },
+      { label: "ADV/VOUCHER", amount: 400 },
+    ]);
+  });
+
+  it("takes the voucher out of the paid fallback", () => {
+    expect(
+      buildTrendzoPaymentLines({ paidAmount: 798, paymentMethod: "upi", advanceAdjusted: 400 }),
+    ).toEqual([
+      { label: "UPI", amount: 398 },
+      { label: "ADV/VOUCHER", amount: 400 },
+    ]);
+  });
+});

@@ -32,6 +32,8 @@ interface RetailPosThermalReceipt80mmProps {
   creditPaid?: number;
   paidAmount?: number;
   refundCash?: number;
+  /** Advance / gift voucher adjusted on this bill: prints as its own payment line. */
+  advanceAdjusted?: number;
   previousBalance?: number;
   unusedAdvance?: number;
   documentType?: "invoice" | "quotation" | "sale-order" | "pos";
@@ -132,6 +134,7 @@ export const RetailPosThermalReceipt80mm = React.forwardRef<
     creditPaid = 0,
     paidAmount = 0,
     refundCash = 0,
+    advanceAdjusted = 0,
     previousBalance = 0,
     unusedAdvance = 0,
     documentType = "pos",
@@ -221,12 +224,14 @@ export const RetailPosThermalReceipt80mm = React.forwardRef<
   if (upiPaid > 0) paymentLines.push({ label: "UPI", amount: upiPaid });
   if (cardPaid > 0) paymentLines.push({ label: "CARD", amount: cardPaid });
   if (creditPaid > 0) paymentLines.push({ label: "CREDIT", amount: creditPaid });
-  if (paymentLines.length === 0 && totalPaid > 0) {
+  const advanceLine = Math.max(0, Number(advanceAdjusted) || 0);
+  if (paymentLines.length === 0 && totalPaid - advanceLine > 0.5) {
     paymentLines.push({
       label: (paymentMethod || "CASH").toUpperCase().replace(/_/g, " "),
-      amount: totalPaid,
+      amount: totalPaid - advanceLine,
     });
   }
+  if (advanceLine > 0.5) paymentLines.push({ label: "ADV/VOUCHER", amount: advanceLine });
 
   const dashed: React.CSSProperties = {
     borderTop: "1px dashed #000",

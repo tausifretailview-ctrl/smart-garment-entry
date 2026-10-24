@@ -129,4 +129,28 @@ describe("thermal receipt money shared by POS, dashboard, and WhatsApp", () => {
       normalizeThermalReceiptMoney({ grandTotal: 1000, paidAmount: 400, cashPaid: 1000 }),
     ).toMatchObject({ cashPaid: 400, paidAmount: 400, balanceDue: 600 });
   });
+
+  it("gift voucher on POS/26-27/398 is settled, not a balance due", () => {
+    // Fresh POS print: paid is the cash tender only.
+    expect(
+      normalizeThermalReceiptMoney({ grandTotal: 798, paidAmount: 398, cashPaid: 398, advanceAdjusted: 400 }),
+    ).toMatchObject({ cashPaid: 398, paidAmount: 798, balanceDue: 0 });
+    // Saved bill: paid_amount already holds the voucher and there are no tender columns.
+    expect(
+      normalizeThermalReceiptMoney({ grandTotal: 798, paidAmount: 798, advanceAdjusted: 400 }),
+    ).toMatchObject({ paidAmount: 798, balanceDue: 0 });
+    // Whole bill paid by voucher.
+    expect(
+      normalizeThermalReceiptMoney({ grandTotal: 400, paidAmount: 0, advanceAdjusted: 400 }),
+    ).toMatchObject({ cashPaid: 0, paidAmount: 400, balanceDue: 0 });
+  });
+
+  it("saved row tender leaves the voucher out of the cash fallback", () => {
+    expect(
+      saleRowThermalTender({ payment_method: "cash", paid_amount: 400, cash_amount: 0 }, 400),
+    ).toMatchObject({ cashPaid: 0, paidAmount: 400 });
+    expect(
+      saleRowThermalTender({ payment_method: "cash", paid_amount: 798, cash_amount: 0 }, 400),
+    ).toMatchObject({ cashPaid: 398 });
+  });
 });

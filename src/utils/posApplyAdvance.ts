@@ -159,3 +159,86 @@ export async function applyExistingAdvanceToSale(
 
   return { consumed, vouchers };
 }
+
+/** Advance / gift voucher adjusted per saved bill (live advance_adjustment receipts), by sale id. */
+export async function fetchSalesAdvanceAdjusted(
+  client: SupabaseClient,
+  organizationId: string,
+  saleIds: string[],
+): Promise<Map<string, number>> {
+  const bySale = new Map<string, number>();
+  const ids = [...new Set(saleIds.filter(Boolean))];
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await client
+      .from("voucher_entries")
+      .select("reference_id, total_amount")
+      .eq("organization_id", organizationId)
+      .in("reference_id", ids.slice(i, i + 200))
+      .eq("voucher_type", "receipt")
+      .eq("payment_method", "advance_adjustment")
+      .is("deleted_at", null);
+    if (error) throw error;
+    for (const row of (data ?? []) as Array<{ reference_id: string | null; total_amount: number | null }>) {
+      if (!row.reference_id) continue;
+      bySale.set(row.reference_id, (bySale.get(row.reference_id) ?? 0) + (Number(row.total_amount) || 0));
+    }
+  }
+  for (const [id, sum] of bySale) bySale.set(id, Math.round(sum * 100) / 100);
+  return bySale;
+}
+
+/** Advance / gift voucher adjusted on a saved bill (live advance_adjustment receipts). */
+export async function fetchSaleAdvanceAdjusted(
+  client: SupabaseClient,
+  organizationId: string,
+  saleId: string,
+): Promise<number> {
+  const bySale = await fetchSalesAdvanceAdjusted(client, organizationId, [saleId]);
+  return bySale.get(saleId) ?? 0;
+}
+
+/**
+ * Part of a bill's advance / gift voucher that is not already inside its tender columns.
+ * POS keeps the advance out of cash/card/UPI, but older bills stored the full bill as tender;
+ * those keep printing and counting as before.
+ */
+export function advanceBeyondTender(
+  sale: {
+    net_amount?: number | null;
+    cash_amount?: number | null;
+    card_amount?: number | null;
+    upi_amount?: number | null;
+  },
+  advanceAdjusted: number,
+): number {
+  const adv = Math.max(0, Number(advanceAdjusted) || 0);
+  if (adv <= 0.005) return 0;
+  const tender =
+    Math.max(0, Number(sale.cash_amount) || 0) +
+    Math.max(0, Number(sale.card_amount) || 0) +
+    Math.max(0, Number(sale.upi_amount) || 0);
+  const room = Math.max(0, (Number(sale.net_amount) || 0) - tender);
+  return Math.round(Math.min(adv, room) * 100) / 100;
+}
+
+/**
+ * Counter money on a saved bill, for its print. With an advance adjusted, paid_amount also holds
+ * the advance, so the tender columns are the counter part; otherwise paid_amount as before.
+ */
+export function savedSaleTenderPaid(
+  sale: {
+    paid_amount?: number | null;
+    cash_amount?: number | null;
+    card_amount?: number | null;
+    upi_amount?: number | null;
+  },
+  advanceAdjusted: number,
+): number {
+  const paid = Math.max(0, Number(sale.paid_amount) || 0);
+  if ((Number(advanceAdjusted) || 0) <= 0.005) return paid;
+  const tender =
+    Math.max(0, Number(sale.cash_amount) || 0) +
+    Math.max(0, Number(sale.card_amount) || 0) +
+    Math.max(0, Number(sale.upi_amount) || 0);
+  return Math.round(tender * 100) / 100;
+}

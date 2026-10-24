@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getEffectivePaidAmountForPosDashboard,
   getPosDashboardDisplayOutstanding,
   getPosPaymentModeDisplayAmounts,
   isHoldLikePosSale,
@@ -143,5 +144,36 @@ describe("old bill completed from Hold before Hold/ → POS/ promotion", () => {
 
   it("still treats a Hold/ row with no method loaded as held", () => {
     expect(isHoldLikePosSale({ sale_number: "Hold/26-27/9", payment_status: "pending" })).toBe(true);
+  });
+});
+
+describe("POS bill paid partly by gift voucher (DEMO POS/26-27/398)", () => {
+  const sale = {
+    payment_method: "cash",
+    payment_status: "partial",
+    sale_number: "POS/26-27/398",
+    net_amount: 798,
+    gross_amount: 840,
+    discount_amount: 42,
+    paid_amount: 400,
+    cash_amount: 398,
+    card_amount: 0,
+    upi_amount: 0,
+    advance_adjusted: 400,
+  };
+
+  it("counts cash + voucher as paid, nothing due", () => {
+    expect(getEffectivePaidAmountForPosDashboard(sale)).toBe(798);
+    expect(isPosSalePaidCompleted(sale)).toBe(true);
+    expect(getPosDashboardDisplayOutstanding(sale)).toBe(0);
+  });
+
+  it("Cash column shows only the cash, not the voucher", () => {
+    expect(getPosPaymentModeDisplayAmounts(sale)).toEqual({ cash: 398, card: 0, upi: 0 });
+    expect(getPosPaymentModeDisplayAmounts({ ...sale, paid_amount: 798 })).toEqual({
+      cash: 398,
+      card: 0,
+      upi: 0,
+    });
   });
 });
