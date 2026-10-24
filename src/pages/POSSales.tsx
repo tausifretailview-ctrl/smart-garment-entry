@@ -4254,6 +4254,8 @@ export default function POSSales() {
   const exchangeRefundDue = Math.max(0, Math.round((saleReturnAdjust - exchangeSrApplied) * 100) / 100);
   /** Mix dialog bill: negative refund amount when exchange excess exists (even if net is 0). */
   const posTenderDue = posTenderDueAfterAdvance(finalAmount, advanceApplied);
+  /** Advance / gift voucher on the bill: the total box shows what is left to collect (bill net is unchanged). */
+  const showToCollect = advanceApplied > 0.01 && finalAmount > 0.005 && exchangeRefundDue <= 0.005;
   const mixDialogBillAmount =
     finalAmount < -0.005 || exchangeRefundDue > 0.005
       ? -Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue)
@@ -9346,13 +9348,24 @@ export default function POSSales() {
                 </div>
               )}
               <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">
-                {finalAmount < -0.005 || exchangeRefundDue > 0.005 ? "Refund Due" : "Net Amount"}
+                {finalAmount < -0.005 || exchangeRefundDue > 0.005
+                  ? "Refund Due"
+                  : showToCollect
+                    ? "To Collect"
+                    : "Net Amount"}
               </div>
               <Input
                 type="number"
                 className={`w-40 h-10 text-center text-lg font-semibold border-0 rounded-md bg-white tabular-nums ${finalAmount < 0 || exchangeRefundDue > 0.005 ? 'text-orange-600' : 'text-emerald-700'}`}
-                value={Math.round(finalAmount < 0 || exchangeRefundDue > 0.005 ? Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue) : finalAmount)}
-                onChange={(e) => handleFinalAmountChange(parseFloat(e.target.value) || 0)}
+                value={Math.round(
+                  finalAmount < 0 || exchangeRefundDue > 0.005
+                    ? Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue)
+                    : showToCollect
+                      ? posTenderDue
+                      : finalAmount,
+                )}
+                // With an advance / gift voucher the box shows what is left to pay; typing still sets the bill total.
+                onChange={(e) => handleFinalAmountChange((parseFloat(e.target.value) || 0) + (showToCollect ? advanceApplied : 0))}
                 step="1"
                 readOnly={finalAmount < -0.005 || exchangeRefundDue > 0.005}
               />
@@ -9361,9 +9374,9 @@ export default function POSSales() {
                   ↓ {effectiveDiscountPercent.toFixed(1)}% off
                 </div>
               )}
-              {advanceApplied > 0.01 && posTenderDue !== Math.round(finalAmount) && (
+              {showToCollect && (
                 <div className="text-[10px] text-orange-200 font-semibold mt-0.5 text-center">
-                  Due ₹{Math.round(posTenderDue).toLocaleString('en-IN')}
+                  Bill ₹{Math.round(finalAmount).toLocaleString('en-IN')} − Adv ₹{Math.round(advanceApplied).toLocaleString('en-IN')}
                 </div>
               )}
             </div>
