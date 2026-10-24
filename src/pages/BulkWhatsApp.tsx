@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { MessagesSquare, Send } from "lucide-react";
+import { BarChart3, MessagesSquare, Send } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { BulkWhatsAppWorkspace } from "@/components/bulk-whatsapp/BulkWhatsAppWorkspace";
@@ -17,7 +17,12 @@ export default function BulkWhatsApp() {
 }
 
 function BulkWhatsAppPage({ organizationId, userId }: { organizationId: string; userId: string | undefined }) {
-  const [tab, setTab] = useState<"send" | "inbox">("send");
+  const [tab, setTab] = useState<"send" | "inbox" | "report">("send");
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const open = (next: "send" | "report") => {
+    setTab(next);
+    scrollRef.current?.scrollTo({ top: 0 });
+  };
   // ?winback=90 from Business Insights > Quiet Customers opens the picker on that win-back list.
   const [params] = useSearchParams();
   const winBack = Number.parseInt(params.get("winback") ?? "", 10);
@@ -25,12 +30,13 @@ function BulkWhatsAppPage({ organizationId, userId }: { organizationId: string; 
   const inbox = useInboxChats(organizationId, tab === "inbox");
   const unread = (inbox.data ?? []).filter((c) => c.unread_count > 0).length;
   const tabs = [
-    { id: "send" as const, label: "Send & reports", icon: <Send className="h-4 w-4" /> },
+    { id: "send" as const, label: "Send", icon: <Send className="h-4 w-4" /> },
     { id: "inbox" as const, label: "Inbox", icon: <MessagesSquare className="h-4 w-4" />, badge: unread },
+    { id: "report" as const, label: "Report", icon: <BarChart3 className="h-4 w-4" /> },
   ];
 
   return (
-    <div className="h-full min-h-0 w-full overflow-y-auto">
+    <div ref={scrollRef} className="h-full min-h-0 w-full overflow-y-auto">
       <div className="flex gap-1 border-b border-slate-200 bg-white px-3 pt-2 sm:px-4">
         {tabs.map((t) => (
           <button
@@ -52,9 +58,17 @@ function BulkWhatsAppPage({ organizationId, userId }: { organizationId: string; 
           </button>
         ))}
       </div>
-      {/* Kept mounted so a half-written message survives a look at the Inbox. */}
-      <div className={cn(tab !== "send" && "hidden")}>
-        <BulkWhatsAppWorkspace organizationId={organizationId} userId={userId} previewTopClass="lg:top-3" winBackDays={winBackDays} />
+      {/* One workspace for Send and Report, kept mounted so a half-written message survives a look elsewhere. */}
+      <div className={cn(tab === "inbox" && "hidden")}>
+        <BulkWhatsAppWorkspace
+          organizationId={organizationId}
+          userId={userId}
+          view={tab === "report" ? "reports" : "send"}
+          onOpenReports={() => open("report")}
+          onOpenSend={() => open("send")}
+          previewTopClass="lg:top-3"
+          winBackDays={winBackDays}
+        />
       </div>
       {tab === "inbox" && (
         <div className="px-2 py-3 sm:px-4">
