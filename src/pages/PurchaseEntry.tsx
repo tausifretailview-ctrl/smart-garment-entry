@@ -10199,6 +10199,19 @@ const PurchaseEntry = () => {
         />
         </LazyOpen>
 
+        {/* Bill Photo Import Dialog */}
+        {photoImportOn && currentOrganization && (
+          <LazyOpen open={showPhotoImport}>
+            <PhotoPurchaseImportDialog
+              open={showPhotoImport}
+              onClose={() => setShowPhotoImport(false)}
+              organizationId={currentOrganization.id}
+              onImport={async (rows) => {
+                await handleExcelImport(rows);
+              }}
+            />
+          </LazyOpen>
+        )}
 
         {/* Product Entry Dialog */}
         <ProductEntryDialogGate
