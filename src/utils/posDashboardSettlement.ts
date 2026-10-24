@@ -26,6 +26,8 @@ export type PosDashboardSaleLike = {
   sale_return_adjust?: number | null;
   /** Set after receipt reconcile — matches Customer Payment pending. */
   pos_outstanding?: number | null;
+  /** Advance / gift voucher adjusted on the bill (advance_adjustment receipts); not in tender columns. */
+  advance_adjusted?: number | null;
 };
 
 export function isHoldLikePosSale(sale: PosDashboardSaleLike): boolean {
@@ -70,7 +72,8 @@ export function getEffectivePaidAmountForPosDashboard(sale: PosDashboardSaleLike
   if (isHoldLikePosSale(sale)) return stored;
 
   const cap = Math.max(0, getPosSettlementNetAmount(sale));
-  const tender = getPosMixTenderTotal(sale);
+  // POS keeps an advance / gift voucher out of the tender columns (cash takes only the rest).
+  const tender = getPosMixTenderTotal(sale) + Math.max(0, Number(sale.advance_adjusted) || 0);
   if (tender <= SETTLEMENT_EPS) return Math.min(cap, stored);
 
   return Math.min(cap, Math.max(stored, tender));
@@ -173,7 +176,11 @@ export function getPosPaymentModeDisplayAmounts(
   }
 
   const tenderSum = Math.round((cash + card + upi) * 100) / 100;
-  const effectivePaid = getEffectivePaidAmountForPosDashboard(sale);
+  // An advance / gift voucher settles the bill but is not cash, card or UPI.
+  const effectivePaid = Math.max(
+    0,
+    getEffectivePaidAmountForPosDashboard(sale) - Math.max(0, Number(sale.advance_adjusted) || 0),
+  );
 
   if (effectivePaid > tenderSum + SETTLEMENT_EPS) {
     const gap = Math.round((effectivePaid - tenderSum) * 100) / 100;

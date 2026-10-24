@@ -24,6 +24,7 @@ import {
 import {
   getEffectivePaidAmountForPosDashboard,
   getPosDashboardDisplayOutstanding,
+  getPosMixTenderTotal,
   getPosPaymentModeDisplayAmounts,
   getPosSaleOutstandingBalance,
   isHoldLikePosSale,
@@ -35,6 +36,7 @@ import { saleBillFigures } from "@/utils/saleBillFigures";
 import { withDashboardTimeout } from "@/utils/withDashboardTimeout";
 import { totalFromShortPage } from "@/utils/dashboardShortPageCount";
 import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
+import { advanceBeyondTender, fetchSalesAdvanceAdjusted } from "@/utils/posApplyAdvance";
 
 /** Calendar bounds for server queries from period chip + date inputs (fixes persisted single-day monthly). */
 
@@ -1113,6 +1115,42 @@ async function enrichPosSalesWithCreditNotes(
   return { sales: enriched, creditNoteUsage };
 }
 
+/**
+ * Advance / gift voucher used on each bill, so Paid, Cash and the reprint count it. Best effort.
+ * `onlyPaidAboveTender` limits the lookup to bills whose paid_amount is above their tender
+ * columns (the only ones an advance can change) for big summary scans.
+ */
+async function attachPosAdvanceAdjusted(
+  client: SupabaseClient,
+  organizationId: string,
+  sales: any[],
+  options?: { onlyPaidAboveTender?: boolean },
+): Promise<any[]> {
+  if (!organizationId || sales.length === 0) return sales;
+  const candidates = options?.onlyPaidAboveTender
+    ? sales.filter(
+        (s: any) =>
+          !isHoldLikePosSale(s) &&
+          (Number(s.paid_amount) || 0) > getPosMixTenderTotal(s) + 0.5,
+      )
+    : sales;
+  if (candidates.length === 0) return sales;
+  try {
+    const bySale = await fetchSalesAdvanceAdjusted(
+      client,
+      organizationId,
+      candidates.map((s: { id: string }) => s.id),
+    );
+    if (bySale.size === 0) return sales;
+    return sales.map((s: any) => {
+      const adv = advanceBeyondTender(s, bySale.get(s.id) ?? 0);
+      return adv > 0.005 ? { ...s, advance_adjusted: adv } : s;
+    });
+  } catch {
+    return sales;
+  }
+}
+
 /** Ledger-consistent paid / status / balance (matches Customer Payment + invoice dashboard). */
 async function enrichPosSalesWithReceiptSettlement(
   client: SupabaseClient,
@@ -1331,6 +1369,7 @@ export async function fetchPosDashboardPage(
   }
 
   const enriched = await enrichPosSalesWithCreditNotes(pageRows);
+  enriched.sales = await attachPosAdvanceAdjusted(client, filters.organizationId, enriched.sales);
   const bounded = resolvePosDashboardDateRange(filters.startDate, filters.endDate);
   const voucherDateFrom = resolvePosDashboardVoucherLookbackFrom(
     bounded.startDate,
@@ -1446,10 +1485,11 @@ async function correctPosDashboardModeTotalsIfNeeded(
   if (!posDashboardModeTotalsNeedCorrection(rpcStats)) return rpcStats;
 
   try {
-    const rows = await scanPosDashboardSummaryRows(
+    const rows = await attachPosAdvanceAdjusted(
       client,
-      filters,
-      POS_DASHBOARD_MODE_CORRECT_SELECT,
+      filters.organizationId,
+      await scanPosDashboardSummaryRows(client, filters, POS_DASHBOARD_MODE_CORRECT_SELECT),
+      { onlyPaidAboveTender: true },
     );
     if (rows.length === 0) return rpcStats;
     const modeStats = computePosDashboardSummaryStats(rows);
@@ -1500,10 +1540,11 @@ async function reconcilePosDashboardSummaryBalanceFromScan(
   }
 
   try {
-    const rows = await scanPosDashboardSummaryRows(
+    const rows = await attachPosAdvanceAdjusted(
       client,
-      filters,
-      POS_DASHBOARD_MODE_CORRECT_SELECT,
+      filters.organizationId,
+      await scanPosDashboardSummaryRows(client, filters, POS_DASHBOARD_MODE_CORRECT_SELECT),
+      { onlyPaidAboveTender: true },
     );
     if (rows.length === 0) return rpcStats;
 
@@ -1607,7 +1648,12 @@ export async function fetchPosDashboardSummary(
 
   for (const select of selectAttempts) {
     try {
-      const allRows = await scanPosDashboardSummaryRows(client, summaryFilters, select);
+      const allRows = await attachPosAdvanceAdjusted(
+        client,
+        summaryFilters.organizationId,
+        await scanPosDashboardSummaryRows(client, summaryFilters, select),
+        { onlyPaidAboveTender: true },
+      );
       if (allRows.length > 0) {
         return reconcilePosDashboardUnpaidCounts(computePosDashboardSummaryStats(allRows));
       }
@@ -1693,6 +1739,9 @@ export async function fetchPosDashboardExportRows(
   }
 
   const enriched = await enrichPosSalesWithCreditNotes(allSales);
+  enriched.sales = await attachPosAdvanceAdjusted(client, filters.organizationId, enriched.sales, {
+    onlyPaidAboveTender: true,
+  });
   return { ...enriched, searchMeta: searchResolution?.searchMeta };
 }
 

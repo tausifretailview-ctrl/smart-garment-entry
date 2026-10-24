@@ -120,6 +120,9 @@ import {
   posAdvanceApplyBlockReason,
   posAdvanceApplyBlockToast,
   posTenderDueAfterAdvance,
+  advanceBeyondTender,
+  fetchSaleAdvanceAdjusted,
+  savedSaleTenderPaid,
   unusedAdvanceFromBookings,
 } from "@/utils/posApplyAdvance";
 import { posFooterCustomerBalance } from "@/utils/customerAccountFacets";
@@ -794,6 +797,11 @@ export default function POSSales() {
   const [availableCreditBalance, setAvailableCreditBalance] = useState(0);
   const [availableAdvanceBalance, setAvailableAdvanceBalance] = useState(0);
   const [advanceApplied, setAdvanceApplied] = useState(0);
+  /**
+   * Edit mode: advance / gift voucher already adjusted on this saved bill (advance_adjustment
+   * receipts). Lowers what is left to collect; never re-applied on save (only advanceApplied is).
+   */
+  const [billAdvanceOnSale, setBillAdvanceOnSale] = useState(0);
   const [openingBalanceRemaining, setOpeningBalanceRemaining] = useState(0);
   const [pendingSaleReturnCredits, setPendingSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; credit_note_id: string | null }>>([]);
   /** S/R typed above the customer's saved return credit → confirm recording an old return. */
@@ -1651,6 +1659,7 @@ export default function POSSales() {
     isInitializingEditRef.current = true;
     hasManuallyAddedNewItemRef.current = false;
     setAdvanceApplied(0);
+    setBillAdvanceOnSale(0);
     // Drop any unsaved-cart snapshot — we're now viewing a specific saved invoice.
     clearPosCartSnapshot(currentOrganization?.id || "default");
     try {
@@ -1744,6 +1753,13 @@ export default function POSSales() {
 
         const effectiveFlat =
           flatRes.percentLooksClean ? Number(sale.flat_discount_amount) || 0 : flatRes.value;
+        const loadedAdvance = advanceBeyondTender(
+          sale,
+          currentOrganization?.id
+            ? await fetchSaleAdvanceAdjusted(supabase, currentOrganization.id, sale.id).catch(() => 0)
+            : 0,
+        );
+        setBillAdvanceOnSale(isHeld ? 0 : loadedAdvance);
         const loadedAccount = await resolvePosInvoiceAccountFacets({
           organizationId: currentOrganization?.id,
           customerId: sale.customer_id,
@@ -1772,7 +1788,8 @@ export default function POSSales() {
           method: sale.payment_method,
           customerName: sale.customer_name,
           customerPhone: sale.customer_phone,
-          paidAmount: Number(sale.paid_amount) || 0,
+          paidAmount: savedSaleTenderPaid(sale, loadedAdvance),
+          advanceAdjusted: loadedAdvance,
           previousBalance: loadedAccount.previousBalance,
           unusedAdvance: loadedAccount.unusedAdvance,
           cashAmount: Number(sale.cash_amount) || 0,
@@ -4253,9 +4270,14 @@ export default function POSSales() {
   );
   const exchangeRefundDue = Math.max(0, Math.round((saleReturnAdjust - exchangeSrApplied) * 100) / 100);
   /** Mix dialog bill: negative refund amount when exchange excess exists (even if net is 0). */
-  const posTenderDue = posTenderDueAfterAdvance(finalAmount, advanceApplied);
+  /** Advance on this bill: applied now + already adjusted on the saved bill (edit). */
+  const totalBillAdvance = advanceApplied + billAdvanceOnSale;
+  const posTenderDue = posTenderDueAfterAdvance(finalAmount, totalBillAdvance);
   /** Advance / gift voucher on the bill: the total box shows what is left to collect (bill net is unchanged). */
-  const showToCollect = advanceApplied > 0.01 && finalAmount > 0.005 && exchangeRefundDue <= 0.005;
+  const showToCollect = totalBillAdvance > 0.01 && finalAmount > 0.005 && exchangeRefundDue <= 0.005;
+  useEffect(() => {
+    if (!currentSaleId) setBillAdvanceOnSale(0);
+  }, [currentSaleId]);
   const mixDialogBillAmount =
     finalAmount < -0.005 || exchangeRefundDue > 0.005
       ? -Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue)
@@ -4820,9 +4842,10 @@ export default function POSSales() {
     }
   };
 
+  // Tender excludes all advance on the bill; only the new advanceApplied is consumed after save.
   const withPosAdvance = <T extends { netAmount: number }>(saleData: T): T & { advanceApplied: number } => ({
     ...saleData,
-    advanceApplied,
+    advanceApplied: totalBillAdvance,
   });
 
   const hasNamedPosCustomer = () =>
@@ -5263,6 +5286,8 @@ export default function POSSales() {
         creditAmount: 0,
         notes: saleNotes || null,
         paidAmount: cashExchangeRefund > 0.005 ? 0 : method === 'pay_later' ? 0 : posTenderDue,
+        // Advance / gift voucher on this bill: prints as its own payment line.
+        advanceAdjusted: cashExchangeRefund > 0.005 ? 0 : totalBillAdvance,
         previousBalance: saveAccount.previousBalance,
         unusedAdvance: saveAccount.unusedAdvance,
         pointsRedemptionValue: pointsRedemptionValue,
@@ -5596,6 +5621,7 @@ export default function POSSales() {
         creditApplied: creditApplied,
         notes: saleNotes || null,
         paidAmount: paymentData.totalPaid,
+        advanceAdjusted: totalBillAdvance,
         previousBalance: mixAccount.previousBalance,
         unusedAdvance: mixAccount.unusedAdvance,
         pointsRedemptionValue: pointsRedemptionValue,
@@ -6064,6 +6090,7 @@ export default function POSSales() {
             creditAmount={savedInvoiceData?.creditAmount || 0}
             financeAmount={savedInvoiceData?.financeAmount || savedInvoiceData?.paymentBreakdown?.financeAmount || 0}
             refundCash={savedInvoiceData?.refundCash || 0}
+            advanceAdjusted={savedInvoiceData ? savedInvoiceData.advanceAdjusted || 0 : totalBillAdvance}
             notes={
               savedInvoiceData?.isEstimate
                 ? `** ESTIMATE - NOT A FINAL INVOICE **${savedInvoiceData?.notes ? '\n' + savedInvoiceData.notes : ''}`
@@ -6285,6 +6312,8 @@ export default function POSSales() {
     if (!sale || !sale.sale_items) return;
     isInitializingEditRef.current = true;
     hasManuallyAddedNewItemRef.current = false;
+    setAdvanceApplied(0);
+    setBillAdvanceOnSale(0);
 
     // Load customer info
     setCustomerName(sale.customer_name || "");
@@ -6363,6 +6392,13 @@ export default function POSSales() {
     isInitializingEditRef.current = false;
 
     // Set saved invoice data using actual stored values from DB
+    const navAdvance = advanceBeyondTender(
+      sale,
+      currentOrganization?.id
+        ? await fetchSaleAdvanceAdjusted(supabase, currentOrganization.id, sale.id).catch(() => 0)
+        : 0,
+    );
+    setBillAdvanceOnSale(navAdvance);
     const navAccount = await resolvePosInvoiceAccountFacets({
       organizationId: currentOrganization?.id,
       customerId: sale.customer_id,
@@ -6391,7 +6427,8 @@ export default function POSSales() {
       method: sale.payment_method,
       customerName: sale.customer_name,
       customerPhone: sale.customer_phone,
-      paidAmount: Number(sale.paid_amount) || 0,
+      paidAmount: savedSaleTenderPaid(sale, navAdvance),
+      advanceAdjusted: navAdvance,
       previousBalance: navAccount.previousBalance,
       unusedAdvance: navAccount.unusedAdvance,
       cashAmount: Number(sale.cash_amount) || 0,
@@ -7159,7 +7196,7 @@ export default function POSSales() {
           onOpenChange={setShowMixPaymentDialog}
           billAmount={mixDialogBillAmount}
           creditApplied={creditApplied}
-          advanceApplied={advanceApplied}
+          advanceApplied={totalBillAdvance}
           exchangeBreakdown={
             exchangeRefundDue > 0.01
               ? { returnTotal: saleReturnAdjust, applied: exchangeSrApplied, refundDue: exchangeRefundDue }
@@ -7286,7 +7323,7 @@ export default function POSSales() {
           onOpenChange={setShowMixPaymentDialog}
           billAmount={mixDialogBillAmount}
           creditApplied={creditApplied}
-          advanceApplied={advanceApplied}
+          advanceApplied={totalBillAdvance}
           exchangeBreakdown={
             exchangeRefundDue > 0.01
               ? { returnTotal: saleReturnAdjust, applied: exchangeSrApplied, refundDue: exchangeRefundDue }
@@ -9365,7 +9402,7 @@ export default function POSSales() {
                       : finalAmount,
                 )}
                 // With an advance / gift voucher the box shows what is left to pay; typing still sets the bill total.
-                onChange={(e) => handleFinalAmountChange((parseFloat(e.target.value) || 0) + (showToCollect ? advanceApplied : 0))}
+                onChange={(e) => handleFinalAmountChange((parseFloat(e.target.value) || 0) + (showToCollect ? totalBillAdvance : 0))}
                 step="1"
                 readOnly={finalAmount < -0.005 || exchangeRefundDue > 0.005}
               />
@@ -9376,7 +9413,7 @@ export default function POSSales() {
               )}
               {showToCollect && (
                 <div className="text-[10px] text-orange-200 font-semibold mt-0.5 text-center">
-                  Bill ₹{Math.round(finalAmount).toLocaleString('en-IN')} − Adv ₹{Math.round(advanceApplied).toLocaleString('en-IN')}
+                  Bill ₹{Math.round(finalAmount).toLocaleString('en-IN')} − Adv ₹{Math.round(totalBillAdvance).toLocaleString('en-IN')}
                 </div>
               )}
             </div>
@@ -9501,8 +9538,8 @@ export default function POSSales() {
                 saleReturnAdjust={posPrintSaleReturnAdjust(saleReturnAdjust, creditApplied)}
                 grandTotal={finalAmount}
                 billNetAmount={totals.billAmount}
-                cashPaid={paymentMethod === 'cash' ? finalAmount : 0}
-                upiPaid={paymentMethod === 'upi' ? finalAmount : 0}
+                cashPaid={paymentMethod === 'cash' ? posTenderDue : 0}
+                upiPaid={paymentMethod === 'upi' ? posTenderDue : 0}
                 paymentMethod={paymentMethod}
                 cashAmount={savedInvoiceData?.cashAmount || 0}
                 upiAmount={savedInvoiceData?.upiAmount || 0}
@@ -9510,6 +9547,7 @@ export default function POSSales() {
                 creditAmount={savedInvoiceData?.creditAmount || 0}
             financeAmount={savedInvoiceData?.financeAmount || savedInvoiceData?.paymentBreakdown?.financeAmount || 0}
                 refundCash={savedInvoiceData?.refundCash || 0}
+                advanceAdjusted={totalBillAdvance}
                 paidAmount={paymentMethod === 'pay_later' ? 0 : finalAmount}
                 previousBalance={customerBalance || 0}
                 unusedAdvance={customerUnusedAdvance || 0}
@@ -9716,6 +9754,7 @@ export default function POSSales() {
                 creditAmount={savedInvoiceData.creditAmount || 0}
             financeAmount={savedInvoiceData.financeAmount || savedInvoiceData.paymentBreakdown?.financeAmount || 0}
                 refundCash={savedInvoiceData.refundCash || 0}
+                advanceAdjusted={savedInvoiceData.advanceAdjusted || 0}
                 notes={savedInvoiceData.notes}
                 pointsBalance={savedInvoiceData.pointsBalance}
                 pointsRedeemed={savedInvoiceData.pointsRedeemed}
@@ -9740,7 +9779,7 @@ export default function POSSales() {
           onOpenChange={setShowMixPaymentDialog}
           billAmount={mixDialogBillAmount}
           creditApplied={creditApplied}
-          advanceApplied={advanceApplied}
+          advanceApplied={totalBillAdvance}
           exchangeBreakdown={
             exchangeRefundDue > 0.01
               ? { returnTotal: saleReturnAdjust, applied: exchangeSrApplied, refundDue: exchangeRefundDue }

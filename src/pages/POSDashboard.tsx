@@ -100,7 +100,7 @@ import {
   deleteJournalEntryByReference,
   recordCustomerReceiptJournalEntry,
 } from "@/utils/accounting/journalService";
-import { applyExistingAdvanceToSale } from "@/utils/posApplyAdvance";
+import { advanceBeyondTender, applyExistingAdvanceToSale, fetchSaleAdvanceAdjusted } from "@/utils/posApplyAdvance";
 import { invalidateMoneyViewsAfterMutation } from "@/utils/moneyViewFreshnessInvalidation";
 import { useSettings } from "@/hooks/useSettings";
 import { fetchSalePrintFirm, resolveSecondFirm, type PrintFirm } from "@/utils/secondFirm";
@@ -254,6 +254,8 @@ interface Sale {
   credit_note_id?: string | null;
   credit_note_amount?: number;
   sale_return_adjust?: number | null;
+  /** Advance / gift voucher used on the bill (not in the cash/card/UPI columns). */
+  advance_adjusted?: number | null;
   salesman?: string | null;
   notes?: string | null;
   tax_type?: string | null;
@@ -2024,7 +2026,7 @@ const POSDashboard = () => {
       if (currentOrganization?.id) {
         financerQuery = financerQuery.eq("organization_id", currentOrganization.id);
       }
-      const [{ data: finData }, { data: customerData }, accountFacets, printFirm] = await Promise.all([
+      const [{ data: finData }, { data: customerData }, accountFacets, printFirm, advanceAdjusted] = await Promise.all([
         financerQuery.maybeSingle(),
         sale.customer_id
           ? supabase.from("customers").select("gst_number, transport_details, points_balance").eq("id", sale.customer_id).maybeSingle()
@@ -2045,6 +2047,12 @@ const POSDashboard = () => {
           }
         })(),
         secondFirmEnabled ? fetchSalePrintFirm(sale.id) : Promise.resolve(null as PrintFirm),
+        // Advance / gift voucher used on the bill prints as its own payment line.
+        currentOrganization?.id
+          ? fetchSaleAdvanceAdjusted(supabase, currentOrganization.id, sale.id)
+              .then((adv) => advanceBeyondTender(sale, adv))
+              .catch(() => Number(sale.advance_adjusted) || 0)
+          : Promise.resolve(Number(sale.advance_adjusted) || 0),
       ]);
 
       financerDetails = mapSaleFinancerDetailsForInvoice(finData as Record<string, unknown>);
@@ -2093,7 +2101,8 @@ const POSDashboard = () => {
         grandTotal: saleBillFigures(sale).payable,
         billNetAmount: saleBillFigures(sale).billAmount,
         roundOff: sale.round_off || 0,
-        ...saleRowThermalTender(sale),
+        ...saleRowThermalTender(sale, advanceAdjusted),
+        advanceAdjusted,
         paymentMethod: sale.payment_method,
         cashAmount: sale.cash_amount,
         cardAmount: sale.card_amount,
@@ -3357,7 +3366,7 @@ const POSDashboard = () => {
             ) : (
               paginatedSales.map((sale) => {
                 const totalSettled =
-                  (sale.paid_amount || 0) + Number(sale.sale_return_adjust || 0);
+                  getEffectivePaidAmountForDashboard(sale) + Number(sale.sale_return_adjust || 0);
                 const cancelled = isSaleInvoiceCancelled(sale);
                 const effectiveStatus =
                   cancelled
@@ -3403,6 +3412,11 @@ const POSDashboard = () => {
                     footer={
                       <span className="text-[10px] text-muted-foreground capitalize">
                         {sale.payment_method || "—"}
+                        {Number(sale.advance_adjusted) > 0.5 && (
+                          <span className="normal-case text-violet-600">
+                            {" "}+ Adv/GV ₹{Math.round(Number(sale.advance_adjusted)).toLocaleString("en-IN")}
+                          </span>
+                        )}
                       </span>
                     }
                   />
@@ -4198,7 +4212,19 @@ const POSDashboard = () => {
                               {cancelled ? "-" : sale.upi_amount ? `₹${Math.round(sale.upi_amount).toLocaleString('en-IN')}` : '-'}
                             </TableCell>
                             <TableCell className={cn("px-2 py-1.5 text-sm text-right tabular-nums", cancelStrike)} onClick={() => toggleExpanded(sale.id)}>
-                              {cancelled ? "-" : `₹${Math.round(getEffectivePaidAmountForDashboard(sale)).toLocaleString('en-IN')}`}
+                              {cancelled ? "-" : (
+                                <div className="flex flex-col items-end leading-tight">
+                                  <span>₹{Math.round(getEffectivePaidAmountForDashboard(sale)).toLocaleString('en-IN')}</span>
+                                  {Number(sale.advance_adjusted) > 0.5 && (
+                                    <span
+                                      className="text-[11px] font-medium text-violet-600 whitespace-nowrap"
+                                      title="Advance / gift voucher used on this bill"
+                                    >
+                                      incl. Adv/GV ₹{Math.round(Number(sale.advance_adjusted)).toLocaleString('en-IN')}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </TableCell>
                             <TableCell className={cn("px-2 py-1.5 text-sm text-right tabular-nums", cancelStrike)} onClick={() => toggleExpanded(sale.id)}>
                               {(() => {
@@ -4869,10 +4895,11 @@ const POSDashboard = () => {
               billNetAmount={saleBillFigures(previewSale).billAmount}
               refundCash={saleRefundForReprint(previewSale, previewVoucherRefund)}
               roundOff={previewSale.round_off || 0}
-              cashPaid={saleRowThermalTender(previewSale).cashPaid}
-              upiPaid={saleRowThermalTender(previewSale).upiPaid}
-              cardPaid={saleRowThermalTender(previewSale).cardPaid}
-              creditPaid={saleRowThermalTender(previewSale).creditPaid}
+              cashPaid={saleRowThermalTender(previewSale, Number(previewSale.advance_adjusted) || 0).cashPaid}
+              upiPaid={saleRowThermalTender(previewSale, Number(previewSale.advance_adjusted) || 0).upiPaid}
+              cardPaid={saleRowThermalTender(previewSale, Number(previewSale.advance_adjusted) || 0).cardPaid}
+              creditPaid={saleRowThermalTender(previewSale, Number(previewSale.advance_adjusted) || 0).creditPaid}
+              advanceAdjusted={Number(previewSale.advance_adjusted) || 0}
               previousBalance={previewAccount.previousBalance}
               unusedAdvance={previewAccount.unusedAdvance}
               paymentMethod={previewSale.payment_method}
@@ -5082,6 +5109,7 @@ const POSDashboard = () => {
             grandTotal={printData.grandTotal}
             billNetAmount={printData.billNetAmount}
             refundCash={printData.refundCash ?? 0}
+            advanceAdjusted={printData.advanceAdjusted ?? 0}
             financeAmount={printData.financeAmount ?? 0}
             roundOff={printData.roundOff}
             cashPaid={printData.cashPaid}

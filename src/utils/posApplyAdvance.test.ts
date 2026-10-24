@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  advanceBeyondTender,
   capPosAdvanceApplyAmount,
   POS_ADVANCE_OB_REFUSE_THRESHOLD,
   POS_ADVANCE_OB_TOAST,
@@ -7,6 +8,7 @@ import {
   posAdvanceApplyBlockReason,
   posAdvanceApplyBlockToast,
   posTenderDueAfterAdvance,
+  savedSaleTenderPaid,
   unusedAdvanceFromBookings,
 } from "./posApplyAdvance";
 
@@ -137,5 +139,27 @@ describe("unusedAdvanceFromBookings", () => {
     expect(
       unusedAdvanceFromBookings([{ amount: 500, used_amount: 800 }]),
     ).toBe(0);
+  });
+});
+
+describe("saved bill with a gift voucher (DEMO POS/26-27/398: ₹798 = cash ₹398 + voucher ₹400)", () => {
+  const sale = { net_amount: 798, paid_amount: 400, cash_amount: 398, card_amount: 0, upi_amount: 0 };
+
+  it("prints the cash part from the tender columns, not paid_amount", () => {
+    expect(savedSaleTenderPaid(sale, 400)).toBe(398);
+    expect(savedSaleTenderPaid({ ...sale, paid_amount: 798 }, 400)).toBe(398);
+  });
+
+  it("keeps paid_amount when no advance was used", () => {
+    expect(savedSaleTenderPaid({ ...sale, paid_amount: 798, cash_amount: 798 }, 0)).toBe(798);
+  });
+
+  it("voucher outside the tender columns counts in full", () => {
+    expect(advanceBeyondTender(sale, 400)).toBe(400);
+  });
+
+  it("older bills that stored the whole bill as tender keep printing as before", () => {
+    expect(advanceBeyondTender({ ...sale, cash_amount: 798 }, 400)).toBe(0);
+    expect(advanceBeyondTender({ ...sale, cash_amount: 600 }, 400)).toBe(198);
   });
 });
