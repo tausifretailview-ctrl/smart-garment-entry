@@ -5,6 +5,9 @@
  *   "show" (default) — DC purchases, stock and sales appear like normal; Ctrl+Shift+H hides them.
  *   "hide"           — DC is hidden everywhere; Ctrl+Shift+H shows it (org admins only).
  *
+ * User Rights "Always show DC transactions" (opt-in, per login) makes Hide mode act like Show
+ * mode for that login: DC appears like normal and Ctrl+Shift+H hides it.
+ *
  * Ctrl+Shift+H flips the mode for this browser tab only (sessionStorage, per user + org).
  * The flip goes back to the shop's mode after 15 minutes without a key press or tap.
  * Prints always show every item: this only filters lists, dashboards and reports.
@@ -21,6 +24,14 @@ export function resolveDcVisibilityMode(
   purchaseSettings: { dc_visibility_mode?: string | null } | null | undefined,
 ): DcVisibilityMode {
   return purchaseSettings?.dc_visibility_mode === "hide" ? "hide" : "show";
+}
+
+/** User Rights special right: this login always sees DC, even in a Hide DC shop. */
+export const ALWAYS_SHOW_DC_RIGHT = "always_show_dc";
+
+/** The mode this login works in: the shop's mode, or Show for an "Always show DC" login. */
+export function effectiveDcVisibilityMode(shopMode: DcVisibilityMode, alwaysShowDc: boolean): DcVisibilityMode {
+  return alwaysShowDc ? "show" : shopMode;
 }
 
 /** True when DC rows must be left out of the screen. */

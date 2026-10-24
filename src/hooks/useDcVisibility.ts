@@ -4,9 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 import {
+  ALWAYS_SHOW_DC_RIGHT,
   canFlipDcVisibility,
   dcVisibilityStorageKey,
+  effectiveDcVisibilityMode,
   isDcVisibilityFlipped,
   resolveDcVisibilityMode,
   setDcVisibilityFlipped,
@@ -34,9 +37,13 @@ export function useDcVisibility(): DcVisibility {
   const { data: settings } = useSettings();
   const { currentOrganization, organizationRole } = useOrganization();
   const { user } = useAuth();
-  const mode = resolveDcVisibilityMode(
-    (settings as { purchase_settings?: { dc_visibility_mode?: string | null } | null } | null)
-      ?.purchase_settings,
+  const { hasSpecialPermission } = useUserPermissions();
+  const mode = effectiveDcVisibilityMode(
+    resolveDcVisibilityMode(
+      (settings as { purchase_settings?: { dc_visibility_mode?: string | null } | null } | null)
+        ?.purchase_settings,
+    ),
+    hasSpecialPermission(ALWAYS_SHOW_DC_RIGHT),
   );
   const key =
     user?.id && currentOrganization?.id

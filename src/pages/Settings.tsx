@@ -2154,6 +2154,7 @@ export default function Settings() {
                         <span className="block text-xs text-muted-foreground">
                           DC purchases, DC stock and DC sales are hidden from lists, dashboards and reports.
                           Admins press Ctrl+Shift+H to show them (goes back after 15 minutes idle).
+                          Logins with User Rights "Always show DC transactions" see them all the time.
                         </span>
                       </Label>
                     </div>

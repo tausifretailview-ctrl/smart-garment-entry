@@ -175,6 +175,7 @@ const specialRights = [
   { id: "reset_data", name: "Reset Organization Data", description: "Allow resetting all organization data" },
   { id: "system_health", name: "System Health", description: "Access System Health diagnostics page (hidden by default)" },
   { id: "pos_margin_indicator", name: "POS Margin Indicator", description: "See live profit margin % and total profit on the POS billing screen (hidden by default)" },
+  { id: "always_show_dc", name: "Always show DC transactions", description: "When Settings > Purchase is set to Hide DC, this login still sees DC (No GST) purchases, sales and stock, without Ctrl+Shift+H (off by default)" },
 ];
 
 // Column visibility config for modules
