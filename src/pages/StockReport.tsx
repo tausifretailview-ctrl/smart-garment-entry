@@ -72,6 +72,7 @@ import {
 } from "@/utils/posBarcodeCartLookup";
 import { mergeActivityNavigationState } from "@/lib/activityCenterNavigation";
 import { escapeHtml } from "@/utils/escapeHtml";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 import {
   buildStockReportFilterOptions,
   buildStockReportRpcFilters,
@@ -183,6 +184,7 @@ function stockItemMatchesSearch(item: StockItem, query: string): boolean {
 
 export default function StockReport() {
   const { currentOrganization } = useOrganization();
+  const { hideDc } = useDcVisibility();
   const { orgNavigate } = useOrgNavigation();
   const queryClient = useQueryClient();
   const productFieldSettings = useProductFieldSettings();
@@ -406,12 +408,13 @@ export default function StockReport() {
 
   // Org-wide summary cards — single RPC aggregate, cached 5 min, non-blocking
   const { data: cachedGlobalTotals, isLoading: globalTotalsQueryLoading } = useQuery({
-    queryKey: ["stock-report-global-totals", currentOrganization?.id],
+    queryKey: ["stock-report-global-totals", currentOrganization?.id, hideDc],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
 
       const { data, error } = await supabase.rpc("get_stock_report_totals", {
         p_organization_id: currentOrganization.id,
+        ...(hideDc ? { p_hide_dc: true } : {}),
       });
 
       if (error) throw error;
@@ -674,6 +677,7 @@ export default function StockReport() {
             pinnedProducts,
             supplierFilter,
             supplierInvoiceFilter,
+            hideDc,
           }),
           p_limit: fetchLimit,
           p_offset: fetchOffset,
@@ -738,6 +742,7 @@ export default function StockReport() {
                     pinnedProducts,
                     supplierFilter,
                     supplierInvoiceFilter,
+                    hideDc,
                   }),
                   p_limit: fetchLimit,
                   p_offset: 0,
@@ -852,6 +857,7 @@ export default function StockReport() {
       supplierInvoiceFilter,
       stockStatusFilter,
       lowStockThreshold,
+      hideDc,
       ITEMS_PER_PAGE,
       SIZE_WISE_FETCH_LIMIT,
     ],
@@ -881,6 +887,7 @@ export default function StockReport() {
         stockStatusFilter,
         lowStockThreshold,
         activeTab,
+        hideDc,
         pinned: pinnedProducts
           .map((p) => p.id)
           .sort()
@@ -898,6 +905,7 @@ export default function StockReport() {
       stockStatusFilter,
       lowStockThreshold,
       activeTab,
+      hideDc,
       pinnedProducts,
     ],
   );
@@ -921,10 +929,12 @@ export default function StockReport() {
         pinnedProducts,
         supplierFilter,
         supplierInvoiceFilter,
+        hideDc,
       };
     },
     [
       currentOrganization?.id,
+      hideDc,
       appliedSearchTerm,
       categoryFilter,
       brandFilter,

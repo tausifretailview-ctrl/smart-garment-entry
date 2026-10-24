@@ -1,6 +1,7 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 import { useProductFieldSettings, type ProductFieldKey } from "@/hooks/useSettings";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -85,6 +86,7 @@ export function ItemWiseClosingStockPanel({
   onCurrentPageChange,
 }: ItemWiseClosingStockPanelProps) {
   const { currentOrganization } = useOrganization();
+  const { hideDc } = useDcVisibility();
   const productFieldSettings = useProductFieldSettings();
   const fieldLabels = {
     brand: productFieldSettings.brand?.label || "Brand",
@@ -127,6 +129,12 @@ export function ItemWiseClosingStockPanel({
     [listFilters, onFiltersChange],
   );
 
+  // DC (No GST) hidden: same filters plus the DC flag for the stock RPCs.
+  const rpcFilters = useMemo(
+    () => (hideDc ? { ...listFilters, hideDc: true } : listFilters),
+    [listFilters, hideDc],
+  );
+
   const currentPage = controlledPage ?? internalPage;
   const setCurrentPage = onCurrentPageChange ?? setInternalPage;
 
@@ -144,9 +152,9 @@ export function ItemWiseClosingStockPanel({
     error: listError,
     refetch: refetchList,
   } = useQuery({
-    queryKey: ["item-wise-stock", currentOrganization?.id, listFilters, currentPage],
+    queryKey: ["item-wise-stock", currentOrganization?.id, rpcFilters, currentPage],
     queryFn: () =>
-      fetchItemWiseStockPage(currentOrganization!.id, listFilters, currentPage, ITEM_WISE_STOCK_PAGE_SIZE),
+      fetchItemWiseStockPage(currentOrganization!.id, rpcFilters, currentPage, ITEM_WISE_STOCK_PAGE_SIZE),
     enabled: !!currentOrganization?.id,
     ...STABLE_TAB_OPTIONS,
   });
@@ -157,8 +165,8 @@ export function ItemWiseClosingStockPanel({
     isFetching: totalsFetching,
     refetch: refetchTotals,
   } = useQuery({
-    queryKey: ["item-wise-stock-totals", currentOrganization?.id, listFilters],
-    queryFn: () => fetchItemWiseStockTotals(currentOrganization!.id, listFilters),
+    queryKey: ["item-wise-stock-totals", currentOrganization?.id, rpcFilters],
+    queryFn: () => fetchItemWiseStockTotals(currentOrganization!.id, rpcFilters),
     enabled: !!currentOrganization?.id,
     ...STABLE_TAB_OPTIONS,
   });
@@ -233,8 +241,8 @@ export function ItemWiseClosingStockPanel({
 
   const loadAllRowsForExport = useCallback(async () => {
     if (!currentOrganization?.id) return [];
-    return fetchAllItemWiseStockRows(currentOrganization.id, listFilters);
-  }, [currentOrganization?.id, listFilters]);
+    return fetchAllItemWiseStockRows(currentOrganization.id, rpcFilters);
+  }, [currentOrganization?.id, rpcFilters]);
 
   const groupBy = listFilters.groupBy;
   const groupLabel = GROUP_BY_LABELS[groupBy];

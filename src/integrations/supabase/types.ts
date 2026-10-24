@@ -7229,6 +7229,7 @@ export type Database = {
           gst_percent: number
           hsn_code: string | null
           id: string
+          is_dc_item: boolean | null
           line_total: number
           product_id: string
           product_name: string
@@ -7247,6 +7248,7 @@ export type Database = {
           gst_percent: number
           hsn_code?: string | null
           id?: string
+          is_dc_item?: boolean | null
           line_total: number
           product_id: string
           product_name: string
@@ -7265,6 +7267,7 @@ export type Database = {
           gst_percent?: number
           hsn_code?: string | null
           id?: string
+          is_dc_item?: boolean | null
           line_total?: number
           product_id?: string
           product_name?: string
@@ -7421,6 +7424,7 @@ export type Database = {
           invoice_type: string | null
           irn: string | null
           is_cancelled: boolean
+          is_dc_bill: boolean
           journal_error: string | null
           journal_status: string
           legacy_paid_baseline: number
@@ -7489,6 +7493,7 @@ export type Database = {
           invoice_type?: string | null
           irn?: string | null
           is_cancelled?: boolean
+          is_dc_bill?: boolean
           journal_error?: string | null
           journal_status?: string
           legacy_paid_baseline?: number
@@ -7557,6 +7562,7 @@ export type Database = {
           invoice_type?: string | null
           irn?: string | null
           is_cancelled?: boolean
+          is_dc_bill?: boolean
           journal_error?: string | null
           journal_status?: string
           legacy_paid_baseline?: number
@@ -11905,7 +11911,12 @@ export type Database = {
       }
       get_deleted_cn_adjust_without_sra_digest: { Args: never; Returns: Json }
       get_erp_dashboard_stats: {
-        Args: { p_end_date: string; p_org_id: string; p_start_date: string }
+        Args: {
+          p_end_date: string
+          p_hide_dc?: boolean
+          p_org_id: string
+          p_start_date: string
+        }
         Returns: Json
       }
       get_expense_by_category: {
@@ -12022,7 +12033,12 @@ export type Database = {
         Returns: Json
       }
       get_net_profit_kpis: {
-        Args: { p_from_date: string; p_org_id: string; p_to_date: string }
+        Args: {
+          p_from_date: string
+          p_hide_dc?: boolean
+          p_org_id: string
+          p_to_date: string
+        }
         Returns: Json
       }
       get_org_public_info: { Args: { p_slug: string }; Returns: Json }
@@ -12215,6 +12231,7 @@ export type Database = {
           p_closing_stock?: string
           p_department?: string
           p_group_by?: string
+          p_hide_dc?: boolean
           p_limit?: number
           p_offset?: number
           p_org_id: string
@@ -12241,6 +12258,7 @@ export type Database = {
           p_closing_stock?: string
           p_department?: string
           p_group_by?: string
+          p_hide_dc?: boolean
           p_org_id: string
           p_search?: string
           p_supplier?: string
@@ -12442,6 +12460,7 @@ export type Database = {
       }
       get_stock_report: {
         Args: {
+          p_hide_dc?: boolean
           p_brand?: string
           p_category?: string
           p_color?: string
@@ -12487,6 +12506,7 @@ export type Database = {
       }
       get_stock_report_filtered_totals: {
         Args: {
+          p_hide_dc?: boolean
           p_brand?: string
           p_category?: string
           p_color?: string
@@ -12505,7 +12525,7 @@ export type Database = {
         Returns: Json
       }
       get_stock_report_totals: {
-        Args: { p_organization_id: string }
+        Args: { p_hide_dc?: boolean; p_organization_id: string }
         Returns: Json
       }
       get_stock_value: { Args: { p_org_id: string }; Returns: number }

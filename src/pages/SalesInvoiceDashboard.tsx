@@ -23,6 +23,7 @@ import {
 } from "@/utils/releaseExcessAdvanceSettlement";
 import { resolveCnAdjustDateForSale } from "@/utils/customerAuditBundle";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardHeader, CardContent, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -242,6 +243,7 @@ export default function SalesInvoiceDashboard() {
   const { orgNavigate: navigate, orgSlug } = useOrgNavigation();
   const { user, session } = useAuth();
   const { currentOrganization, organizationRole } = useOrganization();
+  const { hideDc } = useDcVisibility();
   const { accounts: bankAccounts } = useOrganizationBankAccounts(currentOrganization?.id ?? "");
   const { hasSpecialPermission } = useUserPermissions();
   const { formatMessage } = useWhatsAppTemplates();
@@ -871,8 +873,10 @@ export default function SalesInvoiceDashboard() {
       saleDateFilter,
       voucherDateFrom: queryDateRange.start,
       voucherDateTo: queryDateRange.end,
+      hideDc,
     }),
     [
+      hideDc,
       currentOrganization?.id,
       debouncedSearch,
       deliveryFilter,
@@ -901,6 +905,8 @@ export default function SalesInvoiceDashboard() {
     queryDateRange.end,
     currentPage,
     itemsPerPage,
+    // Only when DC is hidden, so the normal key still matches the login prefetch.
+    ...(hideDc ? (["dc-hidden"] as const) : []),
   ] as const;
 
   // Fast server-side summary tiles (parallel with table fetch).
@@ -4701,7 +4707,10 @@ export default function SalesInvoiceDashboard() {
                                   <div>
                                     <h4 className="font-semibold mb-2 text-base">Items:</h4>
                                     {(() => {
-                                      const lineRows = loadedItems[invoice.id] ?? invoice.sale_items ?? [];
+                                      // DC hidden: leave DC lines out of this list only (prints use the full bill).
+                                      const lineRows = (loadedItems[invoice.id] ?? invoice.sale_items ?? []).filter(
+                                        (item: any) => !hideDc || item?.is_dc_item !== true,
+                                      );
                                       const showMissingHint =
                                         lineRows.length === 0 && Number(invoice.net_amount || 0) > 0;
                                       return (

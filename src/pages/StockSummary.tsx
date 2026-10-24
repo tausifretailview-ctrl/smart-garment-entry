@@ -68,6 +68,7 @@ import {
   type HiddenColumns,
 } from "@/lib/stockSummaryColumns";
 import { buildStockSummaryPdf, type PdfCell, type PdfColumn, type PdfKpi } from "@/lib/stockSummaryPdf";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
@@ -263,6 +264,7 @@ const TD = "px-3 py-1.5 align-middle whitespace-nowrap tabular-nums";
 export default function StockSummary() {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
+  const { hideDc } = useDcVisibility();
   const { orgNavigate } = useOrgNavigation();
   const queryClient = useQueryClient();
   const productFieldSettings = useProductFieldSettings();
@@ -352,9 +354,11 @@ export default function StockSummary() {
       pinnedProducts: [],
       supplierFilter,
       supplierInvoiceFilter,
+      hideDc,
     };
   }, [
     orgId,
+    hideDc,
     appliedSearch,
     categoryFilter,
     brandFilter,
@@ -389,10 +393,13 @@ export default function StockSummary() {
 
   // ── Totals: same RPCs and cache keys as Stock Report, so both pages show the same figures ──
   const { data: globalTotals, isLoading: globalLoading } = useQuery({
-    queryKey: ["stock-report-global-totals", orgId],
+    queryKey: ["stock-report-global-totals", orgId, hideDc],
     queryFn: async (): Promise<Totals | null> => {
       if (!orgId) return null;
-      const { data, error } = await supabase.rpc("get_stock_report_totals", { p_organization_id: orgId });
+      const { data, error } = await supabase.rpc("get_stock_report_totals", {
+        p_organization_id: orgId,
+        ...(hideDc ? { p_hide_dc: true } : {}),
+      });
       if (error) throw error;
       const row = data as { total_stock?: number; stock_value?: number; sale_value?: number; variant_count?: number } | null;
       return {

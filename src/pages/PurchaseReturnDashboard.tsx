@@ -8,6 +8,7 @@ import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,7 @@ const PurchaseReturnDashboard = () => {
   const { orgNavigate: navigate } = useOrgNavigation();
   const location = useLocation();
   const { currentOrganization } = useOrganization();
+  const { hideDc } = useDcVisibility();
   const queryClient = useQueryClient();
 
   const isDesktop = useIsDesktop();
@@ -252,9 +254,12 @@ const PurchaseReturnDashboard = () => {
     setCurrentPage(1);
   }, [startDate, endDate]);
 
+  // DC (No GST) hidden: only GST returns, whatever the DC filter says.
+  const effectiveDcFilter = hideDc ? "gst" : dcFilter;
+
   // Server-side paginated query
   const { data: returnsData, isLoading: returnsLoading, error: returnsError, refetch: refetchReturns } = useQuery({
-    queryKey: ["purchase-returns", currentOrganization?.id, debouncedSearch, startDate, endDate, dcFilter, currentPage, pageSize],
+    queryKey: ["purchase-returns", currentOrganization?.id, debouncedSearch, startDate, endDate, effectiveDcFilter, currentPage, pageSize],
     queryFn: async () => {
       if (!currentOrganization?.id) return { returns: [], totalCount: 0 };
 
@@ -286,11 +291,11 @@ const PurchaseReturnDashboard = () => {
           .is("deleted_at", null);
 
         if (filterMode === "is_dc") {
-          if (dcFilter === "dc") query = query.eq("is_dc", true);
-          if (dcFilter === "gst") query = query.eq("is_dc", false);
+          if (effectiveDcFilter === "dc") query = query.eq("is_dc", true);
+          if (effectiveDcFilter === "gst") query = query.eq("is_dc", false);
         } else {
-          if (dcFilter === "dc") query = query.eq("gst_amount", 0);
-          if (dcFilter === "gst") query = query.gt("gst_amount", 0);
+          if (effectiveDcFilter === "dc") query = query.eq("gst_amount", 0);
+          if (effectiveDcFilter === "gst") query = query.gt("gst_amount", 0);
         }
 
         if (debouncedSearch) {
@@ -956,15 +961,17 @@ const PurchaseReturnDashboard = () => {
             onChange={(e) => setEndDate(e.target.value)}
             className="w-[150px] h-10 text-base border-slate-200 bg-slate-50 hover:bg-white"
           />
-          <select
-            value={dcFilter}
-            onChange={(e) => setDcFilter(e.target.value as any)}
-            className="h-10 rounded-md border border-slate-200 bg-slate-50 px-3 text-base min-w-[130px] hover:bg-white"
-          >
-            <option value="all">All Returns</option>
-            <option value="dc">DC Only</option>
-            <option value="gst">GST Only</option>
-          </select>
+          {!hideDc && (
+            <select
+              value={dcFilter}
+              onChange={(e) => setDcFilter(e.target.value as any)}
+              className="h-10 rounded-md border border-slate-200 bg-slate-50 px-3 text-base min-w-[130px] hover:bg-white"
+            >
+              <option value="all">All Returns</option>
+              <option value="dc">DC Only</option>
+              <option value="gst">GST Only</option>
+            </select>
+          )}
           <ResetPersistedFiltersButton
             visible={purchaseReturnFiltersDirty}
             onReset={resetPurchaseReturnFilters}

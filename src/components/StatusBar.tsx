@@ -8,6 +8,8 @@ import { useLocation } from "react-router-dom";
 import { STALE_REFERENCE } from "@/lib/queryStaleTimes";
 import { BackgroundSyncBadge } from "@/components/BackgroundSyncBadge";
 import { fetchDashboardStockSummary } from "@/utils/dashboardSummaryRpcs";
+import { fetchWebStockReportTotals } from "@/utils/mobileStockReportQuery";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 
 const getCurrentPageName = (path: string): string => {
   const PAGE_NAMES: Record<string, string> = {
@@ -50,6 +52,7 @@ export const StatusBar = () => {
   const isNarrow = useIsNarrowViewport();
   const forceDesktop = useForceDesktopView();
   const { currentOrganization } = useOrganization();
+  const { hideDc } = useDcVisibility();
   const location = useLocation();
 
   const now = new Date();
@@ -57,11 +60,14 @@ export const StatusBar = () => {
   const fy = `FY ${fyStart}-${(fyStart + 1).toString().slice(-2)}`;
 
   const { data: summary } = useQuery({
-    queryKey: ["statusbar-summary", currentOrganization?.id],
+    queryKey: ["statusbar-summary", currentOrganization?.id, hideDc],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
       const [stockRow, recvRes] = await Promise.all([
-        fetchDashboardStockSummary(supabase, currentOrganization.id),
+        // DC hidden: Stock Report totals without DC barcodes.
+        hideDc
+          ? fetchWebStockReportTotals(currentOrganization.id, true).then((t) => ({ total_stock_qty: t.totalStock }))
+          : fetchDashboardStockSummary(supabase, currentOrganization.id),
         supabase
           .from("v_dashboard_receivables")
           .select("total_receivables")

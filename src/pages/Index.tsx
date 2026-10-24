@@ -58,6 +58,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 import { StatsChartsSection } from "@/components/dashboard/StatsChartsSection";
 import { ShopSetupChecklist } from "@/components/dashboard/ShopSetupChecklist";
 import {
@@ -187,6 +188,7 @@ function readDashboardFiguresHidden(): boolean {
 
 const DesktopDashboard = () => {
   const { currentOrganization, organizationRole } = useOrganization();
+  const { hideDc } = useDcVisibility();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { hasAccess: hasFieldSalesAccess, employeeName } = useFieldSalesAccess();
   const { isAdmin, hasSpecialPermission, hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
@@ -303,9 +305,17 @@ const DesktopDashboard = () => {
     dateRange === "monthly" ? monthKeyToDate(selectedMonthKey) : undefined,
   );
 
+  // "dc-hidden" only while DC is hidden, so the login prefetch still fills the normal key.
   const dashStatsQueryKey = useMemo(
-    () => ["dashboard-stats", currentOrganization?.id, startDate, endDate] as const,
-    [currentOrganization?.id, startDate, endDate],
+    () =>
+      [
+        "dashboard-stats",
+        currentOrganization?.id,
+        startDate,
+        endDate,
+        ...(hideDc ? (["dc-hidden"] as const) : []),
+      ] as const,
+    [currentOrganization?.id, startDate, endDate, hideDc],
   );
   const customerSegmentsQueryKey = useMemo(
     () => ["customer-segment-counts", currentOrganization?.id] as const,
@@ -411,7 +421,7 @@ const DesktopDashboard = () => {
     queryFn: async () => {
       if (!currentOrganization) return null;
       
-      const stats = await fetchErpDashboardStatsAfterSr<DashStats>(currentOrganization.id, startDate, endDate);
+      const stats = await fetchErpDashboardStatsAfterSr<DashStats>(currentOrganization.id, startDate, endDate, hideDc);
       setLastUpdated(new Date());
       return stats;
     },
@@ -420,15 +430,22 @@ const DesktopDashboard = () => {
   });
 
   const npaKpisQueryKey = useMemo(
-    () => [NET_PROFIT_KPI_QUERY_HEAD, currentOrganization?.id, startDate, endDate] as const,
-    [currentOrganization?.id, startDate, endDate],
+    () =>
+      [
+        NET_PROFIT_KPI_QUERY_HEAD,
+        currentOrganization?.id,
+        startDate,
+        endDate,
+        ...(hideDc ? (["dc-hidden"] as const) : []),
+      ] as const,
+    [currentOrganization?.id, startDate, endDate, hideDc],
   );
 
   const { data: liveNpaKpis, isFetching: npaKpisFetching } = useQuery({
     queryKey: npaKpisQueryKey,
     queryFn: async () => {
       if (!currentOrganization) return null;
-      return fetchNetProfitKpis(currentOrganization.id, startDate, endDate);
+      return fetchNetProfitKpis(currentOrganization.id, startDate, endDate, hideDc);
     },
     enabled: metricsQueryEnabled && canViewGrossProfit,
     ...DASHBOARD_MANUAL_REFRESH_OPTIONS,

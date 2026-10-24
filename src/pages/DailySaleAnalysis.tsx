@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -151,6 +152,7 @@ const calculateReorderQty = (avgDailySale: number, currentStock: number): number
 
 export default function DailySaleAnalysis() {
   const { currentOrganization } = useOrganization();
+  const { hideDc } = useDcVisibility();
   const isMobile = useIsMobile();
   const orgId = currentOrganization?.id;
 
@@ -169,7 +171,7 @@ export default function DailySaleAnalysis() {
 
   // ---- MAIN DATA QUERY ----
   const { data: analysisData, isLoading, error: queryError, refetch } = useQuery({
-    queryKey: ["daily-sale-analysis", orgId, dateRange.fromISO, dateRange.toISO],
+    queryKey: ["daily-sale-analysis", orgId, dateRange.fromISO, dateRange.toISO, hideDc],
     queryFn: async () => {
       if (!orgId) return [];
 
@@ -189,7 +191,7 @@ export default function DailySaleAnalysis() {
       const pageSize = 1000;
       let hasMore = true;
       while (hasMore) {
-        const { data, error } = await supabase
+        let itemsQuery = supabase
           .from("sale_items")
           .select(`
             variant_id, product_name, size, color, barcode, hsn_code, quantity, unit_price, line_total, mrp, discount_percent,
@@ -198,8 +200,10 @@ export default function DailySaleAnalysis() {
           .eq("sales.organization_id", orgId)
           .is("sales.deleted_at", null)
           .gte("sales.sale_date", fromStr)
-          .lte("sales.sale_date", toStr)
-          .range(offset, offset + pageSize - 1);
+          .lte("sales.sale_date", toStr);
+        // DC hidden: DC lines left out.
+        if (hideDc) itemsQuery = itemsQuery.not("is_dc_item", "is", true);
+        const { data, error } = await itemsQuery.range(offset, offset + pageSize - 1);
         if (error) throw error;
         if (data && data.length > 0) {
           allSaleItems.push(...data);

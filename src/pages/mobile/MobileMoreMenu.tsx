@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { useOwnerAlertUnreadCount } from "@/hooks/useOwnerAlertHistory";
 import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
 import { MobileThemeToggle } from "@/components/mobile/MobileThemeToggle";
+import { MobileDcToggle } from "@/components/mobile/MobileDcToggle";
 import {
   MOBILE_ACCOUNTS_PATH,
   MOBILE_POS_PATH,
@@ -163,6 +164,7 @@ export default function MobileMoreMenu() {
         <div className="bg-card rounded-2xl border border-border/60 shadow-sm overflow-hidden divide-y divide-border/60">
           <MobileThemeToggle />
           <DesktopViewToggle variant="menu-row" />
+          <MobileDcToggle />
         </div>
 
         {menuSections.map((section) => (

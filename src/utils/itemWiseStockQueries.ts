@@ -21,6 +21,8 @@ export type ItemWiseStockFilters = {
   supplierFilter: string;
   barcodeFilter: string;
   closingStockFilter: ItemWiseStockClosingFilter;
+  /** DC (No GST) barcodes left out (needs the DC item-wise stock SQL; sent only when true). */
+  hideDc?: boolean;
 };
 
 export type ItemWiseStockRow = {
@@ -57,6 +59,7 @@ function buildRpcFilters(filters: ItemWiseStockFilters) {
     p_supplier: normalizeFilter(filters.supplierFilter),
     p_barcode: filters.barcodeFilter.trim() || null,
     p_closing_stock: filters.closingStockFilter === "all" ? null : filters.closingStockFilter,
+    ...(filters.hideDc ? { p_hide_dc: true } : {}),
   };
 }
 

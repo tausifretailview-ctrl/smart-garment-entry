@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { ChevronsUpDown, X } from "lucide-react";
 import { MobilePickerSheet } from "@/components/mobile/MobilePickerSheet";
 import { fetchMobileStockReportPages } from "@/utils/mobileStockReportQuery";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(v);
@@ -66,15 +67,16 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
+  const { hideDc } = useDcVisibility();
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["rpt-size-wise-stock", orgId],
+    queryKey: ["rpt-size-wise-stock", orgId, hideDc],
     enabled: !!orgId,
     retry: 1,
     queryFn: () =>
       withMobileQueryTimeout(async () => {
         try {
-          const rpcRows = await fetchMobileStockReportPages(orgId!, { maxRows: 2000, pageSize: 250 });
+          const rpcRows = await fetchMobileStockReportPages(orgId!, { maxRows: 2000, pageSize: 250, hideDc });
           if (rpcRows.length) {
             return rpcRows.map((r) => ({
               size: r.size,
@@ -103,12 +105,13 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
         }> = [];
         let offset = 0;
         while (offset < 4000) {
-          const { data: variants, error } = await supabase
+          let variantsQuery = supabase
             .from("product_variants")
             .select("size, color, stock_qty, product_id, products!inner(product_name, brand, category, style)")
             .eq("organization_id", orgId!)
-            .is("deleted_at", null)
-            .range(offset, offset + pageSize - 1);
+            .is("deleted_at", null);
+          if (hideDc) variantsQuery = variantsQuery.not("is_dc_product", "is", true);
+          const { data: variants, error } = await variantsQuery.range(offset, offset + pageSize - 1);
           if (error) throw error;
           if (!variants?.length) break;
           for (const row of variants as Array<{

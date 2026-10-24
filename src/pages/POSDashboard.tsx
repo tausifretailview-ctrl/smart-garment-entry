@@ -202,6 +202,7 @@ import {
 } from "@/lib/dashboardFilterPersistence";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { invalidateAndRefetchWithQueryFn } from "@/utils/refetchQueriesWithFn";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 import {
   encodePosLinePurchaseCode,
   resolvePosDashboardPurchaseCodeEnabled,
@@ -360,6 +361,7 @@ const POSDashboard = () => {
   const location = useLocation();
   const { orgNavigate: navigate, orgSlug } = useOrgNavigation();
   const { currentOrganization, organizationRole } = useOrganization();
+  const { hideDc } = useDcVisibility();
   const moneyViewVisibilityKeys = useMemo(
     () =>
       currentOrganization?.id
@@ -893,8 +895,10 @@ const POSDashboard = () => {
       userFilter: userFilter && userFilter !== "__pending__" ? userFilter : "all",
       salesmanFilter: normalizePosSalesmanFilter(salesmanFilter),
       cancelFilter,
+      hideDc,
     }),
     [
+      hideDc,
       currentOrganization?.id,
       debouncedSearch,
       queryDateRange.startDate,
@@ -932,6 +936,8 @@ const POSDashboard = () => {
     cancelFilter,
     currentPage,
     itemsPerPage,
+    // Only when DC is hidden, so normal keys (and the save-time cache seeding) stay as they were.
+    ...(hideDc ? (["dc-hidden"] as const) : []),
   ] as const;
 
   const {
@@ -1017,6 +1023,7 @@ const POSDashboard = () => {
     userFilter && userFilter !== "__pending__" ? userFilter : "all",
     normalizePosSalesmanFilter(salesmanFilter),
     cancelFilter,
+    ...(hideDc ? (["dc-hidden"] as const) : []),
   ] as const;
 
   const {
@@ -4545,7 +4552,10 @@ const POSDashboard = () => {
                                           </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                          {saleItems[sale.id].map((item) => (
+                                          {/* DC hidden: leave DC lines out of this list only (prints use the full bill). */}
+                                          {saleItems[sale.id]
+                                            .filter((item) => !hideDc || (item as { is_dc_item?: boolean | null }).is_dc_item !== true)
+                                            .map((item) => (
                                             <TableRow key={item.id} className="h-9">
                                               <TableCell className="px-2 py-1 text-sm">{item.product_name}</TableCell>
                                               {showItemBrand && <TableCell className="px-2 py-1 text-sm">{item.brand || '-'}</TableCell>}

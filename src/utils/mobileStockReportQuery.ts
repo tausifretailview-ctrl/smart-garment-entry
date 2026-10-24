@@ -36,7 +36,11 @@ export type MobileStockReportFilterOpts = {
   /** @deprecated use `status` — true = in stock, false = out of stock */
   inStock?: boolean;
   status?: StockReportStatusFilter;
+  /** DC (No GST) barcodes left out (needs the DC stock SQL; sent only when true). */
+  hideDc?: boolean;
 };
+
+const hideDcArg = (hideDc?: boolean) => (hideDc ? { p_hide_dc: true } : {});
 
 function rpcBrand(value?: string) {
   return value?.trim() && value !== "__all__" ? value.trim() : null;
@@ -49,9 +53,13 @@ function statusFromFilterOpts(opts?: MobileStockReportFilterOpts): StockReportSt
   return "all";
 }
 
-export async function fetchWebStockReportTotals(orgId: string): Promise<WebStockReportTotals> {
+export async function fetchWebStockReportTotals(
+  orgId: string,
+  hideDc?: boolean,
+): Promise<WebStockReportTotals> {
   const { data, error } = await supabase.rpc("get_stock_report_totals", {
     p_organization_id: orgId,
+    ...hideDcArg(hideDc),
   });
   if (error) throw error;
   return parseStockReportTotalsPayload(data);
@@ -60,19 +68,23 @@ export async function fetchWebStockReportTotals(orgId: string): Promise<WebStock
 export async function fetchStockReportStatusVariantCounts(
   orgId: string,
   threshold = STOCK_REPORT_LOW_THRESHOLD,
+  hideDc?: boolean,
 ) {
   const [inRes, lowRes, outRes] = await Promise.all([
     supabase.rpc("get_stock_report_filtered_totals", {
       p_org_id: orgId,
       ...stockStatusToRpcArgs("in", threshold),
+      ...hideDcArg(hideDc),
     }),
     supabase.rpc("get_stock_report_filtered_totals", {
       p_org_id: orgId,
       ...stockStatusToRpcArgs("low", threshold),
+      ...hideDcArg(hideDc),
     }),
     supabase.rpc("get_stock_report_filtered_totals", {
       p_org_id: orgId,
       ...stockStatusToRpcArgs("out", threshold),
+      ...hideDcArg(hideDc),
     }),
   ]);
   if (inRes.error) throw inRes.error;
@@ -110,6 +122,7 @@ export async function fetchMobileStockReportPages(
       p_limit: Math.min(pageSize, maxRows - offset),
       p_offset: offset,
       ...statusArgs,
+      ...hideDcArg(opts?.hideDc),
     });
     if (error) throw error;
     const rows = (data || []) as MobileStockReportRow[];
@@ -134,6 +147,7 @@ export async function fetchMobileStockFilteredTotals(
     p_brand: brand,
     p_category: category,
     ...stockStatusToRpcArgs(statusFromFilterOpts(opts)),
+    ...hideDcArg(opts.hideDc),
   });
   if (error) throw error;
   const parsed = parseStockReportTotalsPayload(data);

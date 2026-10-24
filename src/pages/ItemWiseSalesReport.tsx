@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect, type ReactNode } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useProductFieldSettings } from "@/hooks/useSettings";
 import { fetchAllSaleItems } from "@/utils/fetchAllRows";
@@ -151,6 +152,7 @@ const ITEM_WISE_KPI_EXPANDED_KEY = (userId: string) => `item-wise-sales-kpi-expa
 
 export default function ItemWiseSalesReport() {
   const { currentOrganization } = useOrganization();
+  const { hideDc } = useDcVisibility();
   const { user, session } = useAuth();
   const { orgNavigate } = useOrgNavigation();
   const productFieldSettings = useProductFieldSettings();
@@ -490,7 +492,7 @@ export default function ItemWiseSalesReport() {
 
   // Fetch sale items with product details
   const { data: saleItems = [], isLoading, isFetching, isError } = useQuery({
-    queryKey: ["item-wise-sales", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer, selectedUser],
+    queryKey: ["item-wise-sales", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer, selectedUser, hideDc],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
@@ -550,7 +552,9 @@ export default function ItemWiseSalesReport() {
       const salesMap = new Map(allSales.map(s => [s.id, s.customer_name]));
 
       // Use paginated fetch to bypass 1000 row limit
-      const saleItemsData = await fetchAllSaleItems(saleIds);
+      const fetchedItems = await fetchAllSaleItems(saleIds);
+      // DC (No GST) hidden: DC lines are left out of every tab and total.
+      const saleItemsData = hideDc ? (fetchedItems || []).filter((i: any) => i.is_dc_item !== true) : fetchedItems;
       if (!saleItemsData || saleItemsData.length === 0) return [];
 
       // Get unique product IDs and fetch product details - use batched fetch to bypass 1000 limit
@@ -854,7 +858,7 @@ export default function ItemWiseSalesReport() {
     isError: supplierLookupError,
     isPlaceholderData: supplierLookupStale,
   } = useQuery({
-    queryKey: ["item-wise-sales-suppliers", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer, selectedUser, saleItems.length],
+    queryKey: ["item-wise-sales-suppliers", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer, selectedUser, saleItems.length, hideDc],
     queryFn: () => fetchSaleItemSuppliers(saleItems, currentOrganization!.id),
     enabled: !!currentOrganization?.id && activeTab === "supplierwise" && !isFetching && saleItems.length > 0,
     ...REPORT_CACHE,
@@ -929,7 +933,8 @@ export default function ItemWiseSalesReport() {
       if (error) throw error;
       return data as { total_qty?: number; total_amount?: number; unique_products?: number; avg_price?: number };
     },
-    enabled: !!currentOrganization?.id && !dateRangeTooWide,
+    // The summary RPC does not know DC; totals come from the loaded lines while hidden.
+    enabled: !!currentOrganization?.id && !dateRangeTooWide && !hideDc,
     ...REPORT_CACHE,
   });
 
@@ -1023,7 +1028,7 @@ export default function ItemWiseSalesReport() {
 
   const summary = useMemo(() => {
     const clientSource = hasClientFilters ? filteredData : aggregatedData;
-    if (hasClientFilters || dateRangeTooWide) {
+    if (hasClientFilters || dateRangeTooWide || hideDc) {
       const totalQty = clientSource.reduce((sum, item) => sum + item.total_qty, 0);
       const totalAmount = clientSource.reduce((sum, item) => sum + item.total_amount, 0);
       const uniqueProducts = clientSource.length;
@@ -1036,7 +1041,7 @@ export default function ItemWiseSalesReport() {
       uniqueProducts: rpcSummary?.unique_products ?? 0,
       avgPrice: rpcSummary?.avg_price ?? 0,
     };
-  }, [rpcSummary, filteredData, aggregatedData, hasClientFilters, dateRangeTooWide]);
+  }, [rpcSummary, filteredData, aggregatedData, hasClientFilters, dateRangeTooWide, hideDc]);
 
   // Export to Excel
   const exportToExcel = async () => {

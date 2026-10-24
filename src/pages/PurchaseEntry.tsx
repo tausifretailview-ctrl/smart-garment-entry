@@ -96,6 +96,7 @@ import { prefetchProductEntryDialog } from "@/lib/productEntryDialogLoad";
 import { scheduleIdleWork } from "@/lib/chunkLoadRetry";
 import QuickEditPopover from "@/components/QuickEditPopover";
 import { fillBlankVariantColorsFromPurchaseLines } from "@/utils/purchaseVariantColorSync";
+import { dcMixConfirmMessage, findDcMixedBarcodes } from "@/utils/dcBarcodeMix";
 import { resolveBarcodeScanPicker } from "@/utils/barcodeMrpPicker";
 import {
   barcodeTierLookupKey,
@@ -6013,6 +6014,15 @@ const PurchaseEntry = () => {
       return;
     }
     pendingBarcodeSaveRef.current = false;
+
+    // Same barcode on a GST and a DC bill: the barcode's DC tag follows this bill, so its
+    // old stock changes side too. Ask first; a lookup error never blocks the save.
+    if (currentOrganization?.id) {
+      const dcMixed = await findDcMixedBarcodes(supabase, currentOrganization.id, saveLines, isDcPurchase);
+      if (dcMixed.length > 0 && !window.confirm(dcMixConfirmMessage(dcMixed, isDcPurchase))) {
+        return;
+      }
+    }
 
     // Allocate the next serial supplier invoice number atomically when auto-filled.
     // Prevents two users in the same org from saving the same number simultaneously.

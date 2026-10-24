@@ -218,6 +218,8 @@ interface PurchaseSettings {
   garment_gst_below_rate?: number;
   /** Purchase Entry "Photo" button (read supplier bill photos). On unless set to false. */
   photo_import_enabled?: boolean;
+  /** DC (No GST) transactions: "show" (default) or "hide" everywhere. Ctrl+Shift+H flips. */
+  dc_visibility_mode?: 'show' | 'hide';
 }
 
 interface EInvoiceSettings {
@@ -2112,6 +2114,50 @@ export default function Settings() {
                       })
                     }
                   />
+                </div>
+
+                {/* DC (No GST) purchase visibility */}
+                <div className="col-span-full space-y-3 rounded-lg border border-orange-200 bg-orange-50/60 p-4 dark:border-orange-800 dark:bg-orange-950/20">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-semibold">DC purchase (No GST) transactions</Label>
+                    <p className="text-xs text-muted-foreground">
+                      DC bills always stay out of the GST reports, and POS shows a DC tag on DC items.
+                      Printed bills always show every item and amount.
+                    </p>
+                  </div>
+                  <RadioGroup
+                    value={settings.purchase_settings?.dc_visibility_mode === 'hide' ? 'hide' : 'show'}
+                    onValueChange={(value) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          dc_visibility_mode: value === 'hide' ? 'hide' : 'show',
+                        },
+                      })
+                    }
+                    className="space-y-2"
+                  >
+                    <div className="flex items-start gap-2">
+                      <RadioGroupItem value="show" id="dc_visibility_show" className="mt-0.5" />
+                      <Label htmlFor="dc_visibility_show" className="text-sm font-normal leading-snug">
+                        <span className="font-medium">Show DC (default)</span>
+                        <span className="block text-xs text-muted-foreground">
+                          DC purchases, stock and sales appear in reports like normal. Ctrl+Shift+H hides them on this screen.
+                        </span>
+                      </Label>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <RadioGroupItem value="hide" id="dc_visibility_hide" className="mt-0.5" />
+                      <Label htmlFor="dc_visibility_hide" className="text-sm font-normal leading-snug">
+                        <span className="font-medium">Hide DC everywhere</span>
+                        <span className="block text-xs text-muted-foreground">
+                          DC purchases, DC stock and DC sales are hidden from lists, dashboards and reports.
+                          Admins press Ctrl+Shift+H to show them (goes back after 15 minutes idle).
+                        </span>
+                      </Label>
+                    </div>
+                  </RadioGroup>
                 </div>
 
                 {/* Garment / Footwear GST Auto-Bump Rule */}
