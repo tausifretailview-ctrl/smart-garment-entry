@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { MessagesSquare, Send } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -17,6 +18,10 @@ export default function BulkWhatsApp() {
 
 function BulkWhatsAppPage({ organizationId, userId }: { organizationId: string; userId: string | undefined }) {
   const [tab, setTab] = useState<"send" | "inbox">("send");
+  // ?winback=90 from Business Insights > Quiet Customers opens the picker on that win-back list.
+  const [params] = useSearchParams();
+  const winBack = Number.parseInt(params.get("winback") ?? "", 10);
+  const winBackDays = Number.isFinite(winBack) && winBack > 0 ? winBack : null;
   const inbox = useInboxChats(organizationId, tab === "inbox");
   const unread = (inbox.data ?? []).filter((c) => c.unread_count > 0).length;
   const tabs = [
@@ -49,7 +54,7 @@ function BulkWhatsAppPage({ organizationId, userId }: { organizationId: string; 
       </div>
       {/* Kept mounted so a half-written message survives a look at the Inbox. */}
       <div className={cn(tab !== "send" && "hidden")}>
-        <BulkWhatsAppWorkspace organizationId={organizationId} userId={userId} previewTopClass="lg:top-3" />
+        <BulkWhatsAppWorkspace organizationId={organizationId} userId={userId} previewTopClass="lg:top-3" winBackDays={winBackDays} />
       </div>
       {tab === "inbox" && (
         <div className="px-2 py-3 sm:px-4">

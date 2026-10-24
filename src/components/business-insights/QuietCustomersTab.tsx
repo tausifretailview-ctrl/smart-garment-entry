@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { AlertTriangle, Info } from "lucide-react";
+import { AlertTriangle, Info, MessageCircle } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { formatInsightsINR } from "@/hooks/useBusinessInsights";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -51,6 +52,7 @@ function daysToneClass(days: number): string {
 export function QuietCustomersTab() {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
+  const { orgNavigate } = useOrgNavigation();
 
   const [presetDays, setPresetDays] = useState<number | "custom">(30);
   const [customDays, setCustomDays] = useState("45");
@@ -143,9 +145,22 @@ export function QuietCustomersTab() {
             No completed bill in the last {quietDays} days — win-back call list
           </p>
         </div>
-        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
-          <span className="h-1.5 w-1.5 rounded-full bg-teal-600" aria-hidden />
-          As of today · {asOfLabel}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600">
+            <span className="h-1.5 w-1.5 rounded-full bg-teal-600" aria-hidden />
+            As of today · {asOfLabel}
+          </div>
+          {dormant.length > 0 && (
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 bg-emerald-600 text-white hover:bg-emerald-700"
+              title="Opens Bulk WhatsApp with these customers ready to pick"
+              onClick={() => orgNavigate(`/bulk-whatsapp?winback=${quietDays}`)}
+            >
+              <MessageCircle className="mr-1.5 h-4 w-4" /> Send offer on WhatsApp
+            </Button>
+          )}
         </div>
       </div>
 

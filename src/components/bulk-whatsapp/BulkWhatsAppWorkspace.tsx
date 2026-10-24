@@ -128,6 +128,7 @@ export function BulkWhatsAppWorkspace({
   onOpenReports,
   onOpenSend,
   previewTopClass = "lg:top-20",
+  winBackDays = null,
 }: {
   organizationId: string;
   userId: string | undefined;
@@ -140,12 +141,18 @@ export function BulkWhatsAppWorkspace({
   onOpenSend?: () => void;
   /** How far below the top the message preview sticks: the site has a top bar, the ERP page has none. */
   previewTopClass?: string;
+  /** From Business Insights > Quiet Customers: opens the customer picker on "Not visited in N days". */
+  winBackDays?: number | null;
 }) {
   const queryClient = useQueryClient();
 
   const [linked, setLinked] = useState(false);
   const [name, setName] = useState("");
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(() =>
+    winBackDays && showCustomerMaster
+      ? "Hi {name}, we miss you! 🛍️ Visit us this week and get 10% off on your next bill. New stock has arrived."
+      : "",
+  );
   const [media, setMedia] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [videoQuality, setVideoQuality] = useState<VideoQuality>("medium");
@@ -167,7 +174,7 @@ export function BulkWhatsAppWorkspace({
   const [contacts, setContacts] = useState<BulkContact[]>([]);
   const [typed, setTyped] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(Boolean(winBackDays && showCustomerMaster));
   const [sending, setSending] = useState(false);
   const [addStopLine, setAddStopLine] = useState(true);
   const [links, setLinks] = useState<BulkLinks>(() => readLinks(orgId));
@@ -1023,6 +1030,7 @@ export function BulkWhatsAppWorkspace({
           open={pickerOpen}
           onOpenChange={setPickerOpen}
           onAdd={(picked) => addContacts(picked, 0, "Customer Master")}
+          initialQuietDays={winBackDays}
         />
       )}
 

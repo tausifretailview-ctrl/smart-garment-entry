@@ -59,6 +59,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { StatsChartsSection } from "@/components/dashboard/StatsChartsSection";
+import { ShopSetupChecklist } from "@/components/dashboard/ShopSetupChecklist";
 import {
   DashboardMetricCard as AnimatedMetricCard,
   DashboardFiguresHiddenContext,
@@ -986,6 +987,9 @@ const DesktopDashboard = () => {
       {/* Main Content — single scroll region */}
       <div className="dashboard-body tab-scroll-stable flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
         <div className="space-y-4 pb-3 pr-1">
+        {isAdmin && currentOrganization?.id && currentOrganization.organization_type === "business" && (
+          <ShopSetupChecklist organizationId={currentOrganization.id} />
+        )}
         <div className="space-y-4 dashboard-metrics-panel">
           {/* Row 1 - Sales Metrics */}
           <div className="dashboard-metric-grid grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">

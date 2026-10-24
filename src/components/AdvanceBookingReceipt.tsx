@@ -92,6 +92,8 @@ interface AdvanceReceiptData {
   chequeNumber?: string;
   transactionId?: string;
   description?: string;
+  /** Set when this advance was sold as a gift voucher: prints as a voucher with its code. */
+  giftVoucher?: { code: string; validTill?: string; from?: string };
 }
 
 interface CompanyDetails {
@@ -189,9 +191,23 @@ export const AdvanceBookingReceipt = forwardRef<HTMLDivElement, AdvanceBookingRe
             borderRadius: "4px",
           }}>
             <h2 style={{ margin: 0, fontSize: isA5 ? "14px" : "17px", fontWeight: 700, letterSpacing: "1px" }}>
-              ADVANCE BOOKING RECEIPT
+              {data.giftVoucher ? "GIFT VOUCHER" : "ADVANCE BOOKING RECEIPT"}
             </h2>
           </div>
+
+          {data.giftVoucher && (
+            <div style={{ textAlign: "center", margin: isA5 ? "6px 0 10px" : "10px 0 16px" }}>
+              <div style={{ fontSize: isA5 ? "10px" : "12px", color: "#666" }}>Voucher code</div>
+              <div style={{ fontSize: isA5 ? "22px" : "28px", fontWeight: 800, letterSpacing: "3px", fontFamily: "monospace" }}>
+                {data.giftVoucher.code}
+              </div>
+              <div style={{ fontSize: isA5 ? "11px" : "13px", marginTop: "2px" }}>
+                Worth <b>₹{fmt(data.amount)}</b> for {data.customerName}
+                {data.giftVoucher.from ? ` · From ${data.giftVoucher.from}` : ""}
+                {data.giftVoucher.validTill ? ` · Valid till ${data.giftVoucher.validTill}` : ""}
+              </div>
+            </div>
+          )}
 
           {/* Details Grid */}
           <table style={{ width: "100%", marginBottom: isA5 ? "10px" : "16px", borderCollapse: "collapse" }}>
@@ -368,9 +384,20 @@ const AdvanceThermalReceipt = forwardRef<
         <div style={dblLine} />
 
         <div style={{ ...center, fontWeight: 900, fontSize: is58 ? "13px" : "15px", letterSpacing: "0.5px", margin: "2px 0" }}>
-          ADVANCE RECEIPT
+          {data.giftVoucher ? "GIFT VOUCHER" : "ADVANCE RECEIPT"}
         </div>
         <div style={dashLine} />
+        {data.giftVoucher && (
+          <>
+            <div style={{ ...center, fontSize: "11px" }}>Voucher code</div>
+            <div style={{ ...center, fontWeight: 900, fontSize: is58 ? "18px" : "22px", letterSpacing: "2px", fontFamily: "monospace" }}>
+              {data.giftVoucher.code}
+            </div>
+            {data.giftVoucher.from && <div style={{ ...center, fontSize: "11px" }}>From {data.giftVoucher.from}</div>}
+            {data.giftVoucher.validTill && <div style={{ ...center, fontSize: "11px" }}>Valid till {data.giftVoucher.validTill}</div>}
+            <div style={dashLine} />
+          </>
+        )}
 
         <div style={row}>
           <span>Receipt No</span>
@@ -414,7 +441,7 @@ const AdvanceThermalReceipt = forwardRef<
         <div style={dblLine} />
 
         <div style={{ ...row, fontWeight: 900, fontSize: is58 ? "14px" : "17px", margin: "2px 0" }}>
-          <span>ADVANCE</span>
+          <span>{data.giftVoucher ? "VOUCHER" : "ADVANCE"}</span>
           <span>₹{fmt(data.amount)}</span>
         </div>
         <div style={dblLine} />

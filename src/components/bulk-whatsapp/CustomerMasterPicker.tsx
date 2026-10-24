@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
-import { Cake, Check, Loader2, Search, Send, Users } from "lucide-react";
+import { Cake, Check, Clock, Loader2, Search, Send, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -11,6 +11,8 @@ import { formatBulkPhone, normalizeBulkPhone, type BulkContact } from "@/utils/b
 import { lastSendByPhone } from "@/utils/bulkWhatsAppHistory";
 import { upcomingSpecialDays } from "@/utils/customerSpecialDays";
 import { fetchSpecialDayCustomers } from "@/utils/customerSpecialDaysFetch";
+import { fetchCustomerSegmentIndex } from "@/utils/customerSegments";
+import { daysSinceLastCompletedBill } from "@/utils/quietCustomers";
 import { CAMPAIGN_LIST_LIMIT, fetchSentHistory, useBulkCampaigns } from "./bulkWhatsAppApi";
 
 const BATCH = 1000;
@@ -20,8 +22,19 @@ const SHOWN_ROWS = 300;
 /** "new" = never got a bulk message (the default, so each batch goes to fresh customers). */
 type SentFilter = "new" | "sent" | "all";
 
+/** Win-back: customers whose last completed bill is at least this many days old. */
+export const WIN_BACK_DAY_OPTIONS = [30, 60, 90, 180] as const;
+
 interface PickRow extends BulkContact {
   id: string;
+  /** Every customer row with this number (the list keeps one row per number). */
+  ids: string[];
+}
+
+interface VisitStats {
+  lastSaleDate: string;
+  daysQuiet: number;
+  revenue: number;
 }
 
 /** Customers with a usable mobile number, one row per number (first name wins). */
@@ -39,7 +52,10 @@ async function fetchCustomerContacts(organizationId: string): Promise<PickRow[]>
     if (error) throw error;
     for (const c of data ?? []) {
       const phone = normalizeBulkPhone(c.phone);
-      if (phone && !byPhone.has(phone)) byPhone.set(phone, { id: c.id, phone, name: c.customer_name?.trim() || null });
+      if (!phone) continue;
+      const row = byPhone.get(phone);
+      if (row) row.ids.push(c.id);
+      else byPhone.set(phone, { id: c.id, ids: [c.id], phone, name: c.customer_name?.trim() || null });
     }
     if (!data || data.length < BATCH) break;
   }
@@ -56,16 +72,35 @@ export function CustomerMasterPicker({
   open,
   onOpenChange,
   onAdd,
+  initialQuietDays = null,
 }: {
   organizationId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAdd: (contacts: BulkContact[]) => void;
+  /** Opens with the win-back filter on (from Business Insights > Quiet Customers). */
+  initialQuietDays?: number | null;
 }) {
   const [search, setSearch] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [sentFilter, setSentFilter] = useState<SentFilter>("new");
+  const [sentFilter, setSentFilter] = useState<SentFilter>(initialQuietDays ? "all" : "new");
   const [specialToday, setSpecialToday] = useState(false);
+  const [quietDays, setQuietDays] = useState<number | null>(initialQuietDays);
+  const [appliedInitial, setAppliedInitial] = useState(initialQuietDays);
+  if (initialQuietDays !== appliedInitial) {
+    setAppliedInitial(initialQuietDays);
+    if (initialQuietDays) {
+      setQuietDays(initialQuietDays);
+      setSentFilter("all");
+    }
+  }
+  // Same index and bill rules as Business Insights > Quiet Customers; loaded only once the filter is used.
+  const visits = useQuery({
+    queryKey: ["customer-segments", organizationId],
+    queryFn: () => fetchCustomerSegmentIndex(organizationId),
+    enabled: open && quietDays !== null,
+    staleTime: 5 * 60 * 1000,
+  });
   // Birthday / anniversary today. Quietly empty until the birthday SQL is run.
   const special = useQuery({
     queryKey: ["customer-special-days", organizationId],
@@ -102,17 +137,42 @@ export function CustomerMasterPicker({
   const sentMap = history.data;
 
   const all = q.data ?? [];
+  /** Latest completed bill per number, across every customer row sharing that number. */
+  const visitByPhone = useMemo(() => {
+    const map = new Map<string, VisitStats>();
+    const stats = visits.data?.stats;
+    if (!stats) return map;
+    const now = new Date();
+    for (const c of all) {
+      let last: string | null = null;
+      let revenue = 0;
+      for (const id of c.ids) {
+        const st = stats[id];
+        if (!st?.lastSaleDate) continue;
+        const ymd = String(st.lastSaleDate).slice(0, 10);
+        if (!last || ymd > last) last = ymd;
+        revenue += Number(st.revenue || 0);
+      }
+      if (last) map.set(c.phone, { lastSaleDate: last, daysQuiet: daysSinceLastCompletedBill(last, now), revenue });
+    }
+    return map;
+  }, [all, visits.data]);
   const sentCount = useMemo(() => (sentMap ? all.filter((c) => sentMap.has(c.phone)).length : 0), [all, sentMap]);
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
     const digits = s.replace(/\D/g, "");
-    return all.filter(
+    const rows = all.filter(
       (c) =>
         (sentFilter === "all" || !sentMap || (sentFilter === "sent") === sentMap.has(c.phone)) &&
         (!specialToday || specialTodayPhones.has(c.phone)) &&
+        (quietDays === null || (visitByPhone.get(c.phone)?.daysQuiet ?? -1) >= quietDays) &&
         (!s || (c.name ?? "").toLowerCase().includes(s) || (digits.length >= 3 && c.phone.includes(digits))),
     );
-  }, [all, search, sentFilter, sentMap, specialToday, specialTodayPhones]);
+    // Win-back list: biggest spenders first, like Quiet Customers.
+    return quietDays === null
+      ? rows
+      : [...rows].sort((a, b) => (visitByPhone.get(b.phone)?.revenue ?? 0) - (visitByPhone.get(a.phone)?.revenue ?? 0));
+  }, [all, search, sentFilter, sentMap, specialToday, specialTodayPhones, quietDays, visitByPhone]);
   const allFilteredPicked = filtered.length > 0 && filtered.every((c) => picked.has(c.phone));
 
   const toggle = (phone: string) =>
@@ -137,6 +197,7 @@ export function CustomerMasterPicker({
     setSearch("");
     setSentFilter("new");
     setSpecialToday(false);
+    setQuietDays(null);
     onOpenChange(false);
   };
 
@@ -190,6 +251,43 @@ export function CustomerMasterPicker({
           <p className="-mt-1 text-xs text-amber-700">Could not check earlier campaigns, so all customers are shown.</p>
         )}
 
+        <div className="flex flex-wrap items-center gap-1.5 text-sm">
+          <span className="flex items-center gap-1 text-xs font-medium text-slate-500">
+            <Clock className="h-3.5 w-3.5" /> Not visited in
+          </span>
+          {([null, ...WIN_BACK_DAY_OPTIONS] as const).map((d) => (
+            <button
+              key={d ?? "any"}
+              type="button"
+              onClick={() => {
+                setQuietDays(d);
+                if (d !== null) setSentFilter("all");
+              }}
+              className={cn(
+                "rounded-full border px-2.5 py-0.5 text-xs font-medium transition",
+                quietDays === d
+                  ? "border-amber-500 bg-amber-50 text-amber-800"
+                  : "border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900",
+              )}
+            >
+              {d === null ? "Any" : `${d}+ days`}
+            </button>
+          ))}
+          {quietDays !== null && visits.isLoading && (
+            <span className="flex items-center gap-1 text-xs text-slate-500">
+              <Loader2 className="h-3 w-3 animate-spin" /> Checking last bills…
+            </span>
+          )}
+          {quietDays !== null && visits.isError && (
+            <span className="text-xs text-amber-700">Could not load last bills. Please try again.</span>
+          )}
+        </div>
+        {quietDays !== null && visits.data && (
+          <p className="-mt-1 text-xs text-slate-500">
+            Customers who bought before but have no bill in the last {quietDays} days, biggest spenders first. Customers who never bought are left out.
+          </p>
+        )}
+
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[200px] flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
@@ -229,13 +327,20 @@ export function CustomerMasterPicker({
             <p className="p-6 text-center text-sm text-destructive">Could not load customers. Please try again.</p>
           ) : !filtered.length ? (
             <p className="p-6 text-center text-sm text-slate-500">
-              {sentFilter === "new" && sentMap && !search.trim() ? "Every customer has already got a bulk message" : "No customers found"}
+              {quietDays !== null && visits.isLoading
+                ? "Checking last bills…"
+                : quietDays !== null && !search.trim()
+                  ? `No customers are quiet for ${quietDays}+ days`
+                  : sentFilter === "new" && sentMap && !search.trim()
+                    ? "Every customer has already got a bulk message"
+                    : "No customers found"}
             </p>
           ) : (
             <ul className="divide-y divide-slate-100">
               {filtered.slice(0, SHOWN_ROWS).map((c) => {
                 const on = picked.has(c.phone);
                 const last = sentMap?.get(c.phone);
+                const visit = quietDays !== null ? visitByPhone.get(c.phone) : undefined;
                 return (
                   <li key={c.phone}>
                     <button
@@ -253,6 +358,13 @@ export function CustomerMasterPicker({
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium text-slate-800">{c.name ?? "–"}</span>
+                        {visit && (
+                          <span className="mt-0.5 mr-1 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                            <Clock className="h-3 w-3 shrink-0" />
+                            Last bill {format(new Date(`${visit.lastSaleDate}T12:00:00`), "dd MMM yy")} · {visit.daysQuiet} days ·{" "}
+                            ₹{Math.round(visit.revenue).toLocaleString("en-IN")}
+                          </span>
+                        )}
                         {last && (
                           <span
                             className={cn(

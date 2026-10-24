@@ -24,6 +24,7 @@ import {
   SETTINGS_TAB_ITEMS,
   SETTINGS_TAB_SUBTITLE,
   coerceSettingsTab,
+  isVisibleSettingsTab,
 } from "@/components/settings/settingsChrome";
 import { normalizeServiceDefaultQty } from "@/utils/serviceDefaultQty";
 import { SETTINGS_TAB_LIST_CLASS, SETTINGS_TAB_TRIGGER_CLASS, SettingsSection } from "@/components/settings/settingsLayout";
@@ -485,6 +486,14 @@ export default function Settings() {
   const settingsHydratedRef = useRef(false);
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(["company"]));
   const [currentTab, setCurrentTab] = useState("company");
+  // Dashboard "Set up your shop" steps open a given tab ({ settingsTab: "pos" }).
+  const requestedSettingsTab = (location.state as { settingsTab?: unknown } | null)?.settingsTab;
+  useEffect(() => {
+    if (typeof requestedSettingsTab === "string" && isVisibleSettingsTab(requestedSettingsTab)) {
+      setCurrentTab(requestedSettingsTab);
+      setVisitedTabs((prev) => new Set([...prev, requestedSettingsTab]));
+    }
+  }, [location.key, requestedSettingsTab]);
   const [loading, setLoading] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [sizeGroups, setSizeGroups] = useState<any[]>([]);

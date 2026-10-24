@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { CalendarIcon, Check, ChevronsUpDown, Coins, Printer, UserPlus } from "lucide-react";
+import { CalendarIcon, Check, ChevronsUpDown, Coins, Gift, MessageCircle, Printer, UserPlus } from "lucide-react";
 import { AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -27,18 +27,35 @@ import {
 import { QuickAddCustomerDialog } from "@/components/mobile/QuickAddCustomerDialog";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
+import { Switch } from "@/components/ui/switch";
+import {
+  DEFAULT_GIFT_VOUCHER_MONTHS,
+  GIFT_VOUCHER_VALIDITY_OPTIONS,
+  generateGiftVoucherCode,
+  giftVoucherDescription,
+  giftVoucherExpiry,
+  giftVoucherWhatsAppPhone,
+  giftVoucherWhatsAppText,
+} from "@/utils/giftVoucher";
+import { whatsappShareUrl } from "@/lib/storefrontShare";
 
 interface AddAdvanceBookingDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId: string;
+  /** Open with "Sell as gift voucher" switched on. */
+  giftVoucher?: boolean;
 }
 
 export function AddAdvanceBookingDialog({ 
   open, 
   onOpenChange, 
-  organizationId 
+  organizationId,
+  giftVoucher = false,
 }: AddAdvanceBookingDialogProps) {
+  const [isGift, setIsGift] = useState(giftVoucher);
+  const [giver, setGiver] = useState("");
+  const [validityMonths, setValidityMonths] = useState<number>(DEFAULT_GIFT_VOUCHER_MONTHS);
   const [customerId, setCustomerId] = useState("");
   const [selectedCustomerData, setSelectedCustomerData] = useState<{ id: string; customer_name: string; phone: string | null } | null>(null);
   const [amount, setAmount] = useState("");
@@ -131,13 +148,17 @@ export function AddAdvanceBookingDialog({
     setCustomerSearchTerm("");
     setShowPrintPrompt(false);
     setSavedAdvanceData(null);
+    setGiver("");
+    setValidityMonths(DEFAULT_GIFT_VOUCHER_MONTHS);
   };
 
   useEffect(() => {
     if (!open) {
       resetForm();
+    } else {
+      setIsGift(giftVoucher);
     }
-  }, [open]);
+  }, [open, giftVoucher]);
 
   const handleSubmit = async () => {
     if (!customerId) {
@@ -153,6 +174,11 @@ export function AddAdvanceBookingDialog({
     const { data: authData } = await supabase.auth.getUser();
     const userId = authData?.user?.id ?? null;
     const numericAmount = parseFloat(amount);
+    const voucherCode = isGift ? generateGiftVoucherCode() : null;
+    const voucherValidTill = giftVoucherExpiry(advanceDate, validityMonths);
+    const savedDescription = voucherCode
+      ? giftVoucherDescription(voucherCode, voucherValidTill, giver, description)
+      : description || undefined;
 
     // Audit: record the attempt up-front so we have a record even if
     // the network call dies, the tab closes, or the GL post rolls back.
@@ -181,7 +207,7 @@ export function AddAdvanceBookingDialog({
         customerId,
         amount: numericAmount,
         paymentMethod,
-        description: description || undefined,
+        description: savedDescription,
         chequeNumber: paymentMethod === "cheque" ? chequeNumber : undefined,
         transactionId: (paymentMethod === "upi" || paymentMethod === "bank_transfer") ? transactionId : undefined,
         advanceDate,
@@ -214,6 +240,22 @@ export function AddAdvanceBookingDialog({
           .eq("id", attemptId);
       }
 
+      // Voucher code + expiry for POS lookup. If the gift voucher SQL is not run yet the
+      // update fails quietly and the receipt number works as the code instead.
+      let printedCode = voucherCode;
+      if (voucherCode) {
+        const { error: voucherErr } = await supabase
+          .from("customer_advances")
+          .update({
+            is_gift_voucher: true,
+            voucher_code: voucherCode,
+            voucher_expires_on: format(voucherValidTill, "yyyy-MM-dd"),
+            voucher_from: giver.trim() || null,
+          } as never)
+          .eq("id", verifyRow.id);
+        if (voucherErr) printedCode = verifyRow.advance_number;
+      }
+
       // Store data for printing
       setSavedAdvanceData({
         advanceNumber: result.advance_number,
@@ -224,7 +266,10 @@ export function AddAdvanceBookingDialog({
         paymentMethod,
         chequeNumber: paymentMethod === "cheque" ? chequeNumber : undefined,
         transactionId: (paymentMethod === "upi" || paymentMethod === "bank_transfer") ? transactionId : undefined,
-        description: description || undefined,
+        description: printedCode ? undefined : description || undefined,
+        giftVoucher: printedCode
+          ? { code: printedCode, validTill: format(voucherValidTill, "dd MMM yyyy"), from: giver.trim() || undefined }
+          : undefined,
       });
       setPrintPaperSize(initialAdvanceReceiptPaper(settings));
       setShowPrintPrompt(true);
@@ -274,10 +319,18 @@ export function AddAdvanceBookingDialog({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Printer className="h-5 w-5 text-primary" />
-              Print Advance Receipt
+              {savedAdvanceData.giftVoucher ? "Print Gift Voucher" : "Print Advance Receipt"}
             </DialogTitle>
             <DialogDescription>
-              Advance <strong>{savedAdvanceData.advanceNumber}</strong> saved successfully. Would you like to print the receipt?
+              {savedAdvanceData.giftVoucher ? (
+                <>
+                  Gift voucher <strong>{savedAdvanceData.giftVoucher.code}</strong> saved. Print it or send it on WhatsApp.
+                </>
+              ) : (
+                <>
+                  Advance <strong>{savedAdvanceData.advanceNumber}</strong> saved successfully. Would you like to print the receipt?
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
 
@@ -286,7 +339,31 @@ export function AddAdvanceBookingDialog({
               <p className="text-sm text-muted-foreground">Amount Received</p>
               <p className="text-2xl font-bold text-green-600">₹{savedAdvanceData.amount.toLocaleString("en-IN")}</p>
               <p className="text-xs text-muted-foreground mt-1">{savedAdvanceData.customerName}</p>
+              {savedAdvanceData.giftVoucher && (
+                <p className="mt-2 font-mono text-xl font-bold tracking-widest text-pink-700">{savedAdvanceData.giftVoucher.code}</p>
+              )}
             </div>
+            {savedAdvanceData.giftVoucher && (
+              <Button variant="outline" className="w-full border-green-300 text-green-700" asChild>
+                <a
+                  href={whatsappShareUrl(
+                    giftVoucherWhatsAppText({
+                      shopName: companyDetails.businessName,
+                      receiverName: savedAdvanceData.customerName,
+                      amount: savedAdvanceData.amount,
+                      code: savedAdvanceData.giftVoucher.code,
+                      validTill: savedAdvanceData.giftVoucher.validTill,
+                      from: savedAdvanceData.giftVoucher.from,
+                    }),
+                    giftVoucherWhatsAppPhone(savedAdvanceData.customerPhone),
+                  )}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <MessageCircle className="h-4 w-4 mr-1" /> Send voucher on WhatsApp
+                </a>
+              </Button>
+            )}
 
             <div className="space-y-2">
               <Label>Paper Size</Label>
@@ -299,7 +376,7 @@ export function AddAdvanceBookingDialog({
               Skip
             </Button>
             <Button onClick={() => handlePrint()} className="bg-primary hover:bg-primary/90">
-              <Printer className="h-4 w-4 mr-1" /> Print Receipt
+              <Printer className="h-4 w-4 mr-1" /> {savedAdvanceData.giftVoucher ? "Print Voucher" : "Print Receipt"}
             </Button>
           </DialogFooter>
 
@@ -321,15 +398,46 @@ export function AddAdvanceBookingDialog({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Coins className="h-5 w-5 text-primary" />
-            Add Advance Booking
+            {isGift ? <Gift className="h-5 w-5 text-pink-600" /> : <Coins className="h-5 w-5 text-primary" />}
+            {isGift ? "Sell Gift Voucher" : "Add Advance Booking"}
           </DialogTitle>
           <DialogDescription>
-            Record an advance payment from a customer for future orders.
+            {isGift
+              ? "Book the voucher in the name of the person receiving it. They show the code at billing and it comes off their bill."
+              : "Record an advance payment from a customer for future orders."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          <label className="flex items-center justify-between gap-3 rounded-md border border-pink-200 bg-pink-50/60 px-3 py-2 text-sm">
+            <span className="flex items-center gap-2 font-medium text-pink-800">
+              <Gift className="h-4 w-4" /> Sell as gift voucher
+            </span>
+            <Switch checked={isGift} onCheckedChange={setIsGift} />
+          </label>
+          {isGift && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="gift-from">From (optional)</Label>
+                <Input id="gift-from" placeholder="Who is giving it" value={giver} onChange={(e) => setGiver(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Valid for</Label>
+                <Select value={String(validityMonths)} onValueChange={(v) => setValidityMonths(Number(v))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GIFT_VOUCHER_VALIDITY_OPTIONS.map((m) => (
+                      <SelectItem key={m} value={String(m)}>
+                        {m} months
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
           {/* Date */}
           <div className="space-y-2">
             <Label>Date</Label>
@@ -360,7 +468,7 @@ export function AddAdvanceBookingDialog({
           {/* Customer Selection */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label>Customer *</Label>
+              <Label>{isGift ? "Voucher for (receiver) *" : "Customer *"}</Label>
               <Button
                 type="button"
                 variant="ghost"
