@@ -253,3 +253,53 @@ export async function shrinkBillPhoto(file: File, maxSide = 1600, quality = 0.8)
   bitmap.close();
   return canvas.toDataURL("image/jpeg", quality);
 }
+
+export interface SupplierOption {
+  id: string;
+  supplier_name: string;
+  gst_number?: string | null;
+}
+
+/** Name key for supplier matching: no "M/s", punctuation or spacing differences. */
+export function supplierMatchKey(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/^\s*m\s*\/\s*s\.?\s*/, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+/** Existing supplier for the bill: GSTIN first, then the same name ignoring punctuation. */
+export function matchSupplier(
+  name: string,
+  gstin: string | null | undefined,
+  suppliers: SupplierOption[],
+): SupplierOption | null {
+  const gst = String(gstin ?? "").replace(/\s/g, "").toUpperCase();
+  if (gst.length === 15) {
+    const byGst = suppliers.find((s) => String(s.gst_number ?? "").replace(/\s/g, "").toUpperCase() === gst);
+    if (byGst) return byGst;
+  }
+  const key = supplierMatchKey(name);
+  if (!key) return null;
+  return suppliers.find((s) => supplierMatchKey(s.supplier_name) === key) ?? null;
+}
+
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
+/** Bill date as dd/mm/yyyy from what the bill prints (19/10/26, 2026-10-19, 19-Oct-2026, 19 October 2026). */
+export function normalizeBillDate(raw: string | null | undefined): string {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const fullYear = (y: number) => (y < 100 ? 2000 + y : y);
+  let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if (m) return `${pad(+m[3])}/${pad(+m[2])}/${m[1]}`;
+  m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/);
+  if (m) return `${pad(+m[1])}/${pad(+m[2])}/${fullYear(+m[3])}`;
+  m = s.match(/^(\d{1,2})[\s\-/.,]*([A-Za-z]{3,9})[\s\-/.,']*(\d{2,4})$/);
+  if (m) {
+    const month = MONTHS.indexOf(m[2].slice(0, 3).toLowerCase());
+    if (month >= 0) return `${pad(+m[1])}/${pad(month + 1)}/${fullYear(+m[3])}`;
+  }
+  return s;
+}
