@@ -3,6 +3,7 @@ import {
   DC_VISIBILITY_IDLE_MS,
   canFlipDcVisibility,
   dcVisibilityStorageKey,
+  effectiveDcVisibilityMode,
   expireDcVisibility,
   isDcVisibilityFlipped,
   resolveDcVisibilityMode,
@@ -36,6 +37,13 @@ describe("dcVisibility", () => {
     expect(resolveDcVisibilityMode({})).toBe("show");
     expect(resolveDcVisibilityMode({ dc_visibility_mode: "hide" })).toBe("hide");
     expect(resolveDcVisibilityMode({ dc_visibility_mode: "junk" })).toBe("show");
+  });
+
+  it("an Always show DC login works in Show mode", () => {
+    expect(effectiveDcVisibilityMode("hide", true)).toBe("show");
+    expect(effectiveDcVisibilityMode("hide", false)).toBe("hide");
+    expect(effectiveDcVisibilityMode("show", true)).toBe("show");
+    expect(effectiveDcVisibilityMode("show", false)).toBe("show");
   });
 
   it("Ctrl+Shift+H flips the shop's mode", () => {
