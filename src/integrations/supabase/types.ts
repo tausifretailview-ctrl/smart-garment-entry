@@ -1725,12 +1725,16 @@ export type Database = {
           customer_id: string
           description: string | null
           id: string
+          is_gift_voucher: boolean
           manual_used_amount: number
           organization_id: string
           payment_method: string | null
           status: string | null
           transaction_id: string | null
           used_amount: number
+          voucher_code: string | null
+          voucher_expires_on: string | null
+          voucher_from: string | null
         }
         Insert: {
           advance_date?: string
@@ -1742,12 +1746,16 @@ export type Database = {
           customer_id: string
           description?: string | null
           id?: string
+          is_gift_voucher?: boolean
           manual_used_amount?: number
           organization_id: string
           payment_method?: string | null
           status?: string | null
           transaction_id?: string | null
           used_amount?: number
+          voucher_code?: string | null
+          voucher_expires_on?: string | null
+          voucher_from?: string | null
         }
         Update: {
           advance_date?: string
@@ -1759,12 +1767,16 @@ export type Database = {
           customer_id?: string
           description?: string | null
           id?: string
+          is_gift_voucher?: boolean
           manual_used_amount?: number
           organization_id?: string
           payment_method?: string | null
           status?: string | null
           transaction_id?: string | null
           used_amount?: number
+          voucher_code?: string | null
+          voucher_expires_on?: string | null
+          voucher_from?: string | null
         }
         Relationships: [
           {
@@ -5949,6 +5961,60 @@ export type Database = {
           },
         ]
       }
+      purchase_photo_reads: {
+        Row: {
+          created_at: string
+          id: string
+          input_tokens: number | null
+          line_count: number
+          model: string | null
+          ok: boolean
+          organization_id: string
+          output_tokens: number | null
+          pages: number
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          input_tokens?: number | null
+          line_count?: number
+          model?: string | null
+          ok?: boolean
+          organization_id: string
+          output_tokens?: number | null
+          pages?: number
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          input_tokens?: number | null
+          line_count?: number
+          model?: string | null
+          ok?: boolean
+          organization_id?: string
+          output_tokens?: number | null
+          pages?: number
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_photo_reads_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_photo_reads_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       purchase_return_items: {
         Row: {
           barcode: string | null
@@ -10038,6 +10104,60 @@ export type Database = {
           },
         ]
       }
+      whatsapp_credit_topups: {
+        Row: {
+          balance_after: number
+          balance_before: number
+          created_at: string
+          created_by: string | null
+          id: string
+          lapsed: number
+          messages: number
+          note: string | null
+          organization_id: string
+          valid_until: string
+        }
+        Insert: {
+          balance_after: number
+          balance_before: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lapsed?: number
+          messages: number
+          note?: string | null
+          organization_id: string
+          valid_until: string
+        }
+        Update: {
+          balance_after?: number
+          balance_before?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lapsed?: number
+          messages?: number
+          note?: string | null
+          organization_id?: string
+          valid_until?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_credit_topups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_credit_topups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       whatsapp_logs: {
         Row: {
           created_at: string
@@ -10185,6 +10305,48 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_message_credits: {
+        Row: {
+          balance: number
+          last_topup_at: string | null
+          organization_id: string
+          updated_at: string
+          used_count: number
+          valid_until: string | null
+        }
+        Insert: {
+          balance?: number
+          last_topup_at?: string | null
+          organization_id: string
+          updated_at?: string
+          used_count?: number
+          valid_until?: string | null
+        }
+        Update: {
+          balance?: number
+          last_topup_at?: string | null
+          organization_id?: string
+          updated_at?: string
+          used_count?: number
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_message_credits_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_message_credits_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       whatsapp_message_stats: {
         Row: {
           created_at: string
@@ -10241,6 +10403,48 @@ export type Database = {
             referencedColumns: ["organization_id"]
           },
         ]
+      }
+      whatsapp_message_stats_backup_20261022: {
+        Row: {
+          created_at: string | null
+          delivered_count: number | null
+          failed_count: number | null
+          id: string | null
+          organization_id: string | null
+          pending_count: number | null
+          read_count: number | null
+          sent_count: number | null
+          stat_date: string | null
+          total_count: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          delivered_count?: number | null
+          failed_count?: number | null
+          id?: string | null
+          organization_id?: string | null
+          pending_count?: number | null
+          read_count?: number | null
+          sent_count?: number | null
+          stat_date?: string | null
+          total_count?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          delivered_count?: number | null
+          failed_count?: number | null
+          id?: string | null
+          organization_id?: string | null
+          pending_count?: number | null
+          read_count?: number | null
+          sent_count?: number | null
+          stat_date?: string | null
+          total_count?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       whatsapp_messages: {
         Row: {
@@ -12442,6 +12646,28 @@ export type Database = {
       peek_sale_order_number: {
         Args: { p_organization_id: string }
         Returns: string
+      }
+      platform_add_whatsapp_credits: {
+        Args: {
+          p_messages: number
+          p_note?: string
+          p_organization_id: string
+          p_valid_until?: string
+        }
+        Returns: {
+          balance: number
+          last_topup_at: string | null
+          organization_id: string
+          updated_at: string
+          used_count: number
+          valid_until: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "whatsapp_message_credits"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       platform_assign_user_to_org: {
         Args: {
