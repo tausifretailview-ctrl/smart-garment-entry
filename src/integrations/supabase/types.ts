@@ -7424,6 +7424,7 @@ export type Database = {
           invoice_type: string | null
           irn: string | null
           is_cancelled: boolean
+          is_dc_bill: boolean
           journal_error: string | null
           journal_status: string
           legacy_paid_baseline: number
@@ -7492,6 +7493,7 @@ export type Database = {
           invoice_type?: string | null
           irn?: string | null
           is_cancelled?: boolean
+          is_dc_bill?: boolean
           journal_error?: string | null
           journal_status?: string
           legacy_paid_baseline?: number
@@ -7560,6 +7562,7 @@ export type Database = {
           invoice_type?: string | null
           irn?: string | null
           is_cancelled?: boolean
+          is_dc_bill?: boolean
           journal_error?: string | null
           journal_status?: string
           legacy_paid_baseline?: number

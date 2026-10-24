@@ -59,6 +59,7 @@ import {
   isStatementTimeoutError,
   saleSaveTimeoutMessage,
 } from "@/utils/insertSaleItemsInChunks";
+import { isAllDcCart, isMissingDcNumberFunction, type DcCartLine } from "@/utils/dcBill";
 import { invalidateAfterSaleSave } from "@/utils/invalidateDashboardQueries";
 import type { PosDashboardSaleSeed } from "@/utils/posDashboardSales";
 import { istCalendarYmd, saleDateIsoIst } from "@/lib/localDayBounds";
@@ -97,6 +98,8 @@ interface CartItem {
   hsnCode?: string;
   itemNotes?: string | null;
   salesman?: string | null;
+  /** Bought on a DC (No GST) purchase bill. */
+  isDcProduct?: boolean;
 }
 
 interface SaleData {
@@ -342,6 +345,22 @@ export const useSaveSale = () => {
         ? { pos_numbering_format: format, pos_series_start: seriesStart }
         : { invoice_numbering_format: format, invoice_series_start: seriesStart };
     return generateOrgSaleNumber(currentOrganization!.id, saleSettings, kind);
+  };
+
+  /**
+   * POS bill of only DC items: next DC/YY-YY/N number. Null for a mixed bill, or while the
+   * DC numbering SQL is not run yet (the bill then stays in the POS series).
+   */
+  const allocateDcBillNumber = async (items: readonly DcCartLine[]): Promise<string | null> => {
+    if (!isAllDcCart(items)) return null;
+    const { data, error } = await supabase.rpc("generate_dc_number_atomic" as never, {
+      p_organization_id: currentOrganization!.id,
+    } as never);
+    if (error) {
+      if (isMissingDcNumberFunction(error)) return null;
+      throw error;
+    }
+    return (data as unknown as string) || null;
   };
 
   const allocatePosSaleNumber = async () => {
@@ -1327,9 +1346,16 @@ export const useSaveSale = () => {
       const saleSettings = (orgSettings as any)?.sale_settings as Record<string, any> | null;
       
       // Use POS format for POS sales, Invoice format for regular sales
+      const dcBillNumber =
+        saleType === 'pos' && !runtimeOptions?.presetSaleNumber
+          ? await allocateDcBillNumber(saleData.items)
+          : null;
       if (runtimeOptions?.presetSaleNumber) {
         // Offline bill being sent: keep the number already printed on the slip.
         saleNumber = runtimeOptions.presetSaleNumber;
+      } else if (dcBillNumber) {
+        // Every line is a DC item: DC series instead of POS.
+        saleNumber = dcBillNumber;
       } else if (saleType === 'pos') {
         // Check for custom POS format first
         if (saleSettings?.pos_numbering_format) {
@@ -1412,6 +1438,7 @@ export const useSaveSale = () => {
           notes: saleData.notes || null,
           tax_type: saleData.taxType || "inclusive",
           ...salePrintFirmPatch(saleData.printFirm),
+          ...(dcBillNumber ? { is_dc_bill: true } : {}),
           created_by: user.id,
           organization_id: currentOrganization.id,
           shop_name: shopName || null,
@@ -2204,8 +2231,11 @@ export const useSaveSale = () => {
         previousSaleNumber,
         payStatus,
       );
+      const promotedDcNumber = promoteHoldNumber
+        ? await allocateDcBillNumber(saleData.items)
+        : null;
       const promotedSaleNumber = promoteHoldNumber
-        ? await allocatePosSaleNumber()
+        ? promotedDcNumber ?? await allocatePosSaleNumber()
         : null;
 
       // First-time completion of hold/pending: stamp sale_date only if the bill never had one.
@@ -2249,7 +2279,11 @@ export const useSaveSale = () => {
         .from('sales')
         .update({
           ...(promotedSaleNumber
-            ? { sale_number: promotedSaleNumber, held_cart_data: null }
+            ? {
+                sale_number: promotedSaleNumber,
+                held_cart_data: null,
+                ...(promotedDcNumber ? { is_dc_bill: true } : {}),
+              }
             : {}),
           customer_id: saleData.customerId || null,
           customer_name: resolvePosCustomerName(saleData.customerName),
@@ -2691,7 +2725,8 @@ export const useSaveSale = () => {
         .eq("id", heldSaleId)
         .maybeSingle();
       const previousHoldNumber = String(heldRow?.sale_number || "");
-      const newSaleNumber = await allocatePosSaleNumber();
+      const heldDcNumber = await allocateDcBillNumber(saleData.items);
+      const newSaleNumber = heldDcNumber ?? await allocatePosSaleNumber();
 
       const {
         cashAmt,
@@ -2731,6 +2766,7 @@ export const useSaveSale = () => {
         .from('sales')
         .update({
           sale_number: newSaleNumber,
+          ...(heldDcNumber ? { is_dc_bill: true } : {}),
           sale_date: saleData.saleDate || saleDateIsoIst(),
           customer_id: saleData.customerId || null,
           customer_name: resolvePosCustomerName(saleData.customerName),
