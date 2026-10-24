@@ -60,6 +60,8 @@ import { ProductImageViewer } from "@/components/ProductImageViewer";
 import { ProductImageUploader } from "@/components/ProductImageUploader";
 import { MergeProductsDialog } from "@/components/MergeProductsDialog";
 import { useSettings, useProductFieldSettings } from "@/hooks/useSettings";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
+import { isMissingDcHideSql } from "@/utils/dcBill";
 import {
   catalogSearchIlikeTerm,
   fetchCatalogRowsForProductIds,
@@ -182,6 +184,7 @@ const ProductDashboard = () => {
   const { toast } = useToast();
   const { navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
+  const { hideDc } = useDcVisibility();
   const { hasSpecialPermission } = useUserPermissions();
   const canDelete = hasSpecialPermission('delete_records');
   const { data: orgSettings } = useSettings();
@@ -595,13 +598,15 @@ const ProductDashboard = () => {
 
     setVariantsLoading((prev) => new Set(prev).add(productId));
     try {
-      const { data, error } = await supabase
+      let variantsQuery = supabase
         .from("product_variants")
         .select("id, size, color, barcode, pur_price, sale_price, mrp, stock_qty")
         .eq("organization_id", currentOrganization.id)
         .eq("product_id", productId)
-        .is("deleted_at", null)
-        .order("size");
+        .is("deleted_at", null);
+      // DC (No GST) hidden: DC barcodes left out of the expanded sizes.
+      if (hideDc) variantsQuery = variantsQuery.not("is_dc_product", "is", true);
+      const { data, error } = await variantsQuery.order("size");
 
       const variants: ProductVariant[] = error
         ? []
@@ -627,7 +632,16 @@ const ProductDashboard = () => {
         return next;
       });
     }
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, hideDc]);
+
+  // Ctrl+Shift+H flips DC show / hide: expanded sizes are loaded again.
+  const lastHideDc = useRef(hideDc);
+  useEffect(() => {
+    if (lastHideDc.current === hideDc) return;
+    lastHideDc.current = hideDc;
+    variantCacheRef.current = {};
+    setVariantCache({});
+  }, [hideDc]);
 
   const rpcFilterKey = useMemo(
     () => ({
@@ -638,6 +652,7 @@ const ProductDashboard = () => {
       selectedStockLevel,
       minPrice,
       maxPrice,
+      ...(hideDc ? { hideDc: true } : {}),
     }),
     [
       debouncedSearch,
@@ -647,6 +662,7 @@ const ProductDashboard = () => {
       selectedStockLevel,
       minPrice,
       maxPrice,
+      hideDc,
     ],
   );
 
@@ -661,8 +677,10 @@ const ProductDashboard = () => {
       p_stock_level: selectedStockLevel !== "all" ? selectedStockLevel : null,
       p_min_price: minPrice ? parseFloat(minPrice) : null,
       p_max_price: maxPrice ? parseFloat(maxPrice) : null,
+      ...(hideDc ? { p_hide_dc: true } : {}),
     };
   }, [
+    hideDc,
     currentOrganization?.id,
     debouncedSearch,
     selectedCategory,
@@ -756,11 +774,11 @@ const ProductDashboard = () => {
       // milliseconds, while the catalog RPC scans every product's barcodes with
       // ilike (seconds on big catalogs). On an exact hit, show just that product.
       const exactBarcodeIds = barcodeLike && !minPrice && !maxPrice
-        ? await fetchProductIdsByExactBarcode(currentOrganization.id, searchTerm)
+        ? await fetchProductIdsByExactBarcode(currentOrganization.id, searchTerm, hideDc)
         : [];
       if (exactBarcodeIds.length > 0) {
         const exactRows = (
-          await fetchCatalogRowsForProductIds(currentOrganization.id, exactBarcodeIds)
+          await fetchCatalogRowsForProductIds(currentOrganization.id, exactBarcodeIds, hideDc)
         ).filter(catalogRowPassesFilters);
         return {
           rows: exactRows.map((row) => ({ ...row, variants: [] })),
@@ -768,7 +786,12 @@ const ProductDashboard = () => {
         };
       }
 
-      const { data, error } = await supabase.rpc("get_product_catalog_page", params);
+      let { data, error } = await supabase.rpc("get_product_catalog_page", params);
+      if (error && hideDc && isMissingDcHideSql(error)) {
+        // Product Dashboard DC SQL not run yet: list everything rather than fail.
+        const { p_hide_dc: _skip, ...withoutDc } = params as typeof params & { p_hide_dc?: boolean };
+        ({ data, error } = await supabase.rpc("get_product_catalog_page", withoutDc));
+      }
       if (error) throw error;
 
       const mapRpcRow = (p: any): ProductRow => ({
@@ -805,6 +828,7 @@ const ProductDashboard = () => {
         const supplemental = await fetchCatalogRowsForProductIds(
           currentOrganization.id,
           missingIds,
+          hideDc,
         );
         for (const row of supplemental.filter(catalogRowPassesFilters)) {
           rows.push({
@@ -820,6 +844,7 @@ const ProductDashboard = () => {
         const barcodeProductIds = await fetchProductIdsByPartialBarcode(
           currentOrganization.id,
           searchTerm,
+          hideDc,
         );
         await mergeSupplementalIds(barcodeProductIds);
 
@@ -867,7 +892,12 @@ const ProductDashboard = () => {
     queryKey: ["product-dashboard-stats", currentOrganization?.id, rpcFilterKey],
     queryFn: async () => {
       if (!currentOrganization?.id) return EMPTY_DASHBOARD_STATS;
-      const { data, error } = await supabase.rpc("get_product_dashboard_stats", buildRpcParams());
+      const statsParams = buildRpcParams() as ReturnType<typeof buildRpcParams> & { p_hide_dc?: boolean };
+      let { data, error } = await supabase.rpc("get_product_dashboard_stats", statsParams);
+      if (error && hideDc && isMissingDcHideSql(error)) {
+        const { p_hide_dc: _skip, ...withoutDc } = statsParams;
+        ({ data, error } = await supabase.rpc("get_product_dashboard_stats", withoutDc));
+      }
       if (error) {
         console.warn("get_product_dashboard_stats RPC failed:", error.message);
         return EMPTY_DASHBOARD_STATS;
