@@ -3,6 +3,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useHideMobileAppHeader } from "@/hooks/useMobileChrome";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { cn } from "@/lib/utils";
+import { OwnerNotificationsButton } from "@/components/OwnerNotificationsButton";
 
 interface MobileAppHeaderProps {
   title?: string;
@@ -49,7 +50,13 @@ export function MobileAppHeader({ title, className }: MobileAppHeaderProps) {
             <p className="text-[10px] opacity-80 truncate">{currentOrganization.name}</p>
           )}
         </div>
-        <div className="w-11 shrink-0" aria-hidden />
+        <div className="w-11 shrink-0">
+          <OwnerNotificationsButton
+            className="h-11 w-11 min-h-[44px] min-w-[44px] rounded-xl text-primary-foreground hover:bg-primary-foreground/15 active:scale-95"
+            iconClassName="h-5 w-5"
+            badgeClassName="top-1 right-1"
+          />
+        </div>
       </div>
     </header>
   );
