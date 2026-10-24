@@ -255,6 +255,7 @@ interface SaleSettings {
   active_discount_scheme_id?: string | null;
   /** When true, POS asks qty/discount in a dialog when picking regular goods from search dropdown. */
   pos_goods_ask_qty_dialog?: boolean;
+  pos_dashboard_show_purchase_code?: boolean;
   /** Shared / Sale default GST mode (existing setting — unchanged for current orgs) */
   default_tax_type?: 'inclusive' | 'exclusive' | 'no_gst';
   /** Optional POS-only override; omit to keep using `default_tax_type` */

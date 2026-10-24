@@ -202,6 +202,11 @@ import {
 } from "@/lib/dashboardFilterPersistence";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { invalidateAndRefetchWithQueryFn } from "@/utils/refetchQueriesWithFn";
+import {
+  encodePosLinePurchaseCode,
+  resolvePosDashboardPurchaseCodeEnabled,
+  type PosPurchaseCodeSettings,
+} from "@/utils/purchaseCodeEncoder";
 
 interface SaleItem {
   id: string;
@@ -704,6 +709,17 @@ const POSDashboard = () => {
   const showItemHsn = saleSettings?.show_item_hsn ?? false;
   const showItemMrp = saleSettings?.show_item_mrp ?? saleSettings?.show_mrp_column ?? false;
   const isEInvoiceEnabled = saleSettings?.einvoice_settings?.enabled ?? false;
+  // P.Code column in expanded Sale Items (Settings → POS). Display only; cost read from current variant.
+  const showItemPurchaseCode = resolvePosDashboardPurchaseCodeEnabled(saleSettings);
+  const purchaseCodeSettings = (settings as any)?.purchase_settings as PosPurchaseCodeSettings | undefined;
+  const [variantPurchaseInfo, setVariantPurchaseInfo] = useState<
+    Record<string, { purPrice: number; purchaseGstPer: number }>
+  >({});
+  const itemPurchaseCode = (item: SaleItem): string => {
+    const info = item.variant_id ? variantPurchaseInfo[item.variant_id] : undefined;
+    if (!info) return "";
+    return encodePosLinePurchaseCode(info, purchaseCodeSettings);
+  };
 
   const isDesktop = useIsDesktop();
   const rowContextMenu = useContextMenu<Sale>();
@@ -1279,6 +1295,7 @@ const POSDashboard = () => {
             product_name: item.productName || item.product_name || '',
             size: item.size || '',
             barcode: item.barcode || '',
+            variant_id: item.variantId || item.variant_id || '',
             quantity: item.quantity || item.qty || 0,
             unit_price: item.salePrice || item.unit_price || item.rate || 0,
             mrp: item.mrp || 0,
@@ -1362,6 +1379,41 @@ const POSDashboard = () => {
       return [];
     }
   };
+
+  const expandedItemsForCode = expandedSale ? saleItems[expandedSale] : undefined;
+  useEffect(() => {
+    if (!showItemPurchaseCode || !expandedItemsForCode?.length) return;
+    const missing = Array.from(
+      new Set(expandedItemsForCode.map((i) => i.variant_id).filter((id): id is string => !!id && !(id in variantPurchaseInfo))),
+    );
+    if (!missing.length) return;
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await supabase
+        .from("product_variants")
+        .select("id, pur_price, products(purchase_gst_percent, gst_per)")
+        .in("id", missing);
+      if (cancelled || error) {
+        if (error) console.error("Failed to load purchase codes:", error);
+        return;
+      }
+      const next: Record<string, { purPrice: number; purchaseGstPer: number }> = {};
+      for (const row of (data || []) as any[]) {
+        const product = Array.isArray(row.products) ? row.products[0] : row.products;
+        next[row.id] = {
+          purPrice: Number(row.pur_price) || 0,
+          purchaseGstPer: Number(product?.purchase_gst_percent ?? product?.gst_per) || 0,
+        };
+      }
+      // Remember misses too so a deleted variant is not re-queried on every expand.
+      for (const id of missing) if (!next[id]) next[id] = { purPrice: 0, purchaseGstPer: 0 };
+      setVariantPurchaseInfo((prev) => ({ ...prev, ...next }));
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- variantPurchaseInfo read only to skip known ids
+  }, [showItemPurchaseCode, expandedItemsForCode]);
 
   const toggleExpanded = useCallback(async (saleId: string) => {
     if (expandedSale === saleId) {
@@ -4483,6 +4535,7 @@ const POSDashboard = () => {
                                             <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold">Size</TableHead>
                                             {showItemBarcode && <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold">Barcode</TableHead>}
                                             {showItemHsn && <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold">HSN</TableHead>}
+                                            {showItemPurchaseCode && <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold" title="Purchase price code (same letters as barcode label)">P.Code</TableHead>}
                                             <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold text-right">Qty</TableHead>
                                             {showItemMrp && <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold text-right">MRP</TableHead>}
                                             <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold text-right">Rate</TableHead>
@@ -4501,6 +4554,7 @@ const POSDashboard = () => {
                                               <TableCell className="px-2 py-1 text-sm">{item.size}</TableCell>
                                               {showItemBarcode && <TableCell className="px-2 py-1 text-xs font-mono">{item.barcode || '-'}</TableCell>}
                                               {showItemHsn && <TableCell className="px-2 py-1 text-xs">{item.hsn_code || '-'}</TableCell>}
+                                              {showItemPurchaseCode && <TableCell className="px-2 py-1 text-xs font-mono font-semibold tracking-wider">{itemPurchaseCode(item) || '-'}</TableCell>}
                                               <TableCell className="px-2 py-1 text-sm text-right tabular-nums">{item.quantity}</TableCell>
                                               {showItemMrp && <TableCell className="px-2 py-1 text-sm text-right tabular-nums">₹{Math.round(item.mrp).toLocaleString('en-IN')}</TableCell>}
                                               <TableCell className="px-2 py-1 text-sm text-right tabular-nums">₹{Math.round(item.unit_price).toLocaleString('en-IN')}</TableCell>
@@ -4527,6 +4581,7 @@ const POSDashboard = () => {
                                               <TableCell className="px-2 py-1 text-sm text-red-700 dark:text-red-400">{ri.size || '-'}</TableCell>
                                               {showItemBarcode && <TableCell className="px-2 py-1 text-xs font-mono text-red-700 dark:text-red-400">{ri.barcode || '-'}</TableCell>}
                                               {showItemHsn && <TableCell className="px-2 py-1 text-xs text-red-700 dark:text-red-400">-</TableCell>}
+                                              {showItemPurchaseCode && <TableCell className="px-2 py-1 text-xs text-red-700 dark:text-red-400">-</TableCell>}
                                               <TableCell className="px-2 py-1 text-sm text-right tabular-nums text-red-700 dark:text-red-400">-{ri.quantity}</TableCell>
                                               {showItemMrp && <TableCell className="px-2 py-1 text-sm text-right tabular-nums text-red-700 dark:text-red-400">-</TableCell>}
                                               <TableCell className="px-2 py-1 text-sm text-right tabular-nums text-red-700 dark:text-red-400">₹{Math.round(ri.unit_price).toLocaleString('en-IN')}</TableCell>

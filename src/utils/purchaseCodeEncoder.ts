@@ -216,3 +216,10 @@ export function encodePosLinePurchaseCode(
     extraPercent: Number(purchaseSettings?.purchase_code_extra_percent) || 0,
   });
 }
+
+/** POS Dashboard Sale Items P.Code column (Settings → POS). Default off. */
+export function resolvePosDashboardPurchaseCodeEnabled(
+  saleSettings?: { pos_dashboard_show_purchase_code?: boolean | null } | null,
+): boolean {
+  return saleSettings?.pos_dashboard_show_purchase_code === true;
+}
