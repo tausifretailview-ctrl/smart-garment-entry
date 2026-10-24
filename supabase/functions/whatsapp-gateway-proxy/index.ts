@@ -17,7 +17,7 @@ const json = (body: unknown, status = 200) =>
 const VALID_STATUS = new Set(["connected", "connecting", "qr", "disconnected", "logged_out"]);
 
 /**
- * Browser -> gateway control plane for "Ezzy ERP WhatsApp" (start/QR, status, logout), authorized
+ * Browser -> gateway control plane for "Ezzy ERP WhatsApp" (start/QR, status, logout, groups), authorized
  * per org (admin/manager). The gateway posts connection events back with x-api-key.
  */
 serve(async (req) => {
@@ -146,6 +146,11 @@ async function handleControl(
     result = await gatewayRequest(`${base}/start`, { method: "POST", body: phone ? { phone } : undefined });
   } else if (action === "status") {
     result = await gatewayRequest(`${base}/status`);
+  } else if (action === "groups") {
+    // Settings > WhatsApp: groups the shop number is in, to pick one for bill customers.
+    result = await gatewayRequest(`${base}/groups`);
+    if (!result.ok) return json({ error: result.data.error ?? "Gateway error" }, result.status || 502);
+    return json({ success: true, groups: result.data.groups ?? [] });
   } else if (action === "logout") {
     result = await gatewayRequest(base, { method: "DELETE" });
     if (result.ok) {

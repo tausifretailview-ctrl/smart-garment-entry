@@ -9,6 +9,7 @@ import { normalizeWhatsAppApiBaseUrl, normalizeWhatsAppApiVersion } from "../_sh
 import { buildPublicInvoiceViewUrl, WHATSAPP_FALLBACK_HEADER_IMAGE_URL } from "../_shared/publicInvoiceLink.ts";
 import { formatPhoneNumber } from "../_shared/whatsappPhone.ts";
 import { getGatewayConfig, sendViaBuiltinGateway } from "../_shared/builtinGatewaySend.ts";
+import { joinBillCustomer, runInBackground } from "../_shared/builtinCustomerJoin.ts";
 import { loadCreditBlockReason } from "../_shared/whatsappCredits.ts";
 import { isBspSendAccepted } from "../_shared/whatsappStatusWebhook.ts";
 import {
@@ -915,6 +916,17 @@ serve(async (req) => {
           }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
+      }
+
+      // Bill customers: save as contact / add to the shop's WhatsApp group (Settings > WhatsApp, off by default).
+      if (isBuiltin && referenceType === 'sale') {
+        runInBackground(joinBillCustomer(
+          supabase,
+          organizationId,
+          orgSettings as Record<string, unknown> | null,
+          formattedPhone,
+          String(saleData?.customer_name ?? ''),
+        ));
       }
 
       const inboxText = resolvedMessage

@@ -3,6 +3,7 @@ import path from "node:path";
 import QRCode from "qrcode";
 import pino from "pino";
 import makeWASocket, {
+  areJidsSameUser,
   DisconnectReason,
   fetchLatestBaileysVersion,
   normalizeMessageContent,
@@ -68,6 +69,12 @@ interface Session {
   mediaCache: ReturnType<typeof makeMediaCache>;
   /** Why WhatsApp last closed the connection, shown on the page and in campaign notes. */
   lastClose: { code: number | null; reason: string; at: string } | null;
+  /** Customers added to a group from bills: own daily cap, gap and queue (group adds are watched for spam). */
+  groupAddsToday: number;
+  groupDay: string;
+  lastGroupAddAt: number;
+  groupQueue: Promise<unknown>;
+  groupPending: number;
 }
 
 /** Plain words for WhatsApp's close codes (Baileys DisconnectReason). */
@@ -141,6 +148,12 @@ const MAX_PER_DAY = Number(process.env.MAX_MSGS_PER_DAY ?? 300);
 const MAX_BULK_PER_DAY = Number(process.env.MAX_BULK_MSGS_PER_DAY ?? 500);
 const MIN_GAP_MS = 2000;
 const MAX_GAP_MS = 5000;
+/** Bill customers added to a WhatsApp group per shop number per day, and the gap between two adds. */
+const MAX_GROUP_ADDS_PER_DAY = Number(process.env.MAX_GROUP_ADDS_PER_DAY ?? 25);
+const GROUP_ADD_MIN_GAP_MS = 20_000;
+const GROUP_ADD_MAX_GAP_MS = 40_000;
+/** Adds waiting in a shop's queue before new ones are turned away (they are tried on the customer's next bill). */
+const GROUP_QUEUE_MAX = 5;
 /**
  * Shop (bill) sessions are keyed by organization id; Bulk WhatsApp sessions by "u_" + user id; Ezzy's own
  * support number (posts support tokens to the Technical Support group) is the one session "support".
@@ -206,6 +219,26 @@ const MEDIA_KINDS: [keyof proto.IMessage, string][] = [
   ["contactMessage", "contact"],
 ];
 
+/** Contact names: one line, at most 100 characters. */
+const cleanName = (raw: unknown) => String(raw ?? "").replace(/\s+/g, " ").trim().slice(0, 100);
+
+export interface JoinCustomerInput {
+  phone: string;
+  name?: string;
+  saveContact?: boolean;
+  /** WhatsApp group id (…@g.us) to add the customer to; empty = contact only. */
+  groupId?: string;
+  /** Customer's privacy blocks the add: send them the invite link instead. */
+  inviteFallback?: boolean;
+  inviteText?: string;
+}
+
+export interface JoinCustomerResult {
+  contact: "saved" | "skipped" | "failed";
+  group: "added" | "already" | "invited" | "privacy" | "not_admin" | "left_recently" | "full" | "limit" | "failed" | "skipped";
+  detail?: string;
+}
+
 export class SessionManager {
   private sessions = new Map<string, Session>();
   /** Delivery / read ticks for messages sent from Bulk WhatsApp sessions. */
@@ -261,6 +294,7 @@ export class SessionManager {
         sent: new Map(),
         mediaCache: makeMediaCache(),
         lastClose: null,
+        groupAddsToday: 0, groupDay: today(), lastGroupAddAt: 0, groupQueue: Promise.resolve(), groupPending: 0,
       };
       this.sessions.set(orgId, s);
     }
@@ -699,6 +733,20 @@ export class SessionManager {
     return found.filter((r) => r.exists).map((r) => String(r.jid).split("@")[0].split(":")[0]);
   }
 
+  /** "New contact" on WhatsApp Web for one number (also saved to the phone's address book). */
+  private async saveOneContact(s: Session, phone: string, name: string) {
+    if (!name) throw new Error("name is required");
+    if (s.status !== "connected" || !s.sock) throw new Error("WhatsApp session is not connected");
+    const jid = toJid(phone);
+    const lid = await s.sock.signalRepository.lidMapping.getLIDForPN(jid).catch(() => null);
+    await s.sock.addOrEditContact(jid, {
+      fullName: name,
+      firstName: name.split(" ")[0],
+      ...(lid ? { lidJid: lid } : {}),
+      saveOnPrimaryAddressbook: true,
+    });
+  }
+
   /**
    * Saves numbers as contacts on this WhatsApp, like "New contact" on WhatsApp Web (also saved to the
    * phone's address book). One at a time with a short pause, at most 10 per call; not counted as sends.
@@ -713,18 +761,9 @@ export class SessionManager {
     const failed: { phone: string; error: string }[] = [];
     for (const [i, c] of list.entries()) {
       const phone = String(c.phone ?? "").replace(/\D/g, "");
-      const name = String(c.name ?? "").replace(/\s+/g, " ").trim().slice(0, 100);
+      const name = cleanName(c.name);
       try {
-        if (!name) throw new Error("name is required");
-        if (s.status !== "connected" || !s.sock) throw new Error("WhatsApp session is not connected");
-        const jid = toJid(phone);
-        const lid = await s.sock.signalRepository.lidMapping.getLIDForPN(jid).catch(() => null);
-        await s.sock.addOrEditContact(jid, {
-          fullName: name,
-          firstName: name.split(" ")[0],
-          ...(lid ? { lidJid: lid } : {}),
-          saveOnPrimaryAddressbook: true,
-        });
+        await this.saveOneContact(s, phone, name);
         saved.push(phone);
       } catch (e) {
         failed.push({ phone, error: e instanceof Error ? e.message : String(e) });
@@ -735,12 +774,122 @@ export class SessionManager {
     return { saved, failed };
   }
 
-  /** Groups this number is in, so the platform admin can pick the Technical Support group. */
-  async groups(orgId: string): Promise<{ id: string; name: string; size: number }[]> {
+  /**
+   * A bill customer: save the number as a contact and/or add it to one group this number is admin of.
+   * When the customer's privacy blocks the add, sends the group's invite link instead (if asked).
+   * Adds are queued per shop with a 20-40 s gap and a daily cap; when the queue is full or the cap is
+   * reached the add is skipped ("limit") so the app tries again on the customer's next bill.
+   */
+  async joinCustomer(orgId: string, input: JoinCustomerInput): Promise<JoinCustomerResult> {
     const s = this.ready(orgId);
+    const phone = String(input.phone ?? "").replace(/\D/g, "");
+    const name = cleanName(input.name) || `+${phone}`;
+    const groupId = String(input.groupId ?? "").trim();
+    if (groupId && !/^[0-9-]+@g\.us$/.test(groupId)) throw new Error("Invalid group id");
+
+    const result: JoinCustomerResult = { contact: "skipped", group: "skipped" };
+    if (input.saveContact) {
+      try {
+        await this.saveOneContact(s, phone, name);
+        result.contact = "saved";
+      } catch (e) {
+        result.contact = "failed";
+        result.detail = `Contact: ${e instanceof Error ? e.message : String(e)}`;
+      }
+    }
+    if (!groupId) return result;
+
+    if (s.groupDay !== today()) {
+      s.groupDay = today();
+      s.groupAddsToday = 0;
+    }
+    if (s.groupAddsToday >= MAX_GROUP_ADDS_PER_DAY) {
+      return { ...result, group: "limit", detail: `Daily group add limit (${MAX_GROUP_ADDS_PER_DAY}) reached` };
+    }
+    if (s.groupPending >= GROUP_QUEUE_MAX) {
+      return { ...result, group: "limit", detail: "Too many group adds waiting; tried again on the next bill" };
+    }
+
+    s.groupPending++;
+    const run = async () => {
+      try {
+        const wait = s.lastGroupAddAt + GROUP_ADD_MIN_GAP_MS + Math.random() * (GROUP_ADD_MAX_GAP_MS - GROUP_ADD_MIN_GAP_MS) - Date.now();
+        if (wait > 0) await sleep(wait);
+        return await this.addToGroup(s, phone, groupId, input.inviteFallback === true, input.inviteText);
+      } finally {
+        s.groupPending--;
+      }
+    };
+    const next = s.groupQueue.then(run, run);
+    s.groupQueue = next.catch(() => undefined);
+    const group = await next;
+    return { ...result, ...group, detail: [result.detail, group.detail].filter(Boolean).join("; ") || undefined };
+  }
+
+  private async addToGroup(
+    s: Session,
+    phone: string,
+    groupId: string,
+    inviteFallback: boolean,
+    inviteText?: string,
+  ): Promise<Pick<JoinCustomerResult, "group" | "detail">> {
+    if (s.status !== "connected" || !s.sock) return { group: "failed", detail: "WhatsApp session is not connected" };
+    const sock = s.sock;
+    const jid = toJid(phone);
+    try {
+      const meta = await sock.groupMetadata(groupId);
+      const me = sock.user;
+      const mine = meta.participants.find((p) =>
+        [p.id, p.lid, p.phoneNumber].some((id) => areJidsSameUser(id, me?.id) || (me?.lid ? areJidsSameUser(id, me.lid) : false)),
+      );
+      if (!mine?.admin) return { group: "not_admin", detail: `This WhatsApp number is not an admin of "${meta.subject}"` };
+
+      const [res] = await sock.groupParticipantsUpdate(groupId, [jid], "add");
+      s.lastGroupAddAt = Date.now();
+      s.groupAddsToday++;
+      const code = String(res?.status ?? "");
+      if (code === "200") return { group: "added" };
+      if (code === "409") return { group: "already" };
+      if (code === "408") return { group: "left_recently", detail: "Customer left this group recently" };
+      if (code === "500") return { group: "full", detail: "Group is full" };
+      if (code !== "403") return { group: "failed", detail: `WhatsApp answered ${code || "nothing"}` };
+
+      // Privacy: only the customer's contacts may add them. Send the invite link so they can tap Join.
+      if (!inviteFallback) return { group: "privacy", detail: "Customer's privacy settings block group adds" };
+      const inviteCode = await sock.groupInviteCode(groupId);
+      if (!inviteCode) return { group: "privacy", detail: "Could not get the group invite link" };
+      const text =
+        `${(inviteText ?? "").trim() || `Join our WhatsApp group "${meta.subject}" for offers and new arrivals:`}\n` +
+        `https://chat.whatsapp.com/${inviteCode}`;
+      await this.enqueue(s, async () => {
+        const sent = await sock.sendMessage(jid, { text });
+        remember(s, sent);
+        return sent?.key?.id ?? null;
+      });
+      return { group: "invited", detail: "Privacy blocks direct adds; invite link sent" };
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      logger.warn({ groupId, error: message }, "Group add failed");
+      return { group: "failed", detail: message };
+    }
+  }
+
+  /** Groups this number is in (and whether it is admin there), for Technical Support and bill group adds. */
+  async groups(orgId: string): Promise<{ id: string; name: string; size: number; isAdmin: boolean }[]> {
+    const s = this.ready(orgId);
+    const me = s.sock!.user;
     const all = await s.sock!.groupFetchAllParticipating();
     return Object.values(all)
-      .map((g) => ({ id: g.id, name: g.subject || g.id, size: g.participants?.length ?? 0 }))
+      .map((g) => ({
+        id: g.id,
+        name: g.subject || g.id,
+        size: g.participants?.length ?? 0,
+        isAdmin: (g.participants ?? []).some(
+          (p) =>
+            Boolean(p.admin) &&
+            [p.id, p.lid, p.phoneNumber].some((id) => areJidsSameUser(id, me?.id) || (me?.lid ? areJidsSameUser(id, me.lid) : false)),
+        ),
+      }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
