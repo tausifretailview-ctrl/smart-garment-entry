@@ -42,7 +42,8 @@ export function useGlobalNavigationShortcuts() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented || isGlobalShortcutBlocked()) return;
 
-      const key = e.key.toLowerCase();
+      // Chrome autofill fires keydown with no key — it threw "reading 'toLowerCase'".
+      const key = (e.key ?? "").toLowerCase();
 
       // Alt+D — dashboard (first allowed home)
       if (e.altKey && !e.ctrlKey && !e.shiftKey && key === "d") {

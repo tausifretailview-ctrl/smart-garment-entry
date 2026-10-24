@@ -76,7 +76,8 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
-      const key = e.key.toLowerCase();
+      // Chrome autofill fires keydown with no key — it threw "reading 'toLowerCase'".
+      const key = (e.key ?? "").toLowerCase();
       if (key !== "k") return;
       if (!(e.metaKey || e.ctrlKey)) return;
       if (e.altKey || e.shiftKey) return;

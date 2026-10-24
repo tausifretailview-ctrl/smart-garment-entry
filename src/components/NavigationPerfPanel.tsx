@@ -32,7 +32,7 @@ export function NavigationPerfPanel() {
     if (!isNavigationPerfEnabled()) return;
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "p") {
+      if (e.ctrlKey && e.shiftKey && (e.key ?? "").toLowerCase() === "p") {
         e.preventDefault();
         setVisible((v) => !v);
       }
