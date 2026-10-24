@@ -5,6 +5,9 @@ import { AnimatedChart } from "./AnimatedChart";
 import { format, subDays, startOfDay } from "date-fns";
 import { DASHBOARD_MANUAL_REFRESH_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { fetchDashboardPurchaseSummary } from "@/utils/dashboardSummaryRpcs";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
+import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
+import { localDayBounds } from "@/lib/localDayBounds";
 
 type StatsChartsSectionProps = {
   /** When false, chart queries do not hit Supabase until the user clicks Refresh. */
@@ -13,11 +16,12 @@ type StatsChartsSectionProps = {
 
 export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionProps) => {
   const { currentOrganization } = useOrganization();
+  const { hideDc } = useDcVisibility();
   const chartsEnabled = loadEnabled && !!currentOrganization?.id;
 
   // Last 7 days sales — server-side daily summary (replaces unbounded sales row fetch)
   const { data: salesData } = useQuery({
-    queryKey: ["sales-trend", currentOrganization?.id],
+    queryKey: ["sales-trend", currentOrganization?.id, hideDc],
     queryFn: async () => {
       if (!currentOrganization) return [];
 
@@ -30,18 +34,40 @@ export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionPr
         };
       });
 
-      const { data, error } = await supabase.rpc("get_sales_daily_summary", {
-        p_org_id: currentOrganization.id,
-        p_days: 7,
-      });
-      if (error) throw error;
+      let amountByDay: Map<string, number>;
+      if (hideDc) {
+        // DC hidden: 7 days of bills, all-DC bills out, DC share of mixed bills out.
+        const { startIso, endIso } = localDayBounds(last7Days[0].key, last7Days[6].key);
+        const { data, error } = await supabase
+          .from("sales")
+          .select("id, net_amount, sale_date")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .eq("is_cancelled", false)
+          .eq("is_dc_bill", false)
+          .gte("sale_date", startIso)
+          .lte("sale_date", endIso);
+        if (error) throw error;
+        const rows = await saleRowsWithoutDc(supabase, data || []);
+        amountByDay = new Map();
+        for (const row of rows) {
+          const key = format(new Date(row.sale_date), "yyyy-MM-dd");
+          amountByDay.set(key, (amountByDay.get(key) || 0) + (Number(row.net_amount) || 0));
+        }
+      } else {
+        const { data, error } = await supabase.rpc("get_sales_daily_summary", {
+          p_org_id: currentOrganization.id,
+          p_days: 7,
+        });
+        if (error) throw error;
 
-      const amountByDay = new Map(
-        (data ?? []).map((row: { sale_day: string; total_amount: number | null }) => [
-          String(row.sale_day).slice(0, 10),
-          Number(row.total_amount) || 0,
-        ]),
-      );
+        amountByDay = new Map(
+          (data ?? []).map((row: { sale_day: string; total_amount: number | null }) => [
+            String(row.sale_day).slice(0, 10),
+            Number(row.total_amount) || 0,
+          ]),
+        );
+      }
 
       return last7Days.map((day) => ({
         name: day.name,
@@ -54,7 +80,7 @@ export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionPr
 
   // Last 7 days purchase — org-scoped RPC (same aggregates as v_dashboard_purchase_summary)
   const { data: purchaseData } = useQuery({
-    queryKey: ["purchase-trend", currentOrganization?.id],
+    queryKey: ["purchase-trend", currentOrganization?.id, hideDc],
     queryFn: async () => {
       if (!currentOrganization) return [];
       
@@ -66,11 +92,23 @@ export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionPr
         };
       });
 
-      const data = await fetchDashboardPurchaseSummary(
-        supabase,
-        currentOrganization.id,
-        format(last7Days[0].date, "yyyy-MM-dd"),
-      );
+      const fromDay = format(last7Days[0].date, "yyyy-MM-dd");
+      let data: Array<{ purchase_day: string; total_purchase_amount: number | null }>;
+      if (hideDc) {
+        // DC hidden: DC purchase bills left out.
+        const { data: bills, error } = await supabase
+          .from("purchase_bills")
+          .select("bill_date, net_amount")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .or("is_cancelled.is.null,is_cancelled.eq.false")
+          .or("is_dc_purchase.is.null,is_dc_purchase.eq.false")
+          .gte("bill_date", fromDay);
+        if (error) throw error;
+        data = (bills || []).map((b) => ({ purchase_day: b.bill_date, total_purchase_amount: b.net_amount }));
+      } else {
+        data = await fetchDashboardPurchaseSummary(supabase, currentOrganization.id, fromDay);
+      }
 
       const purchaseByDay = last7Days.map(day => {
         const dayPurchases = data?.filter(
@@ -91,19 +129,19 @@ export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionPr
 
   // Fetch top 5 products by stock value
   const { data: topProductsData } = useQuery({
-    queryKey: ["top-products", currentOrganization?.id],
+    queryKey: ["top-products", currentOrganization?.id, hideDc],
     queryFn: async () => {
       if (!currentOrganization) return [];
       
-      const { data, error } = await supabase
+      let query = supabase
         .from("product_variants")
         .select("stock_qty, sale_price, products!inner(product_name, organization_id, product_type)")
         .eq("organization_id", currentOrganization.id)
         .eq("products.organization_id", currentOrganization.id)
         .eq("active", true)
-        .neq("products.product_type", "service")
-        .order("stock_qty", { ascending: false })
-        .limit(5);
+        .neq("products.product_type", "service");
+      if (hideDc) query = query.not("is_dc_product", "is", true);
+      const { data, error } = await query.order("stock_qty", { ascending: false }).limit(5);
 
       if (error) throw error;
 

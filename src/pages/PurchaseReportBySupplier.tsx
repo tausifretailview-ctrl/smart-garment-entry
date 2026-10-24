@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchAllSuppliers, fetchAllPurchaseBillsWithFilters } from "@/utils/fetchAllRows";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,6 +43,7 @@ interface SupplierSummaryRow {
 
 const PurchaseReportBySupplier = () => {
   const { currentOrganization } = useOrganization();
+  const { hideDc } = useDcVisibility();
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>("all");
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
@@ -95,7 +97,7 @@ const PurchaseReportBySupplier = () => {
 
   // Fetch purchase bills using paginated fetch to bypass 1000 limit
   const { data: purchaseBills = [], isLoading } = useQuery({
-    queryKey: ["purchase-bills-report", currentOrganization?.id, selectedSupplierId, startDate, endDate],
+    queryKey: ["purchase-bills-report", currentOrganization?.id, selectedSupplierId, startDate, endDate, hideDc],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       
@@ -103,6 +105,7 @@ const PurchaseReportBySupplier = () => {
       if (startDate) filters.startDate = format(startDate, "yyyy-MM-dd");
       if (endDate) filters.endDate = format(endDate, "yyyy-MM-dd");
       if (selectedSupplierId !== "all") filters.supplierId = selectedSupplierId;
+      if (hideDc) filters.hideDc = true;
       
       const allBills = await fetchAllPurchaseBillsWithFilters(currentOrganization.id, filters);
       return allBills as PurchaseBill[];

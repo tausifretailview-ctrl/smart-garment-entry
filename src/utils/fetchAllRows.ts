@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { isCustomerReceiptVoucher } from "@/utils/paymentVoucherFilters";
 import { fetchItemsGrossBySaleId as fetchItemsGrossBySaleIdRpc } from "@/utils/fetchItemsGrossBySaleId";
 import { isMissingDcColumnError } from "@/utils/gstDcExclusion";
+import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
 
 const CUSTOMER_DIRECTORY_PAGE_SIZE = 1000;
 /** Pages requested at once after the first (big shops: 8 pages took 8 round trips in a row). */
@@ -1208,6 +1209,8 @@ export async function fetchAllSalesWithFilters(
     endDate?: string;
     customerId?: string;
     saleType?: string;
+    /** DC (No GST) hidden: all-DC bills out, DC share of mixed bills out of the money columns. */
+    hideDc?: boolean;
   }
 ) {
   const allRows: any[] = [];
@@ -1237,6 +1240,9 @@ export async function fetchAllSalesWithFilters(
     if (filters?.saleType) {
       query = query.eq("sale_type", filters.saleType);
     }
+    if (filters?.hideDc) {
+      query = query.eq("is_dc_bill", false);
+    }
 
     const { data, error } = await query;
 
@@ -1256,7 +1262,7 @@ export async function fetchAllSalesWithFilters(
     }
   }
 
-  return allRows;
+  return filters?.hideDc ? saleRowsWithoutDc(supabase, allRows) : allRows;
 }
 
 /**
@@ -1268,6 +1274,8 @@ export async function fetchAllPurchaseBillsWithFilters(
     startDate?: string;
     endDate?: string;
     supplierId?: string;
+    /** DC (No GST) hidden: DC purchase bills left out. */
+    hideDc?: boolean;
   }
 ) {
   const allRows: any[] = [];
@@ -1292,6 +1300,9 @@ export async function fetchAllPurchaseBillsWithFilters(
     }
     if (filters?.supplierId) {
       query = query.eq("supplier_id", filters.supplierId);
+    }
+    if (filters?.hideDc) {
+      query = query.or("is_dc_purchase.is.null,is_dc_purchase.eq.false");
     }
 
     const { data, error } = await query;

@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
+import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -66,6 +68,7 @@ const getTimeOfDayLabel = (hour: number): string => {
 
 export default function HourlySalesAnalysis() {
   const { currentOrganization } = useOrganization();
+  const { hideDc } = useDcVisibility();
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>(() => ({
     from: startOfDay(subDays(new Date(), 7)),
     to: startOfDay(new Date()),
@@ -76,23 +79,27 @@ export default function HourlySalesAnalysis() {
   const rangeToYmd = format(dateRange.to, "yyyy-MM-dd");
 
   const { data: hourlyData, isLoading } = useQuery({
-    queryKey: ["hourly-sales", currentOrganization?.id, rangeFromYmd, rangeToYmd],
+    queryKey: ["hourly-sales", currentOrganization?.id, rangeFromYmd, rangeToYmd, hideDc],
     queryFn: async () => {
       if (!currentOrganization) return [];
 
       const fromDate = startOfDay(dateRange.from).toISOString();
       const toDate = endOfDay(dateRange.to).toISOString();
 
-      const { data, error } = await supabase
+      let query = supabase
         .from("sales")
-        .select("net_amount, sale_date")
+        .select("id, net_amount, sale_date")
         .eq("organization_id", currentOrganization.id)
         .gte("sale_date", fromDate)
         .lte("sale_date", toDate)
         .is("deleted_at", null)
         .eq("is_cancelled", false);
+      // DC hidden: all-DC bills out, DC share of mixed bills out.
+      if (hideDc) query = query.eq("is_dc_bill", false);
+      const { data: fetched, error } = await query;
 
       if (error) throw error;
+      const data = hideDc ? await saleRowsWithoutDc(supabase, fetched || []) : fetched;
 
       // Group by hour
       const hourlyMap = new Map<number, { sales: number; count: number }>();

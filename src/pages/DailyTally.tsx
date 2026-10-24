@@ -6,6 +6,7 @@ import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersB
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 import { useSettings } from "@/hooks/useSettings";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -85,6 +86,7 @@ const DEFAULT_DENOM_COUNTS: Record<number, number> = { 2000: 0, 500: 0, 200: 0, 
 // ─── Component ─────────────────────────────────────────────────────────
 const DailyTally = () => {
   const { currentOrganization } = useOrganization();
+  const { hideDc } = useDcVisibility();
   const { user } = useAuth();
   const { isAdmin, isManager } = useUserRoles();
   const queryClient = useQueryClient();
@@ -130,9 +132,9 @@ const DailyTally = () => {
 
   // Sales (POS + Invoice) — static import
   const { data: salesData, isLoading: salesLoading, refetch: refetchSales } = useQuery({
-    queryKey: ["daily-tally-sales", orgId, dateStr],
+    queryKey: ["daily-tally-sales", orgId, dateStr, hideDc],
     queryFn: async () => {
-      return fetchAllSalesWithFilters(orgId!, { startDate: startIso, endDate: endIso });
+      return fetchAllSalesWithFilters(orgId!, { startDate: startIso, endDate: endIso, hideDc });
     },
     enabled: !!orgId,
     ...REPORT_CACHE,
