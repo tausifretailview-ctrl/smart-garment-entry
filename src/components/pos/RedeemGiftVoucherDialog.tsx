@@ -14,11 +14,14 @@ export function RedeemGiftVoucherDialog({
   open,
   onOpenChange,
   organizationId,
+  customerVouchers = [],
   onUse,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId: string;
+  /** Vouchers the customer on the bill already holds: one tap to use, no code typing. */
+  customerVouchers?: GiftVoucherLookup[];
   onUse: (voucher: GiftVoucherLookup) => void;
 }) {
   const [code, setCode] = useState("");
@@ -61,6 +64,39 @@ export function RedeemGiftVoucherDialog({
           </DialogTitle>
           <DialogDescription>Type the code printed on the voucher, or its receipt number.</DialogDescription>
         </DialogHeader>
+
+        {customerVouchers.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {customerVouchers[0].customerName}&apos;s gift vouchers
+            </p>
+            {customerVouchers.map((v) => (
+              <button
+                key={v.advanceId}
+                type="button"
+                onClick={() => {
+                  onUse(v);
+                  close(false);
+                }}
+                className="flex w-full items-center justify-between gap-3 rounded-lg border border-pink-200 bg-pink-50/70 px-3 py-2 text-left hover:bg-pink-100"
+              >
+                <span>
+                  <span className="block font-mono text-sm font-bold tracking-widest text-pink-700">{v.code}</span>
+                  {v.expiresOn && (
+                    <span className={v.expired ? "text-xs font-medium text-amber-700" : "text-xs text-slate-500"}>
+                      {v.expired ? "Expired on" : "Valid till"} {format(parseISO(v.expiresOn), "dd MMM yyyy")}
+                    </span>
+                  )}
+                </span>
+                <span className="text-right">
+                  <span className="block text-lg font-bold text-pink-700">₹{v.remaining.toLocaleString("en-IN")}</span>
+                  <span className="text-xs font-medium text-pink-600">Use on this bill</span>
+                </span>
+              </button>
+            ))}
+            <p className="pt-1 text-xs text-slate-500">Or type another voucher code:</p>
+          </div>
+        )}
 
         <form
           className="flex gap-2"

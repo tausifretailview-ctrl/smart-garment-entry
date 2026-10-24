@@ -17,7 +17,7 @@ import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { format, startOfDay, startOfWeek, startOfMonth } from "date-fns";
+import { format, parseISO, startOfDay, startOfWeek, startOfMonth } from "date-fns";
 import { toast } from "sonner";
 import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -45,6 +45,8 @@ const PAGE_SIZE = 50;
 
 type DateFilter = "all" | "today" | "week" | "month";
 type StatusFilter = "all" | "active" | "partially_used" | "fully_used" | "refunded";
+/** Gift vouchers are advances too (same accounting); this splits the list. */
+type TypeFilter = "all" | "advance" | "gift";
 
 export default function AdvanceBookingDashboard() {
   const { currentOrganization } = useOrganization();
@@ -88,6 +90,7 @@ export default function AdvanceBookingDashboard() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [currentPage, setCurrentPage] = useState(1);
 
   const advanceBookingFilterSnapshot = useMemo(
@@ -95,9 +98,10 @@ export default function AdvanceBookingDashboard() {
       search,
       dateFilter,
       statusFilter,
+      typeFilter,
       currentPage,
     }),
-    [search, dateFilter, statusFilter, currentPage],
+    [search, dateFilter, statusFilter, typeFilter, currentPage],
   );
 
   const { clearPersistedFilters } = useDashboardFilterPersistence(
@@ -110,6 +114,7 @@ export default function AdvanceBookingDashboard() {
           ["search", setSearch],
           ["dateFilter", (v) => setDateFilter(v as DateFilter)],
           ["statusFilter", (v) => setStatusFilter(v as StatusFilter)],
+          ["typeFilter", (v) => setTypeFilter(v as TypeFilter)],
         ],
         numbers: [["currentPage", setCurrentPage]],
       });
@@ -120,6 +125,7 @@ export default function AdvanceBookingDashboard() {
     search !== "" ||
     dateFilter !== "all" ||
     statusFilter !== "all" ||
+    typeFilter !== "all" ||
     currentPage !== 1;
 
   const resetAdvanceBookingFilters = () => {
@@ -127,6 +133,7 @@ export default function AdvanceBookingDashboard() {
     setDebouncedSearch("");
     setDateFilter("all");
     setStatusFilter("all");
+    setTypeFilter("all");
     setCurrentPage(1);
     clearPersistedFilters();
   };
@@ -214,14 +221,18 @@ export default function AdvanceBookingDashboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("customer_advances")
-        .select("amount, used_amount, status")
+        // "*" so the summary still loads before the gift voucher columns exist.
+        .select("*")
         .eq("organization_id", orgId!);
       if (error) throw error;
-      
-      const total = data?.length || 0;
-      const totalAmount = data?.reduce((s, a) => s + (a.amount || 0), 0) || 0;
-      const usedAmount = data?.reduce((s, a) => s + (a.used_amount || 0), 0) || 0;
-      return { total, totalAmount, usedAmount, available: totalAmount - usedAmount };
+      const rows = (data || []) as Array<{ amount: number | null; used_amount: number | null; is_gift_voucher?: boolean | null }>;
+      const total = rows.length;
+      const totalAmount = rows.reduce((s, a) => s + (a.amount || 0), 0);
+      const usedAmount = rows.reduce((s, a) => s + (a.used_amount || 0), 0);
+      const gifts = rows.filter((a) => a.is_gift_voucher);
+      const giftCount = gifts.length;
+      const giftAvailable = gifts.reduce((s, a) => s + (a.amount || 0) - (a.used_amount || 0), 0);
+      return { total, totalAmount, usedAmount, available: totalAmount - usedAmount, giftCount, giftAvailable };
     },
     enabled: !!orgId,
     staleTime: STALE_LIVE,
@@ -229,7 +240,7 @@ export default function AdvanceBookingDashboard() {
 
   // Paginated advances query
   const { data: advancesData, isLoading } = useQuery({
-    queryKey: ["advance-dashboard", orgId, debouncedSearch, dateFilter, statusFilter, currentPage],
+    queryKey: ["advance-dashboard", orgId, debouncedSearch, dateFilter, statusFilter, typeFilter, currentPage],
     queryFn: async () => {
       // If searching by customer name/phone, first find matching customer IDs
       let customerIds: string[] | null = null;
@@ -255,6 +266,9 @@ export default function AdvanceBookingDashboard() {
         if (customerIds && customerIds.length > 0) {
           // Search by advance number OR matching customer IDs
           query = query.or(`advance_number.ilike.${term},customer_id.in.(${customerIds.join(",")})`);
+        } else if (/^gv/i.test(debouncedSearch.trim())) {
+          // Gift voucher code typed (GV…)
+          query = query.or(`advance_number.ilike.${term},voucher_code.ilike.${term}`);
         } else {
           // No matching customers, just search by advance number
           query = query.ilike("advance_number", term);
@@ -269,6 +283,8 @@ export default function AdvanceBookingDashboard() {
       if (statusFilter !== "all") {
         query = query.eq("status", statusFilter);
       }
+      if (typeFilter === "gift") query = query.eq("is_gift_voucher", true);
+      if (typeFilter === "advance") query = query.or("is_gift_voucher.is.null,is_gift_voucher.eq.false");
 
       const offset = (currentPage - 1) * PAGE_SIZE;
       query = query.range(offset, offset + PAGE_SIZE - 1);
@@ -287,7 +303,7 @@ export default function AdvanceBookingDashboard() {
 
   // Filter-scoped totals for grand total row (matches active filters, all pages)
   const { data: filteredTotals } = useQuery({
-    queryKey: ["advance-filter-totals", orgId, debouncedSearch, dateFilter, statusFilter],
+    queryKey: ["advance-filter-totals", orgId, debouncedSearch, dateFilter, statusFilter, typeFilter],
     queryFn: async () => {
       let customerIds: string[] | null = null;
       if (debouncedSearch) {
@@ -324,6 +340,8 @@ export default function AdvanceBookingDashboard() {
         if (statusFilter !== "all") {
           query = query.eq("status", statusFilter);
         }
+        if (typeFilter === "gift") query = query.eq("is_gift_voucher", true);
+        if (typeFilter === "advance") query = query.or("is_gift_voucher.is.null,is_gift_voucher.eq.false");
         return query;
       };
 
@@ -606,6 +624,11 @@ export default function AdvanceBookingDashboard() {
         <div className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm border-l-4 border-l-blue-500">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Total Advances</p>
           <p className="text-2xl font-extrabold text-blue-600 mt-1">{summary?.total || 0}</p>
+          {!!summary?.giftCount && (
+            <p className="mt-0.5 text-[11px] font-medium text-pink-700">
+              incl. {summary.giftCount} gift voucher{summary.giftCount > 1 ? "s" : ""} · ₹{fmt(summary.giftAvailable)} unused
+            </p>
+          )}
         </div>
         <div className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm border-l-4 border-l-green-500">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Total Amount</p>
@@ -655,6 +678,14 @@ export default function AdvanceBookingDashboard() {
             <SelectItem value="partially_used">Partially Used</SelectItem>
             <SelectItem value="fully_used">Fully Used</SelectItem>
             <SelectItem value="refunded">Refunded</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v as TypeFilter); setCurrentPage(1); }}>
+          <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Advances + Gifts</SelectItem>
+            <SelectItem value="advance">Advances only</SelectItem>
+            <SelectItem value="gift">Gift vouchers only</SelectItem>
           </SelectContent>
         </Select>
         <ResetPersistedFiltersButton
@@ -714,7 +745,14 @@ export default function AdvanceBookingDashboard() {
                         onCheckedChange={() => toggleSelect(adv.id)}
                       />
                     </TableCell>
-                    <TableCell className="font-medium text-sm">{adv.advance_number}</TableCell>
+                    <TableCell className="font-medium text-sm">
+                      {adv.advance_number}
+                      {adv.is_gift_voucher && (
+                        <span className="mt-0.5 flex w-fit items-center gap-1 rounded bg-pink-100 px-1.5 py-0.5 text-[10px] font-semibold text-pink-700">
+                          <Gift className="h-3 w-3" /> Gift {adv.voucher_code}
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-sm">
                       <button
                         className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-inherit text-left"
@@ -1035,7 +1073,17 @@ export default function AdvanceBookingDashboard() {
              paymentMethod: printAdvance.payment_method || "cash",
              chequeNumber: printAdvance.cheque_number || undefined,
              transactionId: printAdvance.transaction_id || undefined,
-             description: printAdvance.description || undefined,
+             description: printAdvance.is_gift_voucher ? undefined : printAdvance.description || undefined,
+             giftVoucher:
+               printAdvance.is_gift_voucher && printAdvance.voucher_code
+                 ? {
+                     code: printAdvance.voucher_code,
+                     validTill: printAdvance.voucher_expires_on
+                       ? format(parseISO(printAdvance.voucher_expires_on), "dd MMM yyyy")
+                       : undefined,
+                     from: printAdvance.voucher_from || undefined,
+                   }
+                 : undefined,
            }}
            company={dashCompanyDetails}
            paperSize={printPaperSize}

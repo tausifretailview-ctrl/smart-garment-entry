@@ -31,6 +31,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   DEFAULT_GIFT_VOUCHER_MONTHS,
   GIFT_VOUCHER_VALIDITY_OPTIONS,
+  autoSendGiftVoucherWhatsApp,
   generateGiftVoucherCode,
   giftVoucherDescription,
   giftVoucherExpiry,
@@ -73,6 +74,8 @@ export function AddAdvanceBookingDialog({
   const [showPrintPrompt, setShowPrintPrompt] = useState(false);
   const [printPaperSize, setPrintPaperSize] = useState<AdvanceReceiptPaper>("A5");
   const [savedAdvanceData, setSavedAdvanceData] = useState<any>(null);
+  /** Gift voucher auto-send on Ezzy ERP WhatsApp (same switch as invoices). */
+  const [voucherWaStatus, setVoucherWaStatus] = useState<"idle" | "sending" | "sent" | "failed">("idle");
   const printRef = useRef<HTMLDivElement>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -275,6 +278,33 @@ export function AddAdvanceBookingDialog({
       });
       setPrintPaperSize(initialAdvanceReceiptPaper(settings));
       setShowPrintPrompt(true);
+      setVoucherWaStatus("idle");
+      if (printedCode) {
+        setVoucherWaStatus("sending");
+        void autoSendGiftVoucherWhatsApp({
+          organizationId,
+          advanceId: verifyRow.id,
+          phone: selectedCustomerData?.phone,
+          message: giftVoucherWhatsAppText({
+            shopName: (settings as any)?.business_name || currentOrganization?.name || "Business",
+            receiverName: selectedCustomerData?.customer_name || "",
+            amount: numericAmount,
+            code: printedCode,
+            validTill: format(voucherValidTill, "dd MMM yyyy"),
+            from: giver.trim() || undefined,
+          }),
+        })
+          .then((r) => {
+            setVoucherWaStatus(r === "sent" ? "sent" : "idle");
+            if (r === "sent") toast.success("Gift voucher sent on WhatsApp");
+          })
+          .catch((err: unknown) => {
+            setVoucherWaStatus("failed");
+            toast.error("Gift voucher not sent on WhatsApp", {
+              description: err instanceof Error ? err.message : undefined,
+            });
+          });
+      }
     } catch (error: any) {
       const msg = error?.message || "Unknown error while saving advance.";
       if (attemptId) {
@@ -345,6 +375,20 @@ export function AddAdvanceBookingDialog({
                 <p className="mt-2 font-mono text-xl font-bold tracking-widest text-pink-700">{savedAdvanceData.giftVoucher.code}</p>
               )}
             </div>
+            {savedAdvanceData.giftVoucher && voucherWaStatus !== "idle" && (
+              <p
+                className={cn(
+                  "text-center text-sm font-medium",
+                  voucherWaStatus === "sent" && "text-green-700",
+                  voucherWaStatus === "sending" && "text-slate-500",
+                  voucherWaStatus === "failed" && "text-destructive",
+                )}
+              >
+                {voucherWaStatus === "sending" && "Sending on WhatsApp…"}
+                {voucherWaStatus === "sent" && "✓ Sent on WhatsApp"}
+                {voucherWaStatus === "failed" && "Not sent automatically. Use the button below."}
+              </p>
+            )}
             {savedAdvanceData.giftVoucher && (
               <Button variant="outline" className="w-full border-green-300 text-green-700" asChild>
                 <a
