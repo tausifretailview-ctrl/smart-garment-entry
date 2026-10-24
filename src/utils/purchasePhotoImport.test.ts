@@ -4,6 +4,8 @@ import {
   billToReviewRows,
   defaultSalePrice,
   isPhotoImportEnabled,
+  matchSupplier,
+  normalizeBillDate,
   reviewRowsToImportRows,
   rowIssues,
   type CatalogMatch,
@@ -73,5 +75,27 @@ describe("bill photo import", () => {
     expect(isPhotoImportEnabled({})).toBe(true);
     expect(isPhotoImportEnabled({ photo_import_enabled: true })).toBe(true);
     expect(isPhotoImportEnabled({ photo_import_enabled: false })).toBe(false);
+  });
+});
+
+describe("bill photo header", () => {
+  const suppliers = [
+    { id: "s1", supplier_name: "Shree Ganesh Traders", gst_number: "27ABCDE1234F1Z5" },
+    { id: "s2", supplier_name: "M/s. Patel & Sons", gst_number: null },
+  ];
+  it("matches the supplier by GSTIN, then by name ignoring M/s and punctuation", () => {
+    expect(matchSupplier("Anything", "27abcde1234f1z5", suppliers)?.id).toBe("s1");
+    expect(matchSupplier("PATEL AND SONS", null, suppliers)).toBeNull();
+    expect(matchSupplier("Patel & Sons", null, suppliers)?.id).toBe("s2");
+    expect(matchSupplier("SHREE GANESH TRADERS.", "", suppliers)?.id).toBe("s1");
+    expect(matchSupplier("New Supplier", null, suppliers)).toBeNull();
+  });
+
+  it("turns printed bill dates into dd/mm/yyyy", () => {
+    expect(normalizeBillDate("2026-10-19")).toBe("19/10/2026");
+    expect(normalizeBillDate("19/10/26")).toBe("19/10/2026");
+    expect(normalizeBillDate("9-Oct-2026")).toBe("09/10/2026");
+    expect(normalizeBillDate("19 October 2026")).toBe("19/10/2026");
+    expect(normalizeBillDate("")).toBe("");
   });
 });

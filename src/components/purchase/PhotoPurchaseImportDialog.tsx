@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Camera, CheckCircle2, ImagePlus, Loader2, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,13 +16,26 @@ import {
   billChecks,
   billToReviewRows,
   defaultSalePrice,
+  matchSupplier,
+  normalizeBillDate,
   reviewRowsToImportRows,
   rowIssues,
   shrinkBillPhoto,
   type CatalogMatch,
   type PhotoReviewRow,
   type ReadBill,
+  type SupplierOption,
 } from "@/utils/purchasePhotoImport";
+
+/** Bill header from the photo: Purchase Entry fills supplier, bill no and date from it. */
+export interface PhotoBillHeader {
+  /** Existing supplier picked or matched; null = add a new supplier with this name. */
+  supplierId: string | null;
+  supplierName: string;
+  supplierGstin: string;
+  invoiceNo: string;
+  billDate: string;
+}
 
 const MARKUP_KEY = "ezzy-photo-import-markup";
 const PRODUCT_PAGE = 1000;
@@ -55,21 +69,6 @@ async function loadCatalogMatches(organizationId: string): Promise<Map<string, C
   return map;
 }
 
-/** Supplier name for a GSTIN printed on the bill, so the import picks the right supplier. */
-async function supplierNameForGstin(organizationId: string, gstin: string): Promise<string | null> {
-  const clean = gstin.replace(/\s/g, "").toUpperCase();
-  if (clean.length !== 15) return null;
-  const { data } = await supabase
-    .from("suppliers")
-    .select("supplier_name")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null)
-    .ilike("gst_number", clean)
-    .limit(1)
-    .maybeSingle();
-  return data?.supplier_name ?? null;
-}
-
 type Step = "photos" | "reading" | "review";
 
 /**
@@ -86,7 +85,7 @@ export function PhotoPurchaseImportDialog({
   open: boolean;
   onClose: () => void;
   organizationId: string;
-  onImport: (rows: Record<string, unknown>[]) => Promise<void>;
+  onImport: (rows: Record<string, unknown>[], header: PhotoBillHeader) => Promise<void>;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<Step>("photos");
@@ -94,6 +93,28 @@ export function PhotoPurchaseImportDialog({
   const [bill, setBill] = useState<ReadBill | null>(null);
   const [rows, setRows] = useState<PhotoReviewRow[]>([]);
   const [supplierName, setSupplierName] = useState("");
+  const [supplierGstin, setSupplierGstin] = useState("");
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ["photo-import-suppliers", organizationId],
+    queryFn: async () => {
+      const all: SupplierOption[] = [];
+      for (let from = 0; from < 50_000; from += PRODUCT_PAGE) {
+        const { data, error } = await supabase
+          .from("suppliers")
+          .select("id, supplier_name, gst_number")
+          .eq("organization_id", organizationId)
+          .is("deleted_at", null)
+          .range(from, from + PRODUCT_PAGE - 1);
+        if (error) throw error;
+        all.push(...((data ?? []) as SupplierOption[]));
+        if (!data || data.length < PRODUCT_PAGE) break;
+      }
+      return all;
+    },
+    enabled: open,
+    staleTime: 60_000,
+  });
+  const matchedSupplier = supplierName.trim() ? matchSupplier(supplierName, supplierGstin, suppliers) : null;
   const [invoiceNo, setInvoiceNo] = useState("");
   const [billDate, setBillDate] = useState("");
   const [otherCharges, setOtherCharges] = useState(0);
@@ -106,6 +127,7 @@ export function PhotoPurchaseImportDialog({
     setBill(null);
     setRows([]);
     setSupplierName("");
+    setSupplierGstin("");
     setInvoiceNo("");
     setBillDate("");
     setOtherCharges(0);
@@ -148,12 +170,14 @@ export function PhotoPurchaseImportDialog({
       const readBill = data.bill as ReadBill;
       const findMatch = (name: string) => catalog.get(productNameMatchKey(cleanProductName(name))) ?? null;
       const reviewRows = billToReviewRows(readBill, findMatch, markup);
-      const gstinName = readBill.supplier_gstin ? await supplierNameForGstin(organizationId, readBill.supplier_gstin) : null;
+      const gstin = readBill.supplier_gstin?.replace(/\s/g, "").toUpperCase() ?? "";
+      const known = matchSupplier(readBill.supplier_name ?? "", gstin, suppliers);
       setBill(readBill);
       setRows(reviewRows);
-      setSupplierName(gstinName ?? readBill.supplier_name?.trim() ?? "");
+      setSupplierGstin(gstin);
+      setSupplierName(known?.supplier_name ?? readBill.supplier_name?.trim() ?? "");
       setInvoiceNo(readBill.invoice_no?.trim() ?? "");
-      setBillDate(readBill.invoice_date?.trim() ?? "");
+      setBillDate(normalizeBillDate(readBill.invoice_date));
       setOtherCharges(Number(readBill.other_charges) || 0);
       setStep("review");
     } catch (e) {
@@ -211,7 +235,13 @@ export function PhotoPurchaseImportDialog({
     }
     setImporting(true);
     try {
-      await onImport(reviewRowsToImportRows(usable, { supplierName, invoiceNo, billDate, otherCharges }));
+      await onImport(reviewRowsToImportRows(usable, { supplierName: "", invoiceNo: "", billDate, otherCharges }), {
+        supplierId: matchedSupplier?.id ?? null,
+        supplierName: matchedSupplier?.supplier_name ?? supplierName.trim(),
+        supplierGstin,
+        invoiceNo: invoiceNo.trim(),
+        billDate,
+      });
       reset();
       onClose();
     } catch (e) {
@@ -294,7 +324,25 @@ export function PhotoPurchaseImportDialog({
             <div className="grid gap-2 sm:grid-cols-5">
               <div className="sm:col-span-2">
                 <Label htmlFor="photo-supplier" className="text-xs">Supplier</Label>
-                <Input id="photo-supplier" value={supplierName} onChange={(e) => setSupplierName(e.target.value)} className="no-uppercase h-9" />
+                <Input
+                  id="photo-supplier"
+                  list="photo-supplier-options"
+                  value={supplierName}
+                  onChange={(e) => setSupplierName(e.target.value)}
+                  className="no-uppercase h-9"
+                />
+                <datalist id="photo-supplier-options">
+                  {suppliers.map((s) => (
+                    <option key={s.id} value={s.supplier_name} />
+                  ))}
+                </datalist>
+                {supplierName.trim() && (
+                  <p className={cn("mt-0.5 text-[11px]", matchedSupplier ? "text-emerald-700" : "text-amber-700")}>
+                    {matchedSupplier
+                      ? `✓ Your supplier: ${matchedSupplier.supplier_name}`
+                      : `New supplier, will be added${supplierGstin ? ` (GSTIN ${supplierGstin})` : ""}. Pick from the list if you already have them.`}
+                  </p>
+                )}
               </div>
               <div>
                 <Label htmlFor="photo-inv" className="text-xs">Supplier bill no</Label>

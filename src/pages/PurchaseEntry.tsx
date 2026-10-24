@@ -110,6 +110,7 @@ import {
 import { cleanProductName } from "@/utils/productNameMerge";
 import { productNameMatchKey } from "@/utils/productNameDedupe";
 import { isPhotoImportEnabled } from "@/utils/purchasePhotoImport";
+import type { PhotoBillHeader } from "@/components/purchase/PhotoPurchaseImportDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
@@ -7608,6 +7609,45 @@ const PurchaseEntry = () => {
     }
   };
 
+  // Bill photo: lines go through the Excel import; supplier, bill no and date come from the photo header.
+  const handlePhotoImport = async (rows: Record<string, unknown>[], header: PhotoBillHeader) => {
+    if (!currentOrganization) return;
+    let supplierId = header.supplierId;
+    const supplierName = header.supplierName.trim();
+    if (!supplierId && supplierName) {
+      const { data: created, error } = await supabase
+        .from("suppliers")
+        .insert([
+          {
+            supplier_name: supplierName,
+            gst_number: header.supplierGstin || null,
+            opening_balance: 0,
+            organization_id: currentOrganization.id,
+          },
+        ])
+        .select("id, supplier_name")
+        .single();
+      if (error) {
+        toast({ title: "Supplier not added", description: `${error.message}. Pick the supplier by hand.`, variant: "destructive" });
+      } else {
+        supplierId = created.id;
+        toast({ title: "New supplier added", description: created.supplier_name });
+      }
+    }
+    await handleExcelImport(rows);
+    if (supplierId) {
+      setSupplierListEnabled(true);
+      void refetchSuppliers();
+      setBillData((prev) => ({ ...prev, supplier_id: supplierId!, supplier_name: supplierName }));
+    }
+    if (header.invoiceNo) {
+      // The photo's bill number is the supplier invoice no (not just a reference like Excel).
+      supplierInvManuallyEditedRef.current = true;
+      setSupplierPaperInvoiceNo(null);
+      setBillData((prev) => ({ ...prev, supplier_invoice_no: header.invoiceNo }));
+    }
+  };
+
   // Handle Excel import for purchase bill with batch processing
   const handleExcelImport = async (
     mappedData: Record<string, any>[],
@@ -8718,9 +8758,7 @@ const PurchaseEntry = () => {
               open={showPhotoImport}
               onClose={() => setShowPhotoImport(false)}
               organizationId={currentOrganization.id}
-              onImport={async (rows) => {
-                await handleExcelImport(rows);
-              }}
+              onImport={handlePhotoImport}
             />
           </LazyOpen>
         )}
@@ -10206,9 +10244,7 @@ const PurchaseEntry = () => {
               open={showPhotoImport}
               onClose={() => setShowPhotoImport(false)}
               organizationId={currentOrganization.id}
-              onImport={async (rows) => {
-                await handleExcelImport(rows);
-              }}
+              onImport={handlePhotoImport}
             />
           </LazyOpen>
         )}
