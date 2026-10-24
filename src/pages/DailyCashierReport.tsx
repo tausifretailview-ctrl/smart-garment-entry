@@ -1580,14 +1580,19 @@ const DailyCashierReport = () => {
                 <Skeleton key={i} className="h-10 rounded-lg" />
               )) : eligibleSalesForList.slice(0, 30).map((sale: any) => {
                 const billDiscount = getSaleDiscount(sale);
+                const billRoundOff = getSaleReportRoundOff(sale);
                 return (
                 <div key={sale.id} className="flex justify-between items-start py-1.5 border-b border-border/30 last:border-0">
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold text-foreground">{sale.sale_number}</p>
                     <p className="text-[10px] text-muted-foreground truncate">{sale.customer_name || 'Walk-in'}</p>
-                    {billDiscount > 0 && (
+                    {(billDiscount > 0 || Math.abs(billRoundOff) >= 0.5) && (
                       <p className="text-[10px] text-red-600 mt-0.5">
-                        Gross {formatCurrency(Number(sale.gross_amount) || 0)} - Disc {formatCurrency(billDiscount)}
+                        Gross {formatCurrency(Number(sale.gross_amount) || 0)}
+                        {billDiscount > 0 && <> - Disc {formatCurrency(billDiscount)}</>}
+                        {Math.abs(billRoundOff) >= 0.5 && (
+                          <> {billRoundOff < 0 ? "-" : "+"} R/O {formatCurrency(Math.abs(billRoundOff))}</>
+                        )}
                       </p>
                     )}
                   </div>
