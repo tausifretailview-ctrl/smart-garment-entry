@@ -46,6 +46,8 @@ interface ModernWholesaleTemplateProps {
   invoiceDate: Date;
   customerName: string;
   customerAddress?: string;
+  /** Ship-to branch picked on Sale Bill; printed in its own SHIP TO box next to BILL TO. */
+  shippingAddress?: string;
   customerMobile?: string;
   customerGSTIN?: string;
   customerTransportDetails?: string;
@@ -109,6 +111,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   invoiceDate,
   customerName,
   customerAddress,
+  shippingAddress,
   customerMobile,
   customerGSTIN,
   customerTransportDetails,
@@ -409,6 +412,13 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <div style={{ fontSize: isA5 ? "6pt" : "7.5pt" }}>Transport: {customerTransportDetails}</div>
           )}
         </div>
+        {shippingAddress?.trim() && (
+          <div style={{ flex: 1, padding: isA5 ? "3px 5px" : "6px 8px", borderRight: "1px solid #374151", overflow: "hidden" }}>
+            <div style={{ fontWeight: "700", color: colors.primary, fontSize: isA5 ? "5.5pt" : "7pt" }}>SHIP TO:</div>
+            <div style={{ fontWeight: "700", fontSize: isA5 ? "8pt" : "10pt", lineHeight: "1.2" }}>{customerName}</div>
+            <div style={{ fontSize: isA5 ? "6.5pt" : "8pt", lineHeight: "1.3", whiteSpace: "pre-line" }}>{shippingAddress.trim()}</div>
+          </div>
+        )}
         {/* Inv No + Date — wider box, larger font to prevent truncation */}
         <div style={{ 
           width: isA5 ? "170px" : "220px", 
