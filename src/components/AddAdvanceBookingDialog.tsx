@@ -38,6 +38,7 @@ import {
   giftVoucherWhatsAppText,
 } from "@/utils/giftVoucher";
 import { whatsappShareUrl } from "@/lib/storefrontShare";
+import { isGiftVoucherEnabled } from "@/utils/whatsappFeatureSwitches";
 
 interface AddAdvanceBookingDialogProps {
   open: boolean;
@@ -78,6 +79,7 @@ export function AddAdvanceBookingDialog({
   const { createAdvance } = useCustomerAdvances(organizationId);
   const { currentOrganization } = useOrganization();
   const { data: settings } = useSettings();
+  const giftVouchersOn = isGiftVoucherEnabled((settings as { sale_settings?: unknown } | null)?.sale_settings);
 
   const printPageStyle = advanceReceiptPageStyle(printPaperSize);
   const handlePrint = useReactToPrint({
@@ -409,12 +411,14 @@ export function AddAdvanceBookingDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <label className="flex items-center justify-between gap-3 rounded-md border border-pink-200 bg-pink-50/60 px-3 py-2 text-sm">
-            <span className="flex items-center gap-2 font-medium text-pink-800">
-              <Gift className="h-4 w-4" /> Sell as gift voucher
-            </span>
-            <Switch checked={isGift} onCheckedChange={setIsGift} />
-          </label>
+          {giftVouchersOn && (
+            <label className="flex items-center justify-between gap-3 rounded-md border border-pink-200 bg-pink-50/60 px-3 py-2 text-sm">
+              <span className="flex items-center gap-2 font-medium text-pink-800">
+                <Gift className="h-4 w-4" /> Sell as gift voucher
+              </span>
+              <Switch checked={isGift} onCheckedChange={setIsGift} />
+            </label>
+          )}
           {isGift && (
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">

@@ -302,6 +302,7 @@ import { FinancerDetailsForm, FinancerDetails, saveFinancerDetails } from "@/com
 import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
 import { RedeemGiftVoucherDialog } from "@/components/pos/RedeemGiftVoucherDialog";
 import type { GiftVoucherLookup } from "@/utils/giftVoucher";
+import { isGiftVoucherEnabled } from "@/utils/whatsappFeatureSwitches";
 import {
   CustomerPhoneLookupInput,
   type CustomerPhoneLookupRow,
@@ -864,6 +865,7 @@ export default function POSSales() {
   // Settings first so grossBasis / garment GST are explicit params into the billing engine.
   const { data: settingsData } = useSettings();
   const _posSaleSettings = (settingsData as any)?.sale_settings || {};
+  const giftVouchersOn = isGiftVoucherEnabled(_posSaleSettings);
   // 2nd firm header (Settings > Reports). Per bill; resets to the main firm after each bill.
   const secondFirm = useMemo(() => resolveSecondFirm(settingsData as Record<string, any> | null), [settingsData]);
   const serviceDefaultQty = useMemo(() => resolveServiceDefaultQty(settingsData as Record<string, any> | null), [settingsData]);
@@ -8043,16 +8045,18 @@ export default function POSSales() {
             />
           </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setShowRedeemVoucher(true)}
-            className="h-10 shrink-0 self-end gap-1 border-pink-300 px-2.5 text-pink-700 hover:bg-pink-50"
-            title="Redeem a gift voucher on this bill"
-          >
-            <Gift className="h-4 w-4" />
-            <span className="hidden 2xl:inline">Voucher</span>
-          </Button>
+          {giftVouchersOn && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowRedeemVoucher(true)}
+              className="h-10 shrink-0 self-end gap-1 border-pink-300 px-2.5 text-pink-700 hover:bg-pink-50"
+              title="Redeem a gift voucher on this bill"
+            >
+              <Gift className="h-4 w-4" />
+              <span className="hidden 2xl:inline">Voucher</span>
+            </Button>
+          )}
           
           {/* Customer Discount & Points moved to bottom after Note section */}
 
@@ -9872,7 +9876,7 @@ export default function POSSales() {
           organizationId={currentOrganization?.id || ""}
         />
 
-        {currentOrganization?.id && (
+        {giftVouchersOn && currentOrganization?.id && (
           <RedeemGiftVoucherDialog
             open={showRedeemVoucher}
             onOpenChange={setShowRedeemVoucher}

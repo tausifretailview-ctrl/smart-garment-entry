@@ -234,6 +234,10 @@ interface EInvoiceSettings {
 }
 
 interface SaleSettings {
+  /** Settings > WhatsApp: gift voucher buttons (off until turned on). */
+  gift_vouchers_enabled?: boolean;
+  /** Settings > WhatsApp: Bulk WhatsApp page and menu (off until turned on). */
+  bulk_whatsapp_enabled?: boolean;
   enable_customer_price_memory?: boolean; // Customer-wise sale price memory
   pos_barcode_price_mode?: 'mrp' | 'sale_price';
   /** When true, POS keeps the selected salesman after save (default off). */
@@ -6527,6 +6531,42 @@ export default function Settings() {
                     </div>
                   </SettingsSection>
                 )}
+                <SettingsSection title="Extra features">
+                  <div className="divide-y">
+                    {[
+                      {
+                        key: "bulk_whatsapp_enabled" as const,
+                        label: "Bulk WhatsApp",
+                        hint: "Shows the Bulk WhatsApp page in the menu: send offers to many customers from your own linked number.",
+                      },
+                      {
+                        key: "gift_vouchers_enabled" as const,
+                        label: "Gift vouchers",
+                        hint: "Shows Gift Voucher on Advance Booking and the Voucher button on POS to sell and redeem gift vouchers.",
+                      },
+                    ].map((f) => (
+                      <div key={f.key} className="flex items-start justify-between gap-3 px-3 py-2.5">
+                        <div className="space-y-0.5">
+                          <Label htmlFor={f.key} className="text-sm font-semibold">
+                            {f.label}
+                          </Label>
+                          <p className="text-xs text-muted-foreground">{f.hint}</p>
+                        </div>
+                        <Switch
+                          id={f.key}
+                          checked={settings.sale_settings?.[f.key] === true}
+                          onCheckedChange={(checked) =>
+                            setSettings({
+                              ...settings,
+                              sale_settings: { ...settings.sale_settings, [f.key]: checked },
+                            })
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="px-3 pb-2.5 text-xs text-muted-foreground">Click Save Settings after changing.</p>
+                </SettingsSection>
                 <SettingsSection title="Customer page & notifications">
                   <div className="px-3 py-2.5">
                     <CustomerPagePanel />
