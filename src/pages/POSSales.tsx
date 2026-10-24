@@ -301,7 +301,7 @@ import { DcSaleTransferDialog } from "@/components/DcSaleTransferDialog";
 import { FinancerDetailsForm, FinancerDetails, saveFinancerDetails } from "@/components/FinancerDetailsForm";
 import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
 import { RedeemGiftVoucherDialog } from "@/components/pos/RedeemGiftVoucherDialog";
-import type { GiftVoucherLookup } from "@/utils/giftVoucher";
+import { listCustomerGiftVouchers, type GiftVoucherLookup } from "@/utils/giftVoucher";
 import { isGiftVoucherEnabled } from "@/utils/whatsappFeatureSwitches";
 import {
   CustomerPhoneLookupInput,
@@ -1240,7 +1240,9 @@ export default function POSSales() {
   const [showAdvanceBooking, setShowAdvanceBooking] = useState(false);
   const [showRedeemVoucher, setShowRedeemVoucher] = useState(false);
   /** Gift voucher picked in POS: applied once that customer's advance balance has loaded. */
-  const pendingVoucherRef = useRef<{ customerId: string; amount: number; code: string } | null>(null);
+  const pendingVoucherRef = useRef<{ customerId: string; amount: number; code: string; advanceId: string } | null>(null);
+  /** Gift vouchers applied on this bill: their advances are used first on save (not the oldest advance). */
+  const giftVoucherAdvanceIdsRef = useRef<string[]>([]);
   // Quick service product dialog state
   const [showQuickServiceDialog, setShowQuickServiceDialog] = useState(false);
   const [quickServiceCode, setQuickServiceCode] = useState("");
@@ -4752,24 +4754,41 @@ export default function POSSales() {
     }
     if (availableAdvanceBalance <= 0.01 || finalAmount <= 0.01) return;
     pendingVoucherRef.current = null;
+    giftVoucherAdvanceIdsRef.current = [pending.advanceId];
     handleApplyAdvance(Math.min(pending.amount, availableAdvanceBalance));
     toast.success(`Gift voucher ${pending.code} applied`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId, availableAdvanceBalance, finalAmount]);
 
+  // Gift vouchers the selected customer holds: badge on the Voucher button + one-tap list in the dialog.
+  const { data: customerGiftVouchers = [] } = useQuery({
+    queryKey: ["customer-gift-vouchers", currentOrganization?.id, customerId],
+    queryFn: () => listCustomerGiftVouchers(currentOrganization!.id, customerId!),
+    enabled: giftVouchersOn && !!currentOrganization?.id && !!customerId,
+    staleTime: 30_000,
+  });
+
   const handleUseGiftVoucher = (voucher: GiftVoucherLookup) => {
     if (voucher.customerId === customerId && availableAdvanceBalance > 0.01 && finalAmount > 0.01) {
+      giftVoucherAdvanceIdsRef.current = [voucher.advanceId];
       handleApplyAdvance(Math.min(voucher.remaining, availableAdvanceBalance));
       toast.success(`Gift voucher ${voucher.code} applied`);
       return;
     }
-    pendingVoucherRef.current = { customerId: voucher.customerId, amount: voucher.remaining, code: voucher.code };
+    pendingVoucherRef.current = {
+      customerId: voucher.customerId,
+      amount: voucher.remaining,
+      code: voucher.code,
+      advanceId: voucher.advanceId,
+    };
     applyCustomerFromPhoneLookup({ id: voucher.customerId, customer_name: voucher.customerName, phone: voucher.customerPhone });
     if (items.length === 0) toast.message(`Voucher for ${voucher.customerName} picked. It applies when you add items.`);
   };
 
   const applyAdvanceAfterSave = async (result: { id: string; sale_number?: string | null }) => {
     if (!(advanceApplied > 0.01 && customerId && result?.id && currentOrganization?.id)) return;
+    const preferAdvanceIds = giftVoucherAdvanceIdsRef.current;
+    giftVoucherAdvanceIdsRef.current = [];
     try {
       const { consumed } = await applyExistingAdvanceToSale({
         client: supabase,
@@ -4780,8 +4799,10 @@ export default function POSSales() {
         requestedAmount: advanceApplied,
         voucherDate: buildPosVoucherDate(),
         createdBy: user?.id ?? null,
+        preferAdvanceIds,
       });
       invalidateCustomerFinancialSnapshot(queryClient, currentOrganization.id, customerId);
+      if (preferAdvanceIds.length) void queryClient.invalidateQueries({ queryKey: ["customer-gift-vouchers"] });
       if (consumed + 0.01 < advanceApplied) {
         toast.warning("Advance shortfall", {
           description: `Applied ₹${Math.round(consumed).toLocaleString("en-IN")} of ₹${Math.round(advanceApplied).toLocaleString("en-IN")}. Remaining due stays on the bill.`,
@@ -8055,6 +8076,11 @@ export default function POSSales() {
             >
               <Gift className="h-4 w-4" />
               <span className="hidden 2xl:inline">Voucher</span>
+              {customerGiftVouchers.length > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-pink-600 px-1 text-[11px] font-bold text-white">
+                  {customerGiftVouchers.length}
+                </span>
+              )}
             </Button>
           )}
           
@@ -9881,6 +9907,7 @@ export default function POSSales() {
             open={showRedeemVoucher}
             onOpenChange={setShowRedeemVoucher}
             organizationId={currentOrganization.id}
+            customerVouchers={customerGiftVouchers}
             onUse={handleUseGiftVoucher}
           />
         )}

@@ -1,5 +1,7 @@
 import { addMonths, format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
+import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
+import { getEdgeFunctionErrorMessage } from "@/utils/edgeFunctionError";
 
 /**
  * Gift vouchers are customer advances booked in the receiver's name (no new accounting).
@@ -63,6 +65,42 @@ export function giftVoucherWhatsAppPhone(phone: string | null | undefined): stri
   return digits.length === 10 ? `91${digits}` : digits;
 }
 
+/**
+ * Sends the voucher on the shop's own Ezzy ERP WhatsApp (built-in / WappConnect), the same way
+ * invoices go out: only when WhatsApp is active and "auto send invoice" is on. Meta API shops
+ * need an approved template for this, so they keep the manual Send button.
+ */
+export async function autoSendGiftVoucherWhatsApp(input: {
+  organizationId: string;
+  advanceId: string;
+  phone: string | null | undefined;
+  message: string;
+}): Promise<"sent" | "off" | "no_phone"> {
+  const phone = giftVoucherWhatsAppPhone(input.phone);
+  if (phone.length < 10) return "no_phone";
+  const { data: wa } = await supabase
+    .from("whatsapp_api_settings")
+    .select("is_active, send_provider, auto_send_invoice")
+    .eq("organization_id", input.organizationId)
+    .maybeSingle();
+  const row = wa as { is_active?: boolean; send_provider?: string | null; auto_send_invoice?: boolean } | null;
+  if (!row?.is_active || !row.auto_send_invoice || !isWappConnectSendProvider(row.send_provider)) return "off";
+  const { data, error } = await supabase.functions.invoke("send-whatsapp", {
+    body: {
+      organizationId: input.organizationId,
+      phone,
+      message: input.message,
+      templateType: "gift_voucher",
+      referenceId: input.advanceId,
+      referenceType: "gift_voucher",
+      useWappConnect: true,
+    },
+  });
+  if (error) throw new Error(await getEdgeFunctionErrorMessage(error, data, "Could not send the voucher on WhatsApp"));
+  if (!data?.success) throw new Error(data?.error || "Could not send the voucher on WhatsApp");
+  return "sent";
+}
+
 export interface GiftVoucherLookup {
   advanceId: string;
   code: string;
@@ -92,14 +130,35 @@ export async function lookupGiftVoucher(organizationId: string, rawCode: string)
   if (res.error) throw res.error;
   const data = res.data as unknown as Record<string, unknown>[] | null;
   const row = data?.[0];
-  if (!row) return null;
+  return row ? toGiftVoucherLookup(row, code) : null;
+}
+
+/** Gift vouchers held by one customer that still have money left (newest first). */
+export async function listCustomerGiftVouchers(organizationId: string, customerId: string): Promise<GiftVoucherLookup[]> {
+  const { data, error } = await supabase
+    .from("customer_advances")
+    .select("id, advance_number, voucher_code, voucher_expires_on, amount, used_amount, customer_id, customers(customer_name, phone)")
+    .eq("organization_id", organizationId)
+    .eq("customer_id", customerId)
+    .eq("is_gift_voucher", true)
+    .in("status", ["active", "partially_used"])
+    .order("created_at", { ascending: false })
+    .limit(20);
+  // Before the gift voucher SQL runs the column is missing: no list, typing the code still works.
+  if (error) return [];
+  return ((data ?? []) as unknown as Record<string, unknown>[])
+    .map((row) => toGiftVoucherLookup(row, ""))
+    .filter((v) => v.remaining > 0.01);
+}
+
+function toGiftVoucherLookup(row: Record<string, unknown>, typedCode: string): GiftVoucherLookup {
   const customer = (row.customers ?? {}) as { customer_name?: string; phone?: string | null };
   const amount = Number(row.amount) || 0;
   const remaining = Math.max(0, Math.round((amount - (Number(row.used_amount) || 0)) * 100) / 100);
   const expiresOn = (row.voucher_expires_on as string | null) ?? null;
   return {
     advanceId: String(row.id),
-    code: String(row.voucher_code ?? row.advance_number ?? code),
+    code: String(row.voucher_code ?? row.advance_number ?? typedCode),
     customerId: String(row.customer_id),
     customerName: customer.customer_name ?? "Customer",
     customerPhone: customer.phone ?? null,

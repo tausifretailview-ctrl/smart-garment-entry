@@ -427,6 +427,8 @@ export type ConsumeAdvanceFIFOParams = {
   voucherDate?: string;
   shopName?: string | null;
   createdBy?: string | null;
+  /** Use these advances first (e.g. the gift voucher redeemed at POS), then the rest FIFO. */
+  preferAdvanceIds?: string[];
 };
 
 /**
@@ -584,9 +586,13 @@ export async function consumeAdvanceFIFO(
 
     if (fetchErr) throw fetchErr;
     if (!advances?.length) break;
+    const preferred = params.preferAdvanceIds ?? [];
+    const ordered = preferred.length
+      ? [...advances.filter((a) => preferred.includes(a.id)), ...advances.filter((a) => !preferred.includes(a.id))]
+      : advances;
 
     let consumedThisPass = false;
-    for (const adv of advances) {
+    for (const adv of ordered) {
       if (remaining <= 0.01) break;
       const available = (Number(adv.amount) || 0) - (Number(adv.used_amount) || 0);
       if (available <= 0.01) continue;

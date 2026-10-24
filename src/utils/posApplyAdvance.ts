@@ -99,6 +99,8 @@ export type ApplyExistingAdvanceToSaleParams = {
   voucherDate: string;
   shopName?: string | null;
   createdBy?: string | null;
+  /** Consume these advances first (gift voucher redeemed on this bill). */
+  preferAdvanceIds?: string[];
 };
 
 /**
@@ -128,6 +130,7 @@ export async function applyExistingAdvanceToSale(
     voucherDate: params.voucherDate,
     shopName: params.shopName,
     createdBy: params.createdBy,
+    preferAdvanceIds: params.preferAdvanceIds,
   });
 
   await applyRecomputedSalePaymentState(params.saleId, params.organizationId, params.client);
