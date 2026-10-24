@@ -27,6 +27,7 @@ import {
   isVisibleSettingsTab,
 } from "@/components/settings/settingsChrome";
 import { normalizeServiceDefaultQty } from "@/utils/serviceDefaultQty";
+import { isPhotoImportEnabled } from "@/utils/purchasePhotoImport";
 import { SETTINGS_TAB_LIST_CLASS, SETTINGS_TAB_TRIGGER_CLASS, SettingsSection } from "@/components/settings/settingsLayout";
 import { OwnerAlertsSettings } from "@/components/settings/OwnerAlertsSettings";
 import { cn } from "@/lib/utils";
@@ -215,6 +216,8 @@ interface PurchaseSettings {
   garment_gst_rule_enabled?: boolean;
   garment_gst_threshold?: number;
   garment_gst_below_rate?: number;
+  /** Purchase Entry "Photo" button (read supplier bill photos). On unless set to false. */
+  photo_import_enabled?: boolean;
 }
 
 interface EInvoiceSettings {
@@ -2077,6 +2080,32 @@ export default function Settings() {
                       })
                     }
                     placeholder="e.g., 18"
+                  />
+                </div>
+
+                {/* Purchase from bill photo */}
+                <div className="col-span-full flex items-start justify-between gap-3 rounded-lg border border-teal-200 bg-teal-50/60 p-4 dark:border-teal-800 dark:bg-teal-950/20">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="photo_import_enabled" className="text-sm font-semibold">
+                      Purchase from bill photo
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Shows a Photo button on Purchase Entry. Staff take a photo of the supplier bill, AI reads the lines,
+                      and they check them before adding to the bill. Up to 50 photos a day per shop.
+                    </p>
+                  </div>
+                  <Switch
+                    id="photo_import_enabled"
+                    checked={isPhotoImportEnabled(settings.purchase_settings)}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          photo_import_enabled: checked,
+                        },
+                      })
+                    }
                   />
                 </div>
 
