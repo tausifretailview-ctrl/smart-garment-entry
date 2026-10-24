@@ -12146,6 +12146,7 @@ export type Database = {
           p_category?: string
           p_max_price?: number
           p_min_price?: number
+          p_hide_dc?: boolean
           p_org_id: string
           p_page?: number
           p_page_size?: number
@@ -12180,6 +12181,7 @@ export type Database = {
           p_category?: string
           p_max_price?: number
           p_min_price?: number
+          p_hide_dc?: boolean
           p_org_id: string
           p_product_type?: string
           p_search?: string

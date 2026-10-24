@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2, Package, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,7 @@ export function StockAnalysisSearch({
   className,
 }: StockAnalysisSearchProps) {
   const { currentOrganization } = useOrganization();
+  const { hideDc } = useDcVisibility();
   const [searchInput, setSearchInput] = useState("");
   const [results, setResults] = useState<ProductResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -78,7 +80,7 @@ export function StockAnalysisSearch({
     try {
       // Fetch ALL variants first (without OR filter that breaks cross-table search)
       // Then filter client-side for product_name, brand, barcode, size, color
-      const { data, error } = await supabase
+      let query = supabase
         .from("product_variants")
         .select(`
           id,
@@ -97,7 +99,10 @@ export function StockAnalysisSearch({
         .eq("organization_id", currentOrganization.id)
         .eq("active", true)
         .is("deleted_at", null)
-        .is("products.deleted_at", null)
+        .is("products.deleted_at", null);
+      // DC (No GST) hidden: DC barcodes left out, like the stock reports.
+      if (hideDc) query = query.not("is_dc_product", "is", true);
+      const { data, error } = await query
         .order("stock_qty", { ascending: false })
         .limit(1000); // Get more results for client-side filtering
 
@@ -141,7 +146,7 @@ export function StockAnalysisSearch({
     } finally {
       setLoading(false);
     }
-  }, [currentOrganization?.id, updatePosition]);
+  }, [currentOrganization?.id, updatePosition, hideDc]);
 
   // Handle barcode scan - exact match
   const handleBarcodeScan = useCallback(async (barcode: string) => {
@@ -151,7 +156,7 @@ export function StockAnalysisSearch({
     setShowDropdown(false);
 
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("product_variants")
         .select(`
           id,
@@ -169,8 +174,9 @@ export function StockAnalysisSearch({
         .eq("barcode", barcode.trim())
         .eq("active", true)
         .is("deleted_at", null)
-        .is("products.deleted_at", null)
-        .maybeSingle();
+        .is("products.deleted_at", null);
+      if (hideDc) query = query.not("is_dc_product", "is", true);
+      const { data, error } = await query.maybeSingle();
 
       if (error) throw error;
 
@@ -201,7 +207,7 @@ export function StockAnalysisSearch({
       setLoading(false);
       resetScanner();
     }
-  }, [currentOrganization?.id, onProductSelect, resetScanner]);
+  }, [currentOrganization?.id, onProductSelect, resetScanner, hideDc]);
 
   // Handle input change with debounce
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {

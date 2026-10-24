@@ -39,16 +39,20 @@ function escapeIlike(term: string): string {
 export async function fetchProductIdsByExactBarcode(
   organizationId: string,
   term: string,
+  hideDc = false,
 ): Promise<string[]> {
   const normalized = normalizeProductSearchTerm(term);
   if (!normalized) return [];
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("product_variants")
     .select("product_id")
     .eq("organization_id", organizationId)
     .is("deleted_at", null)
     .eq("barcode", normalized);
+  // DC (No GST) hidden: DC barcodes left out, like the catalog RPC.
+  if (hideDc) query = query.not("is_dc_product", "is", true);
+  const { data, error } = await query;
 
   if (error) {
     console.warn("[productDashboardBarcodeSearch] exact barcode lookup failed", error.message);
@@ -61,17 +65,19 @@ export async function fetchProductIdsByExactBarcode(
 export async function fetchProductIdsByPartialBarcode(
   organizationId: string,
   term: string,
+  hideDc = false,
 ): Promise<string[]> {
   const normalized = normalizeProductSearchTerm(term);
   if (!normalized) return [];
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("product_variants")
     .select("product_id")
     .eq("organization_id", organizationId)
     .is("deleted_at", null)
-    .ilike("barcode", `%${escapeIlike(normalized)}%`)
-    .limit(100);
+    .ilike("barcode", `%${escapeIlike(normalized)}%`);
+  if (hideDc) query = query.not("is_dc_product", "is", true);
+  const { data, error } = await query.limit(100);
 
   if (error) {
     console.warn("[productDashboardBarcodeSearch] partial barcode lookup failed", error.message);
@@ -154,6 +160,7 @@ export type ProductCatalogRowPayload = {
 export async function fetchCatalogRowsForProductIds(
   organizationId: string,
   productIds: string[],
+  hideDc = false,
 ): Promise<ProductCatalogRowPayload[]> {
   if (!productIds.length) return [];
 
@@ -174,7 +181,7 @@ export async function fetchCatalogRowsForProductIds(
 
   const { data: variants, error: variantsErr } = await supabase
     .from("product_variants")
-    .select("product_id, stock_qty")
+    .select("product_id, stock_qty, is_dc_product")
     .eq("organization_id", organizationId)
     .in("product_id", productIds)
     .is("deleted_at", null);
@@ -183,8 +190,17 @@ export async function fetchCatalogRowsForProductIds(
     console.warn("[productDashboardBarcodeSearch] variants fetch failed", variantsErr.message);
   }
 
+  // DC (No GST) hidden: DC barcodes left out; a product of only DC barcodes is not listed.
+  const dcOnlyProducts = new Set<string>();
+  if (hideDc && !variantsErr) {
+    const hasGst = new Set((variants ?? []).filter((v) => v.is_dc_product !== true).map((v) => v.product_id));
+    (variants ?? []).forEach((v) => {
+      if (!hasGst.has(v.product_id)) dcOnlyProducts.add(v.product_id);
+    });
+  }
+
   const stockByProduct = new Map<string, { total_stock: number; variant_count: number }>();
-  (variants ?? []).forEach((v) => {
+  (variants ?? []).filter((v) => !hideDc || v.is_dc_product !== true).forEach((v) => {
     const prev = stockByProduct.get(v.product_id) ?? { total_stock: 0, variant_count: 0 };
     const productType = products.find((p) => p.id === v.product_id)?.product_type;
     stockByProduct.set(v.product_id, {
@@ -195,7 +211,7 @@ export async function fetchCatalogRowsForProductIds(
     });
   });
 
-  return products.map((p) => {
+  return products.filter((p) => !dcOnlyProducts.has(p.id)).map((p) => {
     const agg = stockByProduct.get(p.id) ?? { total_stock: 0, variant_count: 0 };
     return {
       product_id: p.id,

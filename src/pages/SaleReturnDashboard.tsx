@@ -3,6 +3,8 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
+import { dcReturnNotInList, fetchDcReturnSplit } from "@/utils/dcSaleReturnShare";
 import { useToast } from "@/hooks/use-toast";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -237,6 +239,7 @@ export default function SaleReturnDashboard() {
   const { orgNavigate: navigate } = useOrgNavigation();
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+  const { hideDc } = useDcVisibility();
 
   const isDesktop = useIsDesktop();
   const rowContextMenu = useContextMenu<SaleReturn>();
@@ -465,7 +468,10 @@ export default function SaleReturnDashboard() {
 
   // Server-side paginated query
   const { data: returnsData, isLoading: returnsLoading, refetch: refetchReturns } = useQuery({
-    queryKey: ["sale-returns", currentOrganization?.id, debouncedSearch, currentPage, pageSize, fromDate, toDate, statusFilter],
+    queryKey: [
+      "sale-returns", currentOrganization?.id, debouncedSearch, currentPage, pageSize, fromDate, toDate, statusFilter,
+      ...(hideDc ? ["dc-hidden"] : []),
+    ],
     queryFn: async () => {
       if (!currentOrganization?.id) return { returns: [], totalCount: 0 };
 
@@ -489,6 +495,14 @@ export default function SaleReturnDashboard() {
       // Status filter
       if (statusFilter && statusFilter !== "all") {
         query = query.eq("credit_status", statusFilter);
+      }
+
+      // DC (No GST) hidden: returns of only DC lines left out; a mixed return keeps its full row.
+      if (hideDc) {
+        const notIn = dcReturnNotInList(
+          await fetchDcReturnSplit(supabase, currentOrganization.id, fromDate, toDate),
+        );
+        if (notIn) query = query.not("id", "in", notIn);
       }
 
       if (debouncedSearch) {
@@ -699,9 +713,18 @@ export default function SaleReturnDashboard() {
   );
 
   const { data: summaryData } = useQuery({
-    queryKey: ["sale-returns-summary", currentOrganization?.id, debouncedSearch, fromDate, toDate, statusFilter],
+    queryKey: [
+      "sale-returns-summary", currentOrganization?.id, debouncedSearch, fromDate, toDate, statusFilter,
+      ...(hideDc ? ["dc-hidden"] : []),
+    ],
     queryFn: async () => {
       if (!currentOrganization?.id) return { totalReturns: 0, totalValue: 0, totalQty: 0 };
+
+      // DC (No GST) hidden: all-DC returns left out, DC share of mixed returns taken off the tiles.
+      const dcSplit = hideDc
+        ? await fetchDcReturnSplit(supabase, currentOrganization.id, fromDate, toDate)
+        : null;
+      const dcNotIn = dcSplit ? dcReturnNotInList(dcSplit) : null;
 
       const applySummaryFilters = (base: any) => {
         let q = base
@@ -710,6 +733,7 @@ export default function SaleReturnDashboard() {
         if (fromDate) q = q.gte("return_date", fromDate);
         if (toDate) q = q.lte("return_date", toDate);
         if (statusFilter && statusFilter !== "all") q = q.eq("credit_status", statusFilter);
+        if (dcNotIn) q = q.not("id", "in", dcNotIn);
         return q;
       };
 
@@ -812,9 +836,10 @@ export default function SaleReturnDashboard() {
         if (pageError) throw pageError;
         if (!pageRows?.length) break;
         for (const row of pageRows) {
-          totalValue += Number(row.net_amount || 0);
-          totalGross += Number(row.gross_amount || 0);
-          totalGst += Number(row.gst_amount || 0);
+          const keep = 1 - (dcSplit?.dcShare.get(row.id) ?? 0);
+          totalValue += Number(row.net_amount || 0) * keep;
+          totalGross += Number(row.gross_amount || 0) * keep;
+          totalGst += Number(row.gst_amount || 0) * keep;
           if (row.id) allReturnIds.push(row.id);
         }
         if (pageRows.length < PAGE) break;
@@ -824,10 +849,12 @@ export default function SaleReturnDashboard() {
       let totalQty = 0;
       for (let i = 0; i < allReturnIds.length; i += 200) {
         const batch = allReturnIds.slice(i, i + 200);
-        const { data: items } = await supabase
+        let itemsQuery = supabase
           .from("sale_return_items")
           .select("quantity")
           .in("return_id", batch);
+        if (hideDc) itemsQuery = itemsQuery.not("is_dc_item", "is", true);
+        const { data: items } = await itemsQuery;
         totalQty += (items || []).reduce(
           (sum: number, item: any) => sum + Number(item.quantity || 0),
           0,

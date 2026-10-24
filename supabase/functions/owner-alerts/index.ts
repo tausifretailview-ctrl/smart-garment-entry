@@ -119,13 +119,53 @@ async function sendToOwners(
   return { sent, failed };
 }
 
-async function todayTotals(db: Db, organizationId: string, now: Date): Promise<CashierTotals> {
+/** Settings > Purchase "Hide DC" shops: alerts leave DC (No GST) bills out, like the screens do. */
+async function hidesDc(db: Db, organizationId: string): Promise<boolean> {
+  const { data } = await db.from("settings").select("purchase_settings").eq("organization_id", organizationId).maybeSingle();
+  return data?.purchase_settings?.dc_visibility_mode === "hide";
+}
+
+/** DC line net and all-line net per bill, for bills that have a DC line. Errors (DC update not run) → empty. */
+async function dcSharesBySale(db: Db, saleIds: string[]): Promise<Map<string, { dcNet: number; allNet: number }>> {
+  const out = new Map<string, { dcNet: number; allNet: number }>();
+  for (let i = 0; i < saleIds.length; i += 200) {
+    const ids = saleIds.slice(i, i + 200);
+    const { data: dc, error } = await db
+      .from("sale_items")
+      .select("sale_id, net_after_discount")
+      .in("sale_id", ids)
+      .eq("is_dc_item", true)
+      .is("deleted_at", null);
+    if (error || !dc?.length) continue;
+    const withDc = [...new Set(dc.map((r: { sale_id: string }) => r.sale_id))];
+    const { data: all } = await db.from("sale_items").select("sale_id, net_after_discount").in("sale_id", withDc).is("deleted_at", null);
+    for (const r of dc) {
+      const cur = out.get(r.sale_id) ?? { dcNet: 0, allNet: 0 };
+      cur.dcNet += Number(r.net_after_discount) || 0;
+      out.set(r.sale_id, cur);
+    }
+    for (const r of all ?? []) {
+      const cur = out.get(r.sale_id);
+      if (cur) cur.allNet += Number(r.net_after_discount) || 0;
+    }
+  }
+  return out;
+}
+
+/** Bill amount without its DC lines (whole bill when it has none). 0 = every line is DC. */
+function nonDcAmount(netAmount: number, share: { dcNet: number; allNet: number } | undefined): number {
+  if (!share) return netAmount;
+  if (share.allNet <= 0 || share.dcNet >= share.allNet) return 0;
+  return Math.round(netAmount * ((share.allNet - share.dcNet) / share.allNet) * 100) / 100;
+}
+
+async function todayTotals(db: Db, organizationId: string, now: Date, hideDc = false): Promise<CashierTotals> {
   const { date } = istClock(now);
   const { data } = await db.rpc("get_pos_dashboard_stats", {
     p_organization_id: organizationId,
     p_date_from: istDayStartUtc(date).toISOString(),
     p_date_to: now.toISOString(),
-    p_filters: {},
+    p_filters: hideDc ? { hideDc: true } : {},
   });
   const t = (data ?? {}) as Record<string, number>;
   const n = (k: string) => Number(t[k]) || 0;
@@ -142,12 +182,18 @@ async function todayTotals(db: Db, organizationId: string, now: Date): Promise<C
 }
 
 /** Today's bills per salesman (IST day so far), only when the shop turned the summary on. */
-async function salesmenToday(db: Db, s: OwnerAlertSettings, organizationId: string, now: Date): Promise<SalesmanTotal[] | undefined> {
+async function salesmenToday(
+  db: Db,
+  s: OwnerAlertSettings,
+  organizationId: string,
+  now: Date,
+  hideDc = false,
+): Promise<SalesmanTotal[] | undefined> {
   if (!s.salesman_summary_enabled) return undefined;
   const { date } = istClock(now);
   const { data, error } = await db
     .from("sales")
-    .select("salesman, net_amount")
+    .select("id, salesman, net_amount")
     .eq("organization_id", organizationId)
     .is("deleted_at", null)
     .eq("is_cancelled", false)
@@ -156,7 +202,14 @@ async function salesmenToday(db: Db, s: OwnerAlertSettings, organizationId: stri
     .lte("sale_date", now.toISOString())
     .limit(5000);
   if (error) return undefined;
-  return salesmanTotals(data ?? []);
+  const rows = (data ?? []) as Array<{ id: string; salesman?: string | null; net_amount?: number | null }>;
+  if (!hideDc) return salesmanTotals(rows);
+  const shares = await dcSharesBySale(db, rows.map((r) => r.id));
+  return salesmanTotals(
+    rows
+      .map((r) => ({ ...r, net_amount: nonDcAmount(Number(r.net_amount) || 0, shares.get(r.id)) }))
+      .filter((r) => !shares.has(r.id) || r.net_amount > 0),
+  );
 }
 
 /** Screen a tapped cashier / day-end alert opens (the app's colour report for that IST day). */
@@ -194,11 +247,12 @@ async function runScheduled(db: Db, sa: ServiceAccount, now: Date) {
   for (const s of (rows ?? []) as Array<OwnerAlertSettings & { organization_id: string }>) {
     const org = s.organization_id;
     try {
+      const hideDc = await hidesDc(db, org);
       const cashierKey = dueCashierSlot(s, now);
       if (cashierKey) {
         const logId = await claim(db, org, "cashier", cashierKey);
         if (logId) {
-          const msg = cashierMessage(slotMinutes(cashierKey), await todayTotals(db, org, now), await salesmenToday(db, s, org, now));
+          const msg = cashierMessage(slotMinutes(cashierKey), await todayTotals(db, org, now, hideDc), await salesmenToday(db, s, org, now, hideDc));
           out.push({ org, kind: "cashier", ...(await sendToOwners(db, sa, org, logId, msg, { route: reportRoute(now) })) });
         }
       }
@@ -215,7 +269,7 @@ async function runScheduled(db: Db, sa: ServiceAccount, now: Date) {
       if (endKey) {
         const logId = await claim(db, org, "day_end", endKey);
         if (logId) {
-          const msg = dayEndMessage(istClock(now).date, await todayTotals(db, org, now), await salesmenToday(db, s, org, now));
+          const msg = dayEndMessage(istClock(now).date, await todayTotals(db, org, now, hideDc), await salesmenToday(db, s, org, now, hideDc));
           out.push({ org, kind: "day_end", ...(await sendToOwners(db, sa, org, logId, msg, { route: reportRoute(now) })) });
         }
       }
@@ -259,10 +313,15 @@ Deno.serve(async (req) => {
         .eq("organization_id", organizationId)
         .maybeSingle();
       if (!sale) return json(404, { error: "Sale not found" });
-      if (!shouldSendInvoiceAlert(settings, Number(sale.net_amount))) return json(200, { ok: true, skipped: "below_threshold" });
+      let amount = Number(sale.net_amount);
+      if (await hidesDc(db, organizationId)) {
+        amount = nonDcAmount(amount, (await dcSharesBySale(db, [sale.id])).get(sale.id));
+        if (amount <= 0) return json(200, { ok: true, skipped: "dc_bill" });
+      }
+      if (!shouldSendInvoiceAlert(settings, amount)) return json(200, { ok: true, skipped: "below_threshold" });
       const logId = await claim(db, organizationId, "invoice", sale.id);
       if (!logId) return json(200, { ok: true, skipped: "already_sent" });
-      const r = await sendToOwners(db, sa, organizationId, logId, invoiceMessage(sale), { route: `/owner-alert/bill/${sale.id}`, sale_id: sale.id });
+      const r = await sendToOwners(db, sa, organizationId, logId, invoiceMessage({ ...sale, net_amount: amount }), { route: `/owner-alert/bill/${sale.id}`, sale_id: sale.id });
       return json(200, { ok: true, ...r });
     }
 
