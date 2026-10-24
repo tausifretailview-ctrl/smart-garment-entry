@@ -61,6 +61,7 @@ describe("settingsChrome", () => {
         "pos_per_line_salesman",
         "pos_barcode_price_mode",
         "pos_goods_ask_qty_dialog",
+        "pos_dashboard_show_purchase_code",
         "pos_category_tier_pricing",
         "pos_scheme_auto_calculate_discount",
         "pos_bill_format",

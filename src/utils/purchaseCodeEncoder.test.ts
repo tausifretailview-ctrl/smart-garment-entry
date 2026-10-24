@@ -7,6 +7,7 @@ import {
   normalizePurchaseBillDate,
   normalizePurchaseCodeAlphabet,
   resolveLabelPurchaseBillDate,
+  resolvePosDashboardPurchaseCodeEnabled,
   resolvePosPurchaseCodeEnabled,
   resolvePurchaseCodeAlphabet,
   resolvePurchaseCodeIncludeDate,
@@ -204,5 +205,14 @@ describe("POS cart purchase code", () => {
   it("is blank when the line has no purchase price", () => {
     expect(encodePosLinePurchaseCode({ purPrice: 0 }, {})).toBe("");
     expect(encodePosLinePurchaseCode({}, {})).toBe("");
+  });
+});
+
+describe("resolvePosDashboardPurchaseCodeEnabled", () => {
+  it("is off unless Settings → POS turns it on", () => {
+    expect(resolvePosDashboardPurchaseCodeEnabled(undefined)).toBe(false);
+    expect(resolvePosDashboardPurchaseCodeEnabled({})).toBe(false);
+    expect(resolvePosDashboardPurchaseCodeEnabled({ pos_dashboard_show_purchase_code: false })).toBe(false);
+    expect(resolvePosDashboardPurchaseCodeEnabled({ pos_dashboard_show_purchase_code: true })).toBe(true);
   });
 });

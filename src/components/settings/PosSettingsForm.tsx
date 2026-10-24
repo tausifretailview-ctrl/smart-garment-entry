@@ -45,6 +45,8 @@ type SaleSlice = {
   pos_per_line_salesman?: boolean;
   pos_barcode_price_mode?: "mrp" | "sale_price";
   pos_goods_ask_qty_dialog?: boolean;
+  /** POS Dashboard expanded Sale Items: P.Code column. Default false. */
+  pos_dashboard_show_purchase_code?: boolean;
   pos_category_tier_pricing?: boolean;
   /** Festival leftover pricing for discount schemes. Default false = leftover at Single (₹). */
   pos_scheme_auto_calculate_discount?: boolean;
@@ -394,6 +396,27 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
               }
             />
           </div>
+        </SettingsSection>
+
+        <SettingsSection title="POS Dashboard">
+          <SettingsRow
+            label="Show purchase price code on POS Dashboard"
+            htmlFor="pos_dashboard_show_purchase_code"
+            description="Adds a P.Code column to the Sale Items list when you open a bill on the POS Dashboard. Uses the purchase code alphabet, GST and extra % from Settings → Purchase, so the letters match the barcode label. Off by default."
+            hint={
+              <SettingOnOffHint
+                active={sale.pos_dashboard_show_purchase_code === true ? "on" : "off"}
+                on="Each sold item shows its coded purchase price (e.g. BAA). Never printed on the bill."
+                off="No purchase code column on the POS Dashboard."
+              />
+            }
+          >
+            <Switch
+              id="pos_dashboard_show_purchase_code"
+              checked={sale.pos_dashboard_show_purchase_code === true}
+              onCheckedChange={(checked) => patchSale({ pos_dashboard_show_purchase_code: checked })}
+            />
+          </SettingsRow>
         </SettingsSection>
 
         <SettingsSection title="POS print">
