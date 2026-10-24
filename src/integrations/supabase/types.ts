@@ -12448,6 +12448,7 @@ export type Database = {
       }
       get_stock_report: {
         Args: {
+          p_hide_dc?: boolean
           p_brand?: string
           p_category?: string
           p_color?: string
@@ -12493,6 +12494,7 @@ export type Database = {
       }
       get_stock_report_filtered_totals: {
         Args: {
+          p_hide_dc?: boolean
           p_brand?: string
           p_category?: string
           p_color?: string
@@ -12511,7 +12513,7 @@ export type Database = {
         Returns: Json
       }
       get_stock_report_totals: {
-        Args: { p_organization_id: string }
+        Args: { p_hide_dc?: boolean; p_organization_id: string }
         Returns: Json
       }
       get_stock_value: { Args: { p_org_id: string }; Returns: number }

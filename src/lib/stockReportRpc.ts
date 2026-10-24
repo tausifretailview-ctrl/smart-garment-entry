@@ -178,6 +178,8 @@ export type StockReportRpcFilterInput = {
   pinnedProducts: Array<{ product_name: string }>;
   supplierFilter: string;
   supplierInvoiceFilter: string;
+  /** Leave DC (No GST) barcodes out (Settings > Purchase "Hide DC" / Ctrl+Shift+H). */
+  hideDc?: boolean;
 };
 
 export function buildStockReportRpcFilters(input: StockReportRpcFilterInput) {
@@ -196,6 +198,8 @@ export function buildStockReportRpcFilters(input: StockReportRpcFilterInput) {
     p_product_name: buildStockReportRpcProductName(input.productNameFilter, input.pinnedProducts),
     p_supplier: input.supplierFilter !== "all" ? input.supplierFilter : null,
     p_supplier_invoice: input.supplierInvoiceFilter !== "all" ? input.supplierInvoiceFilter : null,
+    // Sent only when on, so the report keeps working before the DC SQL is run.
+    ...(input.hideDc ? { p_hide_dc: true } : {}),
   };
 }
 

@@ -101,6 +101,7 @@ import { barcodePrintingPathWithBill } from "@/utils/barcodePurchaseBillItems";
 import { normalizePurchaseBillDate } from "@/utils/purchaseCodeEncoder";
 import { stashPurchaseBarcodePrintPayload } from "@/utils/barcodePurchaseBillContext";
 import { invalidateAndRefetchWithQueryFn } from "@/utils/refetchQueriesWithFn";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 
 /** Purchase bills table — hidden by default; enable via Columns menu. */
 const PURCHASE_BILLS_DEFAULT_COLUMN_VISIBILITY: Record<string, boolean> = {
@@ -274,6 +275,9 @@ const PurchaseBillDashboard = () => {
   const [dcFilter, setDcFilter] = useState<string>(
     () => pickPersistedString(savedPurchaseFilters?.dcFilter) ?? "all",
   );
+  // DC hidden (Settings > Purchase "Hide DC", or Ctrl+Shift+H): list GST bills only.
+  const { hideDc } = useDcVisibility();
+  const effectiveDcFilter = hideDc ? "gst" : dcFilter;
 
   const queryDateRange = useMemo(
     () => resolvePurchaseDashboardQueryDates(periodFilter, startDate, endDate),
@@ -695,7 +699,7 @@ const PurchaseBillDashboard = () => {
     currentPage,
     itemsPerPage,
     paymentStatusFilter,
-    dcFilter,
+    effectiveDcFilter,
   ] as const;
 
   const patchPurchaseBillsCache = useCallback(
@@ -741,7 +745,7 @@ const PurchaseBillDashboard = () => {
         startDate: queryDateRange.startDate,
         endDate: queryDateRange.endDate,
         paymentStatusFilter,
-        dcFilter,
+        dcFilter: effectiveDcFilter,
         debouncedSearch,
         sortOrder,
         page: currentPage,
@@ -772,7 +776,7 @@ const PurchaseBillDashboard = () => {
     queryDateRange.startDate,
     queryDateRange.endDate,
     paymentStatusFilter,
-    dcFilter,
+    effectiveDcFilter,
   ] as const;
 
   const {
@@ -798,7 +802,7 @@ const PurchaseBillDashboard = () => {
         startDate: queryDateRange.startDate,
         endDate: queryDateRange.endDate,
         paymentStatusFilter,
-        dcFilter,
+        dcFilter: effectiveDcFilter,
         debouncedSearch,
       });
     },
@@ -2301,8 +2305,8 @@ const PurchaseBillDashboard = () => {
           query = query.eq("payment_status", paymentStatusFilter);
         }
       }
-      if (dcFilter === "dc") query = query.eq("is_dc_purchase", true);
-      else if (dcFilter === "gst") query = query.or("is_dc_purchase.is.null,is_dc_purchase.eq.false");
+      if (effectiveDcFilter === "dc") query = query.eq("is_dc_purchase", true);
+      else if (effectiveDcFilter === "gst") query = query.or("is_dc_purchase.is.null,is_dc_purchase.eq.false");
 
       query = query
         .order("bill_entry_at", { ascending: false, nullsFirst: false })
@@ -2357,7 +2361,7 @@ const PurchaseBillDashboard = () => {
     } catch (err: any) {
       toast({ title: "Export failed", description: err.message, variant: "destructive" });
     }
-  }, [currentOrganization?.id, periodFilter, queryDateRange.startDate, queryDateRange.endDate, paymentStatusFilter, dcFilter, toast]);
+  }, [currentOrganization?.id, periodFilter, queryDateRange.startDate, queryDateRange.endDate, paymentStatusFilter, effectiveDcFilter, toast]);
 
   // No full-page blocker — layout renders immediately, ERPTable shows skeletons via isLoading
   const isMobile = useIsMobile();
@@ -2863,7 +2867,7 @@ const PurchaseBillDashboard = () => {
                   <SelectItem value="all_including_cancelled">All (Including Cancelled)</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={dcFilter} onValueChange={setDcFilter}>
+              {!hideDc && <Select value={dcFilter} onValueChange={setDcFilter}>
                 <SelectTrigger className="w-[115px] h-9 text-sm gap-1.5 border-slate-200 bg-slate-50 hover:bg-white">
                   <FileText className="h-4 w-4" />
                   <SelectValue placeholder="Bill Type" />
@@ -2873,7 +2877,7 @@ const PurchaseBillDashboard = () => {
                   <SelectItem value="dc">DC Only</SelectItem>
                   <SelectItem value="gst">GST Only</SelectItem>
                 </SelectContent>
-              </Select>
+              </Select>}
               <div id="erp-toolbar-portal-purchase" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
             </div>
 
