@@ -34,6 +34,7 @@ import { getSaleReportGrossAmount, getSaleReportNetAmount } from "@/utils/cashie
 import { saleBillFigures } from "@/utils/saleBillFigures";
 import { withDashboardTimeout } from "@/utils/withDashboardTimeout";
 import { totalFromShortPage } from "@/utils/dashboardShortPageCount";
+import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
 
 /** Calendar bounds for server queries from period chip + date inputs (fixes persisted single-day monthly). */
 
@@ -196,6 +197,8 @@ export function seedPosDashboardCacheWithSale(
   for (const query of queries) {
     const key = query.queryKey as unknown[];
     if (!Array.isArray(key) || key.length < 3) continue;
+    // DC-hidden views: the new bill may be DC, let the refetch decide.
+    if (key.includes("dc-hidden")) continue;
 
     // Summary tile cache — bump counters lightly when date range matches.
     if (key[2] === "summary") {
@@ -341,6 +344,8 @@ export type PosDashboardFilters = {
   /** Employee names stored on sales.salesman. Empty = every salesman. */
   salesmanFilter?: string[];
   cancelFilter: string;
+  /** DC (No GST) hidden: all-DC bills out, DC share of mixed bills out of the totals. */
+  hideDc?: boolean;
 };
 
 export type PosDashboardPageOptions = {
@@ -478,6 +483,7 @@ export type PosDashboardRpcFilters = {
   creditNoteFilter: string;
   userFilter: string;
   salesmanFilter: string[];
+  hideDc?: boolean;
 };
 
 /** Enough for a shop's salesman list; keeps the PostgREST `.in()` URL small. */
@@ -529,6 +535,7 @@ export function buildPosDashboardRpcFilters(filters: PosDashboardFilters): PosDa
     creditNoteFilter: filters.creditNoteFilter,
     userFilter: filters.userFilter,
     salesmanFilter: normalizePosSalesmanFilter(filters.salesmanFilter),
+    ...(filters.hideDc ? { hideDc: true } : {}),
   };
 }
 
@@ -610,6 +617,11 @@ async function fetchPosDashboardSummaryViaRpc(
     posStatsRpcSalesmanSupport = "yes";
   }
 
+  // Older RPC (DC SQL not run yet) ignores hideDc — total from the row scan instead.
+  if (filters.hideDc && (data as { dcHideApplied?: boolean } | null)?.dcHideApplied !== true) {
+    throw new PosStatsDcHideUnsupportedError();
+  }
+
   return parsePosDashboardStatsRow((data || {}) as Partial<PosDashboardSummaryStats>);
 }
 
@@ -656,6 +668,13 @@ class PosStatsSalesmanUnsupportedError extends Error {
   constructor() {
     super("POS dashboard stats RPC does not filter salesman");
     this.name = "PosStatsSalesmanUnsupportedError";
+  }
+}
+
+class PosStatsDcHideUnsupportedError extends Error {
+  constructor() {
+    super("POS dashboard stats RPC does not hide DC");
+    this.name = "PosStatsDcHideUnsupportedError";
   }
 }
 
@@ -748,6 +767,11 @@ export function applyPosDashboardFilters(query: any, filters: PosDashboardFilter
 
   if (filters.customerId) {
     q = q.eq("customer_id", filters.customerId);
+  }
+
+  // Bills whose every line is DC (No GST) are left out while DC is hidden.
+  if (filters.hideDc) {
+    q = q.eq("is_dc_bill", false);
   }
 
   const paymentMethods = parsePosPaymentMethodFilter(filters.paymentMethodFilter);
@@ -1385,6 +1409,10 @@ async function scanPosDashboardSummaryRows(
     offset += PAGE_SIZE;
   }
 
+  // Totals only (never used for payments or prints): take the DC part out of mixed bills.
+  if (filters.hideDc) {
+    return saleRowsWithoutDc(client, allRows as Array<PosDashboardSaleLike & { id: string }>);
+  }
   return allRows;
 }
 
@@ -1558,6 +1586,7 @@ export async function fetchPosDashboardSummary(
     } catch (err) {
       if (
         !(err instanceof PosStatsSalesmanUnsupportedError) &&
+        !(err instanceof PosStatsDcHideUnsupportedError) &&
         !isPosDashboardStatsRpcNotFoundError(err as { code?: string; message?: string; status?: number })
       ) {
         console.warn("get_pos_dashboard_stats RPC threw, using client fallback:", err);

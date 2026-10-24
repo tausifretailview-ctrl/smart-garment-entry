@@ -2,16 +2,24 @@
 -- A mixed bill (DC + normal items) keeps the POS series. Decided by the shop owner 24 Oct 2026.
 --
 -- WHAT IT DOES
---   1. sales.is_dc_bill: true for a POS bill numbered in the DC series.
+--   1. sales.is_dc_bill: true when every line of the bill is a DC item (kept in step by a
+--      statement trigger on sale_items, so Sale Bill, edits and imports are covered too).
+--      Screens that hide DC leave these bills out. The bill NUMBER never changes after save.
 --   2. generate_dc_number_atomic(org): next DC/YY-YY/N. Shares the DC numbers already used by
 --      Delivery Challans (delivery_challans.challan_number) and the POS Delivery Challan screen
 --      (sales.sale_number), so a DC number is never handed out twice. Counter row in
 --      bill_number_sequences (series 'DC/YY-YY') locks concurrent POS saves; it only moves
 --      forward to the highest number in use, never back.
 --
--- SAFETY: additive column + new function. Old bills, Delivery Challans and
--- generate_challan_number are not changed.
--- UNDO: DROP FUNCTION public.generate_dc_number_atomic(uuid);
+--   3. Partial index on DC sale lines, for screens that take the DC part out of mixed bills.
+--
+-- SAFETY: additive column, index and functions. The trigger only writes sales.is_dc_bill,
+-- and only when it changes (bills with no DC line are never touched). Old bills keep
+-- is_dc_bill = false until the optional backfill at the end of this file is run.
+-- Delivery Challans and generate_challan_number are not changed.
+-- UNDO: DROP TRIGGER trg_sale_items_dc_bill_ins ON public.sale_items;
+--       DROP TRIGGER trg_sale_items_dc_bill_del ON public.sale_items;
+--       DROP FUNCTION public.generate_dc_number_atomic(uuid);
 --       (the app then keeps all-DC bills in the POS series; the column can stay.)
 
 ALTER TABLE public.sales
@@ -81,3 +89,66 @@ GRANT EXECUTE ON FUNCTION public.generate_dc_number_atomic(uuid) TO authenticate
 
 COMMENT ON FUNCTION public.generate_dc_number_atomic(uuid) IS
   'Next DC/YY-YY/N for a POS bill of only DC items; shares numbers with Delivery Challans.';
+
+CREATE INDEX IF NOT EXISTS idx_sale_items_dc_lines
+  ON public.sale_items (sale_id)
+  WHERE is_dc_item = true AND deleted_at IS NULL;
+
+CREATE OR REPLACE FUNCTION public.sync_sale_is_dc_bill()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+BEGIN
+  WITH touched AS (
+    SELECT DISTINCT c.sale_id FROM changed_rows c WHERE c.sale_id IS NOT NULL
+  ),
+  state AS (
+    SELECT
+      t.sale_id,
+      COALESCE(bool_and(COALESCE(si.is_dc_item, false)) FILTER (WHERE si.id IS NOT NULL), false) AS all_dc
+    FROM touched t
+    LEFT JOIN public.sale_items si ON si.sale_id = t.sale_id AND si.deleted_at IS NULL
+    GROUP BY t.sale_id
+  )
+  UPDATE public.sales s
+  SET is_dc_bill = st.all_dc
+  FROM state st
+  WHERE s.id = st.sale_id
+    AND s.is_dc_bill IS DISTINCT FROM st.all_dc;
+  RETURN NULL;
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS trg_sale_items_dc_bill_ins ON public.sale_items;
+CREATE TRIGGER trg_sale_items_dc_bill_ins
+  AFTER INSERT ON public.sale_items
+  REFERENCING NEW TABLE AS changed_rows
+  FOR EACH STATEMENT EXECUTE FUNCTION public.sync_sale_is_dc_bill();
+
+DROP TRIGGER IF EXISTS trg_sale_items_dc_bill_del ON public.sale_items;
+CREATE TRIGGER trg_sale_items_dc_bill_del
+  AFTER DELETE ON public.sale_items
+  REFERENCING OLD TABLE AS changed_rows
+  FOR EACH STATEMENT EXECUTE FUNCTION public.sync_sale_is_dc_bill();
+
+NOTIFY pgrst, 'reload schema';
+
+-- ---------------------------------------------------------------------------
+-- OPTIONAL BACKFILL (run once, separately, only for shops that use DC):
+-- marks old bills whose every line is DC. Trigger-free so audit / ledger triggers on
+-- sales do not fire for a flag-only change.
+--
+-- BEGIN;
+-- SET LOCAL session_replication_role = replica;
+-- UPDATE public.sales s
+-- SET is_dc_bill = true
+-- WHERE s.is_dc_bill = false
+--   AND s.deleted_at IS NULL
+--   AND EXISTS (SELECT 1 FROM public.sale_items si
+--               WHERE si.sale_id = s.id AND si.deleted_at IS NULL AND si.is_dc_item = true)
+--   AND NOT EXISTS (SELECT 1 FROM public.sale_items si
+--                   WHERE si.sale_id = s.id AND si.deleted_at IS NULL
+--                     AND COALESCE(si.is_dc_item, false) = false);
+-- COMMIT;

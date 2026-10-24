@@ -42,6 +42,8 @@ import {
 } from "@/utils/cashierReportUtils";
 import { cashierCashRefundOut } from "@/utils/cashierRefundOutflows";
 import { saleBillFigures } from "@/utils/saleBillFigures";
+import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 import {
   buildCashierReceiptModeMap,
   getCashierSalePaymentModeAmounts,
@@ -74,6 +76,7 @@ type PeriodType = "daily" | "monthly" | "quarterly";
 
 const DailyCashierReport = () => {
   const { currentOrganization } = useOrganization();
+  const { hideDc } = useDcVisibility();
   const { orgNavigate } = useOrgNavigation();
   // Calendar-day default ΓÇö query keys use YMD strings (not raw Date) so remount reuses cache.
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
@@ -140,12 +143,12 @@ const DailyCashierReport = () => {
 
   // Fetch sales ΓÇö same local-day bounds as Floating POS cashier (includes early-morning POS bills)
   const { data: salesData, isLoading: salesLoading } = useQuery({
-    queryKey: ["cashier-report-sales-v2", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period],
+    queryKey: ["cashier-report-sales-v2", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period, hideDc],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
       const { startIso, endIso } = localDayBounds(rangeStartYmd, rangeEndYmd);
-      const { data, error } = await supabase
+      let query = supabase
         .from("sales")
         .select(
           "id, sale_number, sale_date, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, net_amount, paid_amount, cash_amount, card_amount, upi_amount, payment_method, payment_status, sale_return_adjust, refund_amount, sale_type, is_cancelled"
@@ -154,9 +157,12 @@ const DailyCashierReport = () => {
         .gte("sale_date", startIso)
         .lte("sale_date", endIso)
         .is("deleted_at", null);
+      // DC hidden: all-DC bills out, DC share of mixed bills out of every figure.
+      if (hideDc) query = query.eq("is_dc_bill", false);
 
+      const { data, error } = await query;
       if (error) throw error;
-      return data || [];
+      return hideDc ? saleRowsWithoutDc(supabase, data || []) : data || [];
     },
     enabled: !!currentOrganization?.id,
     staleTime: 30_000,
