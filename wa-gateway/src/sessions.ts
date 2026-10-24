@@ -7,12 +7,12 @@ import makeWASocket, {
   DisconnectReason,
   fetchLatestBaileysVersion,
   normalizeMessageContent,
-  useMultiFileAuthState,
   type WAMessage,
   type WASocket,
   type proto,
 } from "@whiskeysockets/baileys";
 import { isDiskFull, pruneSessionDir } from "./storage.js";
+import { CREDS_BACKUP_FILE, CREDS_FILE, hasLinkedCredsOnDisk, ownUserIds, readLinkedCreds, useSafeAuthState } from "./authState.js";
 
 /**
  * Uploaded posters, so a bulk campaign uploads its poster to WhatsApp once instead of once per number
@@ -104,17 +104,11 @@ function linkPhone(raw: string): string | null {
   return d.length >= 11 && d.length <= 15 ? d : null;
 }
 
-/** creds.json of a number that finished linking (an unfinished QR or pairing code has no `account`). */
-function hasLinkedCreds(file: string): boolean {
-  try {
-    return Boolean((JSON.parse(fs.readFileSync(file, "utf8")) as { account?: unknown }).account);
-  } catch {
-    return false;
-  }
-}
-
 /** "linked", a link that never finished (with its age), or a creds file that cannot be read. */
-function credsState(file: string): "linked" | "unreadable" | { age: number } {
+function credsState(dir: string): "linked" | "unreadable" | { age: number } {
+  // A damaged creds.json next to a good backup is still a linked number (the backup is used on connect).
+  if (readLinkedCreds(path.join(dir, CREDS_BACKUP_FILE))) return "linked";
+  const file = path.join(dir, CREDS_FILE);
   let text: string;
   let age: number;
   try {
@@ -170,6 +164,9 @@ export function optOutKeyword(text: string): "stop" | "start" | null {
   return null;
 }
 const logger = pino({ level: process.env.LOG_LEVEL ?? "warn" });
+/** Shown when a number's saved link on the server is gone or damaged and a restore or reconnect cannot use it. */
+const LINK_LOST_REASON =
+  "The saved WhatsApp link on the server is missing or damaged, so it cannot reconnect by itself. Link the number again.";
 /** Shown in the app instead of "ENOSPC: no space left on device". */
 export const DISK_FULL_MESSAGE =
   "The WhatsApp server's storage is full. Old files are being cleared now; try again in a minute. If it keeps happening, give the server's volume more space.";
@@ -241,6 +238,8 @@ export interface JoinCustomerResult {
 
 export class SessionManager {
   private sessions = new Map<string, Session>();
+  /** Set while the server stops (redeploy): sockets close without logging out and do not reconnect here. */
+  private shuttingDown = false;
   /** Delivery / read ticks for messages sent from Bulk WhatsApp sessions. */
   onReceipt: ((sessionId: string, messageId: string, status: ReceiptStatus) => void) | null = null;
   /** A customer replied STOP / START to a bulk number. */
@@ -329,20 +328,53 @@ export class SessionManager {
     if (!fs.existsSync(AUTH_DIR)) return;
     for (const orgId of fs.readdirSync(AUTH_DIR)) {
       // Only numbers that finished linking; an abandoned QR or pairing code leaves nothing worth restoring.
-      if (!SESSION_ID_RE.test(orgId) || !hasLinkedCreds(path.join(this.dir(orgId), "creds.json"))) continue;
-      await this.connect(orgId).catch((e) => logger.warn({ err: e }, "restore failed"));
+      if (!SESSION_ID_RE.test(orgId) || !hasLinkedCredsOnDisk(this.dir(orgId))) continue;
+      await this.connect(orgId).catch((e) => {
+        logger.warn({ orgId, err: e }, "restore failed");
+        this.reconnectLater(orgId, this.get(orgId));
+      });
     }
   }
 
-  private async connect(orgId: string) {
+  /**
+   * Tries again after `s.retries`-based backoff (5 s doubling, at most 1 min). A try that fails before
+   * a socket opens (disk full, WhatsApp version lookup down) schedules the next one, so a linked number
+   * never stops reconnecting by itself.
+   */
+  private reconnectLater(orgId: string, s: Session) {
+    const delay = Math.min(60_000, 5000 * 2 ** s.retries);
+    s.retries++;
+    setTimeout(() => {
+      if (s.stopped || this.shuttingDown) return;
+      this.connect(orgId, false).catch((e: unknown) => {
+        logger.warn({ orgId, err: e }, "WhatsApp reconnect failed");
+        if (isDiskFull(e)) this.freeSpaceNow();
+        this.reconnectLater(orgId, s);
+      });
+    }, delay);
+  }
+
+  /**
+   * Opens a socket for the number. `fresh` (the user pressed Connect) may start a new link with a QR or
+   * code; a restore or reconnect only ever uses a finished link, and when that is gone it says so and
+   * stops, instead of showing a QR nobody scans and then wiping the folder.
+   */
+  private async connect(orgId: string, fresh = false) {
     const s = this.get(orgId);
     if (s.starting || s.sock) return; // already open, linking, or connecting
     s.starting = true;
     s.stopped = false;
     s.status = "connecting";
     try {
-      fs.mkdirSync(this.dir(orgId), { recursive: true });
-      const { state, saveCreds } = await useMultiFileAuthState(this.dir(orgId));
+      const { state, saveCreds, fromBackup } = await useSafeAuthState(this.dir(orgId));
+      if (fromBackup) logger.warn({ orgId }, "creds.json was damaged; reconnecting with the backup copy");
+      if (!fresh && !state.creds.account) {
+        s.status = "disconnected";
+        s.lastClose = { code: null, reason: LINK_LOST_REASON, at: new Date().toISOString() };
+        logger.error({ orgId }, "saved WhatsApp link missing or damaged; cannot reconnect without a new link");
+        await this.notify(orgId, s);
+        return;
+      }
       const { version } = await fetchLatestBaileysVersion();
       const sock = makeWASocket({
         version,
@@ -361,7 +393,10 @@ export class SessionManager {
       sock.ev.on("creds.update", () => {
         saveCreds().catch((e: unknown) => {
           logger.warn({ orgId, err: e }, "saving WhatsApp keys failed");
-          if (isDiskFull(e)) this.freeSpaceNow();
+          if (!isDiskFull(e)) return;
+          // The old creds.json stays whole (writes are atomic); free space and save the new keys again.
+          this.freeSpaceNow(true);
+          saveCreds().catch((again: unknown) => logger.error({ orgId, err: again }, "saving WhatsApp keys failed again"));
         });
       });
       sock.ev.on("messages.upsert", ({ messages, type }) => {
@@ -406,6 +441,10 @@ export class SessionManager {
             logger.warn({ orgId, code, error: lastDisconnect?.error?.message }, "WhatsApp connection closed");
           }
           if (code === DisconnectReason.loggedOut) {
+            logger.error(
+              { orgId, number: s.number, error: lastDisconnect?.error?.message },
+              "WhatsApp logged this number out (401): removed on the phone, phone offline 14+ days, or stopped by WhatsApp",
+            );
             s.status = "logged_out";
             s.number = null;
             fs.rmSync(this.dir(orgId), { recursive: true, force: true });
@@ -414,23 +453,20 @@ export class SessionManager {
             s.status = "logged_out";
           } else if (!linked) {
             // QR / pairing code expired without a link: stop here instead of making new codes forever.
+            // A folder that still holds an earlier finished link (its backup) is kept.
             s.status = "disconnected";
-            fs.rmSync(this.dir(orgId), { recursive: true, force: true });
+            if (!hasLinkedCredsOnDisk(this.dir(orgId))) fs.rmSync(this.dir(orgId), { recursive: true, force: true });
           } else if (code === DisconnectReason.restartRequired) {
             // Normal right after a scan: WhatsApp asks for one restart before the link opens.
             s.status = "connecting";
             setTimeout(() => {
-              if (!s.stopped) void this.connect(orgId).catch(() => undefined);
+              if (!s.stopped) void this.connect(orgId, true).catch(() => undefined);
             }, 500);
           } else {
             s.status = "disconnected";
             // Network drop or WhatsApp restart: back off up to 1 min between tries.
-            const delay = Math.min(60_000, 5000 * 2 ** s.retries);
-            s.retries++;
-            if (s.retries === 1) await this.notify(orgId, s);
-            setTimeout(() => {
-              if (!s.stopped) void this.connect(orgId).catch(() => undefined);
-            }, delay);
+            if (s.retries === 0) await this.notify(orgId, s);
+            this.reconnectLater(orgId, s);
           }
         }
       });
@@ -518,12 +554,12 @@ export class SessionManager {
     const digits = phone ? linkPhone(phone) : null;
     if (phone && !digits) throw new Error("Enter the WhatsApp number with country code, e.g. 919876543210");
     try {
-      await this.connect(orgId); // no-op while a socket is open; the QR refreshes on its own
+      await this.connect(orgId, true); // no-op while a socket is open; the QR refreshes on its own
     } catch (e) {
       if (!isDiskFull(e)) throw e;
       this.freeSpaceNow(true);
       try {
-        await this.connect(orgId);
+        await this.connect(orgId, true);
       } catch (again) {
         throw isDiskFull(again) ? new Error(DISK_FULL_MESSAGE) : again;
       }
@@ -553,9 +589,9 @@ export class SessionManager {
     for (const id of ids) {
       if (!SESSION_ID_RE.test(id)) continue;
       const dir = this.dir(id);
-      const state = credsState(path.join(dir, "creds.json"));
+      const state = credsState(dir);
       if (state === "linked") {
-        files += pruneSessionDir(dir, maxAgeDays);
+        files += pruneSessionDir(dir, maxAgeDays, Date.now(), ownUserIds(dir));
         continue;
       }
       // Only a readable link that never finished, an hour old, is an abandoned QR / code. A creds file cut
@@ -589,6 +625,24 @@ export class SessionManager {
     };
   }
 
+  /**
+   * Railway stops the old server on every redeploy. Close each socket the way WhatsApp Web does on a tab
+   * close (never a logout), let key writes in flight finish, and leave the links on the volume for the
+   * new server to restore.
+   */
+  async shutdown() {
+    this.shuttingDown = true;
+    for (const s of this.sessions.values()) {
+      s.stopped = true;
+      try {
+        s.sock?.end(undefined);
+      } catch {
+        /* already closed */
+      }
+    }
+    await sleep(1500);
+  }
+
   async logout(orgId: string) {
     this.assertOrg(orgId);
     const s = this.get(orgId);
@@ -619,7 +673,7 @@ export class SessionManager {
     const s = this.sessions.get(id);
     // A saved, finished link reconnects by itself; without one (unlinked, logged out, a new QR or code
     // still waiting) only linking again helps.
-    const linked = s?.status !== "logged_out" && hasLinkedCreds(path.join(this.dir(id), "creds.json"));
+    const linked = s?.status !== "logged_out" && hasLinkedCredsOnDisk(this.dir(id));
     if (!linked) {
       return s?.lastClose?.code === DisconnectReason.loggedOut
         ? s.lastClose.reason

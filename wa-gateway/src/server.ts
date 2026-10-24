@@ -156,3 +156,11 @@ app.listen(PORT, () => {
     campaigns.cleanVideos();
   });
 });
+
+// Railway sends SIGTERM before replacing the server on a redeploy: close the WhatsApp links cleanly first.
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.once(signal, () => {
+    console.log(`${signal}: closing WhatsApp links (they stay linked and reconnect after the restart)`);
+    void sessions.shutdown().finally(() => process.exit(0));
+  });
+}
