@@ -17,6 +17,8 @@ import {
 } from "@/components/mobile/MobileReportFilterSheet";
 import { buildCsvFromReportTable } from "@/utils/reportCsvExport";
 import { fetchAllSaleItems } from "@/utils/fetchAllRows";
+import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 import { fetchMobileStockFilterOptions } from "@/utils/mobileStockFilterOptions";
 import {
   fetchMobileStockFilteredTotals,
@@ -96,14 +98,15 @@ async function fetchSaleItemProductMeta(orgId: string, productIds: string[]) {
 }
 
 export function MobileCashierReport({ orgId, start, end }: DateProps) {
+  const { hideDc } = useDcVisibility();
   const { data, isLoading } = useQuery({
-    queryKey: ["rpt-daily-cashier", orgId, start, end],
+    queryKey: ["rpt-daily-cashier", orgId, start, end, hideDc],
     enabled: !!orgId && !!start && !!end,
     retry: 1,
     queryFn: () =>
       withMobileQueryTimeout(async () => {
         const { startIso, endIso } = localDayBounds(start!, end!);
-        const { data: sales, error } = await supabase
+        let salesQuery = supabase
           .from("sales")
           .select(
             "id, sale_number, customer_name, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, net_amount, cash_amount, card_amount, upi_amount, sale_return_adjust, is_cancelled, payment_status",
@@ -112,10 +115,14 @@ export function MobileCashierReport({ orgId, start, end }: DateProps) {
           .is("deleted_at", null)
           .eq("is_cancelled", false)
           .gte("sale_date", startIso)
-          .lte("sale_date", endIso)
+          .lte("sale_date", endIso);
+        // DC hidden: all-DC bills out, DC share of mixed bills out of every figure.
+        if (hideDc) salesQuery = salesQuery.eq("is_dc_bill", false);
+        const { data: fetched, error } = await salesQuery
           .order("sale_date", { ascending: false })
           .limit(400);
         if (error) throw error;
+        const sales = hideDc ? await saleRowsWithoutDc(supabase, fetched || []) : fetched;
         // Same bills as the web Cashier Report: no held or cancelled-status bills.
         return (sales || []).filter((s) => {
           const status = String(s.payment_status || "");
@@ -208,8 +215,9 @@ type ItemWiseSaleRow = {
 };
 
 function useItemWiseSalesAggregation(orgId?: string, start?: string, end?: string) {
+  const { hideDc } = useDcVisibility();
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["rpt-item-wise-sales-raw", orgId, start, end],
+    queryKey: ["rpt-item-wise-sales-raw", orgId, start, end, hideDc],
     enabled: !!orgId && !!start && !!end,
     retry: 1,
     queryFn: () =>
@@ -232,7 +240,9 @@ function useItemWiseSalesAggregation(orgId?: string, start?: string, end?: strin
             metaById: new Map<string, { brand?: string | null; category?: string | null }>(),
           };
         }
-        const saleItems = await fetchAllSaleItems(sales.map((s) => s.id));
+        const fetchedItems = await fetchAllSaleItems(sales.map((s) => s.id));
+        // DC hidden: DC lines left out.
+        const saleItems = hideDc ? (fetchedItems || []).filter((i) => i.is_dc_item !== true) : fetchedItems;
         const productIds = [...new Set((saleItems || []).map((i: { product_id?: string }) => i.product_id).filter(Boolean))] as string[];
         const metaById = await fetchSaleItemProductMeta(orgId!, productIds);
         return { saleItems, metaById };
@@ -494,25 +504,28 @@ function SalesGroupReport({
   const [search, setSearch] = useState("");
   const tableRef = useRef<HTMLDivElement>(null);
   const isCustomer = groupBy === "customer";
+  const { hideDc } = useDcVisibility();
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: [isCustomer ? "rpt-customer-wise-sales" : "rpt-salesman-wise-sales", orgId, start, end],
+    queryKey: [isCustomer ? "rpt-customer-wise-sales" : "rpt-salesman-wise-sales", orgId, start, end, hideDc],
     enabled: !!orgId && !!start && !!end,
     retry: 1,
     queryFn: () =>
       withMobileQueryTimeout(async () => {
         const { startIso, endIso } = localDayBounds(start!, end!);
-        const { data: sales, error } = await supabase
+        let salesQuery = supabase
           .from("sales")
-          .select("customer_id, customer_name, salesman, net_amount, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, sale_return_adjust, sale_number, payment_status")
+          .select("id, customer_id, customer_name, salesman, net_amount, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, sale_return_adjust, sale_number, payment_status")
           .eq("organization_id", orgId!)
           .is("deleted_at", null)
           .eq("is_cancelled", false)
           .neq("payment_status", "cancelled")
           .gte("sale_date", startIso)
-          .lte("sale_date", endIso)
-          .limit(2000);
+          .lte("sale_date", endIso);
+        if (hideDc) salesQuery = salesQuery.eq("is_dc_bill", false);
+        const { data: fetched, error } = await salesQuery.limit(2000);
         if (error) throw error;
+        const sales = hideDc ? await saleRowsWithoutDc(supabase, fetched || []) : fetched;
         return (sales || []).filter((s) => !isExcludedHoldSale(s));
       }, 25_000),
   });
@@ -625,9 +638,11 @@ export function MobileItemWiseStockReport({ orgId }: { orgId?: string }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [filters, setFilters] = useState<FilterValue>(DEFAULT_STOCK_FILTERS);
   const tableRef = useRef<HTMLDivElement>(null);
+  const { hideDc } = useDcVisibility();
   const rpcFilters = useMemo<ItemWiseStockFilters>(
     () => ({
       ...ITEM_STOCK_FILTERS,
+      ...(hideDc ? { hideDc: true } : {}),
       searchQuery: search,
       brandFilter: filters.brand,
       categoryFilter: filters.category,
@@ -636,7 +651,7 @@ export function MobileItemWiseStockReport({ orgId }: { orgId?: string }) {
           ? (filters.stockStatus as ItemWiseStockClosingFilter)
           : "all",
     }),
-    [search, filters],
+    [search, filters, hideDc],
   );
   const activeCount = countActiveReportFilters(filters);
 
@@ -649,7 +664,7 @@ export function MobileItemWiseStockReport({ orgId }: { orgId?: string }) {
   });
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["rpt-item-wise-stock", orgId, search, filters],
+    queryKey: ["rpt-item-wise-stock", orgId, search, filters, hideDc],
     enabled: !!orgId,
     staleTime: search.trim() || activeCount ? STALE_LIVE : STALE_FREQUENT,
     retry: 1,
@@ -729,12 +744,13 @@ export function MobileItemWiseStockReport({ orgId }: { orgId?: string }) {
 }
 
 export function MobileNetProfitReport({ orgId, start, end }: DateProps) {
+  const { hideDc } = useDcVisibility();
   const { data, isLoading } = useQuery({
-    queryKey: ["rpt-net-profit", orgId, start, end],
+    queryKey: ["rpt-net-profit", orgId, start, end, hideDc],
     enabled: !!orgId && !!start && !!end,
     retry: 1,
     queryFn: () =>
-      withMobileQueryTimeout(() => loadProfitDataset(orgId!, start!, end!)),
+      withMobileQueryTimeout(() => loadProfitDataset(orgId!, start!, end!, { hideDc })),
   });
 
   const rows = useMemo(() => {
@@ -813,9 +829,10 @@ export function MobileStockReport({ orgId }: { orgId?: string }) {
   const activeCount = countActiveReportFilters(filters);
   const stockStatus = filterStatusToStock(filters.stockStatus);
   const hasRpcFilters = activeCount > 0 || !!search.trim() || !!supplier.trim();
+  const { hideDc } = useDcVisibility();
 
   const { data: totals } = useQuery({
-    queryKey: ["rpt-stock-report-totals", orgId, search, supplier, filters, hasRpcFilters],
+    queryKey: ["rpt-stock-report-totals", orgId, search, supplier, filters, hasRpcFilters, hideDc],
     enabled: !!orgId,
     staleTime: hasRpcFilters ? STALE_LIVE : STALE_FREQUENT,
     retry: 1,
@@ -828,9 +845,10 @@ export function MobileStockReport({ orgId }: { orgId?: string }) {
             brand: filters.brand,
             category: filters.category,
             status: stockStatus,
+            hideDc,
           });
         }
-        const t = await fetchWebStockReportTotals(orgId!);
+        const t = await fetchWebStockReportTotals(orgId!, hideDc);
         return { qty: t.totalStock, pur: t.stockValue, sale: t.saleValue, variants: t.variantCount };
       }, 20_000),
   });
@@ -852,7 +870,7 @@ export function MobileStockReport({ orgId }: { orgId?: string }) {
   });
 
   const { data: rows, isLoading, isError, refetch } = useQuery({
-    queryKey: ["rpt-stock-report-rows", orgId, search, supplier, filters],
+    queryKey: ["rpt-stock-report-rows", orgId, search, supplier, filters, hideDc],
     enabled: !!orgId,
     staleTime: search.trim() || supplier.trim() || activeCount ? STALE_LIVE : STALE_FREQUENT,
     retry: 1,
@@ -864,6 +882,7 @@ export function MobileStockReport({ orgId }: { orgId?: string }) {
           brand: filters.brand,
           category: filters.category,
           status: stockStatus,
+          hideDc,
           maxRows: 1500,
           pageSize: 250,
         });

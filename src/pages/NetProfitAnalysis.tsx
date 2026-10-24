@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -381,6 +382,7 @@ function ProfitBreakdownTable({
 
 export default function NetProfitAnalysis() {
   const { currentOrganization } = useOrganization();
+  const { hideDc } = useDcVisibility();
   const location = useLocation();
   const { orgNavigate } = useOrgNavigation();
   const fieldLabels = useProductFieldLabels();
@@ -418,8 +420,8 @@ export default function NetProfitAnalysis() {
     isError,
     refetch,
   } = useQuery({
-    queryKey: ["net-profit-analysis", currentOrganization?.id, debouncedFrom, debouncedTo],
-    queryFn: () => loadProfitDataset(currentOrganization!.id, debouncedFrom, debouncedTo),
+    queryKey: ["net-profit-analysis", currentOrganization?.id, debouncedFrom, debouncedTo, hideDc],
+    queryFn: () => loadProfitDataset(currentOrganization!.id, debouncedFrom, debouncedTo, { hideDc }),
     enabled: !!currentOrganization?.id && !!debouncedFrom && !!debouncedTo,
     placeholderData: keepPreviousData,
     staleTime: STALE_DASHBOARD_TAB_RETURN,

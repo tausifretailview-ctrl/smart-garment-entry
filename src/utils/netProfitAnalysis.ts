@@ -7,6 +7,7 @@ import {
   fetchAllSaleItems,
   fetchAllPurchaseItems,
   fetchSaleReturnItemsByIds,
+  fetchSaleReturnItemsWithDcFlag,
   fetchProductsByIds,
 } from "@/utils/fetchAllRows";
 import { resolveEffectiveLineSalesman } from "@/utils/dailySalesmanIncentive";
@@ -340,7 +341,9 @@ export async function loadProfitDataset(
   organizationId: string,
   fromDate: string,
   toDate: string,
+  options?: { hideDc?: boolean },
 ): Promise<ProfitDataset> {
+  const hideDc = options?.hideDc === true;
   // Business day is IST — naive date strings would be read as UTC and drop
   // early-morning / late-evening POS bills (e.g. 12:12 AM IST = prior UTC day).
   // Kept inline (same shape as npaTimestampBounds) to avoid an import cycle.
@@ -409,7 +412,7 @@ export async function loadProfitDataset(
       ? fetchAllSaleItems(saleRows.map((s) => s.id))
       : Promise.resolve<Awaited<ReturnType<typeof fetchAllSaleItems>>>([]),
     returnHeaders.length
-      ? fetchSaleReturnItemsByIds(
+      ? (hideDc ? fetchSaleReturnItemsWithDcFlag : fetchSaleReturnItemsByIds)(
           returnHeaders.map((r) => r.id),
           "return_id, variant_id, product_id, product_name, quantity, line_total, unit_price, size, color, hsn_code, barcode",
         )
@@ -493,6 +496,9 @@ export async function loadProfitDataset(
   });
 
   saleItems.forEach((item: any) => {
+    // DC (No GST) hidden: skip DC lines. The discount base above still counts them, so
+    // the other lines keep their own share of a mixed bill's discount.
+    if (hideDc && item.is_dc_item === true) return;
     const sale = saleById.get(item.sale_id);
     const variant = maps.variantMap.get(item.variant_id);
     const productId = item.product_id || variant?.product_id || "";
@@ -556,6 +562,7 @@ export async function loadProfitDataset(
   });
 
   returnItems.forEach((item: any) => {
+    if (hideDc && item.is_dc_item === true) return;
     const ret = returnById.get(item.return_id);
     const linkedSale =
       (ret?.linked_sale_id && saleById.get(ret.linked_sale_id)) ||

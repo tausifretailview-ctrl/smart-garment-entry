@@ -78,6 +78,10 @@ DECLARE
   v_supplier_invoice text := NULLIF(trim(COALESCE(p_supplier_invoice, '')), '');
   v_threshold integer := GREATEST(COALESCE(p_low_stock_threshold, 10), 0);
 BEGIN
+  IF auth.role() = 'anon' THEN
+    RAISE EXCEPTION 'Not authorized for this organization' USING ERRCODE = '42501';
+  END IF;
+
   IF auth.uid() IS NOT NULL THEN
     IF p_org_id IS NULL
        OR NOT (p_org_id IN (SELECT public.get_user_organization_ids(auth.uid()))) THEN
@@ -322,6 +326,10 @@ DECLARE
   v_threshold integer := GREATEST(COALESCE(p_low_stock_threshold, 10), 0);
   v_result json;
 BEGIN
+  IF auth.role() = 'anon' THEN
+    RAISE EXCEPTION 'Not authorized for this organization' USING ERRCODE = '42501';
+  END IF;
+
   IF auth.uid() IS NOT NULL THEN
     IF p_org_id IS NULL
        OR NOT (p_org_id IN (SELECT public.get_user_organization_ids(auth.uid()))) THEN

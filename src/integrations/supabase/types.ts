@@ -12221,6 +12221,7 @@ export type Database = {
           p_closing_stock?: string
           p_department?: string
           p_group_by?: string
+          p_hide_dc?: boolean
           p_limit?: number
           p_offset?: number
           p_org_id: string
@@ -12247,6 +12248,7 @@ export type Database = {
           p_closing_stock?: string
           p_department?: string
           p_group_by?: string
+          p_hide_dc?: boolean
           p_org_id: string
           p_search?: string
           p_supplier?: string
