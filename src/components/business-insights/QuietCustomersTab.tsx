@@ -4,6 +4,8 @@ import { format, parseISO } from "date-fns";
 import { AlertTriangle, Info, MessageCircle } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useSettings } from "@/hooks/useSettings";
+import { isBulkWhatsAppEnabled } from "@/utils/whatsappFeatureSwitches";
 import { formatInsightsINR } from "@/hooks/useBusinessInsights";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -53,6 +55,8 @@ export function QuietCustomersTab() {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
   const { orgNavigate } = useOrgNavigation();
+  const { data: orgSettings } = useSettings();
+  const bulkWhatsAppOn = isBulkWhatsAppEnabled((orgSettings as { sale_settings?: unknown } | null)?.sale_settings);
 
   const [presetDays, setPresetDays] = useState<number | "custom">(30);
   const [customDays, setCustomDays] = useState("45");
@@ -150,7 +154,7 @@ export function QuietCustomersTab() {
             <span className="h-1.5 w-1.5 rounded-full bg-teal-600" aria-hidden />
             As of today · {asOfLabel}
           </div>
-          {dormant.length > 0 && (
+          {bulkWhatsAppOn && dormant.length > 0 && (
             <Button
               type="button"
               size="sm"

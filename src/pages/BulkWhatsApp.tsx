@@ -7,12 +7,27 @@ import { BulkWhatsAppWorkspace } from "@/components/bulk-whatsapp/BulkWhatsAppWo
 import { BulkWhatsAppInbox } from "@/components/bulk-whatsapp/BulkWhatsAppInbox";
 import { useInboxChats } from "@/components/bulk-whatsapp/bulkWhatsAppApi";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useSettings } from "@/hooks/useSettings";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { isBulkWhatsAppEnabled } from "@/utils/whatsappFeatureSwitches";
 
 /** Full view: the top menu and window tabs are hidden here (entryPageLayout), so the page scrolls itself. */
 export default function BulkWhatsApp() {
   const { user } = useAuth();
   const { currentOrganization } = useOrganization();
-  if (!currentOrganization?.id) return null;
+  const { data: orgSettings, isLoading } = useSettings();
+  const { orgNavigate } = useOrgNavigation();
+  if (!currentOrganization?.id || isLoading) return null;
+  if (!isBulkWhatsAppEnabled((orgSettings as { sale_settings?: unknown } | null)?.sale_settings)) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+        <p className="text-lg font-semibold text-slate-800">Bulk WhatsApp is turned off for this shop</p>
+        <p className="max-w-md text-sm text-slate-500">An admin can turn it on in Settings &gt; WhatsApp &gt; Extra features.</p>
+        <Button onClick={() => orgNavigate("/settings", { state: { settingsTab: "whatsapp" } })}>Open Settings</Button>
+      </div>
+    );
+  }
   return <BulkWhatsAppPage organizationId={currentOrganization.id} userId={user?.id} />;
 }
 

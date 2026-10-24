@@ -31,6 +31,7 @@ import {
 } from "@/components/AdvanceBookingReceipt";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { useSettings } from "@/hooks/useSettings";
+import { isGiftVoucherEnabled } from "@/utils/whatsappFeatureSwitches";
 import { useSearchParams } from "react-router-dom";
 import { createAdvanceRefund } from "@/utils/advanceRefundService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
@@ -149,6 +150,7 @@ export default function AdvanceBookingDashboard() {
    const [printDialogOpen, setPrintDialogOpen] = useState(false);
    const dashPrintRef = useRef<HTMLDivElement>(null);
    const { data: settings } = useSettings();
+   const giftVouchersOn = isGiftVoucherEnabled((settings as { sale_settings?: unknown } | null)?.sale_settings);
    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
@@ -576,15 +578,17 @@ export default function AdvanceBookingDashboard() {
         >
           <Plus className="h-4 w-4" /> New Advance
         </Button>
-        <Button
-          onClick={() => {
-            setSellGiftVoucher(true);
-            setAddDialogOpen(true);
-          }}
-          className="h-9 px-4 bg-pink-600 hover:bg-pink-700 text-white text-sm font-semibold gap-1.5"
-        >
-          <Gift className="h-4 w-4" /> Gift Voucher
-        </Button>
+        {giftVouchersOn && (
+          <Button
+            onClick={() => {
+              setSellGiftVoucher(true);
+              setAddDialogOpen(true);
+            }}
+            className="h-9 px-4 bg-pink-600 hover:bg-pink-700 text-white text-sm font-semibold gap-1.5"
+          >
+            <Gift className="h-4 w-4" /> Gift Voucher
+          </Button>
+        )}
         {selectedIds.size > 0 && (
           <Button
             variant="destructive"

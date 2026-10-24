@@ -63,6 +63,7 @@ import { useUserRoles } from "@/hooks/useUserRoles";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
+import { isBulkWhatsAppEnabled } from "@/utils/whatsappFeatureSwitches";
 import { useChat } from "@/contexts/ChatContext";
 import {
   Sidebar,
@@ -134,6 +135,7 @@ export function AppSidebar() {
   } = useUserPermissions();
   const { currentOrganization, organizationRole } = useOrganization();
   const { data: orgSettings } = useSettings();
+  const bulkWhatsAppOn = isBulkWhatsAppEnabled((orgSettings as { sale_settings?: unknown } | null)?.sale_settings);
   const enablePointsSystem = !!(orgSettings as { sale_settings?: { enable_points_system?: boolean } } | null)
     ?.sale_settings?.enable_points_system;
 
@@ -1361,7 +1363,7 @@ export function AppSidebar() {
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       )}
-                      {(isAdmin || isAdminPermissions || hasMenuAccess("bulk_whatsapp")) && (
+                      {bulkWhatsAppOn && (isAdmin || isAdminPermissions || hasMenuAccess("bulk_whatsapp")) && (
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/bulk-whatsapp")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
                             <NavLink to="/bulk-whatsapp" className="flex items-center gap-2 group">

@@ -25,6 +25,8 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { prefetchCriticalEntryChunks, prefetchTabPage } from "@/lib/tabPageRegistry";
+import { useSettings } from "@/hooks/useSettings";
+import { isBulkWhatsAppEnabled } from "@/utils/whatsappFeatureSwitches";
 
 export type HeaderMenubarProps = {
   can: (menuId: string) => boolean;
@@ -58,6 +60,8 @@ export function HeaderMenubar({
   onOpenSupport,
   className,
 }: HeaderMenubarProps) {
+  const { data: orgSettings } = useSettings();
+  const bulkWhatsAppOn = isBulkWhatsAppEnabled((orgSettings as { sale_settings?: unknown } | null)?.sale_settings);
   const showFile =
     can("pos_sales") ||
     can("sales_invoice") ||
@@ -101,7 +105,7 @@ export function HeaderMenubar({
     can("user_rights") ||
     hasSpecialPermission("audit_logs") ||
     can("whatsapp_inbox") ||
-    can("bulk_whatsapp");
+    (bulkWhatsAppOn && can("bulk_whatsapp"));
 
   if (!showFile && !showView && !showSales && !showPurchase && !canAccessReportsHub && !showTools && !can("settings_view")) {
     return null;
@@ -526,7 +530,7 @@ export function HeaderMenubar({
                 WhatsApp Inbox
               </MenubarItem>
             )}
-            {can("bulk_whatsapp") && (
+            {bulkWhatsAppOn && can("bulk_whatsapp") && (
               <MenubarItem onClick={() => orgNavigate("/bulk-whatsapp")}>Bulk WhatsApp</MenubarItem>
             )}
           </MenubarContent>
