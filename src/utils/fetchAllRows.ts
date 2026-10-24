@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { isCustomerReceiptVoucher } from "@/utils/paymentVoucherFilters";
 import { fetchItemsGrossBySaleId as fetchItemsGrossBySaleIdRpc } from "@/utils/fetchItemsGrossBySaleId";
+import { isMissingDcColumnError } from "@/utils/gstDcExclusion";
 
 const CUSTOMER_DIRECTORY_PAGE_SIZE = 1000;
 /** Pages requested at once after the first (big shops: 8 pages took 8 round trips in a row). */
@@ -1072,6 +1073,22 @@ export async function fetchSaleReturnItemsByIds(
   }
 
   return allRows;
+}
+
+/**
+ * Sale return lines with their DC flag (`is_dc_item`), for the GST reports.
+ * Until the DC SQL adds that column, falls back to the lines without it (no line is DC).
+ */
+export async function fetchSaleReturnItemsWithDcFlag(
+  returnIds: string[],
+  selectFields: string = "return_id, gst_percent, line_total"
+) {
+  try {
+    return await fetchSaleReturnItemsByIds(returnIds, `${selectFields}, is_dc_item`);
+  } catch (error) {
+    if (isMissingDcColumnError(error)) return fetchSaleReturnItemsByIds(returnIds, selectFields);
+    throw error;
+  }
 }
 
 /**

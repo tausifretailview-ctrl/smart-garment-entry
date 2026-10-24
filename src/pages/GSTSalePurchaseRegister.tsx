@@ -26,10 +26,11 @@ import {
 } from "@/utils/gstRegisterUtils";
 import {
   fetchAllSaleItems,
-  fetchSaleReturnItemsByIds,
+  fetchSaleReturnItemsWithDcFlag,
   fetchPurchaseItemsByBillIds,
   fetchPurchaseReturnItemsByIds,
 } from "@/utils/fetchAllRows";
+import { isAllDcDocument, withoutDcLines } from "@/utils/gstDcExclusion";
 import { InsightsKpiCard } from "@/components/business-insights/insightsLayout";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 
@@ -259,15 +260,18 @@ const GSTSalePurchaseRegister = () => {
       });
 
       // FIX G9: Process sales register with IGST columns
-      const salesRegister: SalesRegisterRow[] = (salesData || []).map((sale, index) => {
-        const rawItems = (saleItemsMap.get(sale.id) || []).filter((i: any) => !i.is_dc_item);
-        const items = applyFlatDiscountToItems(
-          rawItems,
+      const salesRegister: SalesRegisterRow[] = (salesData || [])
+        .filter((sale) => !isAllDcDocument(saleItemsMap.get(sale.id)))
+        .map((sale, index) => {
+        // Spread the flat discount over every line first, then drop DC lines, so a mixed
+        // bill's DC share never lands on its GST lines.
+        const items = withoutDcLines(applyFlatDiscountToItems(
+          saleItemsMap.get(sale.id) || [],
           Number(sale.net_amount) || 0,
           Number((sale as any).gross_amount) || 0,
           Number((sale as any).discount_amount) || 0,
           Number((sale as any).flat_discount_amount) || 0
-        );
+        ));
         const customerGSTIN = (sale.customers as any)?.gst_number || "";
         const isInterStateTx = isInterState(businessGSTIN, customerGSTIN);
         const taxType = normalizeGstTaxType((sale as any).tax_type);
@@ -302,15 +306,16 @@ const GSTSalePurchaseRegister = () => {
       });
 
       // Process POS sales register with IGST columns
-      const posSalesRegister: SalesRegisterRow[] = (posSalesData || []).map((sale, index) => {
-        const rawItems = (posSaleItemsMap.get(sale.id) || []).filter((i: any) => !i.is_dc_item);
-        const items = applyFlatDiscountToItems(
-          rawItems,
+      const posSalesRegister: SalesRegisterRow[] = (posSalesData || [])
+        .filter((sale) => !isAllDcDocument(posSaleItemsMap.get(sale.id)))
+        .map((sale, index) => {
+        const items = withoutDcLines(applyFlatDiscountToItems(
+          posSaleItemsMap.get(sale.id) || [],
           Number(sale.net_amount) || 0,
           Number((sale as any).gross_amount) || 0,
           Number((sale as any).discount_amount) || 0,
           Number((sale as any).flat_discount_amount) || 0
-        );
+        ));
         const customerGSTIN = (sale.customers as any)?.gst_number || "";
         const isInterStateTx = isInterState(businessGSTIN, customerGSTIN);
         const taxType = normalizeGstTaxType((sale as any).tax_type);
@@ -379,7 +384,7 @@ const GSTSalePurchaseRegister = () => {
       const saleReturnIds = saleReturnsData?.map(sr => sr.id) || [];
       // FIX G8: Use static import
       const saleReturnItems = saleReturnIds.length > 0 
-        ? await fetchSaleReturnItemsByIds(saleReturnIds, "return_id, gst_percent, line_total") 
+        ? await fetchSaleReturnItemsWithDcFlag(saleReturnIds, "return_id, gst_percent, line_total") 
         : [];
 
       const saleReturnItemsMap = new Map<string, typeof saleReturnItems>();
@@ -389,8 +394,10 @@ const GSTSalePurchaseRegister = () => {
         saleReturnItemsMap.set(item.return_id, existing);
       });
 
-      const saleReturnRegister: SaleReturnRegisterRow[] = (saleReturnsData || []).map((ret, index) => {
-        const items = saleReturnItemsMap.get(ret.id) || [];
+      const saleReturnRegister: SaleReturnRegisterRow[] = (saleReturnsData || [])
+        .filter((ret) => !isAllDcDocument(saleReturnItemsMap.get(ret.id)))
+        .map((ret, index) => {
+        const items = withoutDcLines(saleReturnItemsMap.get(ret.id) || []);
         const customerGSTIN = (ret.customers as any)?.gst_number || "";
         const isInterStateTx = isInterState(businessGSTIN, customerGSTIN);
         const linkedId = (ret as { linked_sale_id?: string | null }).linked_sale_id;
@@ -429,6 +436,7 @@ const GSTSalePurchaseRegister = () => {
         `)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
+        .or("is_dc_purchase.is.null,is_dc_purchase.eq.false")
         .gte("bill_date", fromDate)
         .lte("bill_date", toDate)
         .order("bill_date", { ascending: true });
@@ -503,6 +511,7 @@ const GSTSalePurchaseRegister = () => {
         `)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
+        .eq("is_dc", false)
         .gte("return_date", fromDate)
         .lte("return_date", toDate)
         .order("return_date", { ascending: true });

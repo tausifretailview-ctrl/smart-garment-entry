@@ -41,7 +41,8 @@ import {
   type GstTaxType,
   type SaleSettingsTaxDefaults,
 } from "@/utils/gstRegisterUtils";
-import { fetchAllSaleItems } from "@/utils/fetchAllRows";
+import { fetchAllSaleItems, fetchSaleReturnItemsWithDcFlag } from "@/utils/fetchAllRows";
+import { allDcDocumentIds, saleReturnAmountsWithoutDc, withoutDcLines } from "@/utils/gstDcExclusion";
 import {
   InsightsKpiCard,
   InsightsTableHeader,
@@ -85,6 +86,30 @@ function resolveReportTaxType(
     return resolvePosDefaultTaxType(saleSettings);
   }
   return resolveSaleDefaultTaxType(saleSettings);
+}
+
+/** Sale returns with DC (No GST) lines taken out; returns of only DC lines are dropped. */
+async function saleReturnsWithoutDc<
+  T extends { id: string; net_amount: number | null; gst_amount: number | null },
+>(returns: T[]): Promise<T[]> {
+  if (returns.length === 0) return returns;
+  const lines = await fetchSaleReturnItemsWithDcFlag(
+    returns.map((r) => r.id),
+    "return_id, gst_percent, line_total",
+  );
+  const linesByReturn = new Map<string, any[]>();
+  lines.forEach((l: any) => {
+    const key = String(l.return_id);
+    const list = linesByReturn.get(key) || [];
+    list.push(l);
+    linesByReturn.set(key, list);
+  });
+  const out: T[] = [];
+  returns.forEach((r) => {
+    const amounts = saleReturnAmountsWithoutDc(r, linesByReturn.get(String(r.id)));
+    if (amounts) out.push({ ...r, ...amounts });
+  });
+  return out;
 }
 
 type PeriodType = "custom" | "this-month" | "last-month" | "this-quarter" | "last-quarter" | "this-fy" | "last-fy";
@@ -309,7 +334,11 @@ const GSTReports = () => {
         .order("sale_date", { ascending: true });
 
       const saleIds = salesData?.map(s => s.id) || [];
-      const saleItems = saleIds.length > 0 ? (await fetchAllSaleItems(saleIds)).filter((i: any) => !i.is_dc_item) : [];
+      const allSaleItems = saleIds.length > 0 ? await fetchAllSaleItems(saleIds) : [];
+      // DC (No GST) lines stay out; a bill of only DC lines is left out entirely.
+      const allDcSaleIds = allDcDocumentIds(allSaleItems, "sale_id");
+      const gstSales = (salesData || []).filter((s) => !allDcSaleIds.has(String(s.id)));
+      const saleItems = withoutDcLines(allSaleItems);
 
       // Group items by sale
       const saleItemsMap = new Map<string, typeof saleItems>();
@@ -332,7 +361,7 @@ const GSTReports = () => {
       let totalCGST = 0;
       let totalSGST = 0;
 
-      salesData?.forEach(sale => {
+      gstSales.forEach(sale => {
         const customerGSTIN = (sale.customers as any)?.gst_number || "";
         const items = saleItemsMap.get(String(sale.id)) || [];
         const isB2B = customerGSTIN && customerGSTIN.length === 15;
@@ -447,7 +476,9 @@ const GSTReports = () => {
         .gte("return_date", fromDate)
         .lte("return_date", toDate);
 
-      const cdnr = (saleReturns || [])
+      const gstSaleReturns = await saleReturnsWithoutDc(saleReturns || []);
+
+      const cdnr = gstSaleReturns
         .filter(ret => (ret.customers as any)?.gst_number)
         .map(ret => ({
           gstin: (ret.customers as any)?.gst_number || "",
@@ -464,7 +495,7 @@ const GSTReports = () => {
         }));
 
       // CDNUR - Unregistered (B2C) customer credit/debit notes
-      const cdnur = (saleReturns || [])
+      const cdnur = gstSaleReturns
         .filter(ret => !(ret.customers as any)?.gst_number && (ret.net_amount || 0) > 0)
         .map(ret => ({
           noteType: "C",
@@ -487,7 +518,7 @@ const GSTReports = () => {
         cdnur,
         hsn: hsnRows,
         summary: {
-          totalInvoices: salesData?.length || 0,
+          totalInvoices: gstSales.length,
           totalTaxableValue,
           totalIGST,
           totalCGST,
@@ -541,11 +572,13 @@ const GSTReports = () => {
         .lte("return_date", toDate)
         .in("refund_type", ["credit_note", "exchange"]);
 
-      const returnTaxable = (saleReturnsData || []).reduce((sum, r) => {
+      const gstSaleReturns = await saleReturnsWithoutDc(saleReturnsData || []);
+
+      const returnTaxable = gstSaleReturns.reduce((sum, r) => {
         const gst = r.gst_amount || 0;
         return sum + ((r.net_amount || 0) - gst);
       }, 0);
-      const returnGST = (saleReturnsData || []).reduce((sum, r) => sum + (r.gst_amount || 0), 0);
+      const returnGST = gstSaleReturns.reduce((sum, r) => sum + (r.gst_amount || 0), 0);
 
       const netOutwardTaxable = outwardTaxable - returnTaxable;
       const netOutwardGST = outwardGST - returnGST;
@@ -556,6 +589,7 @@ const GSTReports = () => {
         .select("net_amount, gst_amount")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
+        .or("is_dc_purchase.is.null,is_dc_purchase.eq.false")
         .gte("bill_date", fromDate)
         .lte("bill_date", toDate);
 

@@ -7229,6 +7229,7 @@ export type Database = {
           gst_percent: number
           hsn_code: string | null
           id: string
+          is_dc_item: boolean | null
           line_total: number
           product_id: string
           product_name: string
@@ -7247,6 +7248,7 @@ export type Database = {
           gst_percent: number
           hsn_code?: string | null
           id?: string
+          is_dc_item?: boolean | null
           line_total: number
           product_id: string
           product_name: string
@@ -7265,6 +7267,7 @@ export type Database = {
           gst_percent?: number
           hsn_code?: string | null
           id?: string
+          is_dc_item?: boolean | null
           line_total?: number
           product_id?: string
           product_name?: string

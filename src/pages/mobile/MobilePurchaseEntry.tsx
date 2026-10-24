@@ -507,6 +507,16 @@ export default function MobilePurchaseEntry() {
       if (user?.id) {
         clearMobilePurchaseDraft(localStorage, currentOrganization.id, user.id);
       }
+      // Same as desktop Purchase Entry: tag the barcodes as DC (or clear the tag) so POS
+      // shows the DC tag and keeps their sale lines out of the GST reports.
+      const variantIds = [...new Set(items.map((i) => i.sku_id).filter(Boolean))];
+      for (let vi = 0; vi < variantIds.length; vi += 200) {
+        const { error: dcErr } = await supabase
+          .from("product_variants")
+          .update({ is_dc_product: fields.isDcPurchase })
+          .in("id", variantIds.slice(vi, vi + 200));
+        if (dcErr) console.error("DC tag update failed:", dcErr);
+      }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["owner-purchase-dash"] }),
         queryClient.invalidateQueries({ queryKey: ["owner-purchase-items"] }),
