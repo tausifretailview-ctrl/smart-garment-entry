@@ -3474,6 +3474,12 @@ const POSDashboard = () => {
             title="Sale Amount"
             subtitle={`Disc ₹${summaryStats.totalDiscount.toFixed(0)}`}
             value={`₹${summaryStats.totalAmount.toFixed(0)}`}
+            tag={
+              Math.abs(summaryStats.totalRoundOff) >= 0.5
+                ? `R/O ${summaryStats.totalRoundOff > 0 ? "+" : "−"}₹${Math.round(Math.abs(summaryStats.totalRoundOff)).toLocaleString("en-IN")}`
+                : undefined
+            }
+            tagTitle={`Sale ₹${Math.round(summaryStats.totalAmount).toLocaleString("en-IN")} − Disc ₹${Math.round(summaryStats.totalDiscount).toLocaleString("en-IN")} ${summaryStats.totalRoundOff < 0 ? "−" : "+"} Round off ₹${Math.round(Math.abs(summaryStats.totalRoundOff)).toLocaleString("en-IN")} = ₹${Math.round(summaryStats.netSale).toLocaleString("en-IN")}`}
             shellClass="bg-violet-50 border-violet-200/70 hover:bg-violet-100/80"
             valueClass="text-violet-800"
             onClick={() => setPaymentStatusFilter([])}
@@ -4082,6 +4088,8 @@ const POSDashboard = () => {
                                 const figures = saleBillFigures(sale);
                                 const displayAmount = figures.billAmount;
                                 const baseBillBeforeSR = figures.billAmount;
+                                const roundOff = Number(sale.round_off || 0);
+                                const showRoundOff = Math.abs(roundOff) >= 0.5;
                                 return (
                                   <div className="flex flex-col items-end gap-0.5">
                                     <div className="flex items-center justify-end gap-1">
@@ -4094,13 +4102,18 @@ const POSDashboard = () => {
                                         ₹{Math.round(displayAmount).toLocaleString('en-IN')}
                                       </span>
                                     </div>
-                                    {discountTotal > 0 && (
+                                    {(discountTotal > 0 || showRoundOff) && (
                                       <div
                                         className="text-xs font-medium text-muted-foreground whitespace-nowrap leading-tight"
-                                        title={`Gross ₹${Math.round(sale.gross_amount || 0).toLocaleString('en-IN')} − Disc ₹${Math.round(discountTotal).toLocaleString('en-IN')} = ₹${Math.round(baseBillBeforeSR).toLocaleString('en-IN')}`}
+                                        title={`Gross ₹${Math.round(sale.gross_amount || 0).toLocaleString('en-IN')} − Disc ₹${Math.round(discountTotal).toLocaleString('en-IN')}${showRoundOff ? ` ${roundOff < 0 ? '−' : '+'} Round off ₹${Math.round(Math.abs(roundOff)).toLocaleString('en-IN')}` : ''} = ₹${Math.round(baseBillBeforeSR).toLocaleString('en-IN')}`}
                                       >
                                         ₹{Math.round(sale.gross_amount || 0).toLocaleString('en-IN')}
-                                        <span className="text-rose-600"> − ₹{Math.round(discountTotal).toLocaleString('en-IN')}</span>
+                                        {discountTotal > 0 && (
+                                          <span className="text-rose-600"> − ₹{Math.round(discountTotal).toLocaleString('en-IN')}</span>
+                                        )}
+                                        {showRoundOff && (
+                                          <span className="text-slate-600"> {roundOff < 0 ? '−' : '+'} R/O ₹{Math.round(Math.abs(roundOff)).toLocaleString('en-IN')}</span>
+                                        )}
                                       </div>
                                     )}
                                     {srAdjust > 0 && (
