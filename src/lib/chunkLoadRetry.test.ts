@@ -250,6 +250,27 @@ describe("stale POS chunk recovery", () => {
     expect(navigations).toHaveLength(1);
   });
 
+  it("background warms never reload when the file is gone after a publish", async () => {
+    vi.stubGlobal("window", { ...window, setTimeout, clearTimeout });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ status: 404, ok: false, headers: { get: () => "" } })),
+    );
+    vi.resetModules();
+    const fresh = await import("./chunkLoadRetry");
+    const loader = () => Promise.reject(new Error(POS_CHUNK));
+
+    await expect(fresh.importWithRetry(loader, { recoverStaleChunk: false })).rejects.toThrow(
+      /dynamically imported module/,
+    );
+    await flush();
+    expect(navigations).toHaveLength(0);
+
+    // Opening the page still moves onto the new build.
+    void fresh.importWithRetry(loader);
+    await vi.waitFor(() => expect(navigations).toHaveLength(1));
+  });
+
   it("does not auto-reload again when that same POS file is still missing", async () => {
     sessionStorage.setItem("chunk_recovery_reloaded", "1");
     sessionStorage.setItem(

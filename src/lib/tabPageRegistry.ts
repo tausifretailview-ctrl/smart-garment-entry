@@ -1,6 +1,5 @@
 import type { ComponentType, LazyExoticComponent } from "react";
 import {
-  attemptStaleChunkRecovery,
   importWithRetry,
   isChunkLoadError,
   lazyWithRetry,
@@ -387,7 +386,9 @@ function loadTabPageModule(path: string): Promise<TabPageModule> | null {
 
   prefetchStartedAt.set(resolved, Date.now());
   recordTabChunkLoadEvent(resolved, "start");
-  const promise = importWithRetry(def.loader)
+  // No automatic reload here — this promise is shared by background warms. The
+  // page mount (getLazyTabPage → lazyWithRetry) recovers when the user opens it.
+  const promise = importWithRetry(def.loader, { recoverStaleChunk: false })
     .then((mod) => {
       loadedChunkPaths.add(resolved);
       recordTabChunkLoadEvent(resolved, "resolved");
@@ -431,11 +432,9 @@ export function shouldAllowSpeculativeChunkPrefetch(): boolean {
 
 /**
  * Warm a tab chunk via the shared promise cache (deduped).
- * Soft network blips stay silent. Deploy-skew (HTML-for-JS / MIME) only triggers a
- * bounded SW purge + reload for intent prefetch (user is about to navigate).
- * Speculative hover/idle warms must never reload under the user — with frequent
- * production deploys that reloads a working screen mid-work. The next real
- * navigation still recovers via the tab / root error boundaries.
+ * Never reloads the app: after a Lovable/Vercel publish the old build's files are
+ * gone, and sibling / hover / idle warms used to reload the screen the user was
+ * working on. Only opening the page (getLazyTabPage) moves onto the new build.
  */
 export function prefetchTabPage(path: string, options?: PrefetchTabPageOptions): void {
   const intent = Boolean(options?.intent);
@@ -445,14 +444,7 @@ export function prefetchTabPage(path: string, options?: PrefetchTabPageOptions):
   if (!promise) return;
   void promise.catch((err) => {
     if (!isChunkLoadError(err)) return;
-    if (intent) {
-      attemptStaleChunkRecovery(err);
-      return;
-    }
-    console.warn(
-      `[chunk-skew] speculative prefetch failed for "${resolved}" — no reload (intent=false)`,
-      err,
-    );
+    console.warn(`[chunk-skew] prefetch failed for "${resolved}" — no reload until the page is opened`, err);
   });
 }
 

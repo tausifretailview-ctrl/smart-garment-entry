@@ -11,7 +11,7 @@ import { getElectronWebBuildStaleInfo } from "@/lib/electronWebBuildCheck";
 
 const SNOOZE_KEY = "ezzy_electron_web_update_snooze_until";
 const SNOOZE_MS = 4 * 60 * 60 * 1000;
-const CHECK_INTERVAL_MS = 15 * 60 * 1000;
+const CHECK_INTERVAL_MS = 5 * 60 * 1000;
 
 function isUpdateSnoozed(): boolean {
   try {
@@ -35,7 +35,8 @@ function snoozeUpdatePrompt(): void {
 
 /**
  * Desktop shell loads the live web app from the server. When a new deploy ships,
- * silent-reload when idle/hidden; banner only after the 2h fallback ceiling.
+ * silent-reload only after the window has been hidden a while; otherwise the banner
+ * appears after SILENT_UPDATE_BANNER_FALLBACK_MS so the shop picks when to reload.
  */
 export function ElectronWebUpdatePrompt() {
   const { currentOrganization } = useOrganization();
@@ -57,7 +58,7 @@ export function ElectronWebUpdatePrompt() {
       if (!info.stale || !info.latest) return;
 
       // Key off the server's latest asset so a newer deploy while waiting
-      // restarts the silent-update / 2h banner ceiling (no stacked timers).
+      // restarts the silent-update / banner timer (no stacked timers).
       if (lastStaleKeyRef.current !== info.latest) {
         lastStaleKeyRef.current = info.latest;
         setUpdateToken((token) => token + 1);

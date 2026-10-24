@@ -12,7 +12,11 @@ let loadPromise: Promise<ProductEntryDialogModule> | null = null;
 export const PRODUCT_ENTRY_DIALOG_UI_TIMEOUT_MS = 20_000;
 
 function startProductEntryDialogImport(): Promise<ProductEntryDialogModule> {
-  const promise = importWithRetry(() => import("@/components/ProductEntryDialog")).catch((err) => {
+  // Warmed in the background on Purchase Entry — never reload the bill screen for it.
+  // A missing chunk shows the gate's own Reload button instead.
+  const promise = importWithRetry(() => import("@/components/ProductEntryDialog"), {
+    recoverStaleChunk: false,
+  }).catch((err) => {
     // Allow a fresh import on next open / retry (matches tabPageRegistry prefetch pattern).
     loadPromise = null;
     throw err;
@@ -24,7 +28,8 @@ function startProductEntryDialogImport(): Promise<ProductEntryDialogModule> {
 /** Warm the Add Product dialog chunk (call on Purchase Entry idle / button hover). */
 export function prefetchProductEntryDialog(): void {
   if (!loadPromise) {
-    startProductEntryDialogImport();
+    // Handled here so a failed warm never reaches the app-wide unhandledrejection reload.
+    void startProductEntryDialogImport().catch(() => undefined);
   }
 }
 
