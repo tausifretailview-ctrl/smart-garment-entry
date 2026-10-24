@@ -4569,6 +4569,49 @@ export type Database = {
         }
         Relationships: []
       }
+      owner_alert_reads: {
+        Row: {
+          log_id: string
+          organization_id: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          log_id: string
+          organization_id: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          log_id?: string
+          organization_id?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_alert_reads_log_id_fkey"
+            columns: ["log_id"]
+            isOneToOne: false
+            referencedRelation: "owner_push_log"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_alert_reads_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_alert_reads_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       owner_alert_settings: {
         Row: {
           cashier_enabled: boolean
@@ -4697,31 +4740,40 @@ export type Database = {
       }
       owner_push_log: {
         Row: {
+          body: string | null
           created_at: string
+          data: Json | null
           failed_count: number
           id: string
           kind: string
           organization_id: string
           ref: string
           sent_count: number
+          title: string | null
         }
         Insert: {
+          body?: string | null
           created_at?: string
+          data?: Json | null
           failed_count?: number
           id?: string
           kind: string
           organization_id: string
           ref: string
           sent_count?: number
+          title?: string | null
         }
         Update: {
+          body?: string | null
           created_at?: string
+          data?: Json | null
           failed_count?: number
           id?: string
           kind?: string
           organization_id?: string
           ref?: string
           sent_count?: number
+          title?: string | null
         }
         Relationships: [
           {
