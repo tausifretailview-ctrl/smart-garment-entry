@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
-import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
+import { saleRowsForDcView } from "@/utils/dcSaleShare";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -68,7 +68,7 @@ const getTimeOfDayLabel = (hour: number): string => {
 
 export default function HourlySalesAnalysis() {
   const { currentOrganization } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>(() => ({
     from: startOfDay(subDays(new Date(), 7)),
     to: startOfDay(new Date()),
@@ -79,7 +79,7 @@ export default function HourlySalesAnalysis() {
   const rangeToYmd = format(dateRange.to, "yyyy-MM-dd");
 
   const { data: hourlyData, isLoading } = useQuery({
-    queryKey: ["hourly-sales", currentOrganization?.id, rangeFromYmd, rangeToYmd, hideDc],
+    queryKey: ["hourly-sales", currentOrganization?.id, rangeFromYmd, rangeToYmd, hideDc, onlyDc],
     queryFn: async () => {
       if (!currentOrganization) return [];
 
@@ -99,7 +99,7 @@ export default function HourlySalesAnalysis() {
       const { data: fetched, error } = await query;
 
       if (error) throw error;
-      const data = hideDc ? await saleRowsWithoutDc(supabase, fetched || []) : fetched;
+      const data = await saleRowsForDcView(supabase, fetched || [], { hideDc, onlyDc });
 
       // Group by hour
       const hourlyMap = new Map<number, { sales: number; count: number }>();

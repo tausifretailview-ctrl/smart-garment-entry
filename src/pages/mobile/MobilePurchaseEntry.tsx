@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 import { useMobileScan } from "@/contexts/MobileScanContext";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { Input } from "@/components/ui/input";
@@ -125,6 +126,11 @@ export default function MobilePurchaseEntry() {
   const [supplierInvoiceNo, setSupplierInvoiceNo] = useState("");
   const [billDate, setBillDate] = useState(todayYmd);
   const [isDcPurchase, setIsDcPurchase] = useState(false);
+  // DC User login: every purchase is a DC purchase (ticked and locked).
+  const { isDcUser } = useDcVisibility();
+  useEffect(() => {
+    if (isDcUser && !isDcPurchase) setIsDcPurchase(true);
+  }, [isDcUser, isDcPurchase]);
   const [discountAmount, setDiscountAmount] = useState(0);
   const [otherCharges, setOtherCharges] = useState(0);
 
@@ -667,7 +673,7 @@ export default function MobilePurchaseEntry() {
           </label>
           <button
             type="button"
-            disabled={saving}
+            disabled={saving || isDcUser}
             onClick={() => setIsDcPurchase(!isDcPurchase)}
             className={cn(
               "px-2.5 py-2 text-left",
@@ -911,7 +917,7 @@ export default function MobilePurchaseEntry() {
             className="h-4 w-4"
             checked={isDcPurchase}
             onChange={(e) => setIsDcPurchase(e.target.checked)}
-            disabled={saving}
+            disabled={saving || isDcUser}
           />
           DC purchase (no GST)
         </label>

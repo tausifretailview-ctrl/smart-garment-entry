@@ -203,6 +203,7 @@ import {
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { invalidateAndRefetchWithQueryFn } from "@/utils/refetchQueriesWithFn";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
+import { dcViewKeyParts, saleLineInDcView } from "@/utils/dcView";
 import {
   encodePosLinePurchaseCode,
   resolvePosDashboardPurchaseCodeEnabled,
@@ -363,7 +364,7 @@ const POSDashboard = () => {
   const location = useLocation();
   const { orgNavigate: navigate, orgSlug } = useOrgNavigation();
   const { currentOrganization, organizationRole } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const moneyViewVisibilityKeys = useMemo(
     () =>
       currentOrganization?.id
@@ -898,9 +899,11 @@ const POSDashboard = () => {
       salesmanFilter: normalizePosSalesmanFilter(salesmanFilter),
       cancelFilter,
       hideDc,
+      onlyDc,
     }),
     [
       hideDc,
+      onlyDc,
       currentOrganization?.id,
       debouncedSearch,
       queryDateRange.startDate,
@@ -938,8 +941,8 @@ const POSDashboard = () => {
     cancelFilter,
     currentPage,
     itemsPerPage,
-    // Only when DC is hidden, so normal keys (and the save-time cache seeding) stay as they were.
-    ...(hideDc ? (["dc-hidden"] as const) : []),
+    // Only when DC is hidden / DC User, so normal keys (and the save-time cache seeding) stay as they were.
+    ...dcViewKeyParts({ hideDc, onlyDc }),
   ] as const;
 
   const {
@@ -1025,7 +1028,7 @@ const POSDashboard = () => {
     userFilter && userFilter !== "__pending__" ? userFilter : "all",
     normalizePosSalesmanFilter(salesmanFilter),
     cancelFilter,
-    ...(hideDc ? (["dc-hidden"] as const) : []),
+    ...dcViewKeyParts({ hideDc, onlyDc }),
   ] as const;
 
   const {
@@ -4578,9 +4581,9 @@ const POSDashboard = () => {
                                           </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                          {/* DC hidden: leave DC lines out of this list only (prints use the full bill). */}
+                                          {/* DC hidden: leave DC lines out of this list only (prints use the full bill). DC User: only DC lines. */}
                                           {saleItems[sale.id]
-                                            .filter((item) => !hideDc || (item as { is_dc_item?: boolean | null }).is_dc_item !== true)
+                                            .filter((item) => saleLineInDcView(item as { is_dc_item?: boolean | null }, { hideDc, onlyDc }))
                                             .map((item) => (
                                             <TableRow key={item.id} className="h-9">
                                               <TableCell className="px-2 py-1 text-sm">{item.product_name}</TableCell>

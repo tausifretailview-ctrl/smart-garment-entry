@@ -180,6 +180,8 @@ export type StockReportRpcFilterInput = {
   supplierInvoiceFilter: string;
   /** Leave DC (No GST) barcodes out (Settings > Purchase "Hide DC" / Ctrl+Shift+H). */
   hideDc?: boolean;
+  /** DC User: only DC barcodes. Never sent: the database applies it for that login; kept for query keys. */
+  onlyDc?: boolean;
 };
 
 export function buildStockReportRpcFilters(input: StockReportRpcFilterInput) {

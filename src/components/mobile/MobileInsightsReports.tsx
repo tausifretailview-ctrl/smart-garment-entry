@@ -17,8 +17,9 @@ import {
 } from "@/components/mobile/MobileReportFilterSheet";
 import { buildCsvFromReportTable } from "@/utils/reportCsvExport";
 import { fetchAllSaleItems } from "@/utils/fetchAllRows";
-import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
+import { saleRowsForDcView } from "@/utils/dcSaleShare";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
+import { saleLineInDcView, filterSalesForDcView, salesSelectForDcView } from "@/utils/dcView";
 import { fetchMobileStockFilterOptions } from "@/utils/mobileStockFilterOptions";
 import {
   fetchMobileStockFilteredTotals,
@@ -98,9 +99,9 @@ async function fetchSaleItemProductMeta(orgId: string, productIds: string[]) {
 }
 
 export function MobileCashierReport({ orgId, start, end }: DateProps) {
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const { data, isLoading } = useQuery({
-    queryKey: ["rpt-daily-cashier", orgId, start, end, hideDc],
+    queryKey: ["rpt-daily-cashier", orgId, start, end, hideDc, onlyDc],
     enabled: !!orgId && !!start && !!end,
     retry: 1,
     queryFn: () =>
@@ -109,7 +110,10 @@ export function MobileCashierReport({ orgId, start, end }: DateProps) {
         let salesQuery = supabase
           .from("sales")
           .select(
-            "id, sale_number, customer_name, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, net_amount, cash_amount, card_amount, upi_amount, sale_return_adjust, is_cancelled, payment_status",
+            salesSelectForDcView(
+              "id, sale_number, customer_name, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, net_amount, cash_amount, card_amount, upi_amount, sale_return_adjust, is_cancelled, payment_status",
+              { onlyDc },
+            ),
           )
           .eq("organization_id", orgId!)
           .is("deleted_at", null)
@@ -117,12 +121,13 @@ export function MobileCashierReport({ orgId, start, end }: DateProps) {
           .gte("sale_date", startIso)
           .lte("sale_date", endIso);
         // DC hidden: all-DC bills out, DC share of mixed bills out of every figure.
-        if (hideDc) salesQuery = salesQuery.eq("is_dc_bill", false);
+        // DC User: only bills with a DC line, only their DC share.
+        salesQuery = filterSalesForDcView(salesQuery, { hideDc, onlyDc });
         const { data: fetched, error } = await salesQuery
           .order("sale_date", { ascending: false })
           .limit(400);
         if (error) throw error;
-        const sales = hideDc ? await saleRowsWithoutDc(supabase, fetched || []) : fetched;
+        const sales = await saleRowsForDcView(supabase, fetched || [], { hideDc, onlyDc });
         // Same bills as the web Cashier Report: no held or cancelled-status bills.
         return (sales || []).filter((s) => {
           const status = String(s.payment_status || "");
@@ -215,9 +220,9 @@ type ItemWiseSaleRow = {
 };
 
 function useItemWiseSalesAggregation(orgId?: string, start?: string, end?: string) {
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["rpt-item-wise-sales-raw", orgId, start, end, hideDc],
+    queryKey: ["rpt-item-wise-sales-raw", orgId, start, end, hideDc, onlyDc],
     enabled: !!orgId && !!start && !!end,
     retry: 1,
     queryFn: () =>
@@ -241,8 +246,8 @@ function useItemWiseSalesAggregation(orgId?: string, start?: string, end?: strin
           };
         }
         const fetchedItems = await fetchAllSaleItems(sales.map((s) => s.id));
-        // DC hidden: DC lines left out.
-        const saleItems = hideDc ? (fetchedItems || []).filter((i) => i.is_dc_item !== true) : fetchedItems;
+        // DC hidden: DC lines left out (DC User: only DC lines).
+        const saleItems = (fetchedItems || []).filter((i) => saleLineInDcView(i, { hideDc, onlyDc }));
         const productIds = [...new Set((saleItems || []).map((i: { product_id?: string }) => i.product_id).filter(Boolean))] as string[];
         const metaById = await fetchSaleItemProductMeta(orgId!, productIds);
         return { saleItems, metaById };
@@ -504,10 +509,10 @@ function SalesGroupReport({
   const [search, setSearch] = useState("");
   const tableRef = useRef<HTMLDivElement>(null);
   const isCustomer = groupBy === "customer";
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: [isCustomer ? "rpt-customer-wise-sales" : "rpt-salesman-wise-sales", orgId, start, end, hideDc],
+    queryKey: [isCustomer ? "rpt-customer-wise-sales" : "rpt-salesman-wise-sales", orgId, start, end, hideDc, onlyDc],
     enabled: !!orgId && !!start && !!end,
     retry: 1,
     queryFn: () =>
@@ -515,17 +520,22 @@ function SalesGroupReport({
         const { startIso, endIso } = localDayBounds(start!, end!);
         let salesQuery = supabase
           .from("sales")
-          .select("id, customer_id, customer_name, salesman, net_amount, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, sale_return_adjust, sale_number, payment_status")
+          .select(
+            salesSelectForDcView(
+              "id, customer_id, customer_name, salesman, net_amount, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, sale_return_adjust, sale_number, payment_status",
+              { onlyDc },
+            ),
+          )
           .eq("organization_id", orgId!)
           .is("deleted_at", null)
           .eq("is_cancelled", false)
           .neq("payment_status", "cancelled")
           .gte("sale_date", startIso)
           .lte("sale_date", endIso);
-        if (hideDc) salesQuery = salesQuery.eq("is_dc_bill", false);
+        salesQuery = filterSalesForDcView(salesQuery, { hideDc, onlyDc });
         const { data: fetched, error } = await salesQuery.limit(2000);
         if (error) throw error;
-        const sales = hideDc ? await saleRowsWithoutDc(supabase, fetched || []) : fetched;
+        const sales = await saleRowsForDcView(supabase, fetched || [], { hideDc, onlyDc });
         return (sales || []).filter((s) => !isExcludedHoldSale(s));
       }, 25_000),
   });
@@ -638,11 +648,12 @@ export function MobileItemWiseStockReport({ orgId }: { orgId?: string }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [filters, setFilters] = useState<FilterValue>(DEFAULT_STOCK_FILTERS);
   const tableRef = useRef<HTMLDivElement>(null);
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const rpcFilters = useMemo<ItemWiseStockFilters>(
     () => ({
       ...ITEM_STOCK_FILTERS,
       ...(hideDc ? { hideDc: true } : {}),
+      ...(onlyDc ? { onlyDc: true } : {}),
       searchQuery: search,
       brandFilter: filters.brand,
       categoryFilter: filters.category,
@@ -651,7 +662,7 @@ export function MobileItemWiseStockReport({ orgId }: { orgId?: string }) {
           ? (filters.stockStatus as ItemWiseStockClosingFilter)
           : "all",
     }),
-    [search, filters, hideDc],
+    [search, filters, hideDc, onlyDc],
   );
   const activeCount = countActiveReportFilters(filters);
 
@@ -664,7 +675,7 @@ export function MobileItemWiseStockReport({ orgId }: { orgId?: string }) {
   });
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["rpt-item-wise-stock", orgId, search, filters, hideDc],
+    queryKey: ["rpt-item-wise-stock", orgId, search, filters, hideDc, onlyDc],
     enabled: !!orgId,
     staleTime: search.trim() || activeCount ? STALE_LIVE : STALE_FREQUENT,
     retry: 1,
@@ -744,13 +755,13 @@ export function MobileItemWiseStockReport({ orgId }: { orgId?: string }) {
 }
 
 export function MobileNetProfitReport({ orgId, start, end }: DateProps) {
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const { data, isLoading } = useQuery({
-    queryKey: ["rpt-net-profit", orgId, start, end, hideDc],
+    queryKey: ["rpt-net-profit", orgId, start, end, hideDc, onlyDc],
     enabled: !!orgId && !!start && !!end,
     retry: 1,
     queryFn: () =>
-      withMobileQueryTimeout(() => loadProfitDataset(orgId!, start!, end!, { hideDc })),
+      withMobileQueryTimeout(() => loadProfitDataset(orgId!, start!, end!, { hideDc, onlyDc })),
   });
 
   const rows = useMemo(() => {
@@ -829,10 +840,10 @@ export function MobileStockReport({ orgId }: { orgId?: string }) {
   const activeCount = countActiveReportFilters(filters);
   const stockStatus = filterStatusToStock(filters.stockStatus);
   const hasRpcFilters = activeCount > 0 || !!search.trim() || !!supplier.trim();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
 
   const { data: totals } = useQuery({
-    queryKey: ["rpt-stock-report-totals", orgId, search, supplier, filters, hasRpcFilters, hideDc],
+    queryKey: ["rpt-stock-report-totals", orgId, search, supplier, filters, hasRpcFilters, hideDc, onlyDc],
     enabled: !!orgId,
     staleTime: hasRpcFilters ? STALE_LIVE : STALE_FREQUENT,
     retry: 1,
@@ -870,7 +881,7 @@ export function MobileStockReport({ orgId }: { orgId?: string }) {
   });
 
   const { data: rows, isLoading, isError, refetch } = useQuery({
-    queryKey: ["rpt-stock-report-rows", orgId, search, supplier, filters, hideDc],
+    queryKey: ["rpt-stock-report-rows", orgId, search, supplier, filters, hideDc, onlyDc],
     enabled: !!orgId,
     staleTime: search.trim() || supplier.trim() || activeCount ? STALE_LIVE : STALE_FREQUENT,
     retry: 1,

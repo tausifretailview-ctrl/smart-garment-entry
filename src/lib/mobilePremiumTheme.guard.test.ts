@@ -49,6 +49,6 @@ describe("premium mobile theme stays scoped to .ez", () => {
     expect(shell).toMatch(/className="ez-shell/);
     expect(home).toMatch(/setHeroPeriod/);
     expect(home).toMatch(/This month/);
-    expect(home).toMatch(/fetchErpDashboardStatsAfterSr<ErpDashboardStats>\(orgId, statsStart, statsEnd(, hideDc)?\)/);
+    expect(home).toMatch(/fetchErpDashboardStatsAfterSr<ErpDashboardStats>\(orgId, statsStart, statsEnd(, (hideDc|\{ hideDc, onlyDc \}))?\)/);
   });
 });

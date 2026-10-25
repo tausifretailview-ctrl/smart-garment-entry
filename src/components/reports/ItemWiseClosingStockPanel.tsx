@@ -86,7 +86,7 @@ export function ItemWiseClosingStockPanel({
   onCurrentPageChange,
 }: ItemWiseClosingStockPanelProps) {
   const { currentOrganization } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const productFieldSettings = useProductFieldSettings();
   const fieldLabels = {
     brand: productFieldSettings.brand?.label || "Brand",
@@ -129,10 +129,10 @@ export function ItemWiseClosingStockPanel({
     [listFilters, onFiltersChange],
   );
 
-  // DC (No GST) hidden: same filters plus the DC flag for the stock RPCs.
+  // DC (No GST) hidden: same filters plus the DC flag for the stock RPCs (DC User: key only).
   const rpcFilters = useMemo(
-    () => (hideDc ? { ...listFilters, hideDc: true } : listFilters),
-    [listFilters, hideDc],
+    () => (hideDc || onlyDc ? { ...listFilters, ...(hideDc ? { hideDc: true } : {}), ...(onlyDc ? { onlyDc: true } : {}) } : listFilters),
+    [listFilters, hideDc, onlyDc],
   );
 
   const currentPage = controlledPage ?? internalPage;

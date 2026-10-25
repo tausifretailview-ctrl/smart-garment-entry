@@ -341,9 +341,11 @@ export async function loadProfitDataset(
   organizationId: string,
   fromDate: string,
   toDate: string,
-  options?: { hideDc?: boolean },
+  options?: { hideDc?: boolean; onlyDc?: boolean },
 ): Promise<ProfitDataset> {
-  const hideDc = options?.hideDc === true;
+  // DC User: only DC lines (onlyDc wins over hideDc).
+  const onlyDc = options?.onlyDc === true;
+  const hideDc = options?.hideDc === true && !onlyDc;
   // Business day is IST — naive date strings would be read as UTC and drop
   // early-morning / late-evening POS bills (e.g. 12:12 AM IST = prior UTC day).
   // Kept inline (same shape as npaTimestampBounds) to avoid an import cycle.
@@ -412,7 +414,7 @@ export async function loadProfitDataset(
       ? fetchAllSaleItems(saleRows.map((s) => s.id))
       : Promise.resolve<Awaited<ReturnType<typeof fetchAllSaleItems>>>([]),
     returnHeaders.length
-      ? (hideDc ? fetchSaleReturnItemsWithDcFlag : fetchSaleReturnItemsByIds)(
+      ? (hideDc || onlyDc ? fetchSaleReturnItemsWithDcFlag : fetchSaleReturnItemsByIds)(
           returnHeaders.map((r) => r.id),
           "return_id, variant_id, product_id, product_name, quantity, line_total, unit_price, size, color, hsn_code, barcode",
         )
@@ -422,9 +424,12 @@ export async function loadProfitDataset(
   // Amount-only returns (e.g. "Old sale return" from POS S/R Adj) have no item
   // rows; their credit note value still comes off sales in the S/R view.
   const returnIdsWithItems = new Set(returnItems.map((ri: any) => ri.return_id as string));
-  const amountOnlyReturns = returnHeaders.filter(
-    (r) => !returnIdsWithItems.has(r.id) && Math.abs(Number(r.net_amount) || 0) > 0,
-  );
+  // Amount-only returns have no DC line, so a DC User does not see them.
+  const amountOnlyReturns = onlyDc
+    ? []
+    : returnHeaders.filter(
+        (r) => !returnIdsWithItems.has(r.id) && Math.abs(Number(r.net_amount) || 0) > 0,
+      );
 
   if (saleItems.length === 0 && returnItems.length === 0 && amountOnlyReturns.length === 0) {
     return { lines: [], totals: sumLines([]) };
@@ -499,6 +504,7 @@ export async function loadProfitDataset(
     // DC (No GST) hidden: skip DC lines. The discount base above still counts them, so
     // the other lines keep their own share of a mixed bill's discount.
     if (hideDc && item.is_dc_item === true) return;
+    if (onlyDc && item.is_dc_item !== true) return;
     const sale = saleById.get(item.sale_id);
     const variant = maps.variantMap.get(item.variant_id);
     const productId = item.product_id || variant?.product_id || "";
@@ -563,6 +569,7 @@ export async function loadProfitDataset(
 
   returnItems.forEach((item: any) => {
     if (hideDc && item.is_dc_item === true) return;
+    if (onlyDc && item.is_dc_item !== true) return;
     const ret = returnById.get(item.return_id);
     const linkedSale =
       (ret?.linked_sale_id && saleById.get(ret.linked_sale_id)) ||

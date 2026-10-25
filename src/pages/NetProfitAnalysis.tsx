@@ -382,7 +382,7 @@ function ProfitBreakdownTable({
 
 export default function NetProfitAnalysis() {
   const { currentOrganization } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const location = useLocation();
   const { orgNavigate } = useOrgNavigation();
   const fieldLabels = useProductFieldLabels();
@@ -420,8 +420,8 @@ export default function NetProfitAnalysis() {
     isError,
     refetch,
   } = useQuery({
-    queryKey: ["net-profit-analysis", currentOrganization?.id, debouncedFrom, debouncedTo, hideDc],
-    queryFn: () => loadProfitDataset(currentOrganization!.id, debouncedFrom, debouncedTo, { hideDc }),
+    queryKey: ["net-profit-analysis", currentOrganization?.id, debouncedFrom, debouncedTo, hideDc, onlyDc],
+    queryFn: () => loadProfitDataset(currentOrganization!.id, debouncedFrom, debouncedTo, { hideDc, onlyDc }),
     enabled: !!currentOrganization?.id && !!debouncedFrom && !!debouncedTo,
     placeholderData: keepPreviousData,
     staleTime: STALE_DASHBOARD_TAB_RETURN,

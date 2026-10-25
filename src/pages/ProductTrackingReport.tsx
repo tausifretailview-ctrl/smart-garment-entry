@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
+import { filterVariantsForDcView } from "@/utils/dcView";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -190,7 +191,7 @@ const MAX_DATE_RANGE_DAYS = 365;
 
 const ProductTrackingReport = () => {
   const { currentOrganization } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const reduceMotion = usePrefersReducedMotion();
   const [searchBarcode, setSearchBarcode] = useState("");
   const [startDate, setStartDate] = useState(format(subDays(new Date(), 90), "yyyy-MM-dd"));
@@ -284,6 +285,7 @@ const ProductTrackingReport = () => {
       brandFilter,
       currentPage,
       hideDc,
+      onlyDc,
     ],
     queryFn: async () => {
       if (!currentOrganization?.id || dateRangeError) return { data: [], totalCount: 0 };
@@ -316,7 +318,7 @@ const ProductTrackingReport = () => {
         .lte("created_at", endDate + "T23:59:59")
         .order("created_at", { ascending: false });
       // DC (No GST) hidden: movements of DC barcodes left out, like the stock reports.
-      if (hideDc) query = query.not("product_variants.is_dc_product", "is", true);
+      query = filterVariantsForDcView(query, { hideDc, onlyDc }, "product_variants.is_dc_product");
 
       // Server-side filters
       if (movementTypeFilter === "stock_settlement") {
@@ -400,6 +402,7 @@ const ProductTrackingReport = () => {
       categoryFilter,
       brandFilter,
       hideDc,
+      onlyDc,
     ],
     queryFn: async () => {
       if (!currentOrganization?.id || dateRangeError) return { inQty: 0, outQty: 0 };
@@ -421,7 +424,7 @@ const ProductTrackingReport = () => {
           .gte("created_at", startDate + "T00:00:00")
           .lte("created_at", endDate + "T23:59:59")
           .range(from, from + 999);
-        if (hideDc) query = query.not("product_variants.is_dc_product", "is", true);
+        query = filterVariantsForDcView(query, { hideDc, onlyDc }, "product_variants.is_dc_product");
 
         if (movementTypeFilter === "stock_settlement") {
           query = query.eq("movement_type", "reconciliation").or(STOCK_SETTLEMENT_NOTES_OR_FILTER);

@@ -2,7 +2,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
-import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
+import { dcViewKeyParts, filterPurchasesForDcView, filterSaleLinesForDcView, filterSalesForDcView, filterVariantsForDcView, salesSelectForDcView } from "@/utils/dcView";
+import { saleRowsForDcView } from "@/utils/dcSaleShare";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import {
@@ -102,7 +103,7 @@ const TodayHeroSkeleton = () => (
 export const OwnerDashboard = () => {
   const theme = useMobileUiTheme();
   const { currentOrganization, organizationRole } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const { orgNavigate } = useOrgNavigation();
   const { isOnline } = useNetworkStatus();
   const queryClient = useQueryClient();
@@ -137,11 +138,11 @@ export const OwnerDashboard = () => {
     isFetching: dashFetching,
     dataUpdatedAt: dashUpdatedAt,
   } = useQuery({
-    queryKey: ["owner-erp-dashboard-stats", orgId, statsStart, statsEnd, hideDc],
+    queryKey: ["owner-erp-dashboard-stats", orgId, statsStart, statsEnd, hideDc, ...dcViewKeyParts({ onlyDc })],
     queryFn: async () => {
       if (!orgId) return null;
       return withMobileQueryTimeout(() =>
-        fetchErpDashboardStatsAfterSr<ErpDashboardStats>(orgId, statsStart, statsEnd, hideDc),
+        fetchErpDashboardStatsAfterSr<ErpDashboardStats>(orgId, statsStart, statsEnd, { hideDc, onlyDc }),
       );
     },
     enabled: kpisEnabled,
@@ -154,7 +155,7 @@ export const OwnerDashboard = () => {
     data: npaKpis,
     isLoading: npaKpisLoading,
   } = useQuery({
-    queryKey: [NET_PROFIT_KPI_QUERY_HEAD, orgId, statsStart, statsEnd, ...(hideDc ? ["dc-hidden"] : [])],
+    queryKey: [NET_PROFIT_KPI_QUERY_HEAD, orgId, statsStart, statsEnd, ...dcViewKeyParts({ hideDc, onlyDc })],
     queryFn: async () => {
       if (!orgId) return null;
       return withMobileQueryTimeout(() => fetchNetProfitKpis(orgId, statsStart, statsEnd, hideDc));
@@ -207,7 +208,7 @@ export const OwnerDashboard = () => {
 
   /* ── Deferred: Sales trend (7 days) ── */
   const { data: salesTrend } = useQuery({
-    queryKey: ["owner-sales-trend", currentOrganization?.id, hideDc],
+    queryKey: ["owner-sales-trend", currentOrganization?.id, hideDc, ...dcViewKeyParts({ onlyDc })],
     queryFn: async () => {
       if (!currentOrganization) return [];
       return withMobileQueryTimeout(async () => {
@@ -227,7 +228,7 @@ export const OwnerDashboard = () => {
         // DC hidden: all-DC bills out, DC share of mixed bills out.
         if (hideDc) trendQuery = trendQuery.eq("is_dc_bill", false);
         const { data: trendRows } = await trendQuery.order("sale_date");
-        const data = hideDc ? await saleRowsWithoutDc(supabase, trendRows || []) : trendRows;
+        const data = await saleRowsForDcView(supabase, trendRows || [], { hideDc, onlyDc });
         return days.map((d) => {
           const dayStr = format(d, "yyyy-MM-dd");
           const label = format(d, "EEE");
@@ -243,13 +244,13 @@ export const OwnerDashboard = () => {
 
   /* ── Deferred: Recent activity (last 10) ── */
   const { data: recentActivity, isLoading: activityLoading } = useQuery({
-    queryKey: ["owner-recent-activity", currentOrganization?.id, hideDc],
+    queryKey: ["owner-recent-activity", currentOrganization?.id, hideDc, ...dcViewKeyParts({ onlyDc })],
     queryFn: async () => {
       if (!currentOrganization) return [];
       return withMobileQueryTimeout(async () => {
         let recentSales = supabase
           .from("sales")
-          .select("id, sale_number, net_amount, created_at, customer_name")
+          .select(salesSelectForDcView("id, sale_number, net_amount, created_at, customer_name", { onlyDc }))
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null);
         let recentPurchases = supabase
@@ -258,21 +259,22 @@ export const OwnerDashboard = () => {
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null);
         // DC hidden: all-DC bills and DC purchase bills left out of the feed.
-        if (hideDc) {
-          recentSales = recentSales.eq("is_dc_bill", false);
-          recentPurchases = recentPurchases.or("is_dc_purchase.is.null,is_dc_purchase.eq.false");
-        }
+        // DC User: only bills with a DC line and DC purchase bills, no receipts.
+        recentSales = filterSalesForDcView(recentSales, { hideDc, onlyDc });
+        recentPurchases = filterPurchasesForDcView(recentPurchases, { hideDc, onlyDc });
         const [{ data: sales }, { data: purchases }, { data: vouchers }] = await Promise.all([
           recentSales.order("created_at", { ascending: false }).limit(5),
           recentPurchases.order("created_at", { ascending: false }).limit(5),
-          supabase
-            .from("voucher_entries")
-            .select("id, voucher_number, total_amount, created_at, voucher_type, description")
-            .eq("organization_id", currentOrganization.id)
-            .eq("voucher_type", "receipt")
-            .is("deleted_at", null)
-            .order("created_at", { ascending: false })
-            .limit(5),
+          onlyDc
+            ? Promise.resolve({ data: [] as Array<{ id: string; voucher_number: string; total_amount: number | null; created_at: string | null; description: string | null }> })
+            : supabase
+                .from("voucher_entries")
+                .select("id, voucher_number, total_amount, created_at, voucher_type, description")
+                .eq("organization_id", currentOrganization.id)
+                .eq("voucher_type", "receipt")
+                .is("deleted_at", null)
+                .order("created_at", { ascending: false })
+                .limit(5),
         ]);
 
         const items = [
@@ -327,7 +329,7 @@ export const OwnerDashboard = () => {
 
   /* ── Deferred: Low stock (qty < 5) ── */
   const { data: lowStock, isLoading: lowStockLoading } = useQuery({
-    queryKey: ["owner-low-stock", currentOrganization?.id, hideDc],
+    queryKey: ["owner-low-stock", currentOrganization?.id, hideDc, ...dcViewKeyParts({ onlyDc })],
     queryFn: async () => {
       if (!currentOrganization) return [];
       return withMobileQueryTimeout(async () => {
@@ -338,7 +340,7 @@ export const OwnerDashboard = () => {
           .eq("products.organization_id", currentOrganization.id)
           .lt("stock_qty", 5)
           .gte("stock_qty", 0);
-        if (hideDc) lowQuery = lowQuery.not("is_dc_product", "is", true);
+        lowQuery = filterVariantsForDcView(lowQuery, { hideDc, onlyDc });
         const { data } = await lowQuery.order("stock_qty", { ascending: true }).limit(5);
         return (data || []).map((v) => ({
           id: v.id,
@@ -357,7 +359,7 @@ export const OwnerDashboard = () => {
 
   /* ── Deferred: Top selling today ── */
   const { data: topSelling, isLoading: topSellingLoading } = useQuery({
-    queryKey: ["owner-top-selling", currentOrganization?.id, today, hideDc],
+    queryKey: ["owner-top-selling", currentOrganization?.id, today, hideDc, ...dcViewKeyParts({ onlyDc })],
     queryFn: async () => {
       if (!currentOrganization) return [];
       return withMobileQueryTimeout(async () => {
@@ -368,7 +370,7 @@ export const OwnerDashboard = () => {
           .is("sales.deleted_at", null)
           .gte("sales.sale_date", todayStartIso)
           .lte("sales.sale_date", todayEndIso);
-        if (hideDc) topQuery = topQuery.not("is_dc_item", "is", true);
+        topQuery = filterSaleLinesForDcView(topQuery, { hideDc, onlyDc });
         const { data } = await topQuery;
 
         const map = new Map<string, { name: string; size: string; qty: number; revenue: number }>();

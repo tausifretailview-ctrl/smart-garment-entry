@@ -2,7 +2,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
-import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
+import { dcViewKeyParts } from "@/utils/dcView";
+import { saleRowsForDcView } from "@/utils/dcSaleShare";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
@@ -71,7 +72,7 @@ const SummarySkeleton = () => (
 
 export const MobileDashboard = () => {
   const { currentOrganization } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const { orgNavigate } = useOrgNavigation();
   const { isOnline } = useNetworkStatus();
   const queryClient = useQueryClient();
@@ -121,7 +122,7 @@ export const MobileDashboard = () => {
 
   // Today's POS + invoice totals (local-day bounds — includes early-morning POS bills)
   const { data: todaySalesLive, isLoading: todaySalesLoading } = useQuery({
-    queryKey: ["mobile-dashboard-today-sales", currentOrganization?.id, today, hideDc],
+    queryKey: ["mobile-dashboard-today-sales", currentOrganization?.id, today, hideDc, ...dcViewKeyParts({ onlyDc })],
     queryFn: async () => {
       if (!currentOrganization) return null;
       return withMobileQueryTimeout(async () => {
@@ -138,7 +139,7 @@ export const MobileDashboard = () => {
         if (hideDc) query = query.eq("is_dc_bill", false);
         const { data, error } = await query;
         if (error) throw error;
-        const rows = hideDc ? await saleRowsWithoutDc(supabase, data || []) : data || [];
+        const rows = await saleRowsForDcView(supabase, data || [], { hideDc, onlyDc });
         const total = rows.reduce((sum, r) => sum + (Number(r.net_amount) || 0), 0);
         return { total, count: rows.length };
       });
@@ -155,7 +156,7 @@ export const MobileDashboard = () => {
     isError,
     refetch
   } = useQuery({
-    queryKey: ["mobile-dashboard-stats", currentOrganization?.id, today, hideDc],
+    queryKey: ["mobile-dashboard-stats", currentOrganization?.id, today, hideDc, ...dcViewKeyParts({ onlyDc })],
     queryFn: async () => {
       if (!currentOrganization) return null;
       return withMobileQueryTimeout(async () => {
@@ -180,7 +181,7 @@ export const MobileDashboard = () => {
   const monthEnd = format(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0), "yyyy-MM-dd");
 
   const { data: monthDashStats, isLoading: monthDashLoading } = useQuery({
-    queryKey: ["mobile-dashboard-stats", currentOrganization?.id, monthStart, monthEnd, hideDc],
+    queryKey: ["mobile-dashboard-stats", currentOrganization?.id, monthStart, monthEnd, hideDc, ...dcViewKeyParts({ onlyDc })],
     queryFn: async () => {
       if (!currentOrganization) return null;
       return withMobileQueryTimeout(async () => {

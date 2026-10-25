@@ -23,6 +23,15 @@ import { Building2, Clock, Crown, Users, Plus, Loader2, UserX, Copy, Eye, EyeOff
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchOrganizationLoginHistory, formatOrgLoginAt } from "@/utils/orgLoginAudit";
+import { DC_USER_ORG_ROLE, DC_USER_ROLE_OPTION } from "@/constants/dcUserPermissionsPreset";
+import { applyDcUserPreset, clearDcUserFlag, fetchDcOnlyModeReady, fetchDcUserIds } from "@/utils/dcUserRole";
+
+type OrgRole = "admin" | "manager" | "user";
+/** Role picker value: an org role, or "dc_user" (manager + DC User rights). */
+type RoleChoice = OrgRole | typeof DC_USER_ROLE_OPTION;
+
+const toOrgRole = (choice: RoleChoice): OrgRole =>
+  choice === DC_USER_ROLE_OPTION ? DC_USER_ORG_ROLE : choice;
 
 const AVAILABLE_FEATURES = [
   { id: "advanced_reports", name: "Advanced Reports", tier: "professional" },
@@ -48,8 +57,8 @@ export default function OrganizationManagement() {
   const [newUserPassword, setNewUserPassword] = useState("");
   const [showNewUserPassword, setShowNewUserPassword] = useState(false);
   const [existingUserEmail, setExistingUserEmail] = useState("");
-  const [newUserRole, setNewUserRole] = useState<"admin" | "manager" | "user">("user");
-  const [existingUserRole, setExistingUserRole] = useState<"admin" | "manager" | "user">("user");
+  const [newUserRole, setNewUserRole] = useState<RoleChoice>("user");
+  const [existingUserRole, setExistingUserRole] = useState<RoleChoice>("user");
 
   // Slug editing state
   const [editableSlug, setEditableSlug] = useState(currentOrganization?.slug || "");
@@ -252,10 +261,32 @@ export default function OrganizationManagement() {
     });
   };
 
+  // DC User role: offered once the 25 Oct 2026 DC User SQL is on the database.
+  const { data: dcOnlyReady = false } = useQuery({
+    queryKey: ["dc-only-ready", currentOrganization?.id],
+    queryFn: () => fetchDcOnlyModeReady(supabase),
+    enabled: !!currentOrganization && visitedTabs.has("members"),
+    staleTime: (query) => (query.state.data === true ? Infinity : 60_000),
+    retry: 1,
+  });
+
+  const { data: dcUserIds = [] } = useQuery({
+    queryKey: ["org-dc-users", currentOrganization?.id],
+    queryFn: () => fetchDcUserIds(supabase, currentOrganization!.id),
+    enabled: !!currentOrganization && visitedTabs.has("members"),
+  });
+
+  const refreshDcUsers = () => {
+    void queryClient.invalidateQueries({ queryKey: ["org-dc-users"] });
+    void queryClient.invalidateQueries({ queryKey: ["user-permissions"] });
+    void queryClient.invalidateQueries({ queryKey: ["user_permissions"] });
+  };
+
   const createUserMutation = useMutation({
-    mutationFn: async (userData: { email: string; password: string; role: string }) => {
+    mutationFn: async (userData: { email: string; password: string; role: RoleChoice }) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
+      if (!currentOrganization?.id) throw new Error("No organization selected");
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-org-user`,
@@ -268,8 +299,8 @@ export default function OrganizationManagement() {
           body: JSON.stringify({
             email: userData.email,
             password: userData.password,
-            role: userData.role,
-            organizationId: currentOrganization?.id,
+            role: toOrgRole(userData.role),
+            organizationId: currentOrganization.id,
           }),
         }
       );
@@ -279,15 +310,33 @@ export default function OrganizationManagement() {
         throw new Error(error.error || 'Failed to create user');
       }
 
-      return response.json();
+      const result = await response.json();
+      if (userData.role === DC_USER_ROLE_OPTION) {
+        const userId = result?.user?.id as string | undefined;
+        try {
+          if (!userId) throw new Error("no user id");
+          await applyDcUserPreset(supabase, currentOrganization.id, userId);
+        } catch {
+          void queryClient.invalidateQueries({ queryKey: ["organization-members"] });
+          throw new Error(
+            'User was created as Manager, but DC User rights were not saved. Pick "DC User" in their Role box to try again.',
+          );
+        }
+      }
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["organization-members"] });
+      if (variables.role === DC_USER_ROLE_OPTION) refreshDcUsers();
       setIsCreateUserOpen(false);
       setNewUserEmail("");
       setNewUserPassword("");
       setNewUserRole("user");
-      toast.success("User created successfully. They can now log in with their credentials.");
+      toast.success(
+        variables.role === DC_USER_ROLE_OPTION
+          ? "DC User created. This login sees only DC purchases, stock, sales and reports."
+          : "User created successfully. They can now log in with their credentials.",
+      );
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -295,9 +344,10 @@ export default function OrganizationManagement() {
   });
 
   const addExistingUserMutation = useMutation({
-    mutationFn: async (userData: { email: string; role: "admin" | "manager" | "user" }) => {
+    mutationFn: async (userData: { email: string; role: RoleChoice }) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
+      if (!currentOrganization?.id) throw new Error("No organization selected");
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/add-existing-user`,
@@ -309,8 +359,8 @@ export default function OrganizationManagement() {
           },
           body: JSON.stringify({
             email: userData.email,
-            role: userData.role,
-            organizationId: currentOrganization?.id,
+            role: toOrgRole(userData.role),
+            organizationId: currentOrganization.id,
           }),
         }
       );
@@ -320,14 +370,32 @@ export default function OrganizationManagement() {
         throw new Error(error.error || 'Failed to add user');
       }
 
-      return response.json();
+      const result = await response.json();
+      if (userData.role === DC_USER_ROLE_OPTION) {
+        const userId = result?.user?.id as string | undefined;
+        try {
+          if (!userId) throw new Error("no user id");
+          await applyDcUserPreset(supabase, currentOrganization.id, userId);
+        } catch {
+          void queryClient.invalidateQueries({ queryKey: ["organization-members"] });
+          throw new Error(
+            'User was added as Manager, but DC User rights were not saved. Pick "DC User" in their Role box to try again.',
+          );
+        }
+      }
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["organization-members"] });
+      if (variables.role === DC_USER_ROLE_OPTION) refreshDcUsers();
       setIsAddExistingUserOpen(false);
       setExistingUserEmail("");
       setExistingUserRole("user");
-      toast.success("User added to organization successfully");
+      toast.success(
+        variables.role === DC_USER_ROLE_OPTION
+          ? "DC User added. This login sees only DC purchases, stock, sales and reports."
+          : "User added to organization successfully",
+      );
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -356,8 +424,9 @@ export default function OrganizationManagement() {
   });
 
   const updateMemberRoleMutation = useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: "admin" | "manager" | "user" }) => {
+    mutationFn: async ({ userId, role: choice }: { userId: string; role: RoleChoice }) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
+      const role = toOrgRole(choice);
       
       const { error } = await supabase
         .from("organization_members")
@@ -378,10 +447,22 @@ export default function OrganizationManagement() {
           .from("user_roles")
           .insert({ user_id: userId, role: role as any });
       }
+
+      // DC User = manager + DC User rights; any other role turns "DC User (only DC)" off.
+      if (choice === DC_USER_ROLE_OPTION) {
+        await applyDcUserPreset(supabase, currentOrganization.id, userId);
+      } else if (dcUserIds.includes(userId)) {
+        await clearDcUserFlag(supabase, currentOrganization.id, userId);
+      }
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["organization-members"] });
-      toast.success("User role updated successfully");
+      refreshDcUsers();
+      toast.success(
+        variables.role === DC_USER_ROLE_OPTION
+          ? "Now a DC User: sees only DC purchases, stock, sales and reports."
+          : "User role updated successfully",
+      );
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -687,8 +768,12 @@ export default function OrganizationManagement() {
                             <SelectItem value="user">User</SelectItem>
                             <SelectItem value="manager">Manager</SelectItem>
                             <SelectItem value="admin">Admin</SelectItem>
+                            <SelectItem value={DC_USER_ROLE_OPTION} disabled={!dcOnlyReady}>
+                              {dcOnlyReady ? "DC User (only DC)" : "DC User (run DC User SQL first)"}
+                            </SelectItem>
                           </SelectContent>
                         </Select>
+                        {existingUserRole === DC_USER_ROLE_OPTION && <DcUserRoleNote />}
                       </div>
                     </div>
                     <DialogFooter>
@@ -779,6 +864,9 @@ export default function OrganizationManagement() {
                           <SelectItem value="user">User</SelectItem>
                           <SelectItem value="manager">Manager</SelectItem>
                           <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value={DC_USER_ROLE_OPTION} disabled={!dcOnlyReady}>
+                            {dcOnlyReady ? "DC User (only DC)" : "DC User (run DC User SQL first)"}
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                       {newUserRole === "manager" && (
@@ -788,6 +876,7 @@ export default function OrganizationManagement() {
                           <p className="text-muted-foreground">❌ Cannot: Manage settings or organization</p>
                         </div>
                       )}
+                      {newUserRole === DC_USER_ROLE_OPTION && <DcUserRoleNote />}
                     </div>
                   </div>
                   <DialogFooter>
@@ -835,6 +924,11 @@ export default function OrganizationManagement() {
                           <Badge variant="secondary" className="capitalize">
                             {member.role}
                           </Badge>
+                          {dcUserIds.includes(member.user_id) && (
+                            <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100 dark:bg-orange-950 dark:text-orange-200">
+                              DC User
+                            </Badge>
+                          )}
                           <span className="text-xs text-muted-foreground">
                             Joined {new Date(member.created_at).toLocaleDateString()}
                           </span>
@@ -842,21 +936,35 @@ export default function OrganizationManagement() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Select
-                          value={member.role}
+                          value={dcUserIds.includes(member.user_id) ? DC_USER_ROLE_OPTION : member.role}
                           onValueChange={(newRole) => {
+                            if (
+                              newRole === DC_USER_ROLE_OPTION &&
+                              !confirm(
+                                `Make ${member.email || "this user"} a DC User?\n\nTheir User Rights are replaced with the DC User set: only DC purchases, DC stock, DC sales and DC reports. GST bills are hidden from this login.`,
+                              )
+                            ) {
+                              return;
+                            }
                             updateMemberRoleMutation.mutate({
                               userId: member.user_id,
-                              role: newRole as "admin" | "manager" | "user",
+                              role: newRole as RoleChoice,
                             });
                           }}
                         >
-                          <SelectTrigger className="w-32">
+                          <SelectTrigger className="w-36">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="user">User</SelectItem>
                             <SelectItem value="manager">Manager</SelectItem>
                             <SelectItem value="admin">Admin</SelectItem>
+                            <SelectItem
+                              value={DC_USER_ROLE_OPTION}
+                              disabled={!dcOnlyReady && !dcUserIds.includes(member.user_id)}
+                            >
+                              DC User
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                         <Button
@@ -911,6 +1019,17 @@ export default function OrganizationManagement() {
           </Card>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function DcUserRoleNote() {
+  return (
+    <div className="mt-2 p-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900 rounded-md text-xs space-y-1">
+      <p className="font-medium">DC User (saved as Manager):</p>
+      <p className="text-muted-foreground">✅ Sees only DC (No GST) purchases, DC stock, DC sales and DC reports</p>
+      <p className="text-muted-foreground">✅ Purchase Entry opens with DC Purchase ticked</p>
+      <p className="text-muted-foreground">❌ GST bills, Accounts and Settings stay hidden (change in User Rights)</p>
     </div>
   );
 }

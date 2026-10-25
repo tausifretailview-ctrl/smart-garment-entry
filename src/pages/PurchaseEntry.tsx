@@ -10,6 +10,7 @@ import { insertProductsPreferringPurchaseFlag } from "@/utils/productCreatedInPu
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/hooks/useSettings";
+import { useDcVisibility } from "@/hooks/useDcVisibility";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1078,6 +1079,11 @@ const PurchaseEntry = () => {
 
   // DC Purchase (Direct Cash / No GST) state
   const [isDcPurchase, setIsDcPurchase] = useState(Boolean(initialBrowserSnapshot?.isDcPurchase));
+  // DC User login: every purchase is a DC purchase (ticked and locked).
+  const { isDcUser } = useDcVisibility();
+  useEffect(() => {
+    if (isDcUser && !isDcPurchase) setIsDcPurchase(true);
+  }, [isDcUser, isDcPurchase]);
 
   // Bill lock state
   const [isBillLocked, setIsBillLocked] = useState(false);
@@ -9093,6 +9099,7 @@ const PurchaseEntry = () => {
                 <label title="DC Purchase (No GST)" className="flex items-center gap-2 cursor-pointer h-10 px-3 border border-orange-300 bg-orange-50 dark:bg-orange-950/20 rounded-md w-full xl:w-auto max-w-full">
                   <Checkbox
                     checked={isDcPurchase}
+                    disabled={isDcUser}
                     onCheckedChange={(checked) => setIsDcPurchase(checked === true)}
                   />
                   <span className="text-xs font-medium text-orange-700 dark:text-orange-400 whitespace-nowrap truncate">

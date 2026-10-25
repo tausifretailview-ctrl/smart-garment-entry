@@ -23,6 +23,8 @@ export type ItemWiseStockFilters = {
   closingStockFilter: ItemWiseStockClosingFilter;
   /** DC (No GST) barcodes left out (needs the DC item-wise stock SQL; sent only when true). */
   hideDc?: boolean;
+  /** DC User: only DC barcodes. Never sent: the database applies it for that login; kept for query keys. */
+  onlyDc?: boolean;
 };
 
 export type ItemWiseStockRow = {

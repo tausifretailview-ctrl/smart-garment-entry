@@ -8,6 +8,7 @@ import { Package, TrendingDown, History, Search, AlertCircle, CheckCircle2 } fro
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
+import { dcViewKey, filterVariantsForDcView } from "@/utils/dcView";
 import { StockAnalysisSearch, StockAnalysisLoadingSkeleton } from "@/components/StockAnalysisSearch";
 import { movementLabelKey } from "@/utils/stockSettlementMovement";
 
@@ -71,7 +72,7 @@ interface SelectedProduct {
 
 export default function StockAnalysis() {
   const { currentOrganization } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [batchStock, setBatchStock] = useState<BatchStock[]>([]);
@@ -134,7 +135,7 @@ export default function StockAnalysis() {
             .neq("products.product_type", "service")
             .ilike("products.product_name", `%${product.product_name}%`);
           // DC (No GST) hidden: DC barcodes left out, like the stock reports.
-          if (hideDc) variantsQuery = variantsQuery.not("is_dc_product", "is", true);
+          variantsQuery = filterVariantsForDcView(variantsQuery, { hideDc, onlyDc });
           const { data, error } = await variantsQuery
             .order("stock_qty", { ascending: true })
             .range(offset, offset + PAGE - 1);
@@ -360,15 +361,16 @@ export default function StockAnalysis() {
     } finally {
       setLoading(false);
     }
-  }, [currentOrganization?.id, hideDc]);
+  }, [currentOrganization?.id, hideDc, onlyDc]);
 
   // Ctrl+Shift+H flips DC show / hide: reload the open product.
-  const lastHideDc = useRef(hideDc);
+  const dcKey = dcViewKey({ hideDc, onlyDc });
+  const lastDcKey = useRef(dcKey);
   useEffect(() => {
-    if (lastHideDc.current === hideDc) return;
-    lastHideDc.current = hideDc;
+    if (lastDcKey.current === dcKey) return;
+    lastDcKey.current = dcKey;
     if (selectedProduct) void loadStockAnalysis(selectedProduct);
-  }, [hideDc, selectedProduct, loadStockAnalysis]);
+  }, [dcKey, selectedProduct, loadStockAnalysis]);
 
   const handleClear = useCallback(() => {
     setSelectedProduct(null);

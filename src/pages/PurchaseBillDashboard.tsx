@@ -276,8 +276,9 @@ const PurchaseBillDashboard = () => {
     () => pickPersistedString(savedPurchaseFilters?.dcFilter) ?? "all",
   );
   // DC hidden (Settings > Purchase "Hide DC", or Ctrl+Shift+H): list GST bills only.
-  const { hideDc } = useDcVisibility();
-  const effectiveDcFilter = hideDc ? "gst" : dcFilter;
+  const { hideDc, onlyDc } = useDcVisibility();
+  // DC User: DC bills only. DC hidden: GST bills only. Either way the Bill Type filter is hidden.
+  const effectiveDcFilter = onlyDc ? "dc" : hideDc ? "gst" : dcFilter;
 
   const queryDateRange = useMemo(
     () => resolvePurchaseDashboardQueryDates(periodFilter, startDate, endDate),
@@ -2867,7 +2868,7 @@ const PurchaseBillDashboard = () => {
                   <SelectItem value="all_including_cancelled">All (Including Cancelled)</SelectItem>
                 </SelectContent>
               </Select>
-              {!hideDc && <Select value={dcFilter} onValueChange={setDcFilter}>
+              {!hideDc && !onlyDc && <Select value={dcFilter} onValueChange={setDcFilter}>
                 <SelectTrigger className="w-[115px] h-9 text-sm gap-1.5 border-slate-200 bg-slate-50 hover:bg-white">
                   <FileText className="h-4 w-4" />
                   <SelectValue placeholder="Bill Type" />

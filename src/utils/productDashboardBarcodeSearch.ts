@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { asDcView, filterVariantsForDcView, variantInDcView, type DcViewFlags } from "@/utils/dcView";
 import {
   buildProductTextOrFilter,
   expandProductSearchTerms,
@@ -39,7 +40,7 @@ function escapeIlike(term: string): string {
 export async function fetchProductIdsByExactBarcode(
   organizationId: string,
   term: string,
-  hideDc = false,
+  dc: boolean | DcViewFlags = false,
 ): Promise<string[]> {
   const normalized = normalizeProductSearchTerm(term);
   if (!normalized) return [];
@@ -50,8 +51,8 @@ export async function fetchProductIdsByExactBarcode(
     .eq("organization_id", organizationId)
     .is("deleted_at", null)
     .eq("barcode", normalized);
-  // DC (No GST) hidden: DC barcodes left out, like the catalog RPC.
-  if (hideDc) query = query.not("is_dc_product", "is", true);
+  // DC (No GST) hidden: DC barcodes left out, like the catalog RPC (DC User: only DC barcodes).
+  query = filterVariantsForDcView(query, asDcView(dc));
   const { data, error } = await query;
 
   if (error) {
@@ -65,7 +66,7 @@ export async function fetchProductIdsByExactBarcode(
 export async function fetchProductIdsByPartialBarcode(
   organizationId: string,
   term: string,
-  hideDc = false,
+  dc: boolean | DcViewFlags = false,
 ): Promise<string[]> {
   const normalized = normalizeProductSearchTerm(term);
   if (!normalized) return [];
@@ -76,7 +77,7 @@ export async function fetchProductIdsByPartialBarcode(
     .eq("organization_id", organizationId)
     .is("deleted_at", null)
     .ilike("barcode", `%${escapeIlike(normalized)}%`);
-  if (hideDc) query = query.not("is_dc_product", "is", true);
+  query = filterVariantsForDcView(query, asDcView(dc));
   const { data, error } = await query.limit(100);
 
   if (error) {
@@ -160,9 +161,12 @@ export type ProductCatalogRowPayload = {
 export async function fetchCatalogRowsForProductIds(
   organizationId: string,
   productIds: string[],
-  hideDc = false,
+  dc: boolean | DcViewFlags = false,
 ): Promise<ProductCatalogRowPayload[]> {
   if (!productIds.length) return [];
+  const view = asDcView(dc);
+  const hideDc = view.hideDc === true && !view.onlyDc;
+  const onlyDc = view.onlyDc === true;
 
   const { data: products, error: productsErr } = await supabase
     .from("products")
@@ -188,6 +192,8 @@ export async function fetchCatalogRowsForProductIds(
 
   if (variantsErr) {
     console.warn("[productDashboardBarcodeSearch] variants fetch failed", variantsErr.message);
+    // DC User: without the barcodes we cannot tell which products are DC.
+    if (onlyDc) return [];
   }
 
   // DC (No GST) hidden: DC barcodes left out; a product of only DC barcodes is not listed.
@@ -198,9 +204,11 @@ export async function fetchCatalogRowsForProductIds(
       if (!hasGst.has(v.product_id)) dcOnlyProducts.add(v.product_id);
     });
   }
+  // DC User: only products with a DC barcode.
+  const hasDc = new Set((variants ?? []).filter((v) => v.is_dc_product === true).map((v) => v.product_id));
 
   const stockByProduct = new Map<string, { total_stock: number; variant_count: number }>();
-  (variants ?? []).filter((v) => !hideDc || v.is_dc_product !== true).forEach((v) => {
+  (variants ?? []).filter((v) => variantInDcView(v, view)).forEach((v) => {
     const prev = stockByProduct.get(v.product_id) ?? { total_stock: 0, variant_count: 0 };
     const productType = products.find((p) => p.id === v.product_id)?.product_type;
     stockByProduct.set(v.product_id, {
@@ -211,7 +219,7 @@ export async function fetchCatalogRowsForProductIds(
     });
   });
 
-  return products.filter((p) => !dcOnlyProducts.has(p.id)).map((p) => {
+  return products.filter((p) => !dcOnlyProducts.has(p.id) && (!onlyDc || hasDc.has(p.id))).map((p) => {
     const agg = stockByProduct.get(p.id) ?? { total_stock: 0, variant_count: 0 };
     return {
       product_id: p.id,

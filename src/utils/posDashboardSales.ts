@@ -35,7 +35,8 @@ import { getSaleReportGrossAmount, getSaleReportNetAmount } from "@/utils/cashie
 import { saleBillFigures } from "@/utils/saleBillFigures";
 import { withDashboardTimeout } from "@/utils/withDashboardTimeout";
 import { totalFromShortPage } from "@/utils/dashboardShortPageCount";
-import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
+import { saleRowsForDcView } from "@/utils/dcSaleShare";
+import { filterSalesForDcView, salesSelectForDcView } from "@/utils/dcView";
 import { advanceBeyondTender, fetchSalesAdvanceAdjusted } from "@/utils/posApplyAdvance";
 
 /** Calendar bounds for server queries from period chip + date inputs (fixes persisted single-day monthly). */
@@ -348,6 +349,8 @@ export type PosDashboardFilters = {
   cancelFilter: string;
   /** DC (No GST) hidden: all-DC bills out, DC share of mixed bills out of the totals. */
   hideDc?: boolean;
+  /** DC User: only bills with a DC line, only their DC share in the totals. */
+  onlyDc?: boolean;
 };
 
 export type PosDashboardPageOptions = {
@@ -623,6 +626,10 @@ async function fetchPosDashboardSummaryViaRpc(
   if (filters.hideDc && (data as { dcHideApplied?: boolean } | null)?.dcHideApplied !== true) {
     throw new PosStatsDcHideUnsupportedError();
   }
+  // DC User: the RPC keeps only DC from the 25 Oct SQL on; before it, the row scan does.
+  if (filters.onlyDc && (data as { dcOnlyApplied?: boolean } | null)?.dcOnlyApplied !== true) {
+    throw new PosStatsDcHideUnsupportedError();
+  }
 
   return parsePosDashboardStatsRow((data || {}) as Partial<PosDashboardSummaryStats>);
 }
@@ -771,10 +778,9 @@ export function applyPosDashboardFilters(query: any, filters: PosDashboardFilter
     q = q.eq("customer_id", filters.customerId);
   }
 
-  // Bills whose every line is DC (No GST) are left out while DC is hidden.
-  if (filters.hideDc) {
-    q = q.eq("is_dc_bill", false);
-  }
+  // Bills whose every line is DC (No GST) are left out while DC is hidden; a DC User sees
+  // only bills with a DC line.
+  q = filterSalesForDcView(q, filters);
 
   const paymentMethods = parsePosPaymentMethodFilter(filters.paymentMethodFilter);
   if (paymentMethods.length === 1) {
@@ -832,7 +838,7 @@ function buildPosDashboardBaseQuery(
   filters: PosDashboardFilters,
   select: string,
 ) {
-  return applyPosDashboardFilters(client.from("sales").select(select), filters)
+  return applyPosDashboardFilters(client.from("sales").select(salesSelectForDcView(select, filters)), filters)
     .order("sale_date", { ascending: false })
     .order("id", { ascending: false });
 }
@@ -844,7 +850,7 @@ async function countFilteredPosSales(
 ): Promise<number> {
   // Phase 4: estimated = exact on small sets, planner on large.
   let query: any = applyPosDashboardFilters(
-    client.from("sales").select("id", { count: "estimated", head: true }),
+    client.from("sales").select(salesSelectForDcView("id", filters), { count: "estimated", head: true }),
     filters,
   );
   const resolution =
@@ -1448,9 +1454,10 @@ async function scanPosDashboardSummaryRows(
     offset += PAGE_SIZE;
   }
 
-  // Totals only (never used for payments or prints): take the DC part out of mixed bills.
-  if (filters.hideDc) {
-    return saleRowsWithoutDc(client, allRows as Array<PosDashboardSaleLike & { id: string }>);
+  // Totals only (never used for payments or prints): take the DC part out of mixed bills,
+  // or keep only it for a DC User.
+  if (filters.hideDc || filters.onlyDc) {
+    return saleRowsForDcView(client, allRows as Array<PosDashboardSaleLike & { id: string }>, filters);
   }
   return allRows;
 }

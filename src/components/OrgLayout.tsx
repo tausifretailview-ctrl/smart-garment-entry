@@ -82,6 +82,7 @@ import { DesktopAppShell } from "@/components/DesktopAppShell";
 import { SharedAppShellContext } from "@/contexts/SharedAppShellContext";
 import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { DC_ONLY_RIGHT } from "@/lib/dcVisibility";
 import { formatDocumentTitle } from "@/lib/pageTitles";
 import { setCloudUsageRoutePath } from "@/lib/cloudUsageDiagnostics";
 import { useScreenTimeTracking } from "@/hooks/useScreenTimeTracking";
@@ -201,11 +202,13 @@ export const OrgLayout = () => {
   const showDesktopChrome = useShowDesktopChrome();
   const {
     hasMenuAccess,
+    hasSpecialPermission,
     permissions,
     loading: permissionsLoading,
     isFetching: permissionsIsFetching,
     fetchStatus: permissionsFetchStatus,
   } = useUserPermissions();
+  const isDcUser = hasSpecialPermission(DC_ONLY_RIGHT);
 
   const currentPath = useMemo(
     () => getOrgPathSegment(location.pathname, orgSlug),
@@ -373,6 +376,8 @@ export const OrgLayout = () => {
       permissionsLoading ||
       (wantsTabCache && !effectiveTabPaneReady)
     ) return;
+    // DC User: dashboards load with its own DC-only keys; the shared warm-up keys are not for it.
+    if (isDcUser) return;
 
     const warm = () => {
       // Do not prefetch Main Dashboard KPIs when User Rights disables main_dashboard.
@@ -402,6 +407,7 @@ export const OrgLayout = () => {
     permissionsLoading,
     permissions,
     hasMenuAccess,
+    isDcUser,
     wantsTabCache,
     effectiveTabPaneReady,
   ]);

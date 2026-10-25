@@ -176,6 +176,7 @@ const specialRights = [
   { id: "system_health", name: "System Health", description: "Access System Health diagnostics page (hidden by default)" },
   { id: "pos_margin_indicator", name: "POS Margin Indicator", description: "See live profit margin % and total profit on the POS billing screen (hidden by default)" },
   { id: "always_show_dc", name: "Always show DC transactions", description: "When Settings > Purchase is set to Hide DC, this login still sees DC (No GST) purchases, sales and stock, without Ctrl+Shift+H (off by default)" },
+  { id: "dc_only", name: "DC User (only DC)", description: "This login sees only DC (No GST) purchases, DC stock, DC sales and DC reports; GST bills are hidden and Purchase Entry opens with DC ticked. Use with the Manager role (needs the 25 Oct 2026 DC User SQL; off by default)" },
 ];
 
 // Column visibility config for modules

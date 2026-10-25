@@ -24,7 +24,8 @@ import {
 import { partyDebtorNetFromRpcRow } from "@/utils/customerAccountFacets";
 import { totalFromShortPage } from "@/utils/dashboardShortPageCount";
 import { invalidateAndRefetchWithQueryFn } from "@/utils/refetchQueriesWithFn";
-import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
+import { saleRowsForDcView } from "@/utils/dcSaleShare";
+import { filterSalesForDcView, salesSelectForDcView } from "@/utils/dcView";
 
 export const INVOICE_DASHBOARD_SALES_SELECT =
   "id, sale_number, sale_date, customer_id, customer_name, customer_phone, customer_email, customer_address, gross_amount, discount_amount, flat_discount_amount, flat_discount_percent, other_charges, round_off, net_amount, paid_amount, payment_method, payment_status, delivery_status, salesman, notes, total_qty, created_at, updated_at, created_by, irn, ack_no, einvoice_status, einvoice_error, einvoice_qr_code, sale_return_adjust, credit_applied, due_date, shipping_address, sale_type, is_cancelled, cancelled_at, cancelled_reason, shop_name, customers:customer_id (gst_number)";
@@ -53,6 +54,8 @@ export type InvoiceDashboardFilters = {
   voucherDateTo: string | null;
   /** DC (No GST) hidden: all-DC bills out of the list, DC share of mixed bills out of the tiles. */
   hideDc?: boolean;
+  /** DC User: only bills with a DC line in the list, only their DC share in the tiles. */
+  onlyDc?: boolean;
 };
 
 export type InvoiceDashboardStats = {
@@ -276,10 +279,7 @@ function applyInvoiceDashboardFilters(query: any, filters: InvoiceDashboardFilte
   if (filters.customerId) {
     q = q.eq("customer_id", filters.customerId);
   }
-  if (filters.hideDc) {
-    q = q.eq("is_dc_bill", false);
-  }
-  return q;
+  return filterSalesForDcView(q, filters);
 }
 
 function buildFilteredSalesQuery(
@@ -287,7 +287,10 @@ function buildFilteredSalesQuery(
   filters: InvoiceDashboardFilters,
   select: string,
 ) {
-  return applyInvoiceDashboardFilters(client.from("sales").select(select), filters).order(
+  return applyInvoiceDashboardFilters(
+    client.from("sales").select(salesSelectForDcView(select, filters)),
+    filters,
+  ).order(
     "created_at",
     { ascending: false },
   );
@@ -301,7 +304,7 @@ async function countFilteredInvoiceSales(
   // Phase 4: estimated = exact on small sets, planner on large (avoids
   // pgrst_source_count doubling every search page). UI still shows a number.
   let query: any = applyInvoiceDashboardFilters(
-    client.from("sales").select("id", { count: "estimated", head: true }),
+    client.from("sales").select(salesSelectForDcView("id", filters), { count: "estimated", head: true }),
     filters,
   );
   const resolution =
@@ -401,7 +404,7 @@ async function fetchInvoiceDashboardStatsClient(
     }
 
     // Tiles only: take the DC part out of mixed bills (rows, prints and payments keep it).
-    const visibleRows = filters.hideDc ? await saleRowsWithoutDc(client, allRows) : allRows;
+    const visibleRows = await saleRowsForDcView(client, allRows, filters);
     const displayRows = visibleRows.map(applyQuickInvoiceDisplayFields);
     const statsRows =
       filters.paymentStatusFilter.length > 0
@@ -534,8 +537,8 @@ export async function fetchInvoiceDashboardStats(
     return { ...EMPTY_INVOICE_DASHBOARD_STATS };
   }
 
-  // The stats RPC does not know DC; the row scan takes it out.
-  if (filters.hideDc) {
+  // The stats RPC does not know DC; the row scan takes it out (or keeps only it).
+  if (filters.hideDc || filters.onlyDc) {
     return fetchInvoiceDashboardStatsClient(client, filters);
   }
 
@@ -1089,7 +1092,7 @@ export async function fetchInvoiceDashboardExportRows(
 
   for (;;) {
     let query: any = applyInvoiceDashboardFilters(
-      client.from("sales").select(INVOICE_DASHBOARD_LIST_SELECT),
+      client.from("sales").select(salesSelectForDcView(INVOICE_DASHBOARD_LIST_SELECT, filters)),
       filters,
     )
       .order("created_at", { ascending: false })

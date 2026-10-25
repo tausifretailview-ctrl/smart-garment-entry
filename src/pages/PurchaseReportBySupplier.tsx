@@ -43,7 +43,7 @@ interface SupplierSummaryRow {
 
 const PurchaseReportBySupplier = () => {
   const { currentOrganization } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>("all");
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
@@ -97,7 +97,7 @@ const PurchaseReportBySupplier = () => {
 
   // Fetch purchase bills using paginated fetch to bypass 1000 limit
   const { data: purchaseBills = [], isLoading } = useQuery({
-    queryKey: ["purchase-bills-report", currentOrganization?.id, selectedSupplierId, startDate, endDate, hideDc],
+    queryKey: ["purchase-bills-report", currentOrganization?.id, selectedSupplierId, startDate, endDate, hideDc, onlyDc],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       
@@ -106,6 +106,7 @@ const PurchaseReportBySupplier = () => {
       if (endDate) filters.endDate = format(endDate, "yyyy-MM-dd");
       if (selectedSupplierId !== "all") filters.supplierId = selectedSupplierId;
       if (hideDc) filters.hideDc = true;
+      if (onlyDc) filters.onlyDc = true;
       
       const allBills = await fetchAllPurchaseBillsWithFilters(currentOrganization.id, filters);
       return allBills as PurchaseBill[];

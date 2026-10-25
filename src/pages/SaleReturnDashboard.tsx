@@ -5,6 +5,12 @@ import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
 import { dcReturnNotInList, fetchDcReturnSplit } from "@/utils/dcSaleReturnShare";
+import {
+  dcViewKeyParts,
+  filterSaleLinesForDcView,
+  filterSaleReturnsToDcLines,
+  saleReturnsSelectForDcView,
+} from "@/utils/dcView";
 import { useToast } from "@/hooks/use-toast";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -239,7 +245,7 @@ export default function SaleReturnDashboard() {
   const { orgNavigate: navigate } = useOrgNavigation();
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
 
   const isDesktop = useIsDesktop();
   const rowContextMenu = useContextMenu<SaleReturn>();
@@ -470,7 +476,7 @@ export default function SaleReturnDashboard() {
   const { data: returnsData, isLoading: returnsLoading, refetch: refetchReturns } = useQuery({
     queryKey: [
       "sale-returns", currentOrganization?.id, debouncedSearch, currentPage, pageSize, fromDate, toDate, statusFilter,
-      ...(hideDc ? ["dc-hidden"] : []),
+      ...dcViewKeyParts({ hideDc, onlyDc }),
     ],
     queryFn: async () => {
       if (!currentOrganization?.id) return { returns: [], totalCount: 0 };
@@ -480,9 +486,17 @@ export default function SaleReturnDashboard() {
 
       let query = supabase
         .from("sale_returns")
-        .select("id, return_number, customer_name, customer_id, original_sale_number, return_date, created_at, gross_amount, gst_amount, net_amount, credit_available_balance, notes, credit_note_id, credit_status, linked_sale_id, refund_type, payment_method", { count: "exact" })
+        .select(
+          saleReturnsSelectForDcView(
+            "id, return_number, customer_name, customer_id, original_sale_number, return_date, created_at, gross_amount, gst_amount, net_amount, credit_available_balance, notes, credit_note_id, credit_status, linked_sale_id, refund_type, payment_method",
+            { onlyDc },
+          ),
+          { count: "exact" },
+        )
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
+      // DC User: only returns with a DC line.
+      query = filterSaleReturnsToDcLines(query, { onlyDc });
 
       // Date filters
       if (fromDate) {
@@ -715,19 +729,24 @@ export default function SaleReturnDashboard() {
   const { data: summaryData } = useQuery({
     queryKey: [
       "sale-returns-summary", currentOrganization?.id, debouncedSearch, fromDate, toDate, statusFilter,
-      ...(hideDc ? ["dc-hidden"] : []),
+      ...dcViewKeyParts({ hideDc, onlyDc }),
     ],
     queryFn: async () => {
       if (!currentOrganization?.id) return { totalReturns: 0, totalValue: 0, totalQty: 0 };
 
       // DC (No GST) hidden: all-DC returns left out, DC share of mixed returns taken off the tiles.
-      const dcSplit = hideDc
+      // DC User: only returns with a DC line, only their DC share on the tiles.
+      const dcSplit = hideDc || onlyDc
         ? await fetchDcReturnSplit(supabase, currentOrganization.id, fromDate, toDate)
         : null;
-      const dcNotIn = dcSplit ? dcReturnNotInList(dcSplit) : null;
+      const dcNotIn = dcSplit && hideDc ? dcReturnNotInList(dcSplit) : null;
+      const keepShare = (id: string) => {
+        if (onlyDc) return dcSplit?.allDc.has(id) ? 1 : dcSplit?.dcShare.get(id) ?? 0;
+        return 1 - (dcSplit?.dcShare.get(id) ?? 0);
+      };
 
       const applySummaryFilters = (base: any) => {
-        let q = base
+        let q = filterSaleReturnsToDcLines(base, { onlyDc })
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null);
         if (fromDate) q = q.gte("return_date", fromDate);
@@ -745,7 +764,7 @@ export default function SaleReturnDashboard() {
         let offset = 0;
         while (true) {
           const { data, error } = await applySummaryFilters(
-            supabase.from("sale_returns").select("id"),
+            supabase.from("sale_returns").select(saleReturnsSelectForDcView("id", { onlyDc })),
           ).range(offset, offset + PAGE - 1);
           if (error) throw error;
           if (!data?.length) break;
@@ -819,7 +838,7 @@ export default function SaleReturnDashboard() {
       };
 
       const { count, error: countError } = await withSearch(
-        supabase.from("sale_returns").select("id", { count: "exact", head: true }),
+        supabase.from("sale_returns").select(saleReturnsSelectForDcView("id", { onlyDc }), { count: "exact", head: true }),
       );
       if (countError) throw countError;
 
@@ -831,12 +850,14 @@ export default function SaleReturnDashboard() {
       let offset = 0;
       while (true) {
         const { data: pageRows, error: pageError } = await withSearch(
-          supabase.from("sale_returns").select("id, net_amount, gross_amount, gst_amount"),
+          supabase
+            .from("sale_returns")
+            .select(saleReturnsSelectForDcView("id, net_amount, gross_amount, gst_amount", { onlyDc })),
         ).range(offset, offset + PAGE - 1);
         if (pageError) throw pageError;
         if (!pageRows?.length) break;
         for (const row of pageRows) {
-          const keep = 1 - (dcSplit?.dcShare.get(row.id) ?? 0);
+          const keep = keepShare(row.id);
           totalValue += Number(row.net_amount || 0) * keep;
           totalGross += Number(row.gross_amount || 0) * keep;
           totalGst += Number(row.gst_amount || 0) * keep;
@@ -853,7 +874,7 @@ export default function SaleReturnDashboard() {
           .from("sale_return_items")
           .select("quantity")
           .in("return_id", batch);
-        if (hideDc) itemsQuery = itemsQuery.not("is_dc_item", "is", true);
+        itemsQuery = filterSaleLinesForDcView(itemsQuery, { hideDc, onlyDc });
         const { data: items } = await itemsQuery;
         totalQty += (items || []).reduce(
           (sum: number, item: any) => sum + Number(item.quantity || 0),
