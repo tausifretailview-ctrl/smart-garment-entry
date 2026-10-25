@@ -44,6 +44,7 @@ import { AppBootSplash } from "@/components/AppBootSplash";
 import { isAppBootRoute } from "@/lib/appBootSplash";
 import { isEntryFullscreenPath } from "@/lib/entryPageLayout";
 import { AppUpdatePrompt } from "@/components/AppUpdatePrompt";
+import { ClockSkewWarning } from "@/components/ClockSkewWarning";
 import { NavigationPerfPanel } from "@/components/NavigationPerfPanel";
 import { ElectronOAuthRecovery } from "@/components/ElectronOAuthRecovery";
 import { DesktopHintBar } from "@/components/desktop/DesktopHintBar";
@@ -494,6 +495,7 @@ const App = () => {
         <AuthProvider>
           <OrganizationProvider>
             <AppUpdatePrompt />
+            <ClockSkewWarning />
             <OwnerPushBridge />
             <WindowTabsProvider>
             <Suspense fallback={<LazyFallback />}>

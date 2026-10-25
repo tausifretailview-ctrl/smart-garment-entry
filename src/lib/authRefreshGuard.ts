@@ -17,6 +17,8 @@
  * search_invoice_sale_ids"), until the browser data was cleared.
  */
 
+import { CLOCK_SKEW_TOLERANCE_SEC, reportClockSkew } from "@/lib/clockSkew";
+
 export const PROACTIVE_REFRESH_WITHIN_SEC = 120;
 
 const LATEST_REFRESH_KEY = "ezzy-auth-refresh-latest";
@@ -50,6 +52,61 @@ export function isAuthTokenRefreshUrl(url: string): boolean {
   } catch {
     return url.includes("/token") && url.includes("grant_type=refresh_token");
   }
+}
+
+/** Any auth token grant (password login, refresh, PKCE) — its response carries expires_at. */
+export function isAuthTokenGrantUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url, "https://placeholder.local");
+    return parsed.pathname.endsWith("/auth/v1/token") && parsed.searchParams.has("grant_type");
+  } catch {
+    return url.includes("/auth/v1/token") && url.includes("grant_type=");
+  }
+}
+
+/**
+ * The server sends expires_at in its own clock. On a PC whose clock or time zone is
+ * wrong (PAYAL SHOES after a Windows reinstall) a fresh token then looks expired
+ * at once, and supabase-js refreshes on every call until the auth server answers
+ * 429. Measure the skew from the token's issue time and, when it is beyond
+ * tolerance, restate expires_at on this PC's clock so the token lives its real hour.
+ */
+export function alignTokenBodyToLocalClock(
+  body: AuthTokenBody,
+  localNowSec = Math.floor(Date.now() / 1000),
+): { body: AuthTokenBody; skewSec: number | null } {
+  if (typeof body.expires_at !== "number" || typeof body.expires_in !== "number" || body.expires_in <= 0) {
+    return { body, skewSec: null };
+  }
+  const skewSec = localNowSec - (body.expires_at - body.expires_in);
+  if (Math.abs(skewSec) <= CLOCK_SKEW_TOLERANCE_SEC) return { body, skewSec };
+  return { body: { ...body, expires_at: localNowSec + body.expires_in }, skewSec };
+}
+
+/** Rebuild a token response with expires_at on this PC's clock (unchanged when the clock is fine). */
+async function alignTokenResponse(response: Response): Promise<{ response: Response; body: AuthTokenBody | null }> {
+  if (!response.ok) return { response, body: null };
+  let body: AuthTokenBody | null = null;
+  try {
+    body = parseAuthTokenBody(await response.clone().text());
+  } catch {
+    return { response, body: null };
+  }
+  if (!body) return { response, body: null };
+  const aligned = alignTokenBodyToLocalClock(body);
+  if (aligned.skewSec !== null) reportClockSkew(aligned.skewSec);
+  if (aligned.body === body) return { response, body };
+  const headers = new Headers(response.headers);
+  headers.delete("content-length");
+  headers.delete("content-encoding");
+  return {
+    response: new Response(JSON.stringify(aligned.body), {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    }),
+    body: aligned.body,
+  };
 }
 
 export function readRequestRefreshToken(body: BodyInit | null | undefined): string | undefined {
@@ -208,8 +265,12 @@ export function installAuthRefreshGuard(): void {
 
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const url = requestUrl(input);
-    if (requestMethod(input, init) !== "POST" || !isAuthTokenRefreshUrl(url)) {
+    if (requestMethod(input, init) !== "POST" || !isAuthTokenGrantUrl(url)) {
       return original(input, init);
+    }
+    if (!isAuthTokenRefreshUrl(url)) {
+      // Password / PKCE login: only fix expires_at for a wrong PC clock.
+      return original(input, init).then(async (response) => (await alignTokenResponse(response)).response);
     }
 
     return withRefreshLock(async () => {
@@ -222,15 +283,9 @@ export function installAuthRefreshGuard(): void {
         });
       }
 
-      const response = await fetchWithAuthRateLimitRetry(() => original(input, init));
-      if (response.ok) {
-        try {
-          const body = parseAuthTokenBody(await response.clone().text());
-          if (body) writeLatest({ ...body, rotated_from: requestToken });
-        } catch {
-          // keep the original response either way
-        }
-      }
+      const fetched = await fetchWithAuthRateLimitRetry(() => original(input, init));
+      const { response, body } = await alignTokenResponse(fetched);
+      if (body) writeLatest({ ...body, rotated_from: requestToken });
       return response;
     });
   };

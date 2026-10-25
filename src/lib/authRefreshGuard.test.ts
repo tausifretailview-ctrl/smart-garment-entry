@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  alignTokenBodyToLocalClock,
   decideAuthRefresh,
+  isAuthTokenGrantUrl,
   fetchWithAuthRateLimitRetry,
   isAuthRateLimitError,
   isAuthTokenRefreshUrl,
@@ -121,5 +123,34 @@ describe("auth refresh guard", () => {
       JSON.stringify({ access_token: "a", refresh_token: "r", expires_at: 2_000 }),
     );
     expect(tokenBodyForClient(parsed!, 1_000).expires_in).toBe(1_000);
+  });
+
+  it("recognises every auth token grant, not other token URLs", () => {
+    expect(isAuthTokenGrantUrl("https://x.supabase.co/auth/v1/token?grant_type=password")).toBe(true);
+    expect(isAuthTokenGrantUrl("https://x.supabase.co/auth/v1/token?grant_type=refresh_token")).toBe(true);
+    expect(isAuthTokenGrantUrl("https://x.supabase.co/functions/v1/token")).toBe(false);
+  });
+
+  it("keeps expires_at when the PC clock matches the server", () => {
+    const body = { access_token: "a", refresh_token: "r", expires_in: 3600, expires_at: 1_800_003_600 };
+    const out = alignTokenBodyToLocalClock(body, 1_800_000_030);
+    expect(out.body).toBe(body);
+    expect(out.skewSec).toBe(30);
+  });
+
+  it("restates expires_at on a PC clock that is hours ahead (wrong time zone)", () => {
+    const body = { access_token: "a", refresh_token: "r", expires_in: 3600, expires_at: 1_800_003_600 };
+    const localNow = 1_800_000_000 + 13.5 * 3600;
+    const out = alignTokenBodyToLocalClock(body, localNow);
+    expect(out.skewSec).toBe(13.5 * 3600);
+    // A fresh token must look one hour from expiry on this PC, not already expired.
+    expect(out.body.expires_at).toBe(localNow + 3600);
+    expect(out.body.access_token).toBe("a");
+  });
+
+  it("restates expires_at on a PC clock that is behind", () => {
+    const body = { access_token: "a", refresh_token: "r", expires_in: 3600, expires_at: 1_800_003_600 };
+    const out = alignTokenBodyToLocalClock(body, 1_800_000_000 - 2 * 86_400);
+    expect(out.body.expires_at).toBe(1_800_000_000 - 2 * 86_400 + 3600);
   });
 });
