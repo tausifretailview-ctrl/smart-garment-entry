@@ -53,10 +53,10 @@ describe("dcVisibility", () => {
     expect(shouldHideDc("hide", true)).toBe(false);
   });
 
-  it("lets anyone hide in Show mode, only admins show in Hide mode", () => {
+  it("lets anyone hide in Show mode, only admins and managers show in Hide mode", () => {
     expect(canFlipDcVisibility("show", "user")).toBe(true);
     expect(canFlipDcVisibility("hide", "user")).toBe(false);
-    expect(canFlipDcVisibility("hide", "manager")).toBe(false);
+    expect(canFlipDcVisibility("hide", "manager")).toBe(true);
     expect(canFlipDcVisibility("hide", "admin")).toBe(true);
   });
 

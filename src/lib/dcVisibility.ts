@@ -3,7 +3,7 @@
  *
  * Settings > Purchase sets the shop's mode:
  *   "show" (default) — DC purchases, stock and sales appear like normal; Ctrl+Shift+H hides them.
- *   "hide"           — DC is hidden everywhere; Ctrl+Shift+H shows it (org admins only).
+ *   "hide"           — DC is hidden everywhere; Ctrl+Shift+H shows it (org admins and managers).
  *
  * User Rights "Always show DC transactions" (opt-in, per login) makes Hide mode act like Show
  * mode for that login: DC appears like normal and Ctrl+Shift+H hides it.
@@ -39,12 +39,12 @@ export function shouldHideDc(mode: DcVisibilityMode, flipped: boolean): boolean 
   return (mode === "hide") !== flipped;
 }
 
-/** Show mode: anyone may hide. Hide mode: only org admins may show. */
+/** Show mode: anyone may hide. Hide mode: only org admins and managers may show. */
 export function canFlipDcVisibility(
   mode: DcVisibilityMode,
   organizationRole: string | null | undefined,
 ): boolean {
-  return mode === "show" || organizationRole === "admin";
+  return mode === "show" || organizationRole === "admin" || organizationRole === "manager";
 }
 
 export function dcVisibilityStorageKey(userId: string, orgId: string): string {
