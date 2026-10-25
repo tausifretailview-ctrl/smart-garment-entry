@@ -6,7 +6,8 @@ import { format, subDays, startOfDay } from "date-fns";
 import { DASHBOARD_MANUAL_REFRESH_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { fetchDashboardPurchaseSummary } from "@/utils/dashboardSummaryRpcs";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
-import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
+import { filterPurchasesForDcView, filterSalesForDcView, filterVariantsForDcView, salesSelectForDcView } from "@/utils/dcView";
+import { saleRowsForDcView } from "@/utils/dcSaleShare";
 import { localDayBounds } from "@/lib/localDayBounds";
 
 type StatsChartsSectionProps = {
@@ -16,12 +17,12 @@ type StatsChartsSectionProps = {
 
 export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionProps) => {
   const { currentOrganization } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const chartsEnabled = loadEnabled && !!currentOrganization?.id;
 
   // Last 7 days sales — server-side daily summary (replaces unbounded sales row fetch)
   const { data: salesData } = useQuery({
-    queryKey: ["sales-trend", currentOrganization?.id, hideDc],
+    queryKey: ["sales-trend", currentOrganization?.id, hideDc, onlyDc],
     queryFn: async () => {
       if (!currentOrganization) return [];
 
@@ -35,20 +36,22 @@ export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionPr
       });
 
       let amountByDay: Map<string, number>;
-      if (hideDc) {
+      if (hideDc || onlyDc) {
         // DC hidden: 7 days of bills, all-DC bills out, DC share of mixed bills out.
+        // DC User: bills with a DC line, only their DC share.
         const { startIso, endIso } = localDayBounds(last7Days[0].key, last7Days[6].key);
-        const { data, error } = await supabase
+        let trendQuery = supabase
           .from("sales")
-          .select("id, net_amount, sale_date")
+          .select(salesSelectForDcView("id, net_amount, sale_date", { onlyDc }))
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
           .eq("is_cancelled", false)
-          .eq("is_dc_bill", false)
           .gte("sale_date", startIso)
           .lte("sale_date", endIso);
+        trendQuery = filterSalesForDcView(trendQuery, { hideDc, onlyDc });
+        const { data, error } = await trendQuery;
         if (error) throw error;
-        const rows = await saleRowsWithoutDc(supabase, data || []);
+        const rows = await saleRowsForDcView(supabase, data || [], { hideDc, onlyDc });
         amountByDay = new Map();
         for (const row of rows) {
           const key = format(new Date(row.sale_date), "yyyy-MM-dd");
@@ -80,7 +83,7 @@ export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionPr
 
   // Last 7 days purchase — org-scoped RPC (same aggregates as v_dashboard_purchase_summary)
   const { data: purchaseData } = useQuery({
-    queryKey: ["purchase-trend", currentOrganization?.id, hideDc],
+    queryKey: ["purchase-trend", currentOrganization?.id, hideDc, onlyDc],
     queryFn: async () => {
       if (!currentOrganization) return [];
       
@@ -94,16 +97,17 @@ export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionPr
 
       const fromDay = format(last7Days[0].date, "yyyy-MM-dd");
       let data: Array<{ purchase_day: string; total_purchase_amount: number | null }>;
-      if (hideDc) {
-        // DC hidden: DC purchase bills left out.
-        const { data: bills, error } = await supabase
-          .from("purchase_bills")
-          .select("bill_date, net_amount")
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .or("is_cancelled.is.null,is_cancelled.eq.false")
-          .or("is_dc_purchase.is.null,is_dc_purchase.eq.false")
-          .gte("bill_date", fromDay);
+      if (hideDc || onlyDc) {
+        // DC hidden: DC purchase bills left out (DC User: only DC purchase bills).
+        const { data: bills, error } = await filterPurchasesForDcView(
+          supabase
+            .from("purchase_bills")
+            .select("bill_date, net_amount")
+            .eq("organization_id", currentOrganization.id)
+            .is("deleted_at", null)
+            .or("is_cancelled.is.null,is_cancelled.eq.false"),
+          { hideDc, onlyDc },
+        ).gte("bill_date", fromDay);
         if (error) throw error;
         data = (bills || []).map((b) => ({ purchase_day: b.bill_date, total_purchase_amount: b.net_amount }));
       } else {
@@ -129,7 +133,7 @@ export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionPr
 
   // Fetch top 5 products by stock value
   const { data: topProductsData } = useQuery({
-    queryKey: ["top-products", currentOrganization?.id, hideDc],
+    queryKey: ["top-products", currentOrganization?.id, hideDc, onlyDc],
     queryFn: async () => {
       if (!currentOrganization) return [];
       
@@ -140,7 +144,7 @@ export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionPr
         .eq("products.organization_id", currentOrganization.id)
         .eq("active", true)
         .neq("products.product_type", "service");
-      if (hideDc) query = query.not("is_dc_product", "is", true);
+      query = filterVariantsForDcView(query, { hideDc, onlyDc });
       const { data, error } = await query.order("stock_qty", { ascending: false }).limit(5);
 
       if (error) throw error;

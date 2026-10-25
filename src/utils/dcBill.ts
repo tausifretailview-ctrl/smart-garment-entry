@@ -30,3 +30,14 @@ export function isMissingDcHideSql(error: unknown): boolean {
     /dc_hide_mode_ready/i.test(String(e.message || ""))
   );
 }
+
+/** True when the DC User SQL (25 Oct 2026) is not on the database yet (marker function missing). */
+export function isMissingDcOnlySql(error: unknown): boolean {
+  const e = error as { code?: string; message?: string } | null;
+  if (!e) return false;
+  return (
+    e.code === "PGRST202" ||
+    e.code === "42883" ||
+    /dc_only_mode_ready/i.test(String(e.message || ""))
+  );
+}

@@ -8,6 +8,11 @@
  * User Rights "Always show DC transactions" (opt-in, per login) makes Hide mode act like Show
  * mode for that login: DC appears like normal and Ctrl+Shift+H hides it.
  *
+ * A DC User login (User Rights "DC only", set by the "DC User" role in Create New User) sees
+ * only DC: DC purchases, DC stock, the DC lines of sales and DC returns. GST bills are left out
+ * and Ctrl+Shift+H does nothing for it. The database applies the same rule to its totals
+ * (public.dc_only_user, 25 Oct 2026 SQL).
+ *
  * Ctrl+Shift+H flips the mode for this browser tab only (sessionStorage, per user + org).
  * The flip goes back to the shop's mode after 15 minutes without a key press or tap.
  * Prints always show every item: this only filters lists, dashboards and reports.
@@ -28,6 +33,9 @@ export function resolveDcVisibilityMode(
 
 /** User Rights special right: this login always sees DC, even in a Hide DC shop. */
 export const ALWAYS_SHOW_DC_RIGHT = "always_show_dc";
+
+/** User Rights special right: this login is a DC User and sees only DC (opt-in, per login). */
+export const DC_ONLY_RIGHT = "dc_only";
 
 /** The mode this login works in: the shop's mode, or Show for an "Always show DC" login. */
 export function effectiveDcVisibilityMode(shopMode: DcVisibilityMode, alwaysShowDc: boolean): DcVisibilityMode {

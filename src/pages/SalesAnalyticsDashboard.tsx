@@ -4,7 +4,8 @@ import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
-import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
+import { filterSalesForDcView, saleLineInDcView, salesSelectForDcView } from "@/utils/dcView";
+import { saleRowsForDcView } from "@/utils/dcSaleShare";
 import { fetchAllSaleItems } from "@/utils/fetchAllRows";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,7 +53,7 @@ const CHART_ANIM = {
 
 export default function SalesAnalyticsDashboard() {
   const { currentOrganization } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const reduceMotion = usePrefersReducedMotion();
   const chartAnim = { ...CHART_ANIM, isAnimationActive: !reduceMotion };
   const [searchParams] = useSearchParams();
@@ -149,7 +150,7 @@ export default function SalesAnalyticsDashboard() {
 
   // Fetch sales data
   const { data: salesData, isLoading: salesLoading } = useQuery({
-    queryKey: ["sales-analytics", currentOrganization?.id, rangeStartYmd, rangeEndYmd, hideDc],
+    queryKey: ["sales-analytics", currentOrganization?.id, rangeStartYmd, rangeEndYmd, hideDc, onlyDc],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       let query = supabase
@@ -164,7 +165,7 @@ export default function SalesAnalyticsDashboard() {
       if (hideDc) query = query.eq("is_dc_bill", false);
       const { data, error } = await query.order("sale_date", { ascending: true });
       if (error) throw error;
-      return hideDc ? saleRowsWithoutDc(supabase, data || []) : data || [];
+      return saleRowsForDcView(supabase, data || [], { hideDc, onlyDc });
     },
     enabled: !!currentOrganization?.id,
     staleTime: 60000,
@@ -173,12 +174,12 @@ export default function SalesAnalyticsDashboard() {
 
   // Fetch sale items for top products - use paginated fetch to bypass 1000 row limit
   const { data: saleItemsData } = useQuery({
-    queryKey: ["sale-items-analytics", currentOrganization?.id, rangeStartYmd, rangeEndYmd, hideDc],
+    queryKey: ["sale-items-analytics", currentOrganization?.id, rangeStartYmd, rangeEndYmd, hideDc, onlyDc],
     queryFn: async () => {
       if (!currentOrganization?.id || !salesData?.length) return [];
       const saleIds = salesData.map(s => s.id);
       const items = await fetchAllSaleItems(saleIds);
-      return hideDc ? items.filter((i) => i.is_dc_item !== true) : items;
+      return items.filter((i) => saleLineInDcView(i, { hideDc, onlyDc }));
     },
     enabled: !!currentOrganization?.id && !!salesData?.length,
     staleTime: 60000,
@@ -198,7 +199,7 @@ export default function SalesAnalyticsDashboard() {
   const prevRangeEndYmd = format(previousPeriodRange.end, "yyyy-MM-dd");
 
   const { data: previousSalesData } = useQuery({
-    queryKey: ["previous-sales-analytics", currentOrganization?.id, prevRangeStartYmd, prevRangeEndYmd, hideDc],
+    queryKey: ["previous-sales-analytics", currentOrganization?.id, prevRangeStartYmd, prevRangeEndYmd, hideDc, onlyDc],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       let query = supabase
@@ -212,7 +213,7 @@ export default function SalesAnalyticsDashboard() {
       if (hideDc) query = query.eq("is_dc_bill", false);
       const { data, error } = await query;
       if (error) throw error;
-      return hideDc ? saleRowsWithoutDc(supabase, data || []) : data || [];
+      return saleRowsForDcView(supabase, data || [], { hideDc, onlyDc });
     },
     enabled: !!currentOrganization?.id,
     staleTime: 60000,
@@ -221,19 +222,20 @@ export default function SalesAnalyticsDashboard() {
 
   // Fetch unique customers for the period
   const { data: customersData } = useQuery({
-    queryKey: ["customers-analytics", currentOrganization?.id, rangeStartYmd, rangeEndYmd, hideDc],
+    queryKey: ["customers-analytics", currentOrganization?.id, rangeStartYmd, rangeEndYmd, hideDc, onlyDc],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       let query = supabase
         .from("sales")
-        .select("customer_id, customer_name")
+        .select(salesSelectForDcView("customer_id, customer_name", { onlyDc }))
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .eq("is_cancelled", false)
         .gte("sale_date", rangeStartYmd)
         .lte("sale_date", `${rangeEndYmd}T23:59:59`)
         .not("customer_id", "is", null);
-      if (hideDc) query = query.eq("is_dc_bill", false);
+      // DC User: customers of bills with a DC line.
+      query = filterSalesForDcView(query, { hideDc, onlyDc });
       const { data, error } = await query;
       if (error) throw error;
       return data || [];

@@ -7,7 +7,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { ownerAlertsDb } from "@/lib/ownerPush";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
-import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
+import { saleRowsForDcView } from "@/utils/dcSaleShare";
 import { salesmanTotals, type SalesmanTotal } from "../../supabase/functions/_shared/ownerAlertSchedule";
 
 /**
@@ -74,7 +74,7 @@ interface DayReport {
   salesmen: SalesmanTotal[];
 }
 
-async function fetchDayReport(orgId: string, date: string, hideDc = false): Promise<DayReport> {
+async function fetchDayReport(orgId: string, date: string, hideDc = false, onlyDc = false): Promise<DayReport> {
   const { from, to } = istDayRange(date);
   let billsQuery = ownerAlertsDb
     .from("sales")
@@ -96,9 +96,10 @@ async function fetchDayReport(orgId: string, date: string, hideDc = false): Prom
     }),
     billsQuery.limit(5000),
   ]);
+  // DC User: the stats RPC keeps only DC itself; salesman rows keep only each bill's DC share.
   const bills =
-    hideDc && !fetchedBills.error
-      ? { error: null, data: await saleRowsWithoutDc(ownerAlertsDb, fetchedBills.data ?? []) }
+    (hideDc || onlyDc) && !fetchedBills.error
+      ? { error: null, data: await saleRowsForDcView(ownerAlertsDb, fetchedBills.data ?? [], { hideDc, onlyDc }) }
       : fetchedBills;
   if (stats.error) throw stats.error;
   const t = (stats.data ?? {}) as Record<string, number>;
@@ -124,14 +125,14 @@ export function OwnerAlertReport() {
   const location = useLocation();
   const close = useCloseAlertScreen();
   const orgId = currentOrganization?.id;
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const today = istToday();
   const raw = params.get("date") ?? "";
   const date = /^\d{4}-\d{2}-\d{2}$/.test(raw) && raw <= today ? raw : today;
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["owner-alert-report", orgId, date, hideDc],
-    queryFn: () => fetchDayReport(orgId!, date, hideDc),
+    queryKey: ["owner-alert-report", orgId, date, hideDc, onlyDc],
+    queryFn: () => fetchDayReport(orgId!, date, hideDc, onlyDc),
     enabled: !!orgId,
     staleTime: 30_000,
   });

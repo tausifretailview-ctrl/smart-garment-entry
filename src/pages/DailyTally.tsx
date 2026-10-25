@@ -86,7 +86,7 @@ const DEFAULT_DENOM_COUNTS: Record<number, number> = { 2000: 0, 500: 0, 200: 0, 
 // ─── Component ─────────────────────────────────────────────────────────
 const DailyTally = () => {
   const { currentOrganization } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const { user } = useAuth();
   const { isAdmin, isManager } = useUserRoles();
   const queryClient = useQueryClient();
@@ -132,9 +132,9 @@ const DailyTally = () => {
 
   // Sales (POS + Invoice) — static import
   const { data: salesData, isLoading: salesLoading, refetch: refetchSales } = useQuery({
-    queryKey: ["daily-tally-sales", orgId, dateStr, hideDc],
+    queryKey: ["daily-tally-sales", orgId, dateStr, hideDc, onlyDc],
     queryFn: async () => {
-      return fetchAllSalesWithFilters(orgId!, { startDate: startIso, endDate: endIso, hideDc });
+      return fetchAllSalesWithFilters(orgId!, { startDate: startIso, endDate: endIso, hideDc, onlyDc });
     },
     enabled: !!orgId,
     ...REPORT_CACHE,

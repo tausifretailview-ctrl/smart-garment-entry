@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationData } from "@/hooks/useOrganizationData";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
+import { dcViewKeyParts, filterVariantsForDcView } from "@/utils/dcView";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { Input } from "@/components/ui/input";
@@ -95,7 +96,7 @@ const BUCKET_BAR_COLORS: Record<string, string> = {
 
 export default function StockAgeingReport() {
   const { organizationId, isReady } = useOrganizationData();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const reduceMotion = usePrefersReducedMotion();
   const [search, setSearch] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("all");
@@ -140,7 +141,7 @@ export default function StockAgeingReport() {
   };
 
   const { data: rawData, isLoading } = useQuery({
-    queryKey: hideDc ? ["stock-ageing", organizationId, "dc-hidden"] : ["stock-ageing", organizationId],
+    queryKey: ["stock-ageing", organizationId, ...dcViewKeyParts({ hideDc, onlyDc })],
     queryFn: async () => {
       if (!organizationId) return [];
       let allRows: BatchRow[] = [];
@@ -161,7 +162,7 @@ export default function StockAgeingReport() {
           .order("purchase_date", { ascending: true })
           .range(from, from + 999);
         // DC (No GST) hidden: DC barcodes left out, like the stock reports.
-        if (hideDc) query = query.not("product_variants.is_dc_product", "is", true);
+        query = filterVariantsForDcView(query, { hideDc, onlyDc }, "product_variants.is_dc_product");
         const { data, error } = await query;
         if (error) throw error;
         if (data) allRows = allRows.concat(data as unknown as BatchRow[]);
@@ -290,7 +291,7 @@ export default function StockAgeingReport() {
 
   return (
     <div className="business-insights-workspace relative flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
-      <QuietRefreshBar queryKey={hideDc ? ["stock-ageing", organizationId, "dc-hidden"] : ["stock-ageing", organizationId]} />
+      <QuietRefreshBar queryKey={["stock-ageing", organizationId, ...dcViewKeyParts({ hideDc, onlyDc })]} />
       <div className={`${INSIGHTS_TAB_SHELL}`}>
         <div className="no-print flex flex-wrap items-center justify-between gap-2 shrink-0">
           <div className="flex flex-wrap items-center gap-2 min-w-0">

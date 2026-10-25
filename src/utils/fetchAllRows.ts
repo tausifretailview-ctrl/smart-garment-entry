@@ -2,7 +2,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { isCustomerReceiptVoucher } from "@/utils/paymentVoucherFilters";
 import { fetchItemsGrossBySaleId as fetchItemsGrossBySaleIdRpc } from "@/utils/fetchItemsGrossBySaleId";
 import { isMissingDcColumnError } from "@/utils/gstDcExclusion";
-import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
+import { saleRowsForDcView } from "@/utils/dcSaleShare";
+import { filterPurchasesForDcView, filterSalesForDcView, salesSelectForDcView } from "@/utils/dcView";
 
 const CUSTOMER_DIRECTORY_PAGE_SIZE = 1000;
 /** Pages requested at once after the first (big shops: 8 pages took 8 round trips in a row). */
@@ -1211,8 +1212,11 @@ export async function fetchAllSalesWithFilters(
     saleType?: string;
     /** DC (No GST) hidden: all-DC bills out, DC share of mixed bills out of the money columns. */
     hideDc?: boolean;
+    /** DC User: only bills with a DC line, and only their DC share in the money columns. */
+    onlyDc?: boolean;
   }
 ) {
+  const dcView = { hideDc: filters?.hideDc, onlyDc: filters?.onlyDc };
   const allRows: any[] = [];
   let offset = 0;
   const pageSize = 1000;
@@ -1221,7 +1225,12 @@ export async function fetchAllSalesWithFilters(
   while (hasMore) {
     let query = supabase
       .from("sales")
-      .select("id, sale_date, sale_number, customer_name, customer_id, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, cash_amount, card_amount, upi_amount, payment_method, payment_status, sale_type, refund_amount, sale_return_adjust, points_redeemed_amount, round_off")
+      .select(
+        salesSelectForDcView(
+          "id, sale_date, sale_number, customer_name, customer_id, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, cash_amount, card_amount, upi_amount, payment_method, payment_status, sale_type, refund_amount, sale_return_adjust, points_redeemed_amount, round_off",
+          dcView,
+        ),
+      )
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .eq("is_cancelled", false)
@@ -1240,9 +1249,7 @@ export async function fetchAllSalesWithFilters(
     if (filters?.saleType) {
       query = query.eq("sale_type", filters.saleType);
     }
-    if (filters?.hideDc) {
-      query = query.eq("is_dc_bill", false);
-    }
+    query = filterSalesForDcView(query, dcView);
 
     const { data, error } = await query;
 
@@ -1262,7 +1269,7 @@ export async function fetchAllSalesWithFilters(
     }
   }
 
-  return filters?.hideDc ? saleRowsWithoutDc(supabase, allRows) : allRows;
+  return saleRowsForDcView(supabase, allRows, dcView);
 }
 
 /**
@@ -1276,6 +1283,8 @@ export async function fetchAllPurchaseBillsWithFilters(
     supplierId?: string;
     /** DC (No GST) hidden: DC purchase bills left out. */
     hideDc?: boolean;
+    /** DC User: only DC purchase bills. */
+    onlyDc?: boolean;
   }
 ) {
   const allRows: any[] = [];
@@ -1301,9 +1310,7 @@ export async function fetchAllPurchaseBillsWithFilters(
     if (filters?.supplierId) {
       query = query.eq("supplier_id", filters.supplierId);
     }
-    if (filters?.hideDc) {
-      query = query.or("is_dc_purchase.is.null,is_dc_purchase.eq.false");
-    }
+    query = filterPurchasesForDcView(query, { hideDc: filters?.hideDc, onlyDc: filters?.onlyDc });
 
     const { data, error } = await query;
 

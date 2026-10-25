@@ -88,7 +88,7 @@ const PurchaseReturnDashboard = () => {
   const { orgNavigate: navigate } = useOrgNavigation();
   const location = useLocation();
   const { currentOrganization } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const queryClient = useQueryClient();
 
   const isDesktop = useIsDesktop();
@@ -254,8 +254,8 @@ const PurchaseReturnDashboard = () => {
     setCurrentPage(1);
   }, [startDate, endDate]);
 
-  // DC (No GST) hidden: only GST returns, whatever the DC filter says.
-  const effectiveDcFilter = hideDc ? "gst" : dcFilter;
+  // DC (No GST) hidden: only GST returns, whatever the DC filter says. DC User: only DC returns.
+  const effectiveDcFilter = onlyDc ? "dc" : hideDc ? "gst" : dcFilter;
 
   // Server-side paginated query
   const { data: returnsData, isLoading: returnsLoading, error: returnsError, refetch: refetchReturns } = useQuery({
@@ -961,7 +961,7 @@ const PurchaseReturnDashboard = () => {
             onChange={(e) => setEndDate(e.target.value)}
             className="w-[150px] h-10 text-base border-slate-200 bg-slate-50 hover:bg-white"
           />
-          {!hideDc && (
+          {!hideDc && !onlyDc && (
             <select
               value={dcFilter}
               onChange={(e) => setDcFilter(e.target.value as any)}

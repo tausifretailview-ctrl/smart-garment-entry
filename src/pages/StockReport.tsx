@@ -73,6 +73,7 @@ import {
 import { mergeActivityNavigationState } from "@/lib/activityCenterNavigation";
 import { escapeHtml } from "@/utils/escapeHtml";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
+import { filterVariantsForDcView } from "@/utils/dcView";
 import {
   buildStockReportFilterOptions,
   buildStockReportRpcFilters,
@@ -184,7 +185,7 @@ function stockItemMatchesSearch(item: StockItem, query: string): boolean {
 
 export default function StockReport() {
   const { currentOrganization } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const { orgNavigate } = useOrgNavigation();
   const queryClient = useQueryClient();
   const productFieldSettings = useProductFieldSettings();
@@ -408,7 +409,7 @@ export default function StockReport() {
 
   // Org-wide summary cards — single RPC aggregate, cached 5 min, non-blocking
   const { data: cachedGlobalTotals, isLoading: globalTotalsQueryLoading } = useQuery({
-    queryKey: ["stock-report-global-totals", currentOrganization?.id, hideDc],
+    queryKey: ["stock-report-global-totals", currentOrganization?.id, hideDc, onlyDc],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
 
@@ -888,6 +889,7 @@ export default function StockReport() {
         lowStockThreshold,
         activeTab,
         hideDc,
+        onlyDc,
         pinned: pinnedProducts
           .map((p) => p.id)
           .sort()
@@ -906,6 +908,7 @@ export default function StockReport() {
       lowStockThreshold,
       activeTab,
       hideDc,
+      onlyDc,
       pinnedProducts,
     ],
   );
@@ -930,11 +933,13 @@ export default function StockReport() {
         supplierFilter,
         supplierInvoiceFilter,
         hideDc,
+        onlyDc,
       };
     },
     [
       currentOrganization?.id,
       hideDc,
+      onlyDc,
       appliedSearchTerm,
       categoryFilter,
       brandFilter,
@@ -1446,17 +1451,21 @@ export default function StockReport() {
       let hasMore = true;
 
       while (hasMore) {
-        const { data, error } = await supabase
-          .from("product_variants")
-          .select(`
+        const { data, error } = await filterVariantsForDcView(
+          supabase
+            .from("product_variants")
+            .select(`
             id, size, color, stock_qty, opening_qty, sale_price, pur_price, mrp, barcode,
             products!inner (product_name, brand, category, style, product_type, deleted_at)
           `)
-          .eq("organization_id", currentOrganization.id)
-          .eq("active", true)
-          .is("deleted_at", null)
-          .is("products.deleted_at", null)
-          .neq("products.product_type", "service")
+            .eq("organization_id", currentOrganization.id)
+            .eq("active", true)
+            .is("deleted_at", null)
+            .is("products.deleted_at", null)
+            .neq("products.product_type", "service"),
+          // DC (No GST) out of the export too (DC User: only DC barcodes).
+          { hideDc, onlyDc },
+        )
           .order("stock_qty", { ascending: true })
           .range(offset, offset + PAGE_SIZE - 1);
 

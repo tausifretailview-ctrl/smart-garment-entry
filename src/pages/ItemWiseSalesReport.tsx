@@ -4,6 +4,7 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
+import { saleLineInDcView } from "@/utils/dcView";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useProductFieldSettings } from "@/hooks/useSettings";
 import { fetchAllSaleItems } from "@/utils/fetchAllRows";
@@ -152,7 +153,7 @@ const ITEM_WISE_KPI_EXPANDED_KEY = (userId: string) => `item-wise-sales-kpi-expa
 
 export default function ItemWiseSalesReport() {
   const { currentOrganization } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const { user, session } = useAuth();
   const { orgNavigate } = useOrgNavigation();
   const productFieldSettings = useProductFieldSettings();
@@ -492,7 +493,7 @@ export default function ItemWiseSalesReport() {
 
   // Fetch sale items with product details
   const { data: saleItems = [], isLoading, isFetching, isError } = useQuery({
-    queryKey: ["item-wise-sales", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer, selectedUser, hideDc],
+    queryKey: ["item-wise-sales", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer, selectedUser, hideDc, onlyDc],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
@@ -553,8 +554,8 @@ export default function ItemWiseSalesReport() {
 
       // Use paginated fetch to bypass 1000 row limit
       const fetchedItems = await fetchAllSaleItems(saleIds);
-      // DC (No GST) hidden: DC lines are left out of every tab and total.
-      const saleItemsData = hideDc ? (fetchedItems || []).filter((i: any) => i.is_dc_item !== true) : fetchedItems;
+      // DC (No GST) hidden: DC lines are left out of every tab and total (DC User: only DC lines).
+      const saleItemsData = (fetchedItems || []).filter((i: any) => saleLineInDcView(i, { hideDc, onlyDc }));
       if (!saleItemsData || saleItemsData.length === 0) return [];
 
       // Get unique product IDs and fetch product details - use batched fetch to bypass 1000 limit
@@ -858,7 +859,7 @@ export default function ItemWiseSalesReport() {
     isError: supplierLookupError,
     isPlaceholderData: supplierLookupStale,
   } = useQuery({
-    queryKey: ["item-wise-sales-suppliers", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer, selectedUser, saleItems.length, hideDc],
+    queryKey: ["item-wise-sales-suppliers", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer, selectedUser, saleItems.length, hideDc, onlyDc],
     queryFn: () => fetchSaleItemSuppliers(saleItems, currentOrganization!.id),
     enabled: !!currentOrganization?.id && activeTab === "supplierwise" && !isFetching && saleItems.length > 0,
     ...REPORT_CACHE,
@@ -933,8 +934,8 @@ export default function ItemWiseSalesReport() {
       if (error) throw error;
       return data as { total_qty?: number; total_amount?: number; unique_products?: number; avg_price?: number };
     },
-    // The summary RPC does not know DC; totals come from the loaded lines while hidden.
-    enabled: !!currentOrganization?.id && !dateRangeTooWide && !hideDc,
+    // The summary RPC does not know DC; totals come from the loaded lines while hidden / DC User.
+    enabled: !!currentOrganization?.id && !dateRangeTooWide && !hideDc && !onlyDc,
     ...REPORT_CACHE,
   });
 
@@ -1028,7 +1029,7 @@ export default function ItemWiseSalesReport() {
 
   const summary = useMemo(() => {
     const clientSource = hasClientFilters ? filteredData : aggregatedData;
-    if (hasClientFilters || dateRangeTooWide || hideDc) {
+    if (hasClientFilters || dateRangeTooWide || hideDc || onlyDc) {
       const totalQty = clientSource.reduce((sum, item) => sum + item.total_qty, 0);
       const totalAmount = clientSource.reduce((sum, item) => sum + item.total_amount, 0);
       const uniqueProducts = clientSource.length;
@@ -1041,7 +1042,7 @@ export default function ItemWiseSalesReport() {
       uniqueProducts: rpcSummary?.unique_products ?? 0,
       avgPrice: rpcSummary?.avg_price ?? 0,
     };
-  }, [rpcSummary, filteredData, aggregatedData, hasClientFilters, dateRangeTooWide, hideDc]);
+  }, [rpcSummary, filteredData, aggregatedData, hasClientFilters, dateRangeTooWide, hideDc, onlyDc]);
 
   // Export to Excel
   const exportToExcel = async () => {

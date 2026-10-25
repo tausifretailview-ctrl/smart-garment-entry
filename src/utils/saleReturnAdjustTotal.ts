@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { localDayBounds } from "@/lib/localDayBounds";
-import { saleRowsWithoutDc } from "@/utils/dcSaleShare";
+import { saleRowsForDcView } from "@/utils/dcSaleShare";
+import { asDcView, type DcViewFlags } from "@/utils/dcView";
 
 const PAGE_SIZE = 1000;
 
@@ -13,8 +14,9 @@ export async function fetchSaleReturnAdjustTotal(
   orgId: string,
   startYmd: string,
   endYmd: string,
-  hideDc = false,
+  dc: boolean | DcViewFlags = false,
 ): Promise<number> {
+  const view = asDcView(dc);
   const { startIso, endIso } = localDayBounds(startYmd, endYmd);
   let total = 0;
   for (let from = 0; ; from += PAGE_SIZE) {
@@ -27,12 +29,12 @@ export async function fetchSaleReturnAdjustTotal(
       .gt("sale_return_adjust", 0)
       .gte("sale_date", startIso)
       .lte("sale_date", endIso);
-    // DC hidden: same bills and shares as the DC-hidden dashboard total.
-    if (hideDc) query = query.eq("is_dc_bill", false);
+    // DC hidden / DC User: same bills and shares as the dashboard total.
+    if (view.hideDc) query = query.eq("is_dc_bill", false);
     const { data, error } = await query.order("id").range(from, from + PAGE_SIZE - 1);
     if (error) throw error;
     const rows = data ?? [];
-    const counted = hideDc ? await saleRowsWithoutDc(supabase, rows) : rows;
+    const counted = await saleRowsForDcView(supabase, rows, view);
     for (const r of counted) total += Number(r.sale_return_adjust) || 0;
     if (rows.length < PAGE_SIZE) break;
   }
@@ -48,17 +50,19 @@ export async function fetchErpDashboardStatsAfterSr<T extends { total_sales: num
   orgId: string,
   startYmd: string,
   endYmd: string,
-  hideDc = false,
+  dc: boolean | DcViewFlags = false,
 ): Promise<T | null> {
+  const view = asDcView(dc);
   const [{ data, error }, srAdjust] = await Promise.all([
     supabase.rpc("get_erp_dashboard_stats", {
       p_org_id: orgId,
       p_start_date: startYmd,
       p_end_date: endYmd,
       // DC (No GST) out of the tiles; sent only when hiding, so old databases keep working.
-      ...(hideDc ? { p_hide_dc: true } : {}),
+      // A DC User gets only DC from the database itself (dc_only_user).
+      ...(view.hideDc ? { p_hide_dc: true } : {}),
     }),
-    fetchSaleReturnAdjustTotal(orgId, startYmd, endYmd, hideDc).catch(() => 0),
+    fetchSaleReturnAdjustTotal(orgId, startYmd, endYmd, view).catch(() => 0),
   ]);
   if (error) throw error;
   const stats = data as unknown as T | null;

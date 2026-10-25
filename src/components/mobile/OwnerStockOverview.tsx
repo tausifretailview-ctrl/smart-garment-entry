@@ -55,7 +55,7 @@ const BASE_ITEM_FILTERS: Omit<ItemWiseStockFilters, "searchQuery" | "barcodeFilt
 
 export const OwnerStockOverview = ({ onViewProduct }: Props) => {
   const { currentOrganization } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const dcArg = hideDc ? { hideDc: true } : {};
   const { openScan } = useMobileScan();
   const [search, setSearch] = useState("");
@@ -84,14 +84,14 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
   const listStale = debouncedSearch.trim() ? STALE_LIVE : STALE_PAGINATED;
 
   const { data: webTotals, isLoading: totalsLoading } = useQuery({
-    queryKey: ["stock-report-global-totals", orgId, hideDc],
+    queryKey: ["stock-report-global-totals", orgId, hideDc, onlyDc],
     queryFn: () => fetchWebStockReportTotals(orgId!, hideDc),
     enabled: !!orgId,
     staleTime: STALE_FREQUENT,
   });
 
   const { data: productTotals } = useQuery({
-    queryKey: ["owner-stock-product-totals", orgId, hideDc],
+    queryKey: ["owner-stock-product-totals", orgId, hideDc, onlyDc],
     queryFn: () =>
       fetchItemWiseStockTotals(orgId!, {
         ...BASE_ITEM_FILTERS,
@@ -105,7 +105,7 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
   });
 
   const { data: statusCounts } = useQuery({
-    queryKey: ["owner-stock-status-counts", orgId, hideDc],
+    queryKey: ["owner-stock-status-counts", orgId, hideDc, onlyDc],
     queryFn: () => fetchStockReportStatusVariantCounts(orgId!, undefined, hideDc),
     enabled: !!orgId,
     staleTime: STALE_FREQUENT,
@@ -118,7 +118,7 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
     fetchNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ["owner-stock-product-pages", orgId, debouncedSearch, stockFilter, hideDc],
+    queryKey: ["owner-stock-product-pages", orgId, debouncedSearch, stockFilter, hideDc, onlyDc],
     queryFn: ({ pageParam }) => fetchItemWiseStockPage(orgId!, listFilters, pageParam, PAGE_SIZE),
     initialPageParam: 1,
     getNextPageParam: (lastPage, pages) => {

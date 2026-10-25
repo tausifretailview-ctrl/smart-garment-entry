@@ -61,6 +61,7 @@ import { ProductImageUploader } from "@/components/ProductImageUploader";
 import { MergeProductsDialog } from "@/components/MergeProductsDialog";
 import { useSettings, useProductFieldSettings } from "@/hooks/useSettings";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
+import { dcViewKey, filterVariantsForDcView } from "@/utils/dcView";
 import { isMissingDcHideSql } from "@/utils/dcBill";
 import {
   catalogSearchIlikeTerm,
@@ -184,7 +185,8 @@ const ProductDashboard = () => {
   const { toast } = useToast();
   const { navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
+  const dcView = useMemo(() => ({ hideDc, onlyDc }), [hideDc, onlyDc]);
   const { hasSpecialPermission } = useUserPermissions();
   const canDelete = hasSpecialPermission('delete_records');
   const { data: orgSettings } = useSettings();
@@ -604,8 +606,8 @@ const ProductDashboard = () => {
         .eq("organization_id", currentOrganization.id)
         .eq("product_id", productId)
         .is("deleted_at", null);
-      // DC (No GST) hidden: DC barcodes left out of the expanded sizes.
-      if (hideDc) variantsQuery = variantsQuery.not("is_dc_product", "is", true);
+      // DC (No GST) hidden: DC barcodes left out of the expanded sizes (DC User: only DC).
+      variantsQuery = filterVariantsForDcView(variantsQuery, dcView);
       const { data, error } = await variantsQuery.order("size");
 
       const variants: ProductVariant[] = error
@@ -632,16 +634,17 @@ const ProductDashboard = () => {
         return next;
       });
     }
-  }, [currentOrganization?.id, hideDc]);
+  }, [currentOrganization?.id, dcView]);
 
   // Ctrl+Shift+H flips DC show / hide: expanded sizes are loaded again.
-  const lastHideDc = useRef(hideDc);
+  const dcKey = dcViewKey(dcView);
+  const lastDcKey = useRef(dcKey);
   useEffect(() => {
-    if (lastHideDc.current === hideDc) return;
-    lastHideDc.current = hideDc;
+    if (lastDcKey.current === dcKey) return;
+    lastDcKey.current = dcKey;
     variantCacheRef.current = {};
     setVariantCache({});
-  }, [hideDc]);
+  }, [dcKey]);
 
   const rpcFilterKey = useMemo(
     () => ({
@@ -653,6 +656,7 @@ const ProductDashboard = () => {
       minPrice,
       maxPrice,
       ...(hideDc ? { hideDc: true } : {}),
+      ...(onlyDc ? { onlyDc: true } : {}),
     }),
     [
       debouncedSearch,
@@ -663,6 +667,7 @@ const ProductDashboard = () => {
       minPrice,
       maxPrice,
       hideDc,
+      onlyDc,
     ],
   );
 
@@ -774,11 +779,11 @@ const ProductDashboard = () => {
       // milliseconds, while the catalog RPC scans every product's barcodes with
       // ilike (seconds on big catalogs). On an exact hit, show just that product.
       const exactBarcodeIds = barcodeLike && !minPrice && !maxPrice
-        ? await fetchProductIdsByExactBarcode(currentOrganization.id, searchTerm, hideDc)
+        ? await fetchProductIdsByExactBarcode(currentOrganization.id, searchTerm, dcView)
         : [];
       if (exactBarcodeIds.length > 0) {
         const exactRows = (
-          await fetchCatalogRowsForProductIds(currentOrganization.id, exactBarcodeIds, hideDc)
+          await fetchCatalogRowsForProductIds(currentOrganization.id, exactBarcodeIds, dcView)
         ).filter(catalogRowPassesFilters);
         return {
           rows: exactRows.map((row) => ({ ...row, variants: [] })),
@@ -828,7 +833,7 @@ const ProductDashboard = () => {
         const supplemental = await fetchCatalogRowsForProductIds(
           currentOrganization.id,
           missingIds,
-          hideDc,
+          dcView,
         );
         for (const row of supplemental.filter(catalogRowPassesFilters)) {
           rows.push({
@@ -844,7 +849,7 @@ const ProductDashboard = () => {
         const barcodeProductIds = await fetchProductIdsByPartialBarcode(
           currentOrganization.id,
           searchTerm,
-          hideDc,
+          dcView,
         );
         await mergeSupplementalIds(barcodeProductIds);
 

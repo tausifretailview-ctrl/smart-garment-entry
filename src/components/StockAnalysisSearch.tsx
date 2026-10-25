@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
+import { filterVariantsForDcView } from "@/utils/dcView";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2, Package, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -37,7 +38,7 @@ export function StockAnalysisSearch({
   className,
 }: StockAnalysisSearchProps) {
   const { currentOrganization } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const [searchInput, setSearchInput] = useState("");
   const [results, setResults] = useState<ProductResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -101,7 +102,7 @@ export function StockAnalysisSearch({
         .is("deleted_at", null)
         .is("products.deleted_at", null);
       // DC (No GST) hidden: DC barcodes left out, like the stock reports.
-      if (hideDc) query = query.not("is_dc_product", "is", true);
+      query = filterVariantsForDcView(query, { hideDc, onlyDc });
       const { data, error } = await query
         .order("stock_qty", { ascending: false })
         .limit(1000); // Get more results for client-side filtering
@@ -146,7 +147,7 @@ export function StockAnalysisSearch({
     } finally {
       setLoading(false);
     }
-  }, [currentOrganization?.id, updatePosition, hideDc]);
+  }, [currentOrganization?.id, updatePosition, hideDc, onlyDc]);
 
   // Handle barcode scan - exact match
   const handleBarcodeScan = useCallback(async (barcode: string) => {
@@ -175,7 +176,7 @@ export function StockAnalysisSearch({
         .eq("active", true)
         .is("deleted_at", null)
         .is("products.deleted_at", null);
-      if (hideDc) query = query.not("is_dc_product", "is", true);
+      query = filterVariantsForDcView(query, { hideDc, onlyDc });
       const { data, error } = await query.maybeSingle();
 
       if (error) throw error;
@@ -207,7 +208,7 @@ export function StockAnalysisSearch({
       setLoading(false);
       resetScanner();
     }
-  }, [currentOrganization?.id, onProductSelect, resetScanner, hideDc]);
+  }, [currentOrganization?.id, onProductSelect, resetScanner, hideDc, onlyDc]);
 
   // Handle input change with debounce
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {

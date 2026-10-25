@@ -1,6 +1,6 @@
 /**
  * DC (No GST) part of a mixed sale bill, for totals that leave DC out
- * (Settings > Purchase "Hide DC", or Ctrl+Shift+H).
+ * (Settings > Purchase "Hide DC", or Ctrl+Shift+H), or that keep only DC (DC User login).
  *
  * Bills whose every line is DC carry sales.is_dc_bill and are filtered out by the query.
  * A mixed bill keeps only its non-DC share: share = non-DC lines / all lines, both after the
@@ -32,13 +32,14 @@ export function nonDcShare(share: DcLineShare | null | undefined): number {
   return Math.min(1, Math.max(0, (share.allNet - share.dcNet) / share.allNet));
 }
 
-/** Copy of a sales row with the DC part taken out of its money columns and total_qty. */
-export function saleRowWithoutDc<T extends Record<string, unknown>>(
-  row: T,
-  share: DcLineShare | null | undefined,
-): T {
-  const r = nonDcShare(share);
-  if (r === 1 && !(share && share.dcQty > 0)) return row;
+/** DC part of the bill (0 … 1), for a DC User. No DC lines → 0; all lines DC → 1. */
+export function dcOnlyShare(share: DcLineShare | null | undefined): number {
+  if (!share) return 0;
+  if (share.allNet <= 0) return 1;
+  return Math.min(1, Math.max(0, share.dcNet / share.allNet));
+}
+
+function scaleSaleRow<T extends Record<string, unknown>>(row: T, r: number, totalQty: number | null): T {
   const out: Record<string, unknown> = { ...row };
   for (const field of DC_SCALED_SALE_MONEY_FIELDS) {
     const v = row[field];
@@ -46,10 +47,28 @@ export function saleRowWithoutDc<T extends Record<string, unknown>>(
     const n = Number(v);
     if (Number.isFinite(n)) out[field] = Math.round(n * r * 100) / 100;
   }
-  if (row.total_qty != null && share) {
-    out.total_qty = Math.max(0, (Number(row.total_qty) || 0) - share.dcQty);
-  }
+  if (row.total_qty != null && totalQty != null) out.total_qty = totalQty;
   return out as T;
+}
+
+/** Copy of a sales row with the DC part taken out of its money columns and total_qty. */
+export function saleRowWithoutDc<T extends Record<string, unknown>>(
+  row: T,
+  share: DcLineShare | null | undefined,
+): T {
+  const r = nonDcShare(share);
+  if (r === 1 && !(share && share.dcQty > 0)) return row;
+  return scaleSaleRow(row, r, share ? Math.max(0, (Number(row.total_qty) || 0) - share.dcQty) : null);
+}
+
+/** Copy of a sales row with only its DC part in the money columns and total_qty (DC User). */
+export function saleRowOnlyDc<T extends Record<string, unknown>>(
+  row: T,
+  share: DcLineShare | null | undefined,
+): T {
+  const r = dcOnlyShare(share);
+  if (r === 1 && share && Number(row.total_qty) === share.dcQty) return row;
+  return scaleSaleRow(row, r, share ? share.dcQty : 0);
 }
 
 type LineRow = {
@@ -136,4 +155,37 @@ export async function saleRowsWithoutDc<T extends { id: string }>(
     out.push(saleRowWithoutDc(row as T & Record<string, unknown>, share));
   }
   return out;
+}
+
+/**
+ * Sales rows for a DC User total: bills without a DC line dropped, a mixed bill keeps only its
+ * DC part (all-DC bills unchanged).
+ */
+export async function saleRowsOnlyDc<T extends { id: string }>(
+  client: unknown,
+  rows: readonly T[],
+): Promise<T[]> {
+  if (rows.length === 0) return [];
+  const shares = await fetchDcLineShares(
+    client,
+    rows.map((r) => r.id),
+  );
+  const out: T[] = [];
+  for (const row of rows) {
+    const share = shares.get(String(row.id));
+    if (!share) continue;
+    out.push(saleRowOnlyDc(row as T & Record<string, unknown>, share));
+  }
+  return out;
+}
+
+/** Sales rows for this screen's DC view (Hide DC, DC User, or everything as fetched). */
+export async function saleRowsForDcView<T extends { id: string }>(
+  client: unknown,
+  rows: readonly T[],
+  view: { hideDc?: boolean; onlyDc?: boolean },
+): Promise<T[]> {
+  if (view.onlyDc) return saleRowsOnlyDc(client, rows);
+  if (view.hideDc) return saleRowsWithoutDc(client, rows);
+  return rows as T[];
 }

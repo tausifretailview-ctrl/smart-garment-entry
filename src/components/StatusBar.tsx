@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useLocation } from "react-router-dom";
+import { format } from "date-fns";
 import { STALE_REFERENCE } from "@/lib/queryStaleTimes";
 import { BackgroundSyncBadge } from "@/components/BackgroundSyncBadge";
 import { fetchDashboardStockSummary } from "@/utils/dashboardSummaryRpcs";
@@ -52,7 +53,7 @@ export const StatusBar = () => {
   const isNarrow = useIsNarrowViewport();
   const forceDesktop = useForceDesktopView();
   const { currentOrganization } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const location = useLocation();
 
   const now = new Date();
@@ -60,19 +61,30 @@ export const StatusBar = () => {
   const fy = `FY ${fyStart}-${(fyStart + 1).toString().slice(-2)}`;
 
   const { data: summary } = useQuery({
-    queryKey: ["statusbar-summary", currentOrganization?.id, hideDc],
+    queryKey: ["statusbar-summary", currentOrganization?.id, hideDc, onlyDc],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
       const [stockRow, recvRes] = await Promise.all([
-        // DC hidden: Stock Report totals without DC barcodes.
-        hideDc
-          ? fetchWebStockReportTotals(currentOrganization.id, true).then((t) => ({ total_stock_qty: t.totalStock }))
+        // DC hidden: Stock Report totals without DC barcodes (DC User: the database keeps only DC).
+        hideDc || onlyDc
+          ? fetchWebStockReportTotals(currentOrganization.id, hideDc).then((t) => ({ total_stock_qty: t.totalStock }))
           : fetchDashboardStockSummary(supabase, currentOrganization.id),
-        supabase
-          .from("v_dashboard_receivables")
-          .select("total_receivables")
-          .eq("organization_id", currentOrganization.id)
-          .maybeSingle(),
+        onlyDc
+          ? // DC User: dues of bills with a DC line only (dashboard RPC, DC share).
+            supabase
+              .rpc("get_erp_dashboard_stats", {
+                p_org_id: currentOrganization.id,
+                p_start_date: format(now, "yyyy-MM-dd"),
+                p_end_date: format(now, "yyyy-MM-dd"),
+              })
+              .then(({ data, error }) => ({
+                data: error ? null : { total_receivables: Number((data as { total_receivables?: number } | null)?.total_receivables) || 0 },
+              }))
+          : supabase
+              .from("v_dashboard_receivables")
+              .select("total_receivables")
+              .eq("organization_id", currentOrganization.id)
+              .maybeSingle(),
       ]);
       return {
         stockQty: stockRow?.total_stock_qty ?? 0,

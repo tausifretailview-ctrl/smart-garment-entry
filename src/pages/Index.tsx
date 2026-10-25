@@ -59,6 +59,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
+import { dcViewKeyParts } from "@/utils/dcView";
 import { StatsChartsSection } from "@/components/dashboard/StatsChartsSection";
 import { ShopSetupChecklist } from "@/components/dashboard/ShopSetupChecklist";
 import {
@@ -188,7 +189,7 @@ function readDashboardFiguresHidden(): boolean {
 
 const DesktopDashboard = () => {
   const { currentOrganization, organizationRole } = useOrganization();
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { hasAccess: hasFieldSalesAccess, employeeName } = useFieldSalesAccess();
   const { isAdmin, hasSpecialPermission, hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
@@ -313,9 +314,9 @@ const DesktopDashboard = () => {
         currentOrganization?.id,
         startDate,
         endDate,
-        ...(hideDc ? (["dc-hidden"] as const) : []),
+        ...dcViewKeyParts({ hideDc, onlyDc }),
       ] as const,
-    [currentOrganization?.id, startDate, endDate, hideDc],
+    [currentOrganization?.id, startDate, endDate, hideDc, onlyDc],
   );
   const customerSegmentsQueryKey = useMemo(
     () => ["customer-segment-counts", currentOrganization?.id] as const,
@@ -421,7 +422,7 @@ const DesktopDashboard = () => {
     queryFn: async () => {
       if (!currentOrganization) return null;
       
-      const stats = await fetchErpDashboardStatsAfterSr<DashStats>(currentOrganization.id, startDate, endDate, hideDc);
+      const stats = await fetchErpDashboardStatsAfterSr<DashStats>(currentOrganization.id, startDate, endDate, { hideDc, onlyDc });
       setLastUpdated(new Date());
       return stats;
     },
@@ -436,9 +437,9 @@ const DesktopDashboard = () => {
         currentOrganization?.id,
         startDate,
         endDate,
-        ...(hideDc ? (["dc-hidden"] as const) : []),
+        ...dcViewKeyParts({ hideDc, onlyDc }),
       ] as const,
-    [currentOrganization?.id, startDate, endDate, hideDc],
+    [currentOrganization?.id, startDate, endDate, hideDc, onlyDc],
   );
 
   const { data: liveNpaKpis, isFetching: npaKpisFetching } = useQuery({

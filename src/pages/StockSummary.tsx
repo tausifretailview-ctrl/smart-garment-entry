@@ -264,7 +264,7 @@ const TD = "px-3 py-1.5 align-middle whitespace-nowrap tabular-nums";
 export default function StockSummary() {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
-  const { hideDc } = useDcVisibility();
+  const { hideDc, onlyDc } = useDcVisibility();
   const { orgNavigate } = useOrgNavigation();
   const queryClient = useQueryClient();
   const productFieldSettings = useProductFieldSettings();
@@ -355,10 +355,12 @@ export default function StockSummary() {
       supplierFilter,
       supplierInvoiceFilter,
       hideDc,
+      onlyDc,
     };
   }, [
     orgId,
     hideDc,
+    onlyDc,
     appliedSearch,
     categoryFilter,
     brandFilter,
@@ -393,7 +395,7 @@ export default function StockSummary() {
 
   // ── Totals: same RPCs and cache keys as Stock Report, so both pages show the same figures ──
   const { data: globalTotals, isLoading: globalLoading } = useQuery({
-    queryKey: ["stock-report-global-totals", orgId, hideDc],
+    queryKey: ["stock-report-global-totals", orgId, hideDc, onlyDc],
     queryFn: async (): Promise<Totals | null> => {
       if (!orgId) return null;
       const { data, error } = await supabase.rpc("get_stock_report_totals", {
