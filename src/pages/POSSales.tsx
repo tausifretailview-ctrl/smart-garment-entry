@@ -388,6 +388,12 @@ function resolveServiceVariantDefaultMrp(variant: {
 const POS_VARIANT_LOOKUP_SELECT =
   'id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, updated_at, is_dc_product, products!inner(id, product_name, brand, default_sale_price, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status, deleted_at, uom, requires_imei)';
 
+/**
+ * Id-only variant lookups still go through baseFilters, which filters on products.*.
+ * PostgREST answers 400 ("not an embedded resource") unless products is embedded.
+ */
+const POS_VARIANT_ID_LOOKUP_SELECT = 'id, product_id, products!inner(id)';
+
 interface PosVariantRow {
   id: string;
   barcode?: string | null;
@@ -2900,7 +2906,7 @@ export default function POSSales() {
           const strictBarcode = isCompleteNumericBarcodeForPosCart(escToken);
 
           const exactQ = baseFilters(
-            supabase.from('product_variants').select('id, product_id'),
+            supabase.from('product_variants').select(POS_VARIANT_ID_LOOKUP_SELECT),
           ).eq('barcode', escToken);
           const exactRes = await exactQ.limit(500);
           if (exactRes.error) throw exactRes.error;
@@ -2908,7 +2914,7 @@ export default function POSSales() {
             exactRes.data.forEach((v: { id: string }) => matchedVariantIds.add(v.id));
           } else if (!strictBarcode && !exactRes.error && shouldUsePartialPosBarcodeMatch(escToken)) {
             const partialQ = baseFilters(
-              supabase.from('product_variants').select('id, product_id'),
+              supabase.from('product_variants').select(POS_VARIANT_ID_LOOKUP_SELECT),
             ).ilike('barcode', `%${escToken}%`);
             const partialRes = await partialQ.limit(500);
             if (!partialRes.error && partialRes.data) {
@@ -2950,7 +2956,7 @@ export default function POSSales() {
         }
 
         const variantQ = baseFilters(
-          supabase.from('product_variants').select('id, product_id'),
+          supabase.from('product_variants').select(POS_VARIANT_ID_LOOKUP_SELECT),
         ).or(variantOrParts.join(','));
 
         const productQ = supabase
