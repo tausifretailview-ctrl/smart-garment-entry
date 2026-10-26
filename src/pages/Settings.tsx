@@ -240,6 +240,13 @@ interface SaleSettings {
   gift_vouchers_enabled?: boolean;
   /** Settings > WhatsApp: Bulk WhatsApp page and menu (off until turned on). */
   bulk_whatsapp_enabled?: boolean;
+  /** Settings > WhatsApp > Automatic messages (whatsapp-auto cron, linked number only). */
+  auto_due_reminder_enabled?: boolean;
+  auto_due_reminder_every_days?: number;
+  auto_due_reminder_min_amount?: number;
+  auto_birthday_wish_enabled?: boolean;
+  auto_birthday_offer?: string;
+  auto_birthday_points?: number;
   enable_customer_price_memory?: boolean; // Customer-wise sale price memory
   pos_barcode_price_mode?: 'mrp' | 'sale_price';
   /** When true, POS keeps the selected salesman after save (default off). */
@@ -6614,6 +6621,111 @@ export default function Settings() {
                     ))}
                   </div>
                   <p className="px-3 pb-2.5 text-xs text-muted-foreground">Click Save Settings after changing.</p>
+                </SettingsSection>
+                <SettingsSection title="Automatic messages">
+                  <div className="divide-y">
+                    <div className="space-y-2 px-3 py-2.5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="auto_due_reminder_enabled" className="text-sm font-semibold">
+                            Payment-due reminders
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Customers who owe money get a polite WhatsApp with the pending amount and a UPI pay link (11 am to 1 pm, up to 15 a day). Reminders stop once the balance is cleared.
+                          </p>
+                        </div>
+                        <Switch
+                          id="auto_due_reminder_enabled"
+                          checked={settings.sale_settings?.auto_due_reminder_enabled === true}
+                          onCheckedChange={(checked) =>
+                            setSettings({ ...settings, sale_settings: { ...settings.sale_settings, auto_due_reminder_enabled: checked } })
+                          }
+                        />
+                      </div>
+                      {settings.sale_settings?.auto_due_reminder_enabled === true && (
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div className="space-y-1">
+                            <Label htmlFor="auto_due_reminder_every_days" className="text-xs">Remind every (days)</Label>
+                            <Input
+                              id="auto_due_reminder_every_days"
+                              type="number"
+                              min={3}
+                              max={60}
+                              value={settings.sale_settings?.auto_due_reminder_every_days ?? 7}
+                              onChange={(e) =>
+                                setSettings({ ...settings, sale_settings: { ...settings.sale_settings, auto_due_reminder_every_days: Number(e.target.value) || 7 } })
+                              }
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="auto_due_reminder_min_amount" className="text-xs">Only when pending is at least ₹</Label>
+                            <Input
+                              id="auto_due_reminder_min_amount"
+                              type="number"
+                              min={1}
+                              value={settings.sale_settings?.auto_due_reminder_min_amount ?? 500}
+                              onChange={(e) =>
+                                setSettings({ ...settings, sale_settings: { ...settings.sale_settings, auto_due_reminder_min_amount: Number(e.target.value) || 500 } })
+                              }
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2 px-3 py-2.5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="auto_birthday_wish_enabled" className="text-sm font-semibold">
+                            Birthday and anniversary wishes
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Every morning customers with a birthday or anniversary today (from Customer Master) get a wish, with your offer and bonus points.
+                          </p>
+                        </div>
+                        <Switch
+                          id="auto_birthday_wish_enabled"
+                          checked={settings.sale_settings?.auto_birthday_wish_enabled === true}
+                          onCheckedChange={(checked) =>
+                            setSettings({ ...settings, sale_settings: { ...settings.sale_settings, auto_birthday_wish_enabled: checked } })
+                          }
+                        />
+                      </div>
+                      {settings.sale_settings?.auto_birthday_wish_enabled === true && (
+                        <div className="grid gap-2 sm:grid-cols-[1fr_10rem]">
+                          <div className="space-y-1">
+                            <Label htmlFor="auto_birthday_offer" className="text-xs">Offer line (optional)</Label>
+                            <Input
+                              id="auto_birthday_offer"
+                              maxLength={300}
+                              placeholder="Show this message at the counter for 10% off this week."
+                              value={settings.sale_settings?.auto_birthday_offer ?? ""}
+                              onChange={(e) =>
+                                setSettings({ ...settings, sale_settings: { ...settings.sale_settings, auto_birthday_offer: e.target.value } })
+                              }
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="auto_birthday_points" className="text-xs">Bonus points</Label>
+                            <Input
+                              id="auto_birthday_points"
+                              type="number"
+                              min={0}
+                              value={settings.sale_settings?.auto_birthday_points ?? 0}
+                              onChange={(e) =>
+                                setSettings({ ...settings, sale_settings: { ...settings.sale_settings, auto_birthday_points: Math.max(0, Number(e.target.value) || 0) } })
+                              }
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground sm:col-span-2">
+                            Bonus points are added only when the points system is on in Sale settings.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <p className="px-3 pb-2.5 text-xs text-muted-foreground">
+                    Works with Ezzy ERP WhatsApp or WappConnect. Messages go a few at a time from your linked number to keep it safe. Click Save Settings after changing.
+                  </p>
                 </SettingsSection>
                 <SettingsSection title="Customer page & notifications">
                   <div className="px-3 py-2.5">
