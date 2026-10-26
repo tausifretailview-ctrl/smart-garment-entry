@@ -68,6 +68,11 @@ export function WhatsAppLinkMethods({
               <li>Open WhatsApp on your phone</li>
               <li>Tap Settings (or ⋮) → Linked devices → Link a device</li>
               <li>Scan this QR code</li>
+              <li className="list-none pt-1 text-xs">
+                Phone says <b>"Couldn't link device. Try again later"</b>? WhatsApp is refusing new links on that phone for now.
+                Under Linked devices, log out old "Ezzy ERP" / Chrome entries (at most 4 linked devices), update WhatsApp, check
+                the phone's internet, then wait an hour before trying again (many tries in a row make WhatsApp block links for longer).
+              </li>
             </ol>
           </div>
         ) : (
