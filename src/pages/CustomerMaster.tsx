@@ -54,6 +54,7 @@ import {
   UserX,
   Loader2,
   Cake,
+  MessageCircle,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -88,6 +89,9 @@ import { CustomerBalanceImportDialog } from "@/components/CustomerBalanceImportD
 import { CustomerLocationFilter } from "@/components/CustomerLocationFilter";
 import { customerLocationOrFilter, uniqueCustomerLocations } from "@/utils/customerLocationFilter";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { isBulkWhatsAppEnabled } from "@/utils/whatsappFeatureSwitches";
+import { normalizeBulkPhone, type BulkContact } from "@/utils/bulkWhatsAppContacts";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { ColumnDef } from "@tanstack/react-table";
@@ -207,7 +211,8 @@ const CustomerMaster = () => {
   toastRef.current = toast;
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, organizationRole } = useOrganization();
+  const { hasMenuAccess, isAdmin: isAdminPermissions } = useUserPermissions();
 
   useEffect(() => {
     const orgId = currentOrganization?.id;
@@ -978,6 +983,56 @@ const CustomerMaster = () => {
   };
 
   const isSomeSelected = selectedCustomers.size > 0;
+
+  // Same gate as the Bulk WhatsApp menu: org switch on, and the user right (org admins always).
+  const canBulkWhatsApp =
+    isBulkWhatsAppEnabled((orgSettings as { sale_settings?: unknown } | null)?.sale_settings) &&
+    (organizationRole === "admin" || isAdminPermissions || hasMenuAccess("bulk_whatsapp"));
+  const [preparingBulkWhatsApp, setPreparingBulkWhatsApp] = useState(false);
+
+  /** Hands the ticked customers (with a valid mobile) to the Bulk WhatsApp page's number list. */
+  const handleBulkWhatsApp = async () => {
+    const orgId = currentOrganization?.id;
+    if (!orgId || selectedCustomers.size === 0) return;
+    setPreparingBulkWhatsApp(true);
+    try {
+      // Selection can span pages, so read the numbers by id rather than from the visible rows.
+      const ids = Array.from(selectedCustomers);
+      const contacts: BulkContact[] = [];
+      const seen = new Set<string>();
+      let skipped = 0;
+      for (let i = 0; i < ids.length; i += 200) {
+        const { data, error } = await supabase
+          .from("customers")
+          .select("id, customer_name, phone")
+          .eq("organization_id", orgId)
+          .in("id", ids.slice(i, i + 200));
+        if (error) throw error;
+        for (const c of data ?? []) {
+          const phone = normalizeBulkPhone(c.phone);
+          if (!phone) {
+            skipped += 1;
+            continue;
+          }
+          if (seen.has(phone)) continue;
+          seen.add(phone);
+          contacts.push({ phone, name: c.customer_name?.trim() || null });
+        }
+      }
+      if (!contacts.length) {
+        toast({ title: "No mobile numbers", description: "None of the selected customers has a mobile number.", variant: "destructive" });
+        return;
+      }
+      if (skipped) {
+        toast({ title: `${skipped} customer(s) skipped`, description: "They have no valid mobile number." });
+      }
+      navigate("/bulk-whatsapp", { state: { bulkWhatsAppContacts: contacts } });
+    } catch (e) {
+      toast({ title: "Could not open Bulk WhatsApp", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally {
+      setPreparingBulkWhatsApp(false);
+    }
+  };
 
   // Prefer fast counts RPC for chips; fall back to index counts when RPC is slow/unavailable.
   const segmentCounts = segmentCountsRpc ??
@@ -1904,21 +1959,22 @@ const CustomerMaster = () => {
         )}
 
         <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 p-0 shadow-sm">
-          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2">
-            <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-sm font-medium tabular-nums text-slate-600">
+          <div className="flex shrink-0 flex-nowrap items-center gap-1.5 overflow-x-auto border-b border-slate-100 bg-white px-3 py-2">
+            <span className="shrink-0 whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-sm font-medium tabular-nums text-slate-600">
               {segmentFilter === "all"
                 ? `${filteredCount.toLocaleString("en-IN")} of ${totalCount.toLocaleString("en-IN")} records`
                 : `${filteredCount.toLocaleString("en-IN")} in ${CUSTOMER_SEGMENT_LABELS[segmentFilter]}`}
               {locationFilter.trim() ? ` · ${locationFilter.trim()}` : ""}
             </span>
 
-            <div className="relative min-w-[200px] max-w-full flex-1 sm:max-w-md md:max-w-xl">
+            <div className="relative w-44 min-w-[140px] shrink xl:w-64">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="SEARCH BY NAME, PHONE, EMAIL, LOCATION..."
+                placeholder="Search name, phone, email, location…"
+                title="Search by name, phone, email, location"
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
-                className="h-10 border-slate-200 bg-slate-50 pl-10 text-sm uppercase placeholder:normal-case focus:bg-white"
+                className="h-9 border-slate-200 bg-slate-50 pl-9 text-sm uppercase placeholder:normal-case focus:bg-white"
               />
             </div>
 
@@ -1926,33 +1982,57 @@ const CustomerMaster = () => {
               value={locationFilter}
               options={locationOptions}
               onChange={handleLocationFilter}
+              className="h-9 w-36 min-w-0 shrink-0"
             />
 
             <div id="erp-toolbar-portal-customer" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
+
+            {isSomeSelected && canBulkWhatsApp && (
+              <Button
+                size="sm"
+                className="h-9 shrink-0 bg-emerald-600 px-3 text-sm text-white hover:bg-emerald-700"
+                onClick={() => void handleBulkWhatsApp()}
+                disabled={preparingBulkWhatsApp}
+                title="Send a WhatsApp message to the selected customers"
+              >
+                {preparingBulkWhatsApp ? (
+                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                ) : (
+                  <MessageCircle className="h-4 w-4 mr-1.5" />
+                )}
+                Bulk WhatsApp ({selectedCustomers.size})
+              </Button>
+            )}
 
             {isSomeSelected && (
               <Button
                 variant="destructive"
                 size="sm"
-                className="h-10 text-sm px-4 shrink-0"
+                className="h-9 text-sm px-3 shrink-0"
                 onClick={handleBulkDelete}
                 disabled={bulkDeleteCustomers.isPending}
+                title="Delete selected customers"
               >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete Selected ({selectedCustomers.size})
+                <Trash2 className="h-4 w-4 mr-1.5" />
+                Delete ({selectedCustomers.size})
               </Button>
             )}
 
-            <div className="flex gap-2 items-center shrink-0">
-              <Button variant="outline" className="h-9 text-sm px-4 rounded-md" onClick={() => setShowSpecialDays(true)}>
-                <Cake className="h-4 w-4 mr-2 text-pink-500" />
-                Birthdays
+            <div className="flex gap-1.5 items-center shrink-0">
+              <Button
+                variant="outline"
+                className="h-9 text-sm px-2.5 rounded-md xl:px-3"
+                onClick={() => setShowSpecialDays(true)}
+                title="Birthdays and anniversaries"
+              >
+                <Cake className="h-4 w-4 text-pink-500 xl:mr-1.5" />
+                <span className="hidden xl:inline">Birthdays</span>
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-9 text-sm px-4 rounded-md">
-                    <Settings2 className="h-4 w-4 mr-2" />
-                    Tools
+                  <Button variant="outline" className="h-9 text-sm px-2.5 rounded-md xl:px-3" title="Tools">
+                    <Settings2 className="h-4 w-4 xl:mr-1.5" />
+                    <span className="hidden xl:inline">Tools</span>
                     <ChevronDown className="h-3.5 w-3.5 ml-1.5" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -1989,8 +2069,8 @@ const CustomerMaster = () => {
               </DropdownMenu>
               <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
                 <DialogTrigger asChild>
-                  <Button className="h-9 text-sm px-4 rounded-md">
-                    <Plus className="h-4 w-4 mr-2" />
+                  <Button className="h-9 text-sm px-3 rounded-md">
+                    <Plus className="h-4 w-4 mr-1.5" />
                     Add Customer
                   </Button>
                 </DialogTrigger>
@@ -2114,6 +2194,7 @@ const CustomerMaster = () => {
               className="customer-master-table [&_td]:!text-sm [&_th]:!text-xs [&_th]:!font-bold [&_th]:!uppercase [&_th]:!tracking-wide [&_tbody_tr:nth-child(even)]:bg-slate-50/80 [&_tbody_tr:hover]:bg-sky-50/70"
               onRowContextMenu={handleRowContextMenu}
               showToolbar={false}
+              showDensityToggle={false}
               renderToolbar={(toolbar) => {
                 const el = document.getElementById("erp-toolbar-portal-customer");
                 return el ? createPortal(toolbar, el) : toolbar;

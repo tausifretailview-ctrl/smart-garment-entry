@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { BarChart3, MessagesSquare, Send } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { useSettings } from "@/hooks/useSettings";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { isBulkWhatsAppEnabled } from "@/utils/whatsappFeatureSwitches";
+import type { BulkContact } from "@/utils/bulkWhatsAppContacts";
 
 /** Full view: the top menu and window tabs are hidden here (entryPageLayout), so the page scrolls itself. */
 export default function BulkWhatsApp() {
@@ -42,6 +43,9 @@ function BulkWhatsAppPage({ organizationId, userId }: { organizationId: string; 
   const [params] = useSearchParams();
   const winBack = Number.parseInt(params.get("winback") ?? "", 10);
   const winBackDays = Number.isFinite(winBack) && winBack > 0 ? winBack : null;
+  // Customer Master > Bulk WhatsApp hands its ticked customers over in navigation state.
+  const location = useLocation();
+  const handoffContacts = (location.state as { bulkWhatsAppContacts?: BulkContact[] } | null)?.bulkWhatsAppContacts ?? null;
   const inbox = useInboxChats(organizationId, tab === "inbox");
   const unread = (inbox.data ?? []).filter((c) => c.unread_count > 0).length;
   const tabs = [
@@ -83,6 +87,8 @@ function BulkWhatsAppPage({ organizationId, userId }: { organizationId: string; 
           onOpenSend={() => open("send")}
           previewTopClass="lg:top-3"
           winBackDays={winBackDays}
+          handoffContacts={handoffContacts}
+          handoffKey={location.key}
         />
       </div>
       {tab === "inbox" && (
