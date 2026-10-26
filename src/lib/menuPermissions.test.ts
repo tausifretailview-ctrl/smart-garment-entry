@@ -126,6 +126,13 @@ describe("menuPermissions", () => {
     expect(isMenuPermissionGranted(off, "customer_reviews")).toBe(false);
   });
 
+  it("turns Customer Reviews on for every login that never saved its box", () => {
+    const noInvoiceDash = { menu: { sales_invoice_dashboard: false }, mainMenu: { reports: true } };
+    expect(isMenuPermissionGranted(noInvoiceDash, "customer_reviews")).toBe(true);
+    expect(isMenuPermissionGranted({ menu: {}, mainMenu: {} }, "customer_reviews")).toBe(true);
+    expect(applyMenuFallbacksWhenUnset({}).customer_reviews).toBe(true);
+  });
+
   it("hides a report whose own box is unticked even when the older right is on", () => {
     const menu = {
       customer_ledger: true,
@@ -163,6 +170,6 @@ describe("menuPermissions", () => {
     expect(shown.customer_party_balances).toBe(true);
     expect(shown.payment_flow).toBe(true);
     expect(shown.supplier_party_balances).toBe(false);
-    expect(shown.customer_reviews).toBe(false);
+    expect(shown.customer_reviews).toBe(true);
   });
 });
