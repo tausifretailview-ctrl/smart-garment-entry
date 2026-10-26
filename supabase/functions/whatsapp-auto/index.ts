@@ -11,23 +11,19 @@ import { loadCreditBlockReason } from "../_shared/whatsappCredits.ts";
 import {
   AUTO_SENDS_PER_RUN,
   BIRTHDAY_WINDOW,
-  DUE_REMINDERS_PER_DAY,
-  DUE_WINDOW,
-  dueReminderMessage,
   inWindow,
   isSpecialDayToday,
   istDayStartIso,
   istNow,
-  pickDueReminders,
   readWhatsAppAutoSettings,
   type SpecialDayKind,
   specialDayMessage,
   tenDigits,
-  upiPayPageLink,
   type WhatsAppAutoSettings,
 } from "../_shared/whatsappAuto.ts";
 
-// whatsapp-auto: automatic payment-due reminders and birthday / anniversary wishes.
+// whatsapp-auto: automatic birthday / anniversary wishes.
+// Payment reminders stay manual: a pending balance may be an advance taken against goods.
 //   { type: "scheduled" }  pg_cron every 15 min (one-time ticket, dispatch_whatsapp_auto)
 // Only shops on Ezzy ERP WhatsApp (builtin) or WappConnect: Meta needs approved templates.
 // At most AUTO_SENDS_PER_RUN messages per shop per run, a few seconds apart.
@@ -38,7 +34,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const DUE_TYPE = "due_reminder_auto";
 const WISH_TYPE: Record<SpecialDayKind, string> = { birthday: "birthday_wish_auto", anniversary: "anniversary_wish_auto" };
 const SENT = ["sent", "delivered", "read"];
 
@@ -64,7 +59,6 @@ type Shop = {
   provider: "builtin" | "wappconnect";
   instanceId: string;
   shopName: string;
-  upiId: string;
   pointsOn: boolean;
   auto: WhatsAppAutoSettings;
 };
@@ -194,62 +188,14 @@ async function sendWishes(db: Db, shop: Shop, send: Sender, budget: number, now:
   return sent;
 }
 
-async function sendDueReminders(db: Db, shop: Shop, send: Sender, budget: number, now: Date, siteUrl: string): Promise<number> {
-  const today = istNow(now);
-  const todayStart = istDayStartIso(today.date);
-  const { count } = await db
-    .from("whatsapp_logs")
-    .select("id", { count: "exact", head: true })
-    .eq("organization_id", shop.orgId)
-    .eq("template_type", DUE_TYPE)
-    .in("status", SENT)
-    .gte("created_at", todayStart);
-  const left = Math.min(budget, DUE_REMINDERS_PER_DAY - (count ?? 0));
-  if (left <= 0) return 0;
-
-  const { data: balances, error } = await db.rpc("get_customer_party_balances_all", { p_organization_id: shop.orgId, p_search: null });
-  if (error) {
-    console.error("[whatsapp-auto] balances failed:", shop.orgId, error.message);
-    return 0;
-  }
-  const owing = ((balances ?? []) as Array<{ customer_id: string; customer_name?: string; signed_balance?: number }>)
-    .filter((b) => Math.round(Number(b.signed_balance) || 0) >= shop.auto.dueMinAmount);
-  if (!owing.length) return 0;
-
-  const phones = new Map<string, string>();
-  const ids = owing.map((b) => b.customer_id);
-  for (let i = 0; i < ids.length; i += 200) {
-    const { data } = await db.from("customers").select("id, phone").in("id", ids.slice(i, i + 200)).is("deleted_at", null);
-    for (const c of data ?? []) if (c.phone) phones.set(c.id, c.phone);
-  }
-  const since = new Date(now.getTime() - shop.auto.dueEveryDays * 86_400_000).toISOString();
-  const recent = await handledCustomers(db, shop.orgId, DUE_TYPE, since, todayStart);
-  const picks = pickDueReminders(owing, phones, recent, shop.auto.dueMinAmount, left);
-
-  for (const p of picks) {
-    const payLink = upiPayPageLink({ siteUrl, upiId: shop.upiId, shopName: shop.shopName, amount: p.amount, note: `Dues ${p.name ?? ""}`.trim() });
-    await send(p.phone, dueReminderMessage({ customerName: p.name, shopName: shop.shopName, amount: p.amount, payLink }), DUE_TYPE, p.customerId);
-  }
-  return picks.length;
-}
-
-function upiFromBillSettings(bill: Record<string, unknown> | null | undefined): string {
-  const primary = String(bill?.upi_id ?? "").trim();
-  const secondary = String(bill?.upi_id_2 ?? "").trim();
-  return bill?.active_upi_id === "secondary" && secondary ? secondary : primary || secondary;
-}
-
 async function runScheduled(db: Db, now: Date) {
   const clock = istNow(now);
-  const wishTime = inWindow(clock.minutes, BIRTHDAY_WINDOW);
-  const dueTime = inWindow(clock.minutes, DUE_WINDOW);
-  if (!wishTime && !dueTime) return [];
+  if (!inWindow(clock.minutes, BIRTHDAY_WINDOW)) return [];
 
   const { data: rows } = await db
     .from("settings")
-    .select("organization_id, business_name, sale_settings, bill_barcode_settings")
-    .or("sale_settings->>auto_due_reminder_enabled.eq.true,sale_settings->>auto_birthday_wish_enabled.eq.true");
-  const siteUrl = Deno.env.get("SITE_URL") || "https://app.inventoryshop.in";
+    .select("organization_id, business_name, sale_settings")
+    .eq("sale_settings->>auto_birthday_wish_enabled", "true");
 
   const jobs = (rows ?? []).map(async (row: Record<string, any>) => {
     const orgId = row.organization_id as string;
@@ -274,22 +220,17 @@ async function runScheduled(db: Db, now: Date) {
       provider,
       instanceId,
       shopName: String(row.business_name ?? "").trim(),
-      upiId: upiFromBillSettings(row.bill_barcode_settings),
       pointsOn: row.sale_settings?.enable_points_system === true,
       auto,
     };
     const send = makeSender(db, shop);
-    let budget = AUTO_SENDS_PER_RUN;
     let wishes = 0;
-    let reminders = 0;
     try {
-      if (wishTime && auto.birthdayEnabled) wishes = await sendWishes(db, shop, send, budget, now);
-      budget -= wishes;
-      if (dueTime && auto.dueEnabled && budget > 0) reminders = await sendDueReminders(db, shop, send, budget, now, siteUrl);
+      wishes = await sendWishes(db, shop, send, AUTO_SENDS_PER_RUN, now);
     } catch (err) {
       console.error("[whatsapp-auto] shop failed:", orgId, err);
     }
-    return { orgId, wishes, reminders };
+    return { orgId, wishes };
   });
   return await Promise.all(jobs);
 }
