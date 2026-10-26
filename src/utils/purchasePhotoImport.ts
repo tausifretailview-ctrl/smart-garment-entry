@@ -67,6 +67,49 @@ export interface PhotoReviewRow {
   unclear: boolean;
   /** Existing product with this name in the shop (by productNameMatchKey). */
   matchedName: string | null;
+  /** Optional columns (Columns button). Sale GST % for a new product; null = same as GST %. */
+  sale_gst_per?: number | null;
+  /** Sale Disc % off MRP: only sets Sale price here, like Add Product (not saved). */
+  sale_disc_per?: number;
+  /** POS Sale Disc % saved on a new product (products.sale_discount_*). */
+  pos_disc_per?: number;
+}
+
+/** Extra product fields staff can show as columns in the review table. */
+export const PHOTO_OPTIONAL_COLUMNS = [
+  { key: "category", label: "Category" },
+  { key: "brand", label: "Brand" },
+  { key: "style", label: "Style / Artical No" },
+  { key: "uom", label: "Unit (UOM)" },
+  { key: "sale_gst_per", label: "Sale GST %" },
+  { key: "sale_disc_per", label: "Sale Disc %" },
+  { key: "pos_disc_per", label: "POS Sale Disc %" },
+] as const;
+export type PhotoOptionalColumn = (typeof PHOTO_OPTIONAL_COLUMNS)[number]["key"];
+
+const COLUMNS_KEY = "ezzy-photo-import-columns";
+
+/** Optional columns this browser showed last time (none by default). */
+export function loadPhotoColumns(): PhotoOptionalColumn[] {
+  try {
+    const saved = JSON.parse(localStorage.getItem(COLUMNS_KEY) ?? "[]");
+    return Array.isArray(saved) ? PHOTO_OPTIONAL_COLUMNS.map((c) => c.key).filter((k) => saved.includes(k)) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function savePhotoColumns(cols: PhotoOptionalColumn[]): void {
+  try {
+    localStorage.setItem(COLUMNS_KEY, JSON.stringify(cols));
+  } catch {
+    /* not remembered in a private window */
+  }
+}
+
+/** Sale price from MRP less Sale Disc % (whole rupees, like Add Product). */
+export function salePriceFromMrpDisc(mrp: number, discPercent: number): number {
+  return Math.round(mrp * (1 - Math.min(100, Math.max(0, discPercent)) / 100));
 }
 
 export interface CatalogMatch {
@@ -237,6 +280,9 @@ export function reviewRowsToImportRows(
     qty: r.qty,
     line_total: r.line_total > 0 ? r.line_total : undefined,
     mrp: r.mrp > 0 ? r.mrp : undefined,
+    // Photo-only keys (not Excel columns): read when a new product is created.
+    sale_gst_per: r.sale_gst_per ?? undefined,
+    pos_disc_per: r.pos_disc_per && r.pos_disc_per > 0 ? r.pos_disc_per : undefined,
   }));
 }
 
@@ -302,4 +348,28 @@ export function normalizeBillDate(raw: string | null | undefined): string {
     if (month >= 0) return `${pad(+m[1])}/${pad(month + 1)}/${fullYear(+m[3])}`;
   }
   return s;
+}
+
+const PRODUCT_UOMS = ["NOS", "KG", "GMS", "LTR", "MTR", "DZN", "HLF_DZN", "BOX", "PCS", "SET", "PAIR", "ROLL", "PKT"];
+
+/**
+ * Extra fields for a product the import creates: Unit, and the photo's Sale GST % and
+ * POS Sale Disc % columns. Only fields the row actually carries are returned, so a product
+ * without them keeps the database defaults as before.
+ */
+export function newProductExtrasFromImportRow(row: Record<string, unknown>): Record<string, unknown> {
+  const extras: Record<string, unknown> = {};
+  const uom = str(row.uom).toUpperCase();
+  if (PRODUCT_UOMS.includes(uom)) extras.uom = uom;
+  if (str(row.sale_gst_per) !== "") {
+    const purchaseGst = num(row.gst_per);
+    extras.purchase_gst_percent = Math.round(purchaseGst > 0 && purchaseGst < 1 ? purchaseGst * 100 : purchaseGst);
+    extras.sale_gst_percent = Math.round(num(row.sale_gst_per));
+  }
+  const posDisc = num(row.pos_disc_per);
+  if (posDisc > 0 && posDisc <= 100) {
+    extras.sale_discount_type = "percent";
+    extras.sale_discount_value = posDisc;
+  }
+  return extras;
 }

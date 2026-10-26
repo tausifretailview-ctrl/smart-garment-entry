@@ -1,27 +1,35 @@
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Camera, CheckCircle2, ImagePlus, Loader2, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, Camera, CheckCircle2, Columns3, ImagePlus, Loader2, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { UOM_OPTIONS } from "@/constants/uom";
 import { productNameMatchKey } from "@/utils/productNameDedupe";
 import { cleanProductName } from "@/utils/productNameMerge";
 import {
   DEFAULT_PHOTO_MARKUP_PERCENT,
   PHOTO_IMPORT_MAX_PAGES,
+  PHOTO_OPTIONAL_COLUMNS,
   billChecks,
   billToReviewRows,
   defaultSalePrice,
+  loadPhotoColumns,
   matchSupplier,
   normalizeBillDate,
   reviewRowsToImportRows,
   rowIssues,
+  salePriceFromMrpDisc,
+  savePhotoColumns,
   shrinkBillPhoto,
   type CatalogMatch,
+  type PhotoOptionalColumn,
   type PhotoReviewRow,
   type ReadBill,
   type SupplierOption,
@@ -120,6 +128,15 @@ export function PhotoPurchaseImportDialog({
   const [otherCharges, setOtherCharges] = useState(0);
   const [markup, setMarkup] = useState(readMarkup);
   const [importing, setImporting] = useState(false);
+  // Extra product fields shown as columns; remembered on this browser.
+  const [catalogOptions, setCatalogOptions] = useState<{ categories: string[]; brands: string[] }>({ categories: [], brands: [] });
+  const [extraCols, setExtraCols] = useState<PhotoOptionalColumn[]>(loadPhotoColumns);
+  const showCol = (key: PhotoOptionalColumn) => extraCols.includes(key);
+  const toggleCol = (key: PhotoOptionalColumn) => {
+    const next = PHOTO_OPTIONAL_COLUMNS.map((c) => c.key).filter((k) => (k === key ? !extraCols.includes(k) : extraCols.includes(k)));
+    setExtraCols(next);
+    savePhotoColumns(next);
+  };
 
   const reset = () => {
     setStep("photos");
@@ -173,6 +190,9 @@ export function PhotoPurchaseImportDialog({
       const gstin = readBill.supplier_gstin?.replace(/\s/g, "").toUpperCase() ?? "";
       const known = matchSupplier(readBill.supplier_name ?? "", gstin, suppliers);
       setBill(readBill);
+      const distinct = (pick: (m: CatalogMatch) => string | null) =>
+        [...new Set([...catalog.values()].map((m) => pick(m)?.trim()).filter((v): v is string => Boolean(v)))].sort();
+      setCatalogOptions({ categories: distinct((m) => m.category), brands: distinct((m) => m.brand) });
       setRows(reviewRows);
       setSupplierGstin(gstin);
       setSupplierName(known?.supplier_name ?? readBill.supplier_name?.trim() ?? "");
@@ -391,22 +411,54 @@ export function PhotoPurchaseImportDialog({
                 className="h-7 w-16 text-right"
               />
               <span>%. Items already in your shop keep their sale price.</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="outline" size="sm" className="ml-auto h-7 gap-1.5">
+                    <Columns3 className="h-4 w-4" />
+                    Columns
+                    {extraCols.length > 0 && (
+                      <span className="rounded-full bg-teal-100 px-1.5 text-[10px] font-bold text-teal-700">+{extraCols.length}</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-60 p-2">
+                  <p className="mb-1 px-1 text-xs font-bold uppercase tracking-wide text-slate-500">Product fields</p>
+                  <div className="space-y-0.5">
+                    {PHOTO_OPTIONAL_COLUMNS.map((c) => (
+                      <label key={c.key} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-slate-50">
+                        <Checkbox checked={showCol(c.key)} onCheckedChange={() => toggleCol(c.key)} />
+                        {c.label}
+                      </label>
+                    ))}
+                  </div>
+                  <p className="mt-1.5 px-1 text-[11px] leading-snug text-slate-500">
+                    Values go to new products made from these lines. Items already in your shop keep their own details.
+                  </p>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div className="min-h-[200px] flex-1 overflow-auto rounded-lg border border-slate-200">
-              <table className="w-full min-w-[1050px] text-sm">
+              <table className="w-full text-sm" style={{ minWidth: 1050 + extraCols.length * 100 }}>
                 <thead className="sticky top-0 z-10 bg-slate-50 text-xs text-slate-500">
                   <tr>
                     <th className="px-2 py-1.5 text-left">Product</th>
+                    {showCol("category") && <th className="px-1 py-1.5 text-left">Category</th>}
+                    {showCol("brand") && <th className="px-1 py-1.5 text-left">Brand</th>}
+                    {showCol("style") && <th className="px-1 py-1.5 text-left">Style / Art No</th>}
                     <th className="px-1 py-1.5 text-left">Size</th>
                     <th className="px-1 py-1.5 text-left">Colour</th>
                     <th className="px-1 py-1.5 text-left">HSN</th>
                     <th className="px-1 py-1.5 text-right">Qty</th>
+                    {showCol("uom") && <th className="px-1 py-1.5 text-left">Unit</th>}
                     <th className="px-1 py-1.5 text-right">Rate</th>
                     <th className="px-1 py-1.5 text-right">Amount</th>
-                    <th className="px-1 py-1.5 text-right">GST %</th>
+                    <th className="px-1 py-1.5 text-right">{showCol("sale_gst_per") ? "Pur GST %" : "GST %"}</th>
+                    {showCol("sale_gst_per") && <th className="px-1 py-1.5 text-right">Sale GST %</th>}
                     <th className="px-1 py-1.5 text-right">MRP</th>
+                    {showCol("sale_disc_per") && <th className="px-1 py-1.5 text-right">Sale Disc %</th>}
                     <th className="px-1 py-1.5 text-right">Sale</th>
+                    {showCol("pos_disc_per") && <th className="px-1 py-1.5 text-right">POS Disc %</th>}
                     <th className="px-1 py-1.5 text-left">Barcode</th>
                     <th className="w-8" />
                   </tr>
@@ -423,6 +475,15 @@ export function PhotoPurchaseImportDialog({
                             {issues.length > 0 && <span className="text-amber-700"> · {issues.join(" · ")}</span>}
                           </span>
                         </td>
+                        {showCol("category") && (
+                          <td className="px-1 py-1"><Input value={r.category} onChange={(e) => update(r.key, { category: e.target.value })} list="photo-category-options" className="h-8 w-28 px-1.5" /></td>
+                        )}
+                        {showCol("brand") && (
+                          <td className="px-1 py-1"><Input value={r.brand} onChange={(e) => update(r.key, { brand: e.target.value })} list="photo-brand-options" className="h-8 w-28 px-1.5" /></td>
+                        )}
+                        {showCol("style") && (
+                          <td className="px-1 py-1"><Input value={r.style} onChange={(e) => update(r.key, { style: e.target.value })} className="h-8 w-24 px-1.5" /></td>
+                        )}
                         <td className="px-1 py-1"><Input value={r.size} onChange={(e) => update(r.key, { size: e.target.value })} className="h-8 w-16 px-1.5" /></td>
                         <td className="px-1 py-1"><Input value={r.color} onChange={(e) => update(r.key, { color: e.target.value })} className="h-8 w-20 px-1.5" /></td>
                         <td className="px-1 py-1"><Input value={r.hsn_code} onChange={(e) => update(r.key, { hsn_code: e.target.value })} className="h-8 w-20 px-1.5" /></td>
@@ -437,6 +498,21 @@ export function PhotoPurchaseImportDialog({
                             className={cn(numCell, "w-16")}
                           />
                         </td>
+                        {showCol("uom") && (
+                          <td className="px-1 py-1">
+                            <select
+                              value={r.uom}
+                              onChange={(e) => update(r.key, { uom: e.target.value })}
+                              className="h-8 w-20 rounded-md border border-input bg-background px-1 text-sm"
+                            >
+                              <option value="">NOS</option>
+                              {UOM_OPTIONS.filter((o) => o.value !== "NOS").map((o) => (
+                                <option key={o.value} value={o.value}>{o.value === "HLF_DZN" ? "1/2 DZN" : o.value}</option>
+                              ))}
+                              {r.uom && !UOM_OPTIONS.some((o) => o.value === r.uom) && <option value={r.uom}>{r.uom}</option>}
+                            </select>
+                          </td>
+                        )}
                         <td className="px-1 py-1">
                           <Input
                             type="number"
@@ -454,8 +530,53 @@ export function PhotoPurchaseImportDialog({
                         </td>
                         <td className="px-1 py-1"><Input type="number" value={r.line_total || ""} onChange={(e) => update(r.key, { line_total: Number(e.target.value) || 0 })} className={cn(numCell, "w-24")} /></td>
                         <td className="px-1 py-1"><Input type="number" value={r.gst_per} onChange={(e) => update(r.key, { gst_per: Number(e.target.value) || 0 })} className={cn(numCell, "w-16")} /></td>
-                        <td className="px-1 py-1"><Input type="number" value={r.mrp || ""} onChange={(e) => update(r.key, { mrp: Number(e.target.value) || 0 })} className={numCell} /></td>
+                        {showCol("sale_gst_per") && (
+                          <td className="px-1 py-1">
+                            <Input
+                              type="number"
+                              value={r.sale_gst_per ?? ""}
+                              placeholder={String(r.gst_per)}
+                              onChange={(e) => update(r.key, { sale_gst_per: e.target.value === "" ? null : Number(e.target.value) || 0 })}
+                              className={cn(numCell, "w-16")}
+                            />
+                          </td>
+                        )}
+                        <td className="px-1 py-1">
+                          <Input
+                            type="number"
+                            value={r.mrp || ""}
+                            onChange={(e) => {
+                              const mrp = Number(e.target.value) || 0;
+                              update(r.key, { mrp, ...(r.sale_disc_per && mrp > 0 ? { sale_price: salePriceFromMrpDisc(mrp, r.sale_disc_per) } : {}) });
+                            }}
+                            className={numCell}
+                          />
+                        </td>
+                        {showCol("sale_disc_per") && (
+                          <td className="px-1 py-1">
+                            <Input
+                              type="number"
+                              value={r.sale_disc_per || ""}
+                              title="Sets Sale price from MRP less this %"
+                              onChange={(e) => {
+                                const disc = Math.min(100, Math.max(0, Number(e.target.value) || 0));
+                                update(r.key, { sale_disc_per: disc, ...(r.mrp > 0 ? { sale_price: salePriceFromMrpDisc(r.mrp, disc) } : {}) });
+                              }}
+                              className={cn(numCell, "w-16")}
+                            />
+                          </td>
+                        )}
                         <td className="px-1 py-1"><Input type="number" value={r.sale_price || ""} onChange={(e) => update(r.key, { sale_price: Number(e.target.value) || 0 })} className={numCell} /></td>
+                        {showCol("pos_disc_per") && (
+                          <td className="px-1 py-1">
+                            <Input
+                              type="number"
+                              value={r.pos_disc_per || ""}
+                              onChange={(e) => update(r.key, { pos_disc_per: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })}
+                              className={cn(numCell, "w-16")}
+                            />
+                          </td>
+                        )}
                         <td className="px-1 py-1"><Input value={r.barcode} onChange={(e) => update(r.key, { barcode: e.target.value })} placeholder="Auto" className="h-8 w-32 px-1.5" /></td>
                         <td className="px-1 py-1">
                           <button
@@ -472,6 +593,12 @@ export function PhotoPurchaseImportDialog({
                   })}
                 </tbody>
               </table>
+              <datalist id="photo-category-options">
+                {catalogOptions.categories.map((v) => <option key={v} value={v} />)}
+              </datalist>
+              <datalist id="photo-brand-options">
+                {catalogOptions.brands.map((v) => <option key={v} value={v} />)}
+              </datalist>
             </div>
             <Button type="button" variant="outline" size="sm" className="w-fit" onClick={addRow}>
               <Plus className="mr-1 h-4 w-4" /> Add line
