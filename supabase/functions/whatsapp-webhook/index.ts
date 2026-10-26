@@ -13,7 +13,10 @@ import {
   buildReviewShoppingMessage,
   isInvoiceTemplateCta,
   isReviewShoppingInbound,
+  isLowRating,
   isReviewShoppingRatingReply,
+  lowRatingAlertPhone,
+  lowRatingOwnerMessage,
   reviewRatingFromReplyId,
   reviewShoppingThankYou,
   WHATSAPP_REVIEW_BILL_DAYS,
@@ -720,6 +723,13 @@ async function resolveGoogleReviewLink(
   return fromFollowup || fromSettings;
 }
 
+type RatedSale = {
+  rating: number;
+  sale_number: string | null;
+  customer_name: string | null;
+  salesman: string | null;
+};
+
 /**
  * Stores a WhatsApp list rating (review_1..5) on the customer's latest bill, so it shows in
  * Reports → Customer Reviews and alerts the shop. Never blocks the thank-you reply.
@@ -729,14 +739,14 @@ async function saveWhatsAppRating(
   organizationId: string,
   cleanPhone: string,
   buttonId: string,
-): Promise<void> {
+): Promise<RatedSale | null> {
   const rating = reviewRatingFromReplyId(buttonId);
-  if (!rating || cleanPhone.length !== 10) return;
+  if (!rating || cleanPhone.length !== 10) return null;
   try {
     const since = new Date(Date.now() - WHATSAPP_REVIEW_BILL_DAYS * 86_400_000).toISOString();
     const { data: sale } = await supabase
       .from('sales')
-      .select('id, salesman')
+      .select('id, salesman, sale_number, customer_name')
       .eq('organization_id', organizationId)
       .ilike('customer_phone', `%${cleanPhone}`)
       .is('deleted_at', null)
@@ -745,7 +755,7 @@ async function saveWhatsAppRating(
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (!sale?.id) return;
+    if (!sale?.id) return null;
     const { data: existing } = await supabase
       .from('customer_feedback')
       .select('id, source')
@@ -768,8 +778,10 @@ async function saveWhatsAppRating(
       });
       if (error) console.error('Could not save WhatsApp rating:', error.message);
     }
+    return { rating, sale_number: sale.sale_number ?? null, customer_name: sale.customer_name ?? null, salesman: sale.salesman ?? null };
   } catch (err) {
     console.error('Could not save WhatsApp rating:', err);
+    return null;
   }
 }
 
@@ -845,6 +857,53 @@ async function sendWhatsAppDocument(
   } catch (error) {
     console.error('WhatsApp document send error:', error);
     return { wamid: null, error };
+  }
+}
+
+/**
+ * 1–2 star WhatsApp rating: message the owner (Settings owner phone, else shop mobile) from the
+ * shop's own linked number, so they can call the customer back the same day.
+ */
+async function alertOwnerLowRating(
+  supabase: any,
+  organizationId: string,
+  provider: 'wappconnect' | 'builtin',
+  instanceId: string,
+  cleanPhone: string,
+  rated: RatedSale | null,
+  rating: number,
+): Promise<void> {
+  try {
+    const { data: shop } = await supabase
+      .from('settings')
+      .select('owner_phone, mobile_number')
+      .eq('organization_id', organizationId)
+      .maybeSingle();
+    const to = lowRatingAlertPhone(shop, cleanPhone);
+    if (!to) return;
+    const text = lowRatingOwnerMessage({
+      rating,
+      customerPhone: cleanPhone,
+      customerName: rated?.customer_name,
+      saleNumber: rated?.sale_number,
+      salesman: rated?.salesman,
+    });
+    const result = provider === 'builtin'
+      ? await sendViaBuiltinGateway(organizationId, to, { message: text })
+      : await sendViaWappConnect(instanceId, to, { message: text });
+    await supabase.from('whatsapp_logs').insert({
+      organization_id: organizationId,
+      phone_number: to,
+      message: text,
+      template_type: 'low_rating_alert',
+      status: result.success ? 'sent' : 'failed',
+      wamid: result.messageId || null,
+      error_message: result.success ? null : String(result.error || 'send failed'),
+      sent_at: new Date().toISOString(),
+      provider,
+    });
+  } catch (err) {
+    console.error('Low rating owner alert failed:', err);
   }
 }
 
@@ -987,9 +1046,12 @@ async function handleWappConnectInbound(
 
   const rating = ratingFromReplyText(inbound.text);
   if (rating && lastPromptAt) {
-    await saveWhatsAppRating(supabase, organizationId, cleanPhone, `review_${rating}`);
+    const rated = await saveWhatsAppRating(supabase, organizationId, cleanPhone, `review_${rating}`);
     const googleReviewLink = await resolveGoogleReviewLink(supabase, organizationId, settings, cleanPhone);
     await send(reviewShoppingThankYou(`review_${rating}`, googleReviewLink));
+    if (isLowRating(rating)) {
+      await alertOwnerLowRating(supabase, organizationId, provider, instanceId, cleanPhone, rated, rating);
+    }
     return;
   }
 

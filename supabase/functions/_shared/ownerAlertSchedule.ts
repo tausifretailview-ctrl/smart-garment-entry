@@ -220,6 +220,8 @@ export function reviewMessage(review: {
   source?: string | null;
   sale_number?: string | null;
   customer_name?: string | null;
+  customer_phone?: string | null;
+  salesman?: string | null;
 }): { title: string; body: string } {
   const n = Math.max(1, Math.min(5, Math.round(Number(review.rating) || 0)));
   const who = review.customer_name?.trim() || "A customer";
@@ -230,6 +232,8 @@ export function reviewMessage(review: {
   const body = [
     comment ? `“${comment.slice(0, 120)}${comment.length > 120 ? "…" : ""}”` : (review.tags ?? []).filter(Boolean).join(", "),
     review.sale_number ? `Bill ${review.sale_number}` : "",
+    n <= 2 && review.customer_phone ? `Call ${String(review.customer_phone).replace(/\D/g, "").slice(-10)}` : "",
+    n <= 2 && review.salesman?.trim() ? `Salesman ${review.salesman.trim()}` : "",
     from,
   ]
     .filter(Boolean)

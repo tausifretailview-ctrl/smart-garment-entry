@@ -121,7 +121,52 @@ export function reviewShoppingThankYou(ratingId: string, googleReviewLink?: stri
   if (n === "3") {
     return "Thank you for your feedback. We will keep improving! 🙏";
   }
-  return "Sorry we missed the mark. We will use your feedback to do better. 🙏";
+  return "Sorry we missed the mark. Our team will call you soon to make it right. 🙏";
+}
+
+/** 1–2 stars: the owner hears about it on WhatsApp at once, not only in the 15-minute push. */
+export function isLowRating(rating: number | null | undefined): boolean {
+  const n = Number(rating);
+  return n >= 1 && n <= 2;
+}
+
+/** Owner's number for low-rating alerts: Settings owner phone, else the shop mobile (10 digits). */
+export function lowRatingAlertPhone(
+  settings: { owner_phone?: string | null; mobile_number?: string | null } | null,
+  customerPhone: string,
+): string | null {
+  for (const raw of [settings?.owner_phone, settings?.mobile_number]) {
+    const digits = String(raw ?? "").replace(/\D/g, "").slice(-10);
+    if (digits.length !== 10) continue;
+    if (digits === String(customerPhone).replace(/\D/g, "").slice(-10)) return null;
+    return `91${digits}`;
+  }
+  return null;
+}
+
+/** "⚠️ 1★ review" alert sent to the owner with the customer's number to call back. */
+export function lowRatingOwnerMessage(opts: {
+  rating: number;
+  customerPhone: string;
+  customerName?: string | null;
+  saleNumber?: string | null;
+  salesman?: string | null;
+}): string {
+  const n = Math.max(1, Math.min(5, Math.round(Number(opts.rating) || 1)));
+  const phone = String(opts.customerPhone).replace(/\D/g, "").slice(-10);
+  const details = [
+    `Customer: ${opts.customerName?.trim() || "Walk-in"}`,
+    `Phone: ${phone}`,
+    opts.saleNumber ? `Bill: ${opts.saleNumber}` : "",
+    opts.salesman?.trim() ? `Salesman: ${opts.salesman.trim()}` : "",
+  ].filter(Boolean);
+  return [
+    `⚠️ ${"★".repeat(n)}${"☆".repeat(5 - n)} review on WhatsApp`,
+    "",
+    ...details,
+    "",
+    "The customer was told the shop will call. Please call them today.",
+  ].join("\n");
 }
 
 /** Stars from a rating list reply id ("review_4" → 4), else null. */
