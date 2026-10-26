@@ -301,7 +301,7 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
     cur.tax += l.calc.gst;
     hsnMap.set(key, cur);
   });
-  const hsnRows = Array.from(hsnMap.values());
+  const hsnRowsBeforeDiscount = Array.from(hsnMap.values());
 
   const placeOfSupply =
     formatPlaceOfSupplyFromGstin(customerGSTIN) || formatPlaceOfSupplyFromGstin(gstNumber) || EM_DASH;
@@ -320,31 +320,53 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
   const titleText = grandTotal < 0 ? "Credit Note" : documentTitle?.trim() || "Tax Invoice";
   // Stamp box inside the signatory column (46mm wide); the image keeps its aspect ratio.
   const stampMaxH = stampSize === "small" ? "13mm" : stampSize === "large" ? "21mm" : "17mm";
-  const hasRoundOff = Math.abs(Number(roundOff) || 0) >= 0.005;
   const pointsValue = Math.max(0, Number(pointsRedemptionValue) || 0);
   const extraCharges = Math.max(0, Number(otherCharges) || 0);
   // `discount` is line + flat discount, but line discounts are already inside each
-  // Total (Unit is the net rate). Print only what the Totals column still has to
-  // lose to reach Net Amount, so the box adds up to the bill. Capped at the stored
-  // discount so other unstated deductions are never printed as discount.
-  const billDiscount =
-    (Number(discount) || 0) > 0.005
-      ? roundInvoiceMoney(
-          Math.min(
-            Number(discount) || 0,
-            Math.max(
-              0,
-              totalAmount + extraCharges + (Number(roundOff) || 0) - saleReturnAdjust - pointsValue - grandTotal,
-            ),
-          ),
-        )
+  // Total (Unit is the net rate). The flat bill discount is what the Totals column
+  // still has to lose to reach Net Amount; the bill spreads it over lines in
+  // proportion, so it is one ratio of every line's taxable value and GST. Capped at
+  // the stored discount so other unstated deductions are never printed as discount.
+  const totalsGap = Math.max(
+    0,
+    totalAmount + extraCharges - saleReturnAdjust - pointsValue - (grandTotal - (Number(roundOff) || 0)),
+  );
+  const storedDiscount = Number(discount) || 0;
+  // Stored discount is on the price basis: incl. GST for inclusive bills, pre-GST for exclusive.
+  const discountBasis = taxType === "exclusive" ? taxableTotal : totalAmount;
+  const discountRatio =
+    storedDiscount > 0.005 && totalAmount > 0 && discountBasis > 0
+      ? Math.min(1, totalsGap / totalAmount, storedDiscount / discountBasis)
       : 0;
-  const hasBillDiscount = billDiscount >= 0.5;
+  // GST law: the discount comes off the taxable value, then GST is charged on the rest.
+  const billDiscount = roundInvoiceMoney(taxableTotal * discountRatio);
+  const hasBillDiscount = billDiscount >= 0.5 && totalsGap >= 0.5;
+  const keep = hasBillDiscount ? 1 - discountRatio : 1;
+  const hsnRows = hsnRowsBeforeDiscount.map((r) => ({
+    ...r,
+    taxable: roundInvoiceMoney(r.taxable * keep),
+    tax: roundInvoiceMoney(r.tax * keep),
+  }));
+  const taxableAfterDiscount = hasBillDiscount
+    ? roundInvoiceMoney(taxableTotal - billDiscount)
+    : taxableTotal;
+  const gstAfterDiscount = hasBillDiscount
+    ? roundInvoiceMoney(hsnRows.reduce((s, r) => s + r.tax, 0))
+    : taxTotal;
+  // With a discount, round off is what is left after the discounted taxable + GST,
+  // so the box always adds up to Net Amount.
+  const shownRoundOff = hasBillDiscount
+    ? roundInvoiceMoney(
+        grandTotal - (taxableAfterDiscount + gstAfterDiscount + extraCharges - saleReturnAdjust - pointsValue),
+      )
+    : Number(roundOff) || 0;
+  const hasRoundOff = Math.abs(shownRoundOff) >= 0.005;
   const hasPoints = pointsValue >= 0.005;
   const hasOtherCharges = extraCharges >= 0.005;
   const totalsRows =
     2 +
-    [hasBillDiscount, hasOtherCharges, hasPoints, hasRoundOff, saleReturnAdjust > 0].filter(Boolean).length;
+    (hasBillDiscount ? 2 : 0) +
+    [hasOtherCharges, hasPoints, hasRoundOff, saleReturnAdjust > 0].filter(Boolean).length;
   const amountWords = numberToWords(grandTotal);
 
   const headerMm = estimateMotasHeaderMm({
@@ -837,16 +859,22 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
                 <td style={sumLabel}>Taxable Amount</td>
                 <td style={sumValue}>{rupee(fmt(taxableTotal))}</td>
               </tr>
+              {hasBillDiscount ? (
+                <>
+                  <tr>
+                    <td style={sumLabel}>Less: Discount</td>
+                    <td style={sumValue}>-{fmt(billDiscount)}</td>
+                  </tr>
+                  <tr>
+                    <td style={sumLabel}>Taxable After Discount</td>
+                    <td style={sumValue}>{rupee(fmt(taxableAfterDiscount))}</td>
+                  </tr>
+                </>
+              ) : null}
               <tr>
                 <td style={sumLabel}>GST Amount</td>
-                <td style={sumValue}>{rupee(fmt(taxTotal))}</td>
+                <td style={sumValue}>{rupee(fmt(gstAfterDiscount))}</td>
               </tr>
-              {hasBillDiscount ? (
-                <tr>
-                  <td style={sumLabel}>Less: Discount</td>
-                  <td style={sumValue}>-{fmt(billDiscount)}</td>
-                </tr>
-              ) : null}
               {hasOtherCharges ? (
                 <tr>
                   <td style={sumLabel}>Other Charges</td>
@@ -863,8 +891,8 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
                 <tr>
                   <td style={sumLabel}>Round Off</td>
                   <td style={sumValue}>
-                    {roundOff < 0 ? "-" : ""}
-                    {fmt(Math.abs(roundOff))}
+                    {shownRoundOff < 0 ? "-" : ""}
+                    {fmt(Math.abs(shownRoundOff))}
                   </td>
                 </tr>
               ) : null}

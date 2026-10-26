@@ -167,8 +167,28 @@ describe("MotasA4Template", () => {
     expect(html).not.toContain("Central Tax");
   });
 
+  it("takes the bill discount off the taxable value before GST (INV/26-27/279)", () => {
+    // Totals ₹715 incl. 5% GST = taxable 680.95 + GST 34.05; ₹14 off the bill → Net ₹701.
+    const html = renderToStaticMarkup(
+      createElement(MotasA4Template, {
+        ...baseProps,
+        items: [item(0, { qty: 1, rate: 715, sp: 715, total: 715 })],
+        discount: 14,
+        grandTotal: 701,
+      }),
+    );
+    expect(html).toContain("Less: Discount");
+    expect(html).toContain("-13.33");
+    expect(html).toContain("Taxable After Discount");
+    expect(html).toContain("667.62");
+    expect(html).toContain("33.38");
+    // HSN summary is on the discounted taxable value too.
+    expect(html).toContain("16.69");
+    expect(html).not.toContain("Round Off");
+  });
+
   it("prints the flat bill discount in the totals box so it adds up to Net Amount", () => {
-    // Totals column ₹1,500 (2 × 750, line discount ₹50 already inside), flat 11% = ₹165.
+    // Totals column ₹1,450 (700 + 750, line discount ₹50 already inside), ₹165 off the bill.
     const html = renderToStaticMarkup(
       createElement(MotasA4Template, {
         ...baseProps,
@@ -178,7 +198,10 @@ describe("MotasA4Template", () => {
       }),
     );
     expect(html).toContain("Less: Discount");
-    expect(html).toContain("-165.00");
+    // 165 incl. GST = 157.14 taxable; 1,380.95 − 157.14 = 1,223.81 + GST 61.19 = 1,285.
+    expect(html).toContain("-157.14");
+    expect(html).toContain("1,223.81");
+    expect(html).toContain("61.19");
   });
 
   it("shows no Discount row when only line discounts were given", () => {
@@ -205,7 +228,8 @@ describe("MotasA4Template", () => {
     );
     expect(html).toContain("Less: Points Redeemed");
     expect(html).toContain("-20.00");
-    expect(html).toContain("-50.00");
+    // ₹50 incl. GST off the bill = 47.62 taxable.
+    expect(html).toContain("-47.62");
   });
 
   it("never prints more discount than the bill stores", () => {
@@ -218,7 +242,8 @@ describe("MotasA4Template", () => {
         grandTotal: 1350,
       }),
     );
-    expect(html).toContain("-50.00");
-    expect(html).not.toContain("-150.00");
+    // Capped at ₹50 incl. GST = 47.62 taxable, not the full ₹100 gap (95.24).
+    expect(html).toContain("-47.62");
+    expect(html).not.toContain("-95.24");
   });
 });
