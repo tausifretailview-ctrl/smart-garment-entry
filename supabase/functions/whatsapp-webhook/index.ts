@@ -13,12 +13,22 @@ import {
   buildReviewShoppingMessage,
   isInvoiceTemplateCta,
   isReviewShoppingInbound,
+  isLowRating,
   isReviewShoppingRatingReply,
+  lowRatingAlertPhone,
+  lowRatingOwnerMessage,
   reviewRatingFromReplyId,
   reviewShoppingThankYou,
   WHATSAPP_REVIEW_BILL_DAYS,
   whatsappReviewWrite,
 } from "../_shared/whatsappReviewShopping.ts";
+import {
+  isJoinMessage,
+  JOIN_POINTS_DESCRIPTION,
+  JOIN_TEMPLATE_TYPE,
+  joinWelcomeMessage,
+  readJoinWelcomePoints,
+} from "../_shared/whatsappJoin.ts";
 import {
   buildWappConnectReviewPrompt,
   isOkReply,
@@ -720,6 +730,13 @@ async function resolveGoogleReviewLink(
   return fromFollowup || fromSettings;
 }
 
+type RatedSale = {
+  rating: number;
+  sale_number: string | null;
+  customer_name: string | null;
+  salesman: string | null;
+};
+
 /**
  * Stores a WhatsApp list rating (review_1..5) on the customer's latest bill, so it shows in
  * Reports → Customer Reviews and alerts the shop. Never blocks the thank-you reply.
@@ -729,14 +746,14 @@ async function saveWhatsAppRating(
   organizationId: string,
   cleanPhone: string,
   buttonId: string,
-): Promise<void> {
+): Promise<RatedSale | null> {
   const rating = reviewRatingFromReplyId(buttonId);
-  if (!rating || cleanPhone.length !== 10) return;
+  if (!rating || cleanPhone.length !== 10) return null;
   try {
     const since = new Date(Date.now() - WHATSAPP_REVIEW_BILL_DAYS * 86_400_000).toISOString();
     const { data: sale } = await supabase
       .from('sales')
-      .select('id, salesman')
+      .select('id, salesman, sale_number, customer_name')
       .eq('organization_id', organizationId)
       .ilike('customer_phone', `%${cleanPhone}`)
       .is('deleted_at', null)
@@ -745,7 +762,7 @@ async function saveWhatsAppRating(
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (!sale?.id) return;
+    if (!sale?.id) return null;
     const { data: existing } = await supabase
       .from('customer_feedback')
       .select('id, source')
@@ -768,8 +785,10 @@ async function saveWhatsAppRating(
       });
       if (error) console.error('Could not save WhatsApp rating:', error.message);
     }
+    return { rating, sale_number: sale.sale_number ?? null, customer_name: sale.customer_name ?? null, salesman: sale.salesman ?? null };
   } catch (err) {
     console.error('Could not save WhatsApp rating:', err);
+    return null;
   }
 }
 
@@ -849,6 +868,196 @@ async function sendWhatsAppDocument(
 }
 
 /**
+ * 1–2 star WhatsApp rating: message the owner (Settings owner phone, else shop mobile) from the
+ * shop's own linked number, so they can call the customer back the same day.
+ */
+async function alertOwnerLowRating(
+  supabase: any,
+  organizationId: string,
+  provider: 'wappconnect' | 'builtin',
+  instanceId: string,
+  cleanPhone: string,
+  rated: RatedSale | null,
+  rating: number,
+): Promise<void> {
+  try {
+    const { data: shop } = await supabase
+      .from('settings')
+      .select('owner_phone, mobile_number')
+      .eq('organization_id', organizationId)
+      .maybeSingle();
+    const to = lowRatingAlertPhone(shop, cleanPhone);
+    if (!to) return;
+    const text = lowRatingOwnerMessage({
+      rating,
+      customerPhone: cleanPhone,
+      customerName: rated?.customer_name,
+      saleNumber: rated?.sale_number,
+      salesman: rated?.salesman,
+    });
+    const result = provider === 'builtin'
+      ? await sendViaBuiltinGateway(organizationId, to, { message: text })
+      : await sendViaWappConnect(instanceId, to, { message: text });
+    await supabase.from('whatsapp_logs').insert({
+      organization_id: organizationId,
+      phone_number: to,
+      message: text,
+      template_type: 'low_rating_alert',
+      status: result.success ? 'sent' : 'failed',
+      wamid: result.messageId || null,
+      error_message: result.success ? null : String(result.error || 'send failed'),
+      sent_at: new Date().toISOString(),
+      provider,
+    });
+  } catch (err) {
+    console.error('Low rating owner alert failed:', err);
+  }
+}
+
+function isStopMessage(text: string): boolean {
+  return /^\s*(stop|unsubscribe)\s*$/i.test(String(text || ''));
+}
+
+/** Sends one plain reply from the shop's linked number and logs it. */
+async function builtinReply(supabase: any, organizationId: string, phone10: string, text: string, templateType: string) {
+  const to = `91${phone10}`;
+  const result = await sendViaBuiltinGateway(organizationId, to, { message: text });
+  await supabase.from('whatsapp_logs').insert({
+    organization_id: organizationId,
+    phone_number: to,
+    message: text,
+    template_type: templateType,
+    status: result.success ? 'sent' : 'failed',
+    wamid: result.messageId || null,
+    error_message: result.success ? null : String(result.error || 'send failed'),
+    sent_at: new Date().toISOString(),
+    provider: 'builtin',
+  });
+}
+
+/**
+ * Customer sent JOIN (counter QR): save as customer, clear any STOP, add welcome points once
+ * (points system on) and reply. Ignores repeats within a day so a loop cannot spam.
+ */
+async function handleJoinMessage(supabase: any, organizationId: string, phone10: string, senderName: string) {
+  try {
+    const { data: wa } = await supabase
+      .from('whatsapp_api_settings')
+      .select('is_active')
+      .eq('organization_id', organizationId)
+      .maybeSingle();
+    if (!wa?.is_active) return;
+    const { data: recent } = await supabase
+      .from('whatsapp_logs')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .eq('template_type', JOIN_TEMPLATE_TYPE)
+      .ilike('phone_number', `%${phone10}`)
+      .gte('created_at', new Date(Date.now() - 86_400_000).toISOString())
+      .limit(1);
+    if (recent?.length) return;
+
+    const { data: shop } = await supabase
+      .from('settings')
+      .select('business_name, sale_settings')
+      .eq('organization_id', organizationId)
+      .maybeSingle();
+
+    const { data: found } = await supabase
+      .from('customers')
+      .select('id, customer_name, points_balance')
+      .eq('organization_id', organizationId)
+      .is('deleted_at', null)
+      .ilike('phone', `%${phone10}`)
+      .order('created_at', { ascending: true })
+      .limit(1);
+    let customer = found?.[0] ?? null;
+    if (!customer) {
+      const { data: created, error } = await supabase
+        .from('customers')
+        .insert({
+          organization_id: organizationId,
+          customer_name: senderName.trim().slice(0, 100) || `WhatsApp ${phone10.slice(-4)}`,
+          phone: phone10,
+        })
+        .select('id, customer_name, points_balance')
+        .single();
+      if (error) console.error('JOIN: could not save customer:', error.message);
+      customer = created ?? null;
+    }
+
+    await supabase
+      .from('bulk_whatsapp_optouts')
+      .delete()
+      .eq('organization_id', organizationId)
+      .in('phone', [`91${phone10}`, phone10]);
+
+    let alreadyJoined = false;
+    let points = 0;
+    if (customer) {
+      const { data: bonus } = await supabase
+        .from('customer_points_history')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .eq('customer_id', customer.id)
+        .eq('description', JOIN_POINTS_DESCRIPTION)
+        .limit(1);
+      const { data: joinedBefore } = await supabase
+        .from('whatsapp_logs')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .eq('template_type', JOIN_TEMPLATE_TYPE)
+        .ilike('phone_number', `%${phone10}`)
+        .limit(1);
+      alreadyJoined = Boolean(bonus?.length || joinedBefore?.length);
+      const welcome = shop?.sale_settings?.enable_points_system === true ? readJoinWelcomePoints(shop?.sale_settings) : 0;
+      if (!alreadyJoined && welcome > 0) {
+        await supabase
+          .from('customers')
+          .update({ points_balance: Number(customer.points_balance || 0) + welcome })
+          .eq('id', customer.id);
+        await supabase.from('customer_points_history').insert({
+          organization_id: organizationId,
+          customer_id: customer.id,
+          transaction_type: 'adjusted',
+          points: welcome,
+          description: JOIN_POINTS_DESCRIPTION,
+        });
+        points = welcome;
+      }
+    }
+
+    const text = joinWelcomeMessage({
+      shopName: String(shop?.business_name || '').trim(),
+      customerName: customer?.customer_name && !/^WhatsApp \d{4}$/.test(customer.customer_name) ? customer.customer_name : '',
+      points,
+      alreadyJoined,
+    });
+    await builtinReply(supabase, organizationId, phone10, text, JOIN_TEMPLATE_TYPE);
+  } catch (err) {
+    console.error('JOIN handling failed:', err);
+  }
+}
+
+/** STOP / UNSUBSCRIBE to the bill number: no more offers or wishes from this shop (bills still go). */
+async function handleStopMessage(supabase: any, organizationId: string, phone10: string) {
+  try {
+    await supabase
+      .from('bulk_whatsapp_optouts')
+      .upsert({ organization_id: organizationId, phone: `91${phone10}`, source: 'reply' }, { onConflict: 'organization_id,phone' });
+    await builtinReply(
+      supabase,
+      organizationId,
+      phone10,
+      'Done. You will not get offers from us any more. Your bills will still come here. Reply JOIN anytime to get offers again.',
+      'optout_reply',
+    );
+  } catch (err) {
+    console.error('STOP handling failed:', err);
+  }
+}
+
+/**
  * WappConnect / Ezzy ERP WhatsApp customer reply. "OK" (to the bill's "Reply OK to save our
  * number") gets the star menu; a 1–5 reply after that menu is saved to Customer Reviews and
  * thanked. Only phones this shop billed over the same provider in the last
@@ -863,6 +1072,17 @@ async function handleWappConnectInbound(
   const provider = opts.provider;
   const cleanPhone = inbound.from.slice(-10);
   if (cleanPhone.length !== 10) return;
+  // Counter "Scan to join" QR and STOP: only on Ezzy ERP WhatsApp, where the gateway verified the org.
+  if (provider === 'builtin' && opts.organizationId) {
+    if (isJoinMessage(inbound.text)) {
+      await handleJoinMessage(supabase, opts.organizationId, cleanPhone, inbound.senderName || '');
+      return;
+    }
+    if (isStopMessage(inbound.text)) {
+      await handleStopMessage(supabase, opts.organizationId, cleanPhone);
+      return;
+    }
+  }
   const since = new Date(Date.now() - WHATSAPP_REVIEW_BILL_DAYS * 86_400_000).toISOString();
 
   let instanceOrgId = opts.organizationId || '';
@@ -987,9 +1207,12 @@ async function handleWappConnectInbound(
 
   const rating = ratingFromReplyText(inbound.text);
   if (rating && lastPromptAt) {
-    await saveWhatsAppRating(supabase, organizationId, cleanPhone, `review_${rating}`);
+    const rated = await saveWhatsAppRating(supabase, organizationId, cleanPhone, `review_${rating}`);
     const googleReviewLink = await resolveGoogleReviewLink(supabase, organizationId, settings, cleanPhone);
     await send(reviewShoppingThankYou(`review_${rating}`, googleReviewLink));
+    if (isLowRating(rating)) {
+      await alertOwnerLowRating(supabase, organizationId, provider, instanceId, cleanPhone, rated, rating);
+    }
     return;
   }
 

@@ -232,11 +232,17 @@ async function sendNewReviews(db: Db, sa: ServiceAccount, org: string, now: Date
     if (!logId) continue;
     const { data: sale } = await db
       .from("sales")
-      .select("sale_number, customer_name")
+      .select("sale_number, customer_name, customer_phone, salesman")
       .eq("organization_id", org)
       .eq("id", r.sale_id)
       .maybeSingle();
-    const msg = reviewMessage({ ...r, sale_number: sale?.sale_number, customer_name: sale?.customer_name });
+    const msg = reviewMessage({
+      ...r,
+      sale_number: sale?.sale_number,
+      customer_name: sale?.customer_name,
+      customer_phone: sale?.customer_phone,
+      salesman: sale?.salesman,
+    });
     out.push({ org, kind: "review", ...(await sendToOwners(db, sa, org, logId, msg, { route: "/customer-reviews" })) });
   }
 }

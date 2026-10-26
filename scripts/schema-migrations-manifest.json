@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-10-26",
-  "count": 891,
-  "fileCount": 909,
+  "count": 892,
+  "fileCount": 910,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -894,7 +894,8 @@
     "20270304120000",
     "20270305120000",
     "20270306120000",
-    "20270307120000"
+    "20270307120000",
+    "20270308120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1805,7 +1806,8 @@
     "20270304120000_dc_hide_product_dashboard.sql",
     "20270305120000_advance_receipts_not_counter_tender.sql",
     "20270306120000_dc_only_user.sql",
-    "20270307120000_customer_reviews_default_on.sql"
+    "20270307120000_customer_reviews_default_on.sql",
+    "20270308120000_whatsapp_auto_messages.sql"
   ],
   "duplicateVersions": [
     {
