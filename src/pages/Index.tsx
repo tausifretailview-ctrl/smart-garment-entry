@@ -393,9 +393,16 @@ const DesktopDashboard = () => {
         setMetricsLoadRequested(true);
         setAuxiliaryMetricsEnabled(true);
       });
+      // Refetch the period on screen, and drop cached other periods (Monthly /
+      // All Time …). Refetching those in the background failed for disk-restored
+      // keys with no queryFn, so switching period later showed old figures
+      // (FASHION STUDIO: Monthly Gross Profit ₹8,131 vs fresh ₹5,576).
+      DASHBOARD_REFRESH_QUERY_KEYS.forEach((key) =>
+        queryClient.removeQueries({ queryKey: [key], type: "inactive" }),
+      );
       await Promise.all(
         DASHBOARD_REFRESH_QUERY_KEYS.map((key) =>
-          queryClient.refetchQueries({ queryKey: [key] }),
+          queryClient.refetchQueries({ queryKey: [key], type: "active" }),
         ),
       );
       setLastUpdated(new Date());
@@ -428,6 +435,7 @@ const DesktopDashboard = () => {
     },
     enabled: metricsQueryEnabled,
     ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
+    refetchOnMount: true,
   });
 
   const npaKpisQueryKey = useMemo(
@@ -450,6 +458,8 @@ const DesktopDashboard = () => {
     },
     enabled: metricsQueryEnabled && canViewGrossProfit,
     ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
+    // staleTime is Infinity, so this only refetches a period a sale/purchase save marked stale.
+    refetchOnMount: true,
   });
 
   const displayedDashStats = useMemo(() => {
