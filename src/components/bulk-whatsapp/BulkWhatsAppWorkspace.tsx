@@ -129,6 +129,8 @@ export function BulkWhatsAppWorkspace({
   onOpenSend,
   previewTopClass = "lg:top-20",
   winBackDays = null,
+  handoffContacts = null,
+  handoffKey,
 }: {
   organizationId: string;
   userId: string | undefined;
@@ -143,6 +145,9 @@ export function BulkWhatsAppWorkspace({
   previewTopClass?: string;
   /** From Business Insights > Quiet Customers: opens the customer picker on "Not visited in N days". */
   winBackDays?: number | null;
+  /** Customers ticked on Customer Master; added to the number list once per navigation (handoffKey). */
+  handoffContacts?: BulkContact[] | null;
+  handoffKey?: string;
 }) {
   const queryClient = useQueryClient();
 
@@ -205,6 +210,15 @@ export function BulkWhatsAppWorkspace({
     if (merged.contacts.length > MAX_CONTACTS) parts.push(`limit ${MAX_CONTACTS} numbers`);
     toast.success(parts.join(" · "));
   };
+
+  const handoffDone = useRef<string | null>(null);
+  useEffect(() => {
+    if (!handoffContacts?.length || !handoffKey || handoffDone.current === handoffKey) return;
+    handoffDone.current = handoffKey;
+    addContacts(handoffContacts, 0, "Customer Master");
+    // addContacts reads the current list; run once per handed-over selection only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handoffKey, handoffContacts]);
 
   const onExcel = async (file: File) => {
     try {
