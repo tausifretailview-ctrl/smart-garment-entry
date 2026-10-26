@@ -14,6 +14,7 @@ interface PurchaseReturnItem {
   id: string;
   product_name?: string;
   brand?: string;
+  style?: string;
   color?: string;
   size: string;
   barcode?: string;
@@ -26,6 +27,22 @@ interface PurchaseReturnItem {
   discount_percent?: number;
   discount_amount?: number;
 }
+
+/** Item table + Total row column widths (must add up to 100%). */
+const COL = {
+  sr: "4%",
+  desc: "19%",
+  style: "9%",
+  color: "7%",
+  size: "6%",
+  hsn: "8%",
+  gst: "6%",
+  pcs: "5%",
+  rate: "9%",
+  discPct: "6%",
+  discAmt: "9%",
+  amount: "12%",
+} as const;
 
 interface BankDetails {
   bank_name?: string;
@@ -449,15 +466,18 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
           <table className="pr-table">
             <thead>
               <tr>
-                <th style={{ width: "6%" }}>Sr</th>
-                <th style={{ width: "22%" }}>Description Of Goods</th>
-                <th style={{ width: "8%" }}>Color</th>
-                <th style={{ width: "8%" }}>Hsn Code</th>
-                <th style={{ width: "7%" }}>Pcs</th>
-                <th style={{ width: "11%" }}>Rate</th>
-                <th style={{ width: "8%" }}>Disc%</th>
-                <th style={{ width: "11%" }}>Disc Amt</th>
-                <th style={{ width: "11%" }}>Amount</th>
+                <th style={{ width: COL.sr }}>Sr</th>
+                <th style={{ width: COL.desc }}>Description Of Goods</th>
+                <th style={{ width: COL.style }}>Style</th>
+                <th style={{ width: COL.color }}>Color</th>
+                <th style={{ width: COL.size }}>Size</th>
+                <th style={{ width: COL.hsn }}>Hsn Code</th>
+                <th style={{ width: COL.gst }}>GST%</th>
+                <th style={{ width: COL.pcs }}>Pcs</th>
+                <th style={{ width: COL.rate }}>Rate</th>
+                <th style={{ width: COL.discPct }}>Disc%</th>
+                <th style={{ width: COL.discAmt }}>Disc Amt</th>
+                <th style={{ width: COL.amount }}>Amount</th>
               </tr>
             </thead>
             <tbody>
@@ -465,8 +485,11 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
                 <tr key={item.id}>
                   <td className="text-center">{srStart + index + 1}</td>
                   <td className="font-semibold">{item.product_name || "-"}</td>
+                  <td className="text-center">{item.style || "-"}</td>
                   <td className="text-center">{item.color || "-"}</td>
+                  <td className="text-center">{item.size || "-"}</td>
                   <td className="text-center">{isDC ? "" : (item.hsn_code || "")}</td>
+                  <td className="text-center">{isDC ? "" : `${Number(item.gst_per) || 0}%`}</td>
                   <td className="text-center">{item.qty}</td>
                   <td className="text-right">{(Number(item.pur_price) || 0).toFixed(2)}</td>
                   <td className="text-right">{(Number(item.discount_percent) || 0).toFixed(2)}</td>
@@ -477,15 +500,9 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
               {padRows > 0 &&
                 Array.from({ length: padRows }).map((_, index) => (
                 <tr key={`empty-${index}`} style={{ height: "18px" }}>
-                  <td>&nbsp;</td>
-                  <td>&nbsp;</td>
-                  <td>&nbsp;</td>
-                  <td>&nbsp;</td>
-                  <td>&nbsp;</td>
-                  <td>&nbsp;</td>
-                  <td>&nbsp;</td>
-                  <td>&nbsp;</td>
-                  <td>&nbsp;</td>
+                  {Array.from({ length: 12 }).map((__, c) => (
+                    <td key={c}>&nbsp;</td>
+                  ))}
                 </tr>
               ))}
             </tbody>
@@ -496,15 +513,18 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
           <div className="pr-print-footer-block" style={{ marginTop: "auto" }}>
           {/* Total Row */}
           <div className="flex pr-border-t">
-            <div className="pr-border-r p-1 text-center font-bold" style={{ width: "6%", fontSize: "12px" }}></div>
-            <div className="pr-border-r p-1 font-bold" style={{ width: "22%", fontSize: "12px" }}>Total</div>
-            <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>
-            <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>
-            <div className="pr-border-r p-1 text-center pr-value-emphasis" style={{ width: "7%", fontSize: "13px" }}>{totalQty}</div>
-            <div className="pr-border-r p-1" style={{ width: "11%", fontSize: "12px" }}></div>
-            <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>
-            <div className="pr-border-r p-1 text-right font-bold" style={{ width: "11%", fontSize: "12px" }}>{items.reduce((sum, item) => sum + (item.discount_amount || 0), 0).toFixed(2)}</div>
-            <div className="p-1 text-right pr-total-highlight" style={{ width: "11%" }}>{grossWithoutDiscount.toFixed(2)}</div>
+            <div className="pr-border-r p-1 text-center font-bold" style={{ width: COL.sr, fontSize: "12px" }}></div>
+            <div className="pr-border-r p-1 font-bold" style={{ width: COL.desc, fontSize: "12px" }}>Total</div>
+            <div className="pr-border-r p-1" style={{ width: COL.style, fontSize: "12px" }}></div>
+            <div className="pr-border-r p-1" style={{ width: COL.color, fontSize: "12px" }}></div>
+            <div className="pr-border-r p-1" style={{ width: COL.size, fontSize: "12px" }}></div>
+            <div className="pr-border-r p-1" style={{ width: COL.hsn, fontSize: "12px" }}></div>
+            <div className="pr-border-r p-1" style={{ width: COL.gst, fontSize: "12px" }}></div>
+            <div className="pr-border-r p-1 text-center pr-value-emphasis" style={{ width: COL.pcs, fontSize: "13px" }}>{totalQty}</div>
+            <div className="pr-border-r p-1" style={{ width: COL.rate, fontSize: "12px" }}></div>
+            <div className="pr-border-r p-1" style={{ width: COL.discPct, fontSize: "12px" }}></div>
+            <div className="pr-border-r p-1 text-right font-bold" style={{ width: COL.discAmt, fontSize: "12px" }}>{items.reduce((sum, item) => sum + (item.discount_amount || 0), 0).toFixed(2)}</div>
+            <div className="p-1 text-right pr-total-highlight" style={{ width: COL.amount }}>{grossWithoutDiscount.toFixed(2)}</div>
           </div>
 
           {/* Remark & Discount Row */}
