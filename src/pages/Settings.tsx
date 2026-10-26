@@ -14,6 +14,7 @@ import { PosSettingsForm } from "@/components/settings/PosSettingsForm";
 import { SettingsInvoicePreview } from "@/components/settings/SettingsInvoicePreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { JoinQrCard } from "@/components/whatsapp/JoinQrCard";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { STANDARD_SHEET_TYPE_OPTIONS } from "@/constants/standardSheetTypeOptions";
@@ -247,6 +248,8 @@ interface SaleSettings {
   auto_birthday_wish_enabled?: boolean;
   auto_birthday_offer?: string;
   auto_birthday_points?: number;
+  /** Points added once when a customer sends JOIN from the counter QR (points system on). */
+  join_welcome_points?: number;
   enable_customer_price_memory?: boolean; // Customer-wise sale price memory
   pos_barcode_price_mode?: 'mrp' | 'sale_price';
   /** When true, POS keeps the selected salesman after save (default off). */
@@ -6722,9 +6725,35 @@ export default function Settings() {
                         </div>
                       )}
                     </div>
+                    <div className="space-y-2 px-3 py-2.5">
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-semibold">Counter &quot;Scan to join&quot; QR</p>
+                        <p className="text-xs text-muted-foreground">
+                          Print this at the counter. The customer scans it and sends JOIN, gets a welcome reply and is saved in Customer Master. Customers who message you first are the safest to send offers to. Reply STOP stops offers and wishes for them.
+                        </p>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-[10rem_1fr] sm:items-start">
+                        <div className="space-y-1">
+                          <Label htmlFor="join_welcome_points" className="text-xs">Welcome points</Label>
+                          <Input
+                            id="join_welcome_points"
+                            type="number"
+                            min={0}
+                            value={settings.sale_settings?.join_welcome_points ?? 0}
+                            onChange={(e) =>
+                              setSettings({ ...settings, sale_settings: { ...settings.sale_settings, join_welcome_points: Math.max(0, Number(e.target.value) || 0) } })
+                            }
+                          />
+                        </div>
+                        <JoinQrCard
+                          shopName={settings.business_name || ""}
+                          points={(settings.sale_settings as { enable_points_system?: boolean } | undefined)?.enable_points_system ? Number(settings.sale_settings?.join_welcome_points || 0) : 0}
+                        />
+                      </div>
+                    </div>
                   </div>
                   <p className="px-3 pb-2.5 text-xs text-muted-foreground">
-                    Works with Ezzy ERP WhatsApp or WappConnect. Messages go a few at a time from your linked number to keep it safe. Click Save Settings after changing.
+                    Works with Ezzy ERP WhatsApp or WappConnect (join QR: Ezzy ERP WhatsApp only). Messages go a few at a time from your linked number to keep it safe. Click Save Settings after changing.
                   </p>
                 </SettingsSection>
                 <SettingsSection title="Customer page & notifications">

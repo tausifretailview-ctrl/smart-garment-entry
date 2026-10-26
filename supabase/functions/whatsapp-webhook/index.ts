@@ -23,6 +23,13 @@ import {
   whatsappReviewWrite,
 } from "../_shared/whatsappReviewShopping.ts";
 import {
+  isJoinMessage,
+  JOIN_POINTS_DESCRIPTION,
+  JOIN_TEMPLATE_TYPE,
+  joinWelcomeMessage,
+  readJoinWelcomePoints,
+} from "../_shared/whatsappJoin.ts";
+import {
   buildWappConnectReviewPrompt,
   isOkReply,
   parseWappConnectInbound,
@@ -907,6 +914,149 @@ async function alertOwnerLowRating(
   }
 }
 
+function isStopMessage(text: string): boolean {
+  return /^\s*(stop|unsubscribe)\s*$/i.test(String(text || ''));
+}
+
+/** Sends one plain reply from the shop's linked number and logs it. */
+async function builtinReply(supabase: any, organizationId: string, phone10: string, text: string, templateType: string) {
+  const to = `91${phone10}`;
+  const result = await sendViaBuiltinGateway(organizationId, to, { message: text });
+  await supabase.from('whatsapp_logs').insert({
+    organization_id: organizationId,
+    phone_number: to,
+    message: text,
+    template_type: templateType,
+    status: result.success ? 'sent' : 'failed',
+    wamid: result.messageId || null,
+    error_message: result.success ? null : String(result.error || 'send failed'),
+    sent_at: new Date().toISOString(),
+    provider: 'builtin',
+  });
+}
+
+/**
+ * Customer sent JOIN (counter QR): save as customer, clear any STOP, add welcome points once
+ * (points system on) and reply. Ignores repeats within a day so a loop cannot spam.
+ */
+async function handleJoinMessage(supabase: any, organizationId: string, phone10: string, senderName: string) {
+  try {
+    const { data: wa } = await supabase
+      .from('whatsapp_api_settings')
+      .select('is_active')
+      .eq('organization_id', organizationId)
+      .maybeSingle();
+    if (!wa?.is_active) return;
+    const { data: recent } = await supabase
+      .from('whatsapp_logs')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .eq('template_type', JOIN_TEMPLATE_TYPE)
+      .ilike('phone_number', `%${phone10}`)
+      .gte('created_at', new Date(Date.now() - 86_400_000).toISOString())
+      .limit(1);
+    if (recent?.length) return;
+
+    const { data: shop } = await supabase
+      .from('settings')
+      .select('business_name, sale_settings')
+      .eq('organization_id', organizationId)
+      .maybeSingle();
+
+    const { data: found } = await supabase
+      .from('customers')
+      .select('id, customer_name, points_balance')
+      .eq('organization_id', organizationId)
+      .is('deleted_at', null)
+      .ilike('phone', `%${phone10}`)
+      .order('created_at', { ascending: true })
+      .limit(1);
+    let customer = found?.[0] ?? null;
+    if (!customer) {
+      const { data: created, error } = await supabase
+        .from('customers')
+        .insert({
+          organization_id: organizationId,
+          customer_name: senderName.trim().slice(0, 100) || `WhatsApp ${phone10.slice(-4)}`,
+          phone: phone10,
+        })
+        .select('id, customer_name, points_balance')
+        .single();
+      if (error) console.error('JOIN: could not save customer:', error.message);
+      customer = created ?? null;
+    }
+
+    await supabase
+      .from('bulk_whatsapp_optouts')
+      .delete()
+      .eq('organization_id', organizationId)
+      .in('phone', [`91${phone10}`, phone10]);
+
+    let alreadyJoined = false;
+    let points = 0;
+    if (customer) {
+      const { data: bonus } = await supabase
+        .from('customer_points_history')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .eq('customer_id', customer.id)
+        .eq('description', JOIN_POINTS_DESCRIPTION)
+        .limit(1);
+      const { data: joinedBefore } = await supabase
+        .from('whatsapp_logs')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .eq('template_type', JOIN_TEMPLATE_TYPE)
+        .ilike('phone_number', `%${phone10}`)
+        .limit(1);
+      alreadyJoined = Boolean(bonus?.length || joinedBefore?.length);
+      const welcome = shop?.sale_settings?.enable_points_system === true ? readJoinWelcomePoints(shop?.sale_settings) : 0;
+      if (!alreadyJoined && welcome > 0) {
+        await supabase
+          .from('customers')
+          .update({ points_balance: Number(customer.points_balance || 0) + welcome })
+          .eq('id', customer.id);
+        await supabase.from('customer_points_history').insert({
+          organization_id: organizationId,
+          customer_id: customer.id,
+          transaction_type: 'adjusted',
+          points: welcome,
+          description: JOIN_POINTS_DESCRIPTION,
+        });
+        points = welcome;
+      }
+    }
+
+    const text = joinWelcomeMessage({
+      shopName: String(shop?.business_name || '').trim(),
+      customerName: customer?.customer_name && !/^WhatsApp \d{4}$/.test(customer.customer_name) ? customer.customer_name : '',
+      points,
+      alreadyJoined,
+    });
+    await builtinReply(supabase, organizationId, phone10, text, JOIN_TEMPLATE_TYPE);
+  } catch (err) {
+    console.error('JOIN handling failed:', err);
+  }
+}
+
+/** STOP / UNSUBSCRIBE to the bill number: no more offers or wishes from this shop (bills still go). */
+async function handleStopMessage(supabase: any, organizationId: string, phone10: string) {
+  try {
+    await supabase
+      .from('bulk_whatsapp_optouts')
+      .upsert({ organization_id: organizationId, phone: `91${phone10}`, source: 'reply' }, { onConflict: 'organization_id,phone' });
+    await builtinReply(
+      supabase,
+      organizationId,
+      phone10,
+      'Done. You will not get offers from us any more. Your bills will still come here. Reply JOIN anytime to get offers again.',
+      'optout_reply',
+    );
+  } catch (err) {
+    console.error('STOP handling failed:', err);
+  }
+}
+
 /**
  * WappConnect / Ezzy ERP WhatsApp customer reply. "OK" (to the bill's "Reply OK to save our
  * number") gets the star menu; a 1–5 reply after that menu is saved to Customer Reviews and
@@ -922,6 +1072,17 @@ async function handleWappConnectInbound(
   const provider = opts.provider;
   const cleanPhone = inbound.from.slice(-10);
   if (cleanPhone.length !== 10) return;
+  // Counter "Scan to join" QR and STOP: only on Ezzy ERP WhatsApp, where the gateway verified the org.
+  if (provider === 'builtin' && opts.organizationId) {
+    if (isJoinMessage(inbound.text)) {
+      await handleJoinMessage(supabase, opts.organizationId, cleanPhone, inbound.senderName || '');
+      return;
+    }
+    if (isStopMessage(inbound.text)) {
+      await handleStopMessage(supabase, opts.organizationId, cleanPhone);
+      return;
+    }
+  }
   const since = new Date(Date.now() - WHATSAPP_REVIEW_BILL_DAYS * 86_400_000).toISOString();
 
   let instanceOrgId = opts.organizationId || '';
