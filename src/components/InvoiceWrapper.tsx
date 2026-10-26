@@ -64,6 +64,7 @@ import {
 } from '@/utils/organizationBankAccounts';
 import { organizationBankAccountsQueryKey } from '@/hooks/useOrganizationBankAccounts';
 import { formatInvoiceProductDescription, type InvoiceDescriptionSequence } from '@/utils/invoiceProductDescription';
+import { getProductFieldLabel } from '@/utils/productFieldSettingsForLabels';
 import { applyPrintFirmToSettings, type PrintFirm } from '@/utils/secondFirm';
 import {
   needsInvoiceCustomerAddressLookup,
@@ -331,6 +332,14 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const descriptionSequence: InvoiceDescriptionSequence =
       saleSettingsForDescription.invoice_description_sequence === "product_first" ? "product_first" : "brand_first";
     const descriptionTemplate = props.template || saleSettingsForDescription.invoice_template || "";
+    const tallyMobileErp = settings?.product_settings?.mobile_erp?.enabled === true;
+    // Style printed as its own line under the item (electronics shops keep warranty in Style).
+    // Item Details Display > Style; Mobile ERP shops get it unless they untick it.
+    const tallyStyleLineEnabled =
+      descriptionTemplate === "tally-tax-invoice" &&
+      ((settings?.sale_settings?.show_item_style as boolean | undefined) ?? tallyMobileErp) === true;
+    const productStyleLabel = getProductFieldLabel("style", "Style", settings?.product_settings?.fields);
+    const tallyStyleLabel = productStyleLabel === "Style" && tallyMobileErp ? "Warranty" : productStyleLabel;
     const descriptionProductIds = [
       ...new Set(
         (props.items || [])
@@ -340,7 +349,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     ].sort();
     const descriptionQueryEnabled =
       !!settings &&
-      descriptionSequenceEnabled &&
+      (descriptionSequenceEnabled || tallyStyleLineEnabled) &&
       descriptionTemplate === "tally-tax-invoice" &&
       !!orgId &&
       descriptionProductIds.length > 0;
@@ -643,19 +652,24 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       customerTransportDetails: props.customerTransportDetails,
       
       items: props.items.map((item) => {
-        if (!descriptionSequenceEnabled || templateForFormat !== "tally-tax-invoice") return item;
+        if (templateForFormat !== "tally-tax-invoice") return item;
+        if (!descriptionSequenceEnabled && !tallyStyleLineEnabled) return item;
         const product = item.productId
           ? (descriptionProducts ?? []).find((row) => row.id === item.productId)
           : undefined;
+        const styleLine = tallyStyleLineEnabled ? (product?.style || item.style || "").trim() : "";
+        if (!descriptionSequenceEnabled) return { ...item, styleLine };
         return {
           ...item,
+          styleLine,
           particulars: formatInvoiceProductDescription(
             {
               particulars: item.particulars,
               productName: product?.product_name || item.productName,
               brand: product?.brand || item.brand,
               category: product?.category || item.category,
-              style: product?.style || item.style,
+              // Already printed on its own line, so keep it out of the description.
+              style: styleLine ? undefined : product?.style || item.style,
               color: item.color || product?.color,
             },
             { enabled: true, sequence: descriptionSequence },
@@ -1152,6 +1166,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             <TallyTaxInvoiceTemplate
               {...commonProps}
               mobileErp={settings?.product_settings?.mobile_erp?.enabled === true}
+              styleLineLabel={tallyStyleLabel}
             />
           );
         case 'gift_tally':

@@ -30,6 +30,8 @@ interface InvoiceItem {
   gstPercent?: number;
   discountPercent?: number;
   itemNotes?: string;
+  /** Product Style printed as its own line (e.g. warranty for electronics). */
+  styleLine?: string;
 }
 
 interface TallyTaxInvoiceTemplateProps {
@@ -103,6 +105,8 @@ interface TallyTaxInvoiceTemplateProps {
   stampSize?: "small" | "medium" | "large";
   /** Mobile ERP shop: a phone's barcode is its IMEI, so label it "IMEI". */
   mobileErp?: boolean;
+  /** Label for item.styleLine, e.g. "Warranty". */
+  styleLineLabel?: string;
   [key: string]: any;
 }
 
@@ -303,6 +307,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
   taxType: taxTypeProp = "inclusive",
   items,
   mobileErp = false,
+  styleLineLabel = "Style",
   subtotal,
   discount,
   saleReturnAdjust = 0,
@@ -687,6 +692,11 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                       {item.barcode && (
                         <div style={{ fontSize: "10px", color: "#000", fontFamily: "monospace", marginTop: "2px" }}>
                           {tallyItemCodeLabel(item.barcode, mobileErp)}: {item.barcode}
+                        </div>
+                      )}
+                      {item.styleLine && (
+                        <div style={{ fontSize: "10px", color: "#000", marginTop: "1px" }}>
+                          <strong>{styleLineLabel}:</strong> {item.styleLine}
                         </div>
                       )}
                     </td>
