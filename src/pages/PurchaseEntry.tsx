@@ -111,7 +111,7 @@ import {
 } from "@/utils/purchaseImportErrors";
 import { cleanProductName } from "@/utils/productNameMerge";
 import { productNameMatchKey } from "@/utils/productNameDedupe";
-import { isPhotoImportEnabled } from "@/utils/purchasePhotoImport";
+import { isPhotoImportEnabled, newProductExtrasFromImportRow } from "@/utils/purchasePhotoImport";
 import type { PhotoBillHeader } from "@/components/purchase/PhotoPurchaseImportDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
@@ -8025,6 +8025,7 @@ const PurchaseEntry = () => {
             gst_per: Math.round(normalizeImportGstPercent(parseLocalizedNumber(row.gst_per))),
             default_pur_price: parseLocalizedNumber(row.pur_price),
             default_sale_price: parseLocalizedNumber(row.sale_price),
+            ...newProductExtrasFromImportRow(row),
             status: 'active',
             created_in_purchase: true,
             // Imports have no per-row IMEI control: reuse the last-remembered

@@ -7,6 +7,8 @@ import {
   matchSupplier,
   normalizeBillDate,
   reviewRowsToImportRows,
+  salePriceFromMrpDisc,
+  newProductExtrasFromImportRow,
   rowIssues,
   type CatalogMatch,
   type ReadBill,
@@ -68,6 +70,27 @@ describe("bill photo import", () => {
     expect(out[0]).toMatchObject({ bill_supplier_name: "ABC Traders", bill_supplier_invoice_no: "INV-77", bill_other_charges: 50, qty: 5, pur_price: 200 });
     expect(out[1].bill_supplier_name).toBeUndefined();
     expect(out[1]).toMatchObject({ product_name: "LUX SOAP 100G", sale_price: 65 });
+  });
+
+  it("passes extra column values (category, brand, sale GST, POS disc) to the import", () => {
+    const [row] = billToReviewRows(bill, findMatch, 30);
+    const [out] = reviewRowsToImportRows(
+      [{ ...row, category: "SHIRTS", brand: "ZARA", style: "A-12", uom: "PCS", sale_gst_per: 18, pos_disc_per: 10 }],
+      { supplierName: "", invoiceNo: "", billDate: "", otherCharges: 0 },
+    );
+    expect(out).toMatchObject({ category: "SHIRTS", brand: "ZARA", style: "A-12", uom: "PCS", sale_gst_per: 18, pos_disc_per: 10 });
+    const [plain] = reviewRowsToImportRows([row], { supplierName: "", invoiceNo: "", billDate: "", otherCharges: 0 });
+    expect(plain.sale_gst_per).toBeUndefined();
+    expect(plain.pos_disc_per).toBeUndefined();
+    expect(salePriceFromMrpDisc(1500, 10)).toBe(1350);
+    expect(newProductExtrasFromImportRow(out)).toEqual({
+      uom: "PCS",
+      purchase_gst_percent: row.gst_per,
+      sale_gst_percent: 18,
+      sale_discount_type: "percent",
+      sale_discount_value: 10,
+    });
+    expect(newProductExtrasFromImportRow(plain)).toEqual({});
   });
 
   it("is on for every shop unless Settings > Purchase turns it off", () => {
