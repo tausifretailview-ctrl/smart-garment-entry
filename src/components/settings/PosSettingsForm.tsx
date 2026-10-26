@@ -363,14 +363,14 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
           )}
 
           <SettingsRow
-            label="POS goods qty / discount dialog (search dropdown)"
+            label="POS goods qty / discount dialog (search & barcode scan)"
             htmlFor="pos_goods_ask_qty_dialog"
-            description="When enabled, picking a regular product from the POS search dropdown opens a Quantity + Price + Discount (₹) dialog. Barcode scans and service codes (1–9) are unchanged."
+            description="When enabled, picking a regular product from the POS search dropdown or scanning its barcode opens a Quantity + Price + Discount (₹) dialog. IMEI / serial scans and service codes (1–9) are unchanged."
             hint={
               <SettingOnOffHint
                 active={sale.pos_goods_ask_qty_dialog === true ? "on" : "off"}
-                on="Search-dropdown picks ask qty and discount before adding to cart."
-                off="Search-dropdown picks add the item immediately."
+                on="Search-dropdown picks and barcode scans ask qty and discount before adding to cart."
+                off="Search-dropdown picks and barcode scans add the item immediately."
               />
             }
           >
