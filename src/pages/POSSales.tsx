@@ -3902,10 +3902,11 @@ export default function POSSales() {
     // Service products: merge same barcode + price into one line; different MRP stays separate (saree pieces).
     const isServiceProduct = product.product_type === 'service';
 
-    // Regular goods from search dropdown: optional qty/discount dialog (Trendzo opt-in).
+    // Regular goods from search dropdown or barcode scan: optional qty/discount dialog
+    // (Trendzo opt-in). IMEI / serial units stay one piece per scan.
     if (
       !isServiceProduct &&
-      addSource === "manual" &&
+      (addSource === "manual" || !productRequiresImei(product, mobileERP)) &&
       isPosGoodsAskQtyDialogEnabled((settingsData as any)?.sale_settings) &&
       !overridePrice
     ) {

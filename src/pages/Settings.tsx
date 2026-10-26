@@ -255,7 +255,7 @@ interface SaleSettings {
   pos_scheme_auto_calculate_discount?: boolean;
   /** Active discount scheme for POS tier rules; falls back to org default scheme. */
   active_discount_scheme_id?: string | null;
-  /** When true, POS asks qty/discount in a dialog when picking regular goods from search dropdown. */
+  /** When true, POS asks qty/discount in a dialog when picking or scanning regular goods. */
   pos_goods_ask_qty_dialog?: boolean;
   pos_dashboard_show_purchase_code?: boolean;
   /** Shared / Sale default GST mode (existing setting — unchanged for current orgs) */
