@@ -21,6 +21,7 @@ import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContext
 import { format, formatDistanceToNow } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PurchaseReturnPrint } from "@/components/PurchaseReturnPrint";
+import { derivePurchaseReturnLineDiscount } from "@/utils/purchaseReturnDc";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { captureElementToPdfBlob } from "@/utils/invoiceElementToPdf";
 import { deliverPdfBlob } from "@/utils/mobileDocumentDelivery";
@@ -50,6 +51,10 @@ interface PurchaseReturnItem {
   barcode?: string;
   product_name?: string;
   brand?: string;
+  style?: string;
+  hsn_code?: string;
+  discount_percent?: number;
+  discount_amount?: number;
 }
 
 interface PurchaseReturn {
@@ -537,7 +542,7 @@ const PurchaseReturnDashboard = () => {
       // Fetch product info
       const { data: productsData, error: productsError } = await supabase
         .from("products")
-        .select("id, product_name, brand")
+        .select("id, product_name, brand, style, hsn_code")
         .in("id", productIds);
 
       if (productsError) throw productsError;
@@ -551,6 +556,9 @@ const PurchaseReturnDashboard = () => {
           ...item,
           product_name: product?.product_name || "Unknown",
           brand: product?.brand || "",
+          style: product?.style || "",
+          hsn_code: item.hsn_code || product?.hsn_code || "",
+          ...derivePurchaseReturnLineDiscount(item),
         };
       });
 
@@ -1222,6 +1230,7 @@ const PurchaseReturnDashboard = () => {
                                       <TableHead>#</TableHead>
                                       <TableHead>Product</TableHead>
                                       <TableHead>Brand</TableHead>
+                                      <TableHead>Style</TableHead>
                                       <TableHead>Color</TableHead>
                                       <TableHead>Size</TableHead>
                                       <TableHead>Barcode</TableHead>
@@ -1238,6 +1247,7 @@ const PurchaseReturnDashboard = () => {
                                         <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
                                         <TableCell className="font-medium">{item.product_name || "Unknown"}</TableCell>
                                         <TableCell>{item.brand || "-"}</TableCell>
+                                        <TableCell>{item.style || "-"}</TableCell>
                                         <TableCell>{item.color || "-"}</TableCell>
                                         <TableCell>
                                           <Badge variant="secondary">{item.size}</Badge>
@@ -1246,7 +1256,7 @@ const PurchaseReturnDashboard = () => {
                                           <code className="text-xs bg-muted px-1 py-0.5 rounded">{item.barcode || "N/A"}</code>
                                         </TableCell>
                                         <TableCell>
-                                          <code className="text-xs">{(item as any).hsn_code || "-"}</code>
+                                          <code className="text-xs">{item.hsn_code || "-"}</code>
                                         </TableCell>
                                         <TableCell className="text-right font-medium">{item.qty}</TableCell>
                                         <TableCell className="text-right">

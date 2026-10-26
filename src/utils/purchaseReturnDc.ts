@@ -74,3 +74,21 @@ export function buildPurchaseReturnItemPayload(item: PurchaseReturnLineInput, is
   };
 }
 
+
+/**
+ * Line discount is not stored on purchase_return_items; line_total is saved after
+ * discount, so the discount is the gap between qty × rate and line_total.
+ */
+export function derivePurchaseReturnLineDiscount(item: {
+  qty: number;
+  pur_price: number;
+  line_total: number;
+}): { discount_amount: number; discount_percent: number } {
+  const base = (Number(item.qty) || 0) * (Number(item.pur_price) || 0);
+  const gap = Math.round((base - (Number(item.line_total) || 0)) * 100) / 100;
+  if (base <= 0 || gap <= 0.005) return { discount_amount: 0, discount_percent: 0 };
+  return {
+    discount_amount: gap,
+    discount_percent: Math.round((gap / base) * 10000) / 100,
+  };
+}

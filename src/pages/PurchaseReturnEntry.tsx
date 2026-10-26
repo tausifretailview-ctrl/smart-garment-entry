@@ -30,6 +30,7 @@ import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import {
   buildPurchaseReturnItemPayload,
+  derivePurchaseReturnLineDiscount,
   calculatePurchaseReturnTotals,
 } from "@/utils/purchaseReturnDc";
 import { inferPurchaseLineDiscount } from "@/utils/inferPurchaseLineDiscount";
@@ -124,6 +125,7 @@ interface LineItem {
   barcode: string;
   line_total: number;
   brand?: string;
+  style?: string;
   discount_percent: number;
   discount_amount: number;
   mrp?: number;
@@ -159,6 +161,8 @@ type PurchaseReturnProductLookup = {
   id: string;
   product_name?: string | null;
   brand?: string | null;
+  style?: string | null;
+  hsn_code?: string | null;
   uom?: string | null;
 };
 
@@ -412,19 +416,19 @@ const PurchaseReturnEntry = () => {
 
       try {
         const fetchVariantColorsByIds = async (skuIds: string[]) => {
-          if (skuIds.length === 0) return new Map<string, { color?: string }>();
-          const map = new Map<string, { color?: string }>();
+          if (skuIds.length === 0) return new Map<string, { color?: string; mrp?: number }>();
+          const map = new Map<string, { color?: string; mrp?: number }>();
           const batchSize = 200;
           for (let i = 0; i < skuIds.length; i += batchSize) {
             const batch = skuIds.slice(i, i + batchSize);
             const { data, error } = await supabase
               .from("product_variants")
-              .select("id, color")
+              .select("id, color, mrp")
               .eq("organization_id", orgId)
               .in("id", batch);
             if (error) throw error;
-            (data || []).forEach((v: { id: string; color?: string | null }) => {
-              map.set(v.id, { color: v.color || "" });
+            (data || []).forEach((v: { id: string; color?: string | null; mrp?: number | null }) => {
+              map.set(v.id, { color: v.color || "", mrp: Number(v.mrp ?? 0) });
             });
           }
           return map;
@@ -461,13 +465,13 @@ const PurchaseReturnEntry = () => {
           ] as string[];
 
           const [productsData, variantMapRaw] = await Promise.all([
-            fetchPurchaseReturnProductsByIds(orgId, productIds, "id, product_name, brand, uom"),
+            fetchPurchaseReturnProductsByIds(orgId, productIds, "id, product_name, brand, style, hsn_code, uom"),
             fetchVariantColorsByIds(skuIds),
           ]);
 
           const productRows = Array.isArray(productsData) ? productsData : [];
           const productMap = new Map(productRows.map((p) => [p.id, p]));
-          const variantMap = coerceToMap<string, { color?: string }>(variantMapRaw);
+          const variantMap = coerceToMap<string, { color?: string; mrp?: number }>(variantMapRaw);
 
           const loadedItems: LineItem[] = (items || []).map((item: any) => {
             const product = productMap.get(item.product_id);
@@ -483,12 +487,13 @@ const PurchaseReturnEntry = () => {
               qty: Number(item.qty) || 0,
               pur_price: item.pur_price,
               gst_per: item.gst_per,
-              hsn_code: item.hsn_code || "",
+              hsn_code: item.hsn_code || product?.hsn_code || "",
               barcode: item.barcode || "",
               line_total: item.line_total,
               brand: product?.brand || "",
-              discount_percent: Number((item as any).discount_percent || 0),
-              discount_amount: Number((item as any).discount_amount || 0),
+              style: product?.style || "",
+              ...derivePurchaseReturnLineDiscount(item),
+              mrp: variant?.mrp ?? 0,
             };
           });
 
@@ -641,6 +646,7 @@ const PurchaseReturnEntry = () => {
       id,
       product_name,
       brand,
+      style,
       hsn_code,
       gst_per,
       purchase_gst_percent,
@@ -663,6 +669,7 @@ const PurchaseReturnEntry = () => {
       barcode: String(v.barcode || ""),
       product_name: String(products.product_name || ""),
       brand: String(products.brand || ""),
+      style: String(products.style || ""),
       gst_per: Number(products.purchase_gst_percent || products.gst_per || 0),
       hsn_code: String(products.hsn_code || ""),
       stock_qty: Number(v.stock_qty || 0),
@@ -821,6 +828,7 @@ const PurchaseReturnEntry = () => {
         barcode: variant.barcode,
         line_total: unitPrice * initialQty,
         brand: variant.brand,
+        style: variant.style || "",
         discount_percent: 0,
         discount_amount: 0,
         mrp: variant.mrp ?? 0,
@@ -938,7 +946,7 @@ const PurchaseReturnEntry = () => {
     setOriginalBillId('');
     try {
       const searchTerm = returnData.original_bill_number.trim();
-      const billSelect = `id, supplier_id, supplier_name, is_dc_purchase, bill_date, supplier_invoice_no, software_bill_no, purchase_items(id, sku_id, product_id, product_name, size, color, qty, pur_price, gst_per, hsn_code, barcode, line_total, brand)`;
+      const billSelect = `id, supplier_id, supplier_name, is_dc_purchase, bill_date, supplier_invoice_no, software_bill_no, purchase_items(id, sku_id, product_id, product_name, size, color, qty, pur_price, gst_per, hsn_code, barcode, line_total, brand, style, mrp)`;
 
       const baseQuery = () =>
         supabase
@@ -1016,14 +1024,16 @@ const PurchaseReturnEntry = () => {
       const skuIds = [...new Set(rawItems.map((i) => i.sku_id).filter(Boolean))] as string[];
       const productIds = [...new Set(rawItems.map((i) => i.product_id).filter(Boolean))] as string[];
       const uomByProductId = new Map<string, string>();
+      const productById = new Map<string, PurchaseReturnProductLookup>();
       if (productIds.length > 0) {
         const productsData = await fetchPurchaseReturnProductsByIds(
           currentOrganization.id,
           productIds,
-          "id, uom",
+          "id, uom, style, hsn_code",
         );
-        productsData.forEach((p: { id: string; uom?: string | null }) => {
+        productsData.forEach((p) => {
           uomByProductId.set(p.id, p.uom || "NOS");
+          productById.set(p.id, p);
         });
       }
       const stockBySku = new Map<string, number>();
@@ -1074,12 +1084,14 @@ const PurchaseReturnEntry = () => {
           qty: returnQty,
           pur_price,
           gst_per: isBillDC ? 0 : (Number(item.gst_per) || 0),
-          hsn_code: item.hsn_code || '',
+          hsn_code: item.hsn_code || productById.get(item.product_id)?.hsn_code || '',
           barcode: item.barcode || '',
           line_total,
           brand: item.brand || '',
+          style: item.style || productById.get(item.product_id)?.style || '',
           discount_percent,
           discount_amount,
+          mrp: Number(item.mrp ?? 0),
         });
         rowIdx += 1;
       }
@@ -1925,15 +1937,19 @@ const PurchaseReturnEntry = () => {
         <section className={cn("flex-1 min-h-0 pb-2 overflow-hidden bg-slate-100 relative w-full min-w-0", entryPageSectionX)}>
           <div className="purchase-bill-lines-scroll h-full w-full min-w-0 overflow-x-auto overflow-y-auto isolate rounded-lg border border-slate-200 shadow-sm bg-white">
             {lineItems.length > 0 ? (
-              <Table className="table-fixed w-full min-w-[1100px] border-separate border-spacing-0 erp-desktop-table erp-entry-lines-table">
+              <Table className="table-fixed w-full min-w-[1260px] border-separate border-spacing-0 erp-desktop-table erp-entry-lines-table">
                 <TableHeader className="sticky top-0 z-10 erp-invoice-table-header">
                   <TableRow className="bg-slate-800 border-b-2 border-slate-900 hover:bg-slate-800">
                     <TableHead className="w-[40px] text-center uppercase font-bold text-white h-11">#</TableHead>
                     <TableHead className="col-product w-[10rem] max-w-[10rem] text-left uppercase font-bold text-white h-11">Item Name</TableHead>
                     <TableHead className="w-[80px] text-center uppercase font-bold text-white h-11">Brand</TableHead>
+                    <TableHead className="w-[80px] text-center uppercase font-bold text-white h-11">Style</TableHead>
                     <TableHead className="w-[70px] text-center uppercase font-bold text-white h-11">Color</TableHead>
                     <TableHead className="pur-col-size w-[60px] text-center uppercase font-bold text-white h-11">Size</TableHead>
                     <TableHead className="pur-col-barcode w-[100px] text-center uppercase font-bold text-white h-11">Barcode</TableHead>
+                    {!isDC && (
+                      <TableHead className="w-[84px] text-center uppercase font-bold text-white h-11">HSN</TableHead>
+                    )}
                     <TableHead className="w-[72px] text-center uppercase font-bold text-white h-11 pur-qty-col">Qty</TableHead>
                     {showMrp && (
                       <TableHead className="w-[80px] text-right uppercase font-bold text-white h-11">MRP</TableHead>
@@ -1967,9 +1983,24 @@ const PurchaseReturnEntry = () => {
                         </div>
                       </TableCell>
                       <TableCell className="text-center font-medium text-slate-900 py-1.5">{item.brand}</TableCell>
+                      <TableCell className="text-center font-medium text-slate-900 py-1.5 truncate" title={item.style || ""}>{item.style || "-"}</TableCell>
                       <TableCell className="text-center font-medium text-slate-900 py-1.5">{item.color || "-"}</TableCell>
                       <TableCell className="pur-col-size text-center font-mono font-semibold text-slate-900 py-1.5">{item.size}</TableCell>
                       <TableCell className="pur-col-barcode text-center font-mono font-medium text-slate-700 py-1.5">{item.barcode}</TableCell>
+                      {!isDC && (
+                        <TableCell className="py-1">
+                          <Input
+                            value={item.hsn_code || ""}
+                            onChange={(e) => updateLineItem(item.temp_id, "hsn_code", e.target.value.trim())}
+                            placeholder="HSN"
+                            title={item.hsn_code ? undefined : "HSN missing — needed on the GST debit note"}
+                            className={cn(
+                              "w-[78px] text-center border-slate-300 font-mono mx-auto",
+                              !item.hsn_code && "border-amber-400 bg-amber-50",
+                            )}
+                          />
+                        </TableCell>
+                      )}
                       <TableCell className="py-1">
                         <div className="flex items-center gap-1 justify-center">
                           <Input
