@@ -51,6 +51,42 @@ async function rasterizeElement(
 ): Promise<HTMLCanvasElement> {
   const { scale } = resolveInvoicePdfRasterOptions({ mobileOptimized, wappConnectPdf });
   const html2canvas = await loadHtml2Canvas();
+  const thermalReceipt =
+    element.classList.contains("thermal-receipt-container") ||
+    Boolean(element.querySelector(".thermal-receipt-container"));
+  const releaseBaselineFix = thermalReceipt ? installHtml2CanvasBaselineFix() : () => {};
+  try {
+    return await renderWithHtml2Canvas(html2canvas, element, scale, wappConnectPdf);
+  } finally {
+    releaseBaselineFix();
+  }
+}
+
+/**
+ * html2canvas measures each font's baseline in the LIVE document with a 1x1 <img>
+ * placed next to sample text. Tailwind's preflight (`img { display: block }`) pushes
+ * that probe onto its own line, so every text run is drawn several px too low and
+ * dashed / solid rules cut through it in the PDF (VELVET WhatsApp bill). Keep the
+ * probe inline while a capture runs.
+ */
+export const HTML2CANVAS_BASELINE_FIX_CSS =
+  'body > div > img[width="1"][height="1"] { display: inline !important; }';
+
+function installHtml2CanvasBaselineFix(): () => void {
+  if (typeof document === "undefined" || !document.head) return () => {};
+  const style = document.createElement("style");
+  style.setAttribute("data-html2canvas-baseline-fix", "true");
+  style.textContent = HTML2CANVAS_BASELINE_FIX_CSS;
+  document.head.appendChild(style);
+  return () => style.remove();
+}
+
+function renderWithHtml2Canvas(
+  html2canvas: typeof html2canvasType,
+  element: HTMLElement,
+  scale: number,
+  wappConnectPdf: boolean,
+): Promise<HTMLCanvasElement> {
   return html2canvas(element, {
     scale,
     useCORS: true,
