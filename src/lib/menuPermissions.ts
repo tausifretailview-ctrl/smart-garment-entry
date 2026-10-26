@@ -122,6 +122,7 @@ export function normalizeStoredMenuPermissions(
 /** Menu items enabled by default when custom permissions exist but the key was never saved. */
 const DEFAULT_ON_MENU_IDS = new Set([
   "business_insights",
+  "customer_reviews",
 ]);
 
 /**
