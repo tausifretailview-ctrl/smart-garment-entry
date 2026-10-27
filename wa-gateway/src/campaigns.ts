@@ -104,27 +104,7 @@ export class CampaignRunner {
    */
   private async optOut(sessionId: string, phone: string, subscribe: boolean) {
     await this.post({ action: "gateway-optout", sessionId, phone, subscribe, at: new Date().toISOString() });
-    if (!subscribe) {
-      for (const job of this.jobs.values()) {
-        if (job.sessionId !== sessionId) continue;
-        let changed = false;
-        for (const item of job.items) {
-          if (item.done || item.phone !== phone) continue;
-          item.done = true;
-          changed = true;
-          void this.post({
-            action: "gateway-result",
-            campaignId: job.campaignId,
-            recipientId: item.recipientId,
-            status: "skipped",
-            messageId: null,
-            error: "Unsubscribed",
-            at: new Date().toISOString(),
-          }, job.reportUrl);
-        }
-        if (changed) this.save(job);
-      }
-    }
+    if (!subscribe) this.dropPhone(phone, (job) => job.sessionId === sessionId);
     try {
       await this.sessions.sendText(
         sessionId,
@@ -136,6 +116,47 @@ export class CampaignRunner {
     } catch (e) {
       logger.warn({ err: e }, "opt-out confirmation failed");
     }
+  }
+
+  /**
+   * Takes a number out of the campaigns `keep` picks that have not reached it yet (scheduled or still
+   * sending), reporting each as skipped. Returns how many sends were dropped.
+   */
+  private dropPhone(phone: string, keep: (job: CampaignJob) => boolean): number {
+    const digits = phone.replace(/\D/g, "");
+    let dropped = 0;
+    for (const job of this.jobs.values()) {
+      if (!keep(job)) continue;
+      let changed = false;
+      for (const item of job.items) {
+        if (item.done || item.phone.replace(/\D/g, "") !== digits) continue;
+        item.done = true;
+        changed = true;
+        dropped++;
+        void this.post({
+          action: "gateway-result",
+          campaignId: job.campaignId,
+          recipientId: item.recipientId,
+          status: "skipped",
+          messageId: null,
+          error: "Unsubscribed",
+          at: new Date().toISOString(),
+        }, job.reportUrl);
+      }
+      if (changed) this.save(job);
+    }
+    return dropped;
+  }
+
+  /**
+   * The app saved an opt-out (STOP to the shop's bill number, Block in the Inbox): drop the number
+   * from these campaigns, so a campaign scheduled days ahead does not still reach it.
+   */
+  dropNumber(input: { phone?: unknown; campaignIds?: unknown }): { dropped: number } {
+    const phone = String(input.phone ?? "").replace(/\D/g, "");
+    const ids = new Set((Array.isArray(input.campaignIds) ? input.campaignIds : []).map(String).filter((id) => ID_RE.test(id)));
+    if (!phone || !ids.size) return { dropped: 0 };
+    return { dropped: this.dropPhone(phone, (job) => ids.has(job.campaignId)) };
   }
 
   /**

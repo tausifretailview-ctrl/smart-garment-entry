@@ -118,6 +118,10 @@ app.post("/campaigns", wrap(async (req, res) => {
   res.json({ success: true, ...campaigns.create(req.body ?? {}) });
 }));
 
+app.post("/campaigns/drop-number", wrap(async (req, res) => {
+  res.json({ success: true, ...campaigns.dropNumber(req.body ?? {}) });
+}));
+
 app.get("/campaigns/:id", wrap(async (req, res) => {
   res.json({ success: true, ...campaigns.get(req.params.id) });
 }));

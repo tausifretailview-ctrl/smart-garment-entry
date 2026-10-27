@@ -1,7 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { gatewayBaseUrl, gatewayRequest, getGatewayConfig } from "../_shared/builtinGatewaySend.ts";
+import { gatewayRequest, getBulkGatewayConfig, getGatewayConfig } from "../_shared/builtinGatewaySend.ts";
 import { optOutKeyword } from "../_shared/bulkOptOutKeyword.ts";
+import { dropOptedOutFromCampaigns } from "../_shared/bulkOptOutDrop.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,18 +22,8 @@ const MAX_GAP_MS = 20000;
 const CAMPAIGN_STATUSES = new Set(["running", "paused", "stopped", "completed", "failed"]);
 const RANK: Record<string, number> = { pending: 0, sent: 1, delivered: 2, read: 3 };
 
-/**
- * Bulk sends can run on their own wa-gateway (a second Railway service) so promotions never share a
- * server with shop bill sends. Without WA_BULK_GATEWAY_URL / WA_BULK_GATEWAY_KEY they use the bill one.
- */
-function bulkGatewayConfig(): { url: string; key: string } | null {
-  const url = gatewayBaseUrl(Deno.env.get("WA_BULK_GATEWAY_URL"));
-  const key = (Deno.env.get("WA_BULK_GATEWAY_KEY") ?? "").trim();
-  return url && key ? { url, key } : getGatewayConfig();
-}
-
 const bulkGateway = (path: string, init: { method?: string; body?: unknown } = {}) =>
-  gatewayRequest(path, init, bulkGatewayConfig());
+  gatewayRequest(path, init, getBulkGatewayConfig());
 
 /** Failures that sending again will not fix (same rule as the page's resend button). */
 /** Read by the page (bulkWhatsAppApi scheduledStart) to show "Scheduled". */
@@ -69,7 +60,7 @@ serve(async (req) => {
 
   if (action.startsWith("gateway-")) {
     // Either server may report: the bulk one, or the bill one for campaigns started before a switch.
-    const keys = [bulkGatewayConfig()?.key, getGatewayConfig()?.key].filter(Boolean);
+    const keys = [getBulkGatewayConfig()?.key, getGatewayConfig()?.key].filter(Boolean);
     const sent = req.headers.get("x-api-key") ?? "";
     if (!sent || !keys.includes(sent)) return json({ error: "Unauthorized" }, 401);
     return await handleGateway(admin, action, body);
@@ -750,6 +741,8 @@ async function setOptOut(admin: SupabaseClient, orgIds: string[], phone: string,
           ignoreDuplicates: true,
         })
     : await admin.from("bulk_whatsapp_optouts").delete().eq("phone", phone).in("organization_id", orgIds);
+  // Campaigns already queued or scheduled still hold the number: drop it there too.
+  if (!error && unsubscribe) await dropOptedOutFromCampaigns(admin, orgIds, phone);
   return error;
 }
 

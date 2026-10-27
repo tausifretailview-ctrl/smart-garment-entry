@@ -33,6 +33,16 @@ export function getGatewayConfig(): { url: string; key: string } | null {
   return { url, key };
 }
 
+/**
+ * Bulk sends can run on their own wa-gateway (a second Railway service) so promotions never share a
+ * server with shop bill sends. Without WA_BULK_GATEWAY_URL / WA_BULK_GATEWAY_KEY they use the bill one.
+ */
+export function getBulkGatewayConfig(): { url: string; key: string } | null {
+  const url = gatewayBaseUrl(Deno.env.get("WA_BULK_GATEWAY_URL"));
+  const key = (Deno.env.get("WA_BULK_GATEWAY_KEY") ?? "").trim();
+  return url && key ? { url, key } : getGatewayConfig();
+}
+
 export async function gatewayRequest(
   path: string,
   init: { method?: string; body?: unknown } = {},
