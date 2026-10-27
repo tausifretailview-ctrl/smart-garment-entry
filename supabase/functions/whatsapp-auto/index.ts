@@ -6,6 +6,7 @@ import {
   parseDispatchTicketHeader,
 } from "../_shared/internalDispatch.ts";
 import { sendViaBuiltinGateway } from "../_shared/builtinGatewaySend.ts";
+import { addCustomerPoints } from "../_shared/customerPoints.ts";
 import { sendViaWappConnect } from "../_shared/wappConnectSend.ts";
 import { loadCreditBlockReason } from "../_shared/whatsappCredits.ts";
 import {
@@ -126,8 +127,10 @@ async function addBirthdayPoints(db: Db, shop: Shop, customerId: string, points:
     .eq("description", description)
     .limit(1);
   if (already?.length) return;
-  const { data: c } = await db.from("customers").select("points_balance").eq("id", customerId).maybeSingle();
-  await db.from("customers").update({ points_balance: Number(c?.points_balance || 0) + points }).eq("id", customerId);
+  if ((await addCustomerPoints(db, customerId, points)) === null) {
+    console.error("[whatsapp-auto] points not added:", shop.orgId, customerId);
+    return;
+  }
   await db.from("customer_points_history").insert({
     organization_id: shop.orgId,
     customer_id: customerId,
@@ -171,20 +174,24 @@ async function sendWishes(db: Db, shop: Shop, send: Sender, budget: number, now:
     anniversary: await handledCustomers(db, shop.orgId, WISH_TYPE.anniversary, yearStart, todayStart),
   };
 
-  let sent = 0;
+  const due: Array<{ c: Record<string, any>; phone: string; kind: SpecialDayKind }> = [];
   for (const c of customers) {
     const phone = tenDigits(c.phone);
     if (!phone || optedOut.has(phone)) continue;
     for (const kind of ["birthday", "anniversary"] as SpecialDayKind[]) {
-      if (sent >= budget) return sent;
-      if (!isSpecialDayToday(c[kind], today) || done[kind].has(c.id)) continue;
-      const bonus = shop.pointsOn ? shop.auto.birthdayPoints : 0;
-      const text = specialDayMessage({ kind, customerName: c.customer_name, shopName: shop.shopName, offer: shop.auto.birthdayOffer, bonusPoints: bonus });
-      const ok = await send(phone, text, WISH_TYPE[kind], c.id);
-      sent++;
-      if (ok && bonus > 0) await addBirthdayPoints(db, shop, c.id, bonus, kind, today.date.slice(0, 4));
+      if (isSpecialDayToday(c[kind], today) && !done[kind].has(c.id)) due.push({ c, phone, kind });
     }
   }
+  let sent = 0;
+  for (const { c, phone, kind } of due.slice(0, budget)) {
+    const bonus = shop.pointsOn ? shop.auto.birthdayPoints : 0;
+    const text = specialDayMessage({ kind, customerName: c.customer_name, shopName: shop.shopName, offer: shop.auto.birthdayOffer, bonusPoints: bonus });
+    const ok = await send(phone, text, WISH_TYPE[kind], c.id);
+    sent++;
+    if (ok && bonus > 0) await addBirthdayPoints(db, shop, c.id, bonus, kind, today.date.slice(0, 4));
+  }
+  // The rest go out on the next runs; after the window closes they are skipped for the day.
+  if (due.length > sent) console.log(`[whatsapp-auto] ${shop.orgId}: ${due.length - sent} wishes wait for the next run`);
   return sent;
 }
 

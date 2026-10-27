@@ -26,7 +26,8 @@ describe("India clock", () => {
     expect(t.minutes).toBe(30);
     expect(istDayStartIso("2026-10-27")).toBe("2026-10-26T18:30:00.000Z");
     expect(inWindow(10 * 60, BIRTHDAY_WINDOW)).toBe(true);
-    expect(inWindow(13 * 60, BIRTHDAY_WINDOW)).toBe(false);
+    expect(inWindow(14 * 60 + 59, BIRTHDAY_WINDOW)).toBe(true);
+    expect(inWindow(15 * 60, BIRTHDAY_WINDOW)).toBe(false);
   });
 });
 

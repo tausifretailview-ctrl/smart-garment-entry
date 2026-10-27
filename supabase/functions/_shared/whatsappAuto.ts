@@ -14,9 +14,9 @@ export type WhatsAppAutoSettings = {
 };
 
 /** Most messages one shop sends in one 15-minute run (keeps the number's pace human). */
-export const AUTO_SENDS_PER_RUN = 3;
-/** India-time window for wishes: 10:00–13:00. */
-export const BIRTHDAY_WINDOW = { from: 10 * 60, to: 13 * 60 };
+export const AUTO_SENDS_PER_RUN = 4;
+/** India-time window for wishes: 10:00–15:00 (20 runs x AUTO_SENDS_PER_RUN = 80 wishes a day per shop). */
+export const BIRTHDAY_WINDOW = { from: 10 * 60, to: 15 * 60 };
 
 function num(v: unknown, fallback: number, min: number, max: number): number {
   const n = Number(v);

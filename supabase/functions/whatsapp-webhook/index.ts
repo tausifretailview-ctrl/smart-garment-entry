@@ -40,6 +40,7 @@ import {
 import { sendViaWappConnect } from "../_shared/wappConnectSend.ts";
 import { getGatewayConfig, sendViaBuiltinGateway } from "../_shared/builtinGatewaySend.ts";
 import { dropOptedOutFromCampaigns } from "../_shared/bulkOptOutDrop.ts";
+import { addCustomerPoints } from "../_shared/customerPoints.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -1012,11 +1013,7 @@ async function handleJoinMessage(supabase: any, organizationId: string, phone10:
         .limit(1);
       alreadyJoined = Boolean(bonus?.length || joinedBefore?.length);
       const welcome = shop?.sale_settings?.enable_points_system === true ? readJoinWelcomePoints(shop?.sale_settings) : 0;
-      if (!alreadyJoined && welcome > 0) {
-        await supabase
-          .from('customers')
-          .update({ points_balance: Number(customer.points_balance || 0) + welcome })
-          .eq('id', customer.id);
+      if (!alreadyJoined && welcome > 0 && (await addCustomerPoints(supabase, customer.id, welcome)) !== null) {
         await supabase.from('customer_points_history').insert({
           organization_id: organizationId,
           customer_id: customer.id,

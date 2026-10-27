@@ -339,6 +339,10 @@ const GSTReports = () => {
       const allDcSaleIds = allDcDocumentIds(allSaleItems, "sale_id");
       const gstSales = (salesData || []).filter((s) => !allDcSaleIds.has(String(s.id)));
       const saleItems = withoutDcLines(allSaleItems);
+      // Mixed bills: the invoice value comes from the GST lines, not the bill net (which has the DC part).
+      const salesWithDcLine = new Set(
+        allSaleItems.filter((i: any) => i.is_dc_item === true).map((i: any) => String(i.sale_id)),
+      );
 
       // Group items by sale
       const saleItemsMap = new Map<string, typeof saleItems>();
@@ -426,7 +430,9 @@ const GSTReports = () => {
             partyName: sale.customer_name,
             invoiceNo: sale.sale_number,
             invoiceDate: format(new Date(sale.sale_date), "dd-MM-yyyy"),
-            invoiceValue: sale.net_amount,
+            invoiceValue: salesWithDcLine.has(String(sale.id))
+              ? Math.round((saleTaxableFromLines + saleGstAmount) * 100) / 100
+              : sale.net_amount,
             taxableValue: taxableValue,
             gstRate: items[0]?.gst_percent || 0,
             cgst: interState ? 0 : saleGstAmount / 2,
