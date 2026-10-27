@@ -4,6 +4,7 @@ import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   ArrowLeft,
+  Ban,
   Check,
   CheckCheck,
   Clock,
@@ -37,6 +38,7 @@ import {
   fetchCampaignMessage,
   fetchInboxMessages,
   fetchPhoneCampaignSends,
+  fetchPhoneOptOut,
   useBulkCampaigns,
   useInboxChats,
   type BulkCampaignMessage,
@@ -286,6 +288,26 @@ function ChatPane({
     enabled: Boolean(campaigns),
     refetchInterval: 30000,
   });
+  const optOutQ = useQuery({
+    queryKey: ["bulk-whatsapp-optout", organizationId, chat.phone],
+    queryFn: () => fetchPhoneOptOut(organizationId, chat.phone),
+    refetchInterval: 15000,
+  });
+  const optOut = optOutQ.data ?? null;
+  const [blocking, setBlocking] = useState(false);
+  const setBlocked = async (unsubscribe: boolean) => {
+    setBlocking(true);
+    try {
+      await callBulkWhatsApp(organizationId, "inbox-optout", { chatId: chat.id, unsubscribe });
+      toast.success(unsubscribe ? "Blocked: no more bulk messages go to this number" : "Unblocked: this number gets bulk messages again");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save");
+    } finally {
+      setBlocking(false);
+      void queryClient.invalidateQueries({ queryKey: ["bulk-whatsapp-optout", organizationId, chat.phone] });
+      void queryClient.invalidateQueries({ queryKey: ["bulk-whatsapp-optouts", organizationId] });
+    }
+  };
   const sentCampaignIds = useMemo(() => [...new Set((sendsQ.data ?? []).map((s) => s.campaign_id))], [sendsQ.data]);
   const bodies = useQueries({
     queries: sentCampaignIds.map((id) => ({
@@ -432,7 +454,31 @@ function ChatPane({
             </div>
           </PopoverContent>
         </Popover>
+        {!optOut && optOutQ.isSuccess && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1 bg-white text-rose-700 hover:text-rose-800"
+            onClick={() => void setBlocked(true)}
+            disabled={blocking}
+            title="Stop sending bulk messages to this number"
+          >
+            <Ban className="h-3.5 w-3.5" /> Block
+          </Button>
+        )}
       </div>
+      {optOut && (
+        <div className="flex items-center gap-2 border-b border-rose-100 bg-rose-50 px-3 py-1.5 text-xs text-rose-800">
+          <Ban className="h-3.5 w-3.5 shrink-0" />
+          <span className="min-w-0 flex-1">
+            {optOut.source === "manual" ? "Blocked" : "Unsubscribed (replied STOP)"} on {format(new Date(optOut.created_at), "d MMM yyyy")}.
+            Bulk messages are not sent to this number.
+          </span>
+          <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-rose-800" onClick={() => void setBlocked(false)} disabled={blocking}>
+            Unblock
+          </Button>
+        </div>
+      )}
       {chat.tags.length > 0 && (
         <div className="flex flex-wrap gap-1 border-b border-slate-100 bg-white px-3 py-1.5 sm:hidden">
           {chat.tags.map((t) => (

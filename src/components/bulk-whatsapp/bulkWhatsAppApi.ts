@@ -60,6 +60,18 @@ export async function fetchOptOutCount(organizationId: string): Promise<number> 
   return count ?? 0;
 }
 
+/** Is this number unsubscribed from this shop's bulk messages (replied STOP or blocked from the Inbox)? */
+export async function fetchPhoneOptOut(organizationId: string, phone: string): Promise<{ source: string; created_at: string } | null> {
+  const { data, error } = await db
+    .from("bulk_whatsapp_optouts")
+    .select("source, created_at")
+    .eq("organization_id", organizationId)
+    .eq("phone", phone)
+    .maybeSingle();
+  if (error) return null;
+  return (data as { source: string; created_at: string } | null) ?? null;
+}
+
 export const CAMPAIGN_LIST_LIMIT = 100;
 
 /** Counts only (no message text), so the live refresh stays small. */
