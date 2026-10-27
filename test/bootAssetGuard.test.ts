@@ -128,3 +128,72 @@ describe("index.html boot guard for a dead entry bundle", () => {
     expect(b.reload).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("index.html boot guard for a dead boot chunk (dynamic import rejection)", () => {
+  const ERP_CHUNK = `${ORIGIN}/assets/erpBootstrap-kIAQbAm3.js`;
+
+  function hook(b: ReturnType<typeof makeBrowser>) {
+    const fn = b.win.__ezzyBootImportFailed as ((msg: string) => boolean) | undefined;
+    expect(fn).toBeTypeOf("function");
+    return fn as (msg: string) => boolean;
+  }
+
+  it("recovers from a stale erpBootstrap hash the way it does for a dead entry bundle", async () => {
+    const b = makeBrowser();
+    expect(hook(b)(`Failed to fetch dynamically imported module: ${ERP_CHUNK}`)).toBe(true);
+    await b.settle();
+    expect(b.unregister).toHaveBeenCalled();
+    expect(b.cacheDelete).toHaveBeenCalledWith("app-js-chunks");
+    const urls = b.fetchMock.mock.calls.map((c) => c[0]);
+    expect(urls).toEqual(
+      expect.arrayContaining([ERP_CHUNK, ENTRY, PRELOAD, `${ORIGIN}/smhair`]),
+    );
+    expect(b.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("recovers on browsers whose message names no URL (Safari)", async () => {
+    const b = makeBrowser();
+    expect(hook(b)("Importing a module script failed.")).toBe(true);
+    await b.settle();
+    expect(b.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves a real app error alone instead of reloading the tab", async () => {
+    const b = makeBrowser();
+    expect(hook(b)("TypeError: customers.map is not a function")).toBe(false);
+    await b.settle();
+    expect(b.reload).not.toHaveBeenCalled();
+  });
+
+  it("reports decline when the auto-reload budget is spent, so main.tsx can show Reload", async () => {
+    const now = Date.now();
+    const b = makeBrowser({
+      session: { ezzy_boot_asset_recovery: JSON.stringify([now - 1000, now - 500]) },
+    });
+    expect(hook(b)(`Failed to fetch dynamically imported module: ${ERP_CHUNK}`)).toBe(false);
+    await b.settle();
+    expect(b.reload).not.toHaveBeenCalled();
+    // The Reload button on the screen main.tsx paints still runs the full recovery.
+    (b.win.__ezzyBootRecover as () => void)();
+    await b.settle();
+    expect(b.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not act once the app has rendered", async () => {
+    const b = makeBrowser({ rendered: true });
+    expect(hook(b)(`Failed to fetch dynamically imported module: ${ERP_CHUNK}`)).toBe(false);
+    await b.settle();
+    expect(b.reload).not.toHaveBeenCalled();
+  });
+
+  it("main.tsx routes every boot import rejection into the guard", () => {
+    const main = readFileSync(path.resolve(__dirname, "../src/main.tsx"), "utf-8");
+    expect(main).toContain("__ezzyBootImportFailed");
+    expect(main.match(/\.catch\(onBootImportFailed\)/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(main).toContain("showBootFailureScreen");
+    // The 20s "taking longer" timer must not overwrite the screen main.tsx painted.
+    const html = readFileSync(path.resolve(__dirname, "../index.html"), "utf-8");
+    expect(html).toContain("splash.dataset.bootFailed === '1'");
+  });
+});
+

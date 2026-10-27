@@ -11596,6 +11596,8 @@ export type Database = {
         Returns: Json
       }
       dc_hide_mode_ready: { Args: never; Returns: boolean }
+      dc_only_mode_ready: { Args: never; Returns: boolean }
+      dc_only_user: { Args: { p_organization_id: string }; Returns: boolean }
       delete_child_rows_for_org: {
         Args: {
           p_child_table: string
@@ -11667,6 +11669,7 @@ export type Database = {
       }
       dispatch_nightly_backups: { Args: never; Returns: number }
       dispatch_owner_alerts: { Args: never; Returns: number }
+      dispatch_whatsapp_auto: { Args: never; Returns: number }
       find_products_by_name_key: {
         Args: { p_name: string; p_organization_id: string }
         Returns: {
