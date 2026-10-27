@@ -47,8 +47,10 @@ export default function ShopChatPanel() {
   return (
     <aside
       className={cn(
-        "fixed right-0 top-0 z-[60] flex h-[var(--ezzy-viewport-h,100dvh)] w-full flex-col border-l bg-background shadow-2xl",
-        "sm:w-[400px]",
+        "fixed z-[60] flex flex-col overflow-hidden bg-background shadow-2xl",
+        // Phone: full screen. Wider screens: small window in the bottom-right corner, above the status bar.
+        "inset-0 h-[var(--ezzy-viewport-h,100dvh)]",
+        "sm:inset-auto sm:bottom-12 sm:right-4 sm:h-[480px] sm:max-h-[calc(100dvh-7rem)] sm:w-[340px] sm:rounded-xl sm:border",
       )}
       role="complementary"
       aria-label="Shop chat"
@@ -62,7 +64,7 @@ export default function ShopChatPanel() {
         />
       ) : (
         <>
-          <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-primary px-3 text-primary-foreground">
+          <header className="flex h-14 sm:h-12 shrink-0 items-center gap-2 border-b bg-primary px-3 text-primary-foreground">
             <MessagesSquare className="h-5 w-5" />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold leading-tight">Shop chat</p>
@@ -284,7 +286,7 @@ function Conversation({
 
   return (
     <>
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-primary px-2 text-primary-foreground">
+      <header className="flex h-14 sm:h-12 shrink-0 items-center gap-2 border-b bg-primary px-2 text-primary-foreground">
         <Button
           variant="ghost"
           size="icon"
