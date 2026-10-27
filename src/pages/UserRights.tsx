@@ -152,6 +152,7 @@ const menuStructure = [
       { id: "recycle_bin", name: "Recycle Bin" },
       { id: "user_rights", name: "User Rights" },
       { id: "stock_adjustment", name: "Stock Adjustment" },
+      { id: "stock_transfer", name: "Stock Transfer" },
       { id: "stock_settlement", name: "Stock Settlement" },
       { id: "bulk_product_update", name: "Bulk Product Update" },
     ],
@@ -306,6 +307,7 @@ const defaultManagerPermissions: Record<string, boolean> = {
   recycle_bin: true,
   user_rights: true,
   stock_adjustment: true,
+  stock_transfer: true,
 };
 
 const defaultManagerMainMenu: Record<string, boolean> = {

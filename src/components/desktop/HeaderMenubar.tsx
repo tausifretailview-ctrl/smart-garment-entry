@@ -98,6 +98,7 @@ export function HeaderMenubar({
   const showTools =
     can("barcode_printing") ||
     can("stock_adjustment") ||
+    can("stock_transfer") ||
     can("stock_settlement") ||
     can("bulk_product_update") ||
     can("tally_export") ||
@@ -472,7 +473,7 @@ export function HeaderMenubar({
                 Stock Adjustment
               </MenubarItem>
             )}
-            {can("stock_adjustment") && (
+            {can("stock_transfer") && (
               <MenubarItem onClick={() => orgNavigate("/stock-transfer")}>
                 Stock Transfer
               </MenubarItem>
