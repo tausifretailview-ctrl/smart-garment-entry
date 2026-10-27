@@ -20,7 +20,11 @@ EzzyERP — one Vite + React + TypeScript web app (multi-tenant retail POS / bil
 - Do **not** add `console.log` / `console.info` on POS, dashboard, or paginated-fetch hot paths — DevTools serializes them on the main thread and the app feels frozen. New probes must use `diagConsoleInfo` (`src/lib/diagConsole.ts`) behind a `localStorage` flag. Details: `docs/console-perf-protections.md`, `.cursor/rules/console-hot-paths.mdc`.
 - CI: `npm run check:console-guard`. Do not enable Vite `drop_console` (hides real `console.error`).
 
+### Boot resilience
+- Boot dynamic imports in `src/main.tsx` must keep their `.catch(onBootImportFailed)`: a failed `import()` fires no script/link error event, so the inline boot guard in `index.html` cannot see it and the tab blanks (2026-10-27: `erpBootstrap-*.js`). Recovery lives in `index.html` (`__ezzyBootImportFailed`); keep `test/bootAssetGuard.test.ts` green.
+
 ### Testing (see `test/README.md`)
+
 - `npm test` runs the full Vitest suite. Unit tests pass offline; the 9 integration/seed tests are **skipped** unless a separate **staging** Supabase is configured via `.env.test` (`SUPABASE_TEST_URL`, `SUPABASE_TEST_SERVICE_ROLE_KEY`) — never point test config at production.
 - `npm run test:money` runs pure money-path logic (settlement, balance, drift) — fast, no DB.
 
