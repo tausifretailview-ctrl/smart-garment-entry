@@ -220,8 +220,8 @@ function Conversation({
     void shopChatDb
       .rpc("mark_shop_chat_read", { p_organization_id: orgId, p_other_organization_id: otherOrgId })
       .then(() => {
-        queryClient.invalidateQueries({ queryKey: shopChatThreadsKey(orgId) });
-        queryClient.invalidateQueries({ queryKey: shopChatMessagesKey(orgId, otherOrgId) });
+        void queryClient.invalidateQueries({ queryKey: shopChatThreadsKey(orgId) });
+        void queryClient.invalidateQueries({ queryKey: shopChatMessagesKey(orgId, otherOrgId) });
       });
   }, [unreadIncoming, orgId, otherOrgId, queryClient]);
 
@@ -253,7 +253,7 @@ function Conversation({
           old.some((m) => m.id === row.id) ? old : [...old, row],
         );
       }
-      queryClient.invalidateQueries({ queryKey: shopChatThreadsKey(orgId) });
+      void queryClient.invalidateQueries({ queryKey: shopChatThreadsKey(orgId) });
     },
     onError: (e: any) => toast.error(e?.message || "Message not sent"),
   });
@@ -269,7 +269,7 @@ function Conversation({
     },
     onSuccess: () => {
       selectShopChat(null);
-      queryClient.invalidateQueries({ queryKey: shopChatThreadsKey(orgId) });
+      void queryClient.invalidateQueries({ queryKey: shopChatThreadsKey(orgId) });
     },
     onError: (e: any) => toast.error(e?.message || "Could not turn off chat"),
   });

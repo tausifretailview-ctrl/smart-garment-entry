@@ -39,8 +39,8 @@ export function ShopChatHost() {
 
     const onInsert = (msg: ShopChatMessage) => {
       const otherId = msg.from_organization_id === orgId ? msg.to_organization_id : msg.from_organization_id;
-      queryClient.invalidateQueries({ queryKey: shopChatThreadsKey(orgId) });
-      queryClient.invalidateQueries({ queryKey: shopChatMessagesKey(orgId, otherId) });
+      void queryClient.invalidateQueries({ queryKey: shopChatThreadsKey(orgId) });
+      void queryClient.invalidateQueries({ queryKey: shopChatMessagesKey(orgId, otherId) });
 
       const incoming = msg.to_organization_id === orgId;
       const { open: isOpen, otherOrgId: viewing, threads: list, userId } = live.current;
@@ -80,7 +80,7 @@ export function ShopChatHost() {
         // The other shop read our messages: refresh "Seen".
         (payload) => {
           const msg = payload.new as ShopChatMessage;
-          queryClient.invalidateQueries({ queryKey: shopChatMessagesKey(orgId, msg.to_organization_id) });
+          void queryClient.invalidateQueries({ queryKey: shopChatMessagesKey(orgId, msg.to_organization_id) });
         },
       )
       .subscribe();
