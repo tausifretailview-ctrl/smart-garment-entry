@@ -126,25 +126,41 @@ async function hidesDc(db: Db, organizationId: string): Promise<boolean> {
 }
 
 /** DC line net and all-line net per bill, for bills that have a DC line. Errors (DC update not run) → empty. */
+type DcLine = { sale_id: string; net_after_discount: number | null };
+const LINE_PAGE = 1000;
+
+/** All rows of a sale_items query, 1,000 (the per-request cap) at a time; null on error. */
+async function allLinePages(build: () => any): Promise<DcLine[] | null> {
+  const rows: DcLine[] = [];
+  for (let from = 0; ; from += LINE_PAGE) {
+    const { data, error } = await build().order("id").range(from, from + LINE_PAGE - 1);
+    if (error) return null;
+    rows.push(...((data ?? []) as DcLine[]));
+    if (!data || data.length < LINE_PAGE) break;
+  }
+  return rows;
+}
+
 async function dcSharesBySale(db: Db, saleIds: string[]): Promise<Map<string, { dcNet: number; allNet: number }>> {
   const out = new Map<string, { dcNet: number; allNet: number }>();
   for (let i = 0; i < saleIds.length; i += 200) {
     const ids = saleIds.slice(i, i + 200);
-    const { data: dc, error } = await db
-      .from("sale_items")
-      .select("sale_id, net_after_discount")
-      .in("sale_id", ids)
-      .eq("is_dc_item", true)
-      .is("deleted_at", null);
-    if (error || !dc?.length) continue;
-    const withDc = [...new Set(dc.map((r: { sale_id: string }) => r.sale_id))];
-    const { data: all } = await db.from("sale_items").select("sale_id, net_after_discount").in("sale_id", withDc).is("deleted_at", null);
+    const dc = await allLinePages(() =>
+      db.from("sale_items").select("sale_id, net_after_discount").in("sale_id", ids).eq("is_dc_item", true).is("deleted_at", null)
+    );
+    if (!dc?.length) continue;
+    const withDc = [...new Set(dc.map((r) => r.sale_id))];
+    // 200 bills with a DC line can hold more than 1,000 lines: page, or a bill looks all-DC and is dropped.
+    const all = await allLinePages(() =>
+      db.from("sale_items").select("sale_id, net_after_discount").in("sale_id", withDc).is("deleted_at", null)
+    );
+    if (all === null) continue;
     for (const r of dc) {
       const cur = out.get(r.sale_id) ?? { dcNet: 0, allNet: 0 };
       cur.dcNet += Number(r.net_after_discount) || 0;
       out.set(r.sale_id, cur);
     }
-    for (const r of all ?? []) {
+    for (const r of all) {
       const cur = out.get(r.sale_id);
       if (cur) cur.allNet += Number(r.net_after_discount) || 0;
     }
