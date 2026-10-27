@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildBulkLinkLines,
   buildContactsVcf,
+  contactSaveName,
   fillBulkMessage,
   formatBulkPhone,
   instagramLink,
@@ -55,6 +56,13 @@ describe("parseContactSheet", () => {
       { phone: "919123456789", name: "Sana" },
     ]);
     expect(invalid).toBe(1);
+  });
+  it("does not take a Contact Name heading as the phone column", () => {
+    const { contacts } = parseContactSheet([
+      ["Contact Name", "Contact No"],
+      ["Ravi", "9876543210"],
+    ]);
+    expect(contacts).toEqual([{ phone: "919876543210", name: "Ravi" }]);
   });
   it("finds the phone column without headers", () => {
     const { contacts } = parseContactSheet([
@@ -132,7 +140,7 @@ describe("stripBulkExtras", () => {
 });
 
 describe("buildContactsVcf", () => {
-  it("writes one vCard per number, named or under the number", () => {
+  it("writes one vCard per number, unnamed ones as Customer + last 4 digits", () => {
     const vcf = buildContactsVcf([
       { phone: "919876543210", name: "Ravi  Kumar" },
       { phone: "918369466179", name: null },
@@ -147,8 +155,8 @@ describe("buildContactsVcf", () => {
         "END:VCARD",
         "BEGIN:VCARD",
         "VERSION:3.0",
-        "FN:+91 83694 66179",
-        "N:;+91 83694 66179;;;",
+        "FN:Customer 6179",
+        "N:;Customer 6179;;;",
         "TEL;TYPE=CELL:+918369466179",
         "END:VCARD",
         "",
@@ -162,5 +170,16 @@ describe("buildContactsVcf", () => {
 
   it("is empty for no contacts", () => {
     expect(buildContactsVcf([])).toBe("");
+  });
+});
+
+describe("contactSaveName", () => {
+  it("keeps the contact's own name", () => {
+    expect(contactSaveName({ phone: "919876543210", name: "  Ravi   Kumar " })).toBe("Ravi Kumar");
+  });
+  it("names a number without a name by prefix + last 4 digits", () => {
+    expect(contactSaveName({ phone: "919876543210", name: null })).toBe("Customer 3210");
+    expect(contactSaveName({ phone: "919876543210", name: " " }, "Velvet Customer")).toBe("Velvet Customer 3210");
+    expect(contactSaveName({ phone: "919876543210", name: null }, "  ")).toBe("Customer 3210");
   });
 });
