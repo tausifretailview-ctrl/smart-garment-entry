@@ -111,6 +111,10 @@ app.get("/campaigns/:id", wrap(async (req, res) => {
   res.json({ success: true, ...campaigns.get(req.params.id) });
 }));
 
+app.post("/campaigns/:id/reschedule", wrap(async (req, res) => {
+  res.json({ success: true, ...campaigns.reschedule(req.params.id, req.body ?? {}) });
+}));
+
 app.post("/campaigns/:id/:action(pause|resume|stop)", wrap(async (req, res) => {
   const action = req.params.action as "pause" | "resume" | "stop";
   res.json({ success: true, ...campaigns.setStatus(req.params.id, action) });

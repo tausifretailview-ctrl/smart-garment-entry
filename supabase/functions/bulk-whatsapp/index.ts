@@ -205,6 +205,62 @@ serve(async (req) => {
     return json({ success: true, status });
   }
 
+  // Scheduled campaign not started yet: new time, and optionally a new name or message.
+  if (action === "reschedule") {
+    const campaignId = String(body.campaignId ?? "");
+    const { data: c } = await admin
+      .from("bulk_whatsapp_campaigns")
+      .select("id, user_id, organization_id, status, status_note, media_url")
+      .eq("id", campaignId)
+      .maybeSingle();
+    if (!c || c.organization_id !== organizationId || (c.user_id !== userId && !access.isAdmin)) {
+      return json({ error: "Campaign not found" }, 404);
+    }
+    const note = String(c.status_note ?? "");
+    const current = note.startsWith(SCHEDULE_NOTE_PREFIX) ? Date.parse(note.slice(SCHEDULE_NOTE_PREFIX.length)) : NaN;
+    if (!["running", "paused"].includes(c.status) || !(current > Date.now())) {
+      return json({ error: "This campaign has already started, so it cannot be changed" }, 400);
+    }
+    const at = Date.parse(String(body.startAt ?? ""));
+    if (!Number.isFinite(at)) return json({ error: "Invalid start time" }, 400);
+    if (at <= Date.now() + 60_000) return json({ error: "Pick a time later than now" }, 400);
+    if (at - Date.now() > 14 * 24 * 60 * 60 * 1000) return json({ error: "Schedule at most 14 days ahead" }, 400);
+    const startAt = new Date(at).toISOString();
+    const message = typeof body.message === "string" ? body.message.slice(0, 4000) : null;
+    if (message !== null && !message.trim() && !c.media_url) return json({ error: "Type a message or keep the poster" }, 400);
+
+    // {name} is filled per number on the WhatsApp server, so it needs each number's name again.
+    let names: Record<string, string> | undefined;
+    if (message !== null) {
+      names = {};
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await admin
+          .from("bulk_whatsapp_recipients")
+          .select("id, name")
+          .eq("campaign_id", campaignId)
+          .order("position")
+          .range(from, from + 999);
+        if (error) return json({ error: error.message }, 500);
+        for (const r of data ?? []) names[r.id as string] = (r.name as string | null) ?? "";
+        if (!data || data.length < 1000) break;
+      }
+    }
+    const result = await bulkGateway(`/campaigns/${campaignId}/reschedule`, {
+      method: "POST",
+      body: { startAt, message: message ?? undefined, names },
+    });
+    if (result.status === 404) {
+      return json({ error: "The bulk WhatsApp server needs the latest update (Railway redeploy) to edit a schedule" }, 502);
+    }
+    if (!result.ok) return json({ error: result.data.error ?? "WhatsApp server error" }, result.status || 502);
+    const update: Record<string, unknown> = { status_note: `${SCHEDULE_NOTE_PREFIX}${startAt}`, updated_at: new Date().toISOString() };
+    if (message !== null) update.message = message;
+    const newName = typeof body.name === "string" ? body.name.trim().slice(0, 120) : "";
+    if (newName) update.name = newName;
+    await admin.from("bulk_whatsapp_campaigns").update(update).eq("id", campaignId);
+    return json({ success: true, startAt });
+  }
+
   if (action === "inbox-send" || action === "inbox-read" || action === "inbox-tags" || action === "inbox-optout") {
     return await inboxAction(admin, action, body, userId, organizationId, access.isAdmin, sessionPath);
   }
@@ -322,7 +378,8 @@ async function createCampaign(
   // The same message started again while it is still sending (double tap, or Send pressed again) must not
   // reach a number twice: numbers already in a running or paused campaign with this exact message are left out.
   // Once that campaign is completed or stopped the same message can be sent again (e.g. test sends).
-  const repeated = await activeRecipientsOfSameMessage(admin, organizationId, message, mediaName, recipients.map((r) => r.phone));
+  // Scheduling the same message for another time (morning and evening) is allowed.
+  const repeated = await activeRecipientsOfSameMessage(admin, organizationId, message, mediaName, recipients.map((r) => r.phone), startAt);
   if (repeated.size) {
     const keep = recipients.filter((r) => !repeated.has(r.phone));
     if (!keep.length) {
@@ -415,25 +472,36 @@ async function createCampaign(
   });
 }
 
-/** Phones (of `phones`) in this shop's running or paused campaigns with the same message text and poster name. */
+/**
+ * Phones (of `phones`) in this shop's running or paused campaigns with the same message text and poster
+ * name that go out at the same time: both now, or both scheduled within a minute of each other.
+ */
 async function activeRecipientsOfSameMessage(
   admin: SupabaseClient,
   organizationId: string,
   message: string,
   mediaName: string | null,
   phones: string[],
+  startAt: string | null,
 ): Promise<Set<string>> {
   const out = new Set<string>();
+  const newStart = startAt ? Date.parse(startAt) : null;
+  const sameTime = (note: string | null) => {
+    const at = note?.startsWith(SCHEDULE_NOTE_PREFIX) ? Date.parse(note.slice(SCHEDULE_NOTE_PREFIX.length)) : NaN;
+    const otherStart = at > Date.now() ? at : null;
+    if (newStart === null || otherStart === null) return newStart === otherStart;
+    return Math.abs(newStart - otherStart) < 60_000;
+  };
   let q = admin
     .from("bulk_whatsapp_campaigns")
-    .select("id")
+    .select("id, status_note")
     .eq("organization_id", organizationId)
     .eq("message", message)
     .in("status", ["running", "paused"])
     .limit(50);
   q = mediaName ? q.eq("media_name", mediaName) : q.is("media_name", null);
   const { data: campaigns } = await q;
-  const ids = (campaigns ?? []).map((c) => c.id as string);
+  const ids = (campaigns ?? []).filter((c) => sameTime(c.status_note as string | null)).map((c) => c.id as string);
   if (!ids.length) return out;
   for (let i = 0; i < phones.length; i += 500) {
     const { data } = await admin
