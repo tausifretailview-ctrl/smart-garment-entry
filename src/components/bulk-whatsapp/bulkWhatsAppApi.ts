@@ -313,3 +313,96 @@ export async function deleteTemplate(id: string): Promise<boolean> {
   if (error) throw error;
   return (data ?? []).length > 0;
 }
+
+/** A saved number list; `wa` marks numbers already checked on WhatsApp when it was saved. */
+export interface BulkSavedContact {
+  phone: string;
+  name: string | null;
+  wa?: boolean;
+}
+
+export interface BulkContactList {
+  id: string;
+  user_id: string;
+  name: string;
+  contact_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+const contactListError = (e: { code?: string; message?: string }) =>
+  new Error(
+    isMissingTable(e)
+      ? "Saved lists need the new SQL from the update. Ask your admin to run it."
+      : e.code === "23505"
+        ? "A list with this name already exists. Pick another name, or update that list."
+        : (e.message ?? "Could not save the list"),
+  );
+
+/** The shop's saved lists (names and counts only), latest first; null before the SQL is run. */
+export async function fetchContactLists(organizationId: string): Promise<BulkContactList[] | null> {
+  const { data, error } = await db
+    .from("bulk_whatsapp_contact_lists")
+    .select("id, user_id, name, contact_count, created_at, updated_at")
+    .eq("organization_id", organizationId)
+    .order("updated_at", { ascending: false })
+    .limit(200);
+  if (error) {
+    if (isMissingTable(error)) return null;
+    throw error;
+  }
+  return (data ?? []) as BulkContactList[];
+}
+
+export function useContactLists(organizationId: string) {
+  return useQuery({
+    queryKey: ["bulk-whatsapp-contact-lists", organizationId],
+    queryFn: () => fetchContactLists(organizationId),
+    enabled: Boolean(organizationId),
+    staleTime: 30_000,
+  });
+}
+
+export async function fetchContactListNumbers(id: string): Promise<BulkSavedContact[]> {
+  const { data, error } = await db.from("bulk_whatsapp_contact_lists").select("contacts").eq("id", id).maybeSingle();
+  if (error) throw error;
+  const rows = (data?.contacts ?? []) as BulkSavedContact[];
+  return Array.isArray(rows) ? rows.filter((c) => c && typeof c.phone === "string") : [];
+}
+
+export async function createContactList(organizationId: string, name: string, contacts: BulkSavedContact[]): Promise<void> {
+  const { error } = await db.from("bulk_whatsapp_contact_lists").insert({ organization_id: organizationId, name, contacts });
+  if (error) throw contactListError(error);
+}
+
+/** Rename and/or replace the numbers. False when nothing changed (someone else's list, and not an admin). */
+export async function updateContactList(
+  id: string,
+  patch: { name?: string; contacts?: BulkSavedContact[] },
+): Promise<boolean> {
+  const { data, error } = await db.from("bulk_whatsapp_contact_lists").update(patch).eq("id", id).select("id");
+  if (error) throw contactListError(error);
+  return (data ?? []).length > 0;
+}
+
+export async function deleteContactList(id: string): Promise<boolean> {
+  const { data, error } = await db.from("bulk_whatsapp_contact_lists").delete().eq("id", id).select("id");
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}
+
+/** Which of these numbers replied STOP to this shop (checked in chunks so long lists fit the URL). */
+export async function fetchOptedOutPhones(organizationId: string, phones: string[]): Promise<Set<string>> {
+  const out = new Set<string>();
+  for (let i = 0; i < phones.length; i += 300) {
+    const { data, error } = await db
+      .from("bulk_whatsapp_optouts")
+      .select("phone")
+      .eq("organization_id", organizationId)
+      .in("phone", phones.slice(i, i + 300));
+    // Before the unsubscribe SQL the table is missing; sending still skips them on the server.
+    if (error) return out;
+    for (const r of (data ?? []) as { phone: string }[]) out.add(r.phone);
+  }
+  return out;
+}

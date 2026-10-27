@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { format } from "date-fns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  BookmarkPlus,
   CalendarClock,
   CheckCheck,
   Download,
@@ -9,6 +10,7 @@ import {
   FileText,
   ImagePlus,
   Instagram,
+  ListChecks,
   Loader2,
   MapPin,
   MessageCircle,
@@ -44,7 +46,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { BulkWhatsAppLink } from "./BulkWhatsAppLink";
 import { BulkWhatsAppReport, BulkWhatsAppStats } from "./BulkWhatsAppReport";
-import { callBulkWhatsApp, fetchOptOutCount, saveTemplate, type BulkCampaignMessage, type BulkTemplate } from "./bulkWhatsAppApi";
+import {
+  callBulkWhatsApp,
+  fetchOptOutCount,
+  saveTemplate,
+  useContactLists,
+  type BulkCampaignMessage,
+  type BulkTemplate,
+} from "./bulkWhatsAppApi";
+import { BulkWhatsAppContactLists, type PickedContactList } from "./BulkWhatsAppContactLists";
 import { BulkWhatsAppTemplates } from "./BulkWhatsAppTemplates";
 import { SCHEDULE_MAX_DAYS, ScheduledCampaigns, localInput, scheduleTimeOk } from "./BulkWhatsAppScheduled";
 import { CustomerMasterPicker } from "./CustomerMasterPicker";
@@ -204,6 +214,10 @@ export function BulkWhatsAppWorkspace({
   const [typed, setTyped] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(Boolean(winBackDays && showCustomerMaster));
+  const [listsOpen, setListsOpen] = useState(false);
+  const [saveListOpen, setSaveListOpen] = useState(false);
+  const contactLists = useContactLists(orgId);
+  const savedListCount = contactLists.data?.length ?? 0;
   const [sending, setSending] = useState(false);
   const [addStopLine, setAddStopLine] = useState(true);
   const [links, setLinks] = useState<BulkLinks>(() => readLinks(orgId));
@@ -233,6 +247,16 @@ export function BulkWhatsAppWorkspace({
     if (invalid) parts.push(`${invalid} invalid skipped`);
     if (merged.contacts.length > MAX_CONTACTS) parts.push(`limit ${MAX_CONTACTS} numbers`);
     toast.success(parts.join(" · "));
+  };
+
+  /** A saved list: numbers it checked on WhatsApp recently are not looked up again. */
+  const pickContactList = (picked: PickedContactList) => {
+    if (picked.verified.length) setVerified((v) => new Set([...v, ...picked.verified]));
+    addContacts(
+      picked.contacts.map((c) => ({ phone: c.phone, name: c.name ?? null })),
+      0,
+      `"${picked.name}"${picked.unsubscribed ? ` (${picked.unsubscribed} unsubscribed left out)` : ""}`,
+    );
   };
 
   const handoffDone = useRef<string | null>(null);
@@ -441,6 +465,10 @@ export function BulkWhatsAppWorkspace({
   };
 
   const unchecked = useMemo(() => contacts.filter((c) => !verified.has(c.phone)), [contacts, verified]);
+  const savedListContacts = useMemo(
+    () => contacts.map((c) => (verified.has(c.phone) ? { phone: c.phone, name: c.name, wa: true } : { phone: c.phone, name: c.name })),
+    [contacts, verified],
+  );
   useEffect(() => {
     if (!linked || checking || savingContacts || sending || checkError || !unchecked.length) return;
     void checkNumbers(unchecked);
@@ -797,7 +825,7 @@ export function BulkWhatsAppWorkspace({
           <StepTitle
             step={2}
             title="Numbers"
-            hint={contacts.length ? `${contacts.length.toLocaleString("en-IN")} ready to send` : showCustomerMaster ? "Customer Master, Excel or type" : "Excel import or type"}
+            hint={contacts.length ? `${contacts.length.toLocaleString("en-IN")} ready to send` : showCustomerMaster ? "Customer Master, Excel, saved list or type" : "Excel, saved list or type"}
             action={
               contacts.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1">
@@ -823,6 +851,16 @@ export function BulkWhatsAppWorkspace({
                       <ShieldCheck className="mr-1 h-3.5 w-3.5" /> All on WhatsApp
                     </span>
                   ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    title="Save these numbers under a name, to pick them next time without importing again"
+                    onClick={() => setSaveListOpen(true)}
+                  >
+                    <BookmarkPlus className="mr-1 h-3.5 w-3.5" /> Save list
+                  </Button>
                   <Button
                     type="button"
                     size="sm"
@@ -886,7 +924,7 @@ export function BulkWhatsAppWorkspace({
               e.target.value = "";
             }}
           />
-          <div className={cn("grid gap-2", showCustomerMaster && "sm:grid-cols-2")}>
+          <div className={cn("grid gap-2", showCustomerMaster ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
             {showCustomerMaster && (
               <button
                 type="button"
@@ -915,6 +953,21 @@ export function BulkWhatsAppWorkspace({
                 <span className="block text-[11px] text-slate-500">A Mobile column (and Name for {"{name}"})</span>
               </span>
             </button>
+            <button
+              type="button"
+              onClick={() => setListsOpen(true)}
+              className="flex w-full items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-left transition hover:border-emerald-300 hover:bg-emerald-50/50"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-700">
+                <ListChecks className="h-5 w-5" />
+              </span>
+              <span>
+                <span className="block text-sm font-semibold text-slate-800">
+                  Saved lists{savedListCount ? ` (${savedListCount})` : ""}
+                </span>
+                <span className="block text-[11px] text-slate-500">Pick a list you saved before</span>
+              </span>
+            </button>
           </div>
           <p className="text-[11px] text-slate-500">
             Excel needs a <b>Name</b> and a <b>Mobile</b> column (10-digit or with +91), one customer per row.{" "}
@@ -922,6 +975,15 @@ export function BulkWhatsAppWorkspace({
               <Download className="mr-0.5 h-3 w-3" /> Download sample Excel
             </button>
           </p>
+          <BulkWhatsAppContactLists
+            organizationId={orgId}
+            listsOpen={listsOpen}
+            onListsOpenChange={setListsOpen}
+            saveOpen={saveListOpen}
+            onSaveOpenChange={setSaveListOpen}
+            current={savedListContacts}
+            onPick={pickContactList}
+          />
           <p className="text-[11px] text-slate-500">
             Duplicate numbers and numbers without WhatsApp are removed automatically.
             {optOuts.data ? ` ${optOuts.data.toLocaleString("en-IN")} unsubscribed ${optOuts.data === 1 ? "customer is" : "customers are"} always left out.` : ""}
