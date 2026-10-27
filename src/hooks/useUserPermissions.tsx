@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { isMenuPermissionGranted } from "@/lib/menuPermissions";
+import { acquireSharedChannel } from "@/lib/sharedRealtimeChannel";
 
 interface UserPermissions {
   menu: Record<string, boolean>;
@@ -44,26 +45,30 @@ export const useUserPermissions = () => {
     },
   });
 
-  // Realtime listener — single subscription, updates the shared cache
+  // Realtime listener — one channel per user+org shared by every screen that uses this
+  // hook (40+). Each screen used to open and remove it itself, and supabase-js dedupes
+  // channels by topic, so the first screen to unmount closed it for the menu and layout
+  // too and the next screen reopened it on every page switch.
   useEffect(() => {
     if (!userId || !orgId) return;
-    const channel = supabase
-      .channel(`user-permissions-${userId}-${orgId}`)
-      .on("postgres_changes", {
-        event: "*",
-        schema: "public",
-        table: "user_permissions",
-        filter: `user_id=eq.${userId}`,
-      }, (payload) => {
-        if (payload.new && (payload.new as any).permissions) {
-          queryClient.setQueryData(
-            ["user_permissions", userId, orgId],
-            (payload.new as any).permissions as UserPermissions
-          );
-        }
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return acquireSharedChannel(supabase, `user-permissions-${userId}-${orgId}`, () =>
+      supabase
+        .channel(`user-permissions-${userId}-${orgId}`)
+        .on("postgres_changes", {
+          event: "*",
+          schema: "public",
+          table: "user_permissions",
+          filter: `user_id=eq.${userId}`,
+        }, (payload) => {
+          if (payload.new && (payload.new as any).permissions) {
+            queryClient.setQueryData(
+              ["user_permissions", userId, orgId],
+              (payload.new as any).permissions as UserPermissions
+            );
+          }
+        })
+        .subscribe(),
+    );
   }, [userId, orgId, queryClient]);
 
   const loading = isLoading;
