@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
-import { dcReturnNotInList, fetchDcReturnSplit } from "@/utils/dcSaleReturnShare";
+import { fetchDcReturnSplit } from "@/utils/dcSaleReturnShare";
 import {
   dcViewKeyParts,
   filterSaleLinesForDcView,
@@ -484,41 +484,21 @@ export default function SaleReturnDashboard() {
       const startIndex = (currentPage - 1) * pageSize;
       const endIndex = startIndex + pageSize - 1;
 
-      let query = supabase
-        .from("sale_returns")
-        .select(
-          saleReturnsSelectForDcView(
-            "id, return_number, customer_name, customer_id, original_sale_number, return_date, created_at, gross_amount, gst_amount, net_amount, credit_available_balance, notes, credit_note_id, credit_status, linked_sale_id, refund_type, payment_method",
-            { onlyDc },
-          ),
-          { count: "exact" },
-        )
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null);
-      // DC User: only returns with a DC line.
-      query = filterSaleReturnsToDcLines(query, { onlyDc });
-
-      // Date filters
-      if (fromDate) {
-        query = query.gte("return_date", fromDate);
-      }
-      if (toDate) {
-        query = query.lte("return_date", toDate);
-      }
-
-      // Status filter
-      if (statusFilter && statusFilter !== "all") {
-        query = query.eq("credit_status", statusFilter);
-      }
+      const rowSelect = saleReturnsSelectForDcView(
+        "id, return_number, customer_name, customer_id, original_sale_number, return_date, created_at, gross_amount, gst_amount, net_amount, credit_available_balance, notes, credit_note_id, credit_status, linked_sale_id, refund_type, payment_method",
+        { onlyDc },
+      );
 
       // DC (No GST) hidden: returns of only DC lines left out; a mixed return keeps its full row.
+      // Their ids are dropped in the browser below: a "not in" filter put every id in the URL,
+      // which the server rejects once a shop has a few hundred DC returns.
+      let hiddenDc: Set<string> | null = null;
       if (hideDc) {
-        const notIn = dcReturnNotInList(
-          await fetchDcReturnSplit(supabase, currentOrganization.id, fromDate, toDate),
-        );
-        if (notIn) query = query.not("id", "in", notIn);
+        const { allDc } = await fetchDcReturnSplit(supabase, currentOrganization.id, fromDate, toDate);
+        if (allDc.size > 0) hiddenDc = allDc;
       }
 
+      let searchOrClause: string | null = null;
       if (debouncedSearch) {
         const searchStr = debouncedSearch.trim();
         const esc = searchStr.replace(/[%_,]/g, "");
@@ -567,13 +547,52 @@ export default function SaleReturnDashboard() {
         if (matchingReturnIdSet.size > 0) clauses.push(`id.in.(${[...matchingReturnIdSet].join(",")})`);
         if (matchingCustomerIds.length > 0) clauses.push(`customer_id.in.(${matchingCustomerIds.join(",")})`);
 
-        query = query.or(clauses.join(","));
+        searchOrClause = clauses.join(",");
       }
 
-      query = query.order("return_date", { ascending: false }).order("created_at", { ascending: false }).range(startIndex, endIndex);
+      const applyListFilters = (base: any) => {
+        // DC User: only returns with a DC line.
+        let q = filterSaleReturnsToDcLines(base, { onlyDc })
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null);
+        if (fromDate) q = q.gte("return_date", fromDate);
+        if (toDate) q = q.lte("return_date", toDate);
+        if (statusFilter && statusFilter !== "all") q = q.eq("credit_status", statusFilter);
+        if (searchOrClause) q = q.or(searchOrClause);
+        return q.order("return_date", { ascending: false }).order("created_at", { ascending: false });
+      };
 
-      const { data, error, count } = await query;
-      if (error) throw error;
+      let data: unknown[] | null;
+      let count: number | null;
+      if (hiddenDc) {
+        // Page in the browser: ids in list order minus the all-DC returns, then this page's rows.
+        const ids: string[] = [];
+        const ID_PAGE = 1000;
+        for (let offset = 0; ; offset += ID_PAGE) {
+          const { data: idRows, error: idError } = await applyListFilters(
+            supabase.from("sale_returns").select(saleReturnsSelectForDcView("id", { onlyDc })),
+          ).range(offset, offset + ID_PAGE - 1);
+          if (idError) throw idError;
+          for (const r of (idRows || []) as Array<{ id: string }>) if (r.id && !hiddenDc.has(r.id)) ids.push(r.id);
+          if (!idRows || idRows.length < ID_PAGE) break;
+        }
+        count = ids.length;
+        const pageIds = ids.slice(startIndex, endIndex + 1);
+        if (pageIds.length === 0) {
+          data = [];
+        } else {
+          const { data: rows, error } = await applyListFilters(supabase.from("sale_returns").select(rowSelect)).in("id", pageIds);
+          if (error) throw error;
+          data = rows;
+        }
+      } else {
+        const { data: rows, error, count: total } = await applyListFilters(
+          supabase.from("sale_returns").select(rowSelect, { count: "exact" }),
+        ).range(startIndex, endIndex);
+        if (error) throw error;
+        data = rows;
+        count = total;
+      }
 
       const returnsList = (data || []) as SaleReturn[];
 
@@ -739,7 +758,9 @@ export default function SaleReturnDashboard() {
       const dcSplit = hideDc || onlyDc
         ? await fetchDcReturnSplit(supabase, currentOrganization.id, fromDate, toDate)
         : null;
-      const dcNotIn = dcSplit && hideDc ? dcReturnNotInList(dcSplit) : null;
+      // All-DC returns are dropped from the rows read below, not with a "not in" filter: that put
+      // every id in the URL, which the server rejects once a shop has a few hundred DC returns.
+      const hiddenDc = (id: string) => hideDc && !!dcSplit?.allDc.has(id);
       const keepShare = (id: string) => {
         if (onlyDc) return dcSplit?.allDc.has(id) ? 1 : dcSplit?.dcShare.get(id) ?? 0;
         return 1 - (dcSplit?.dcShare.get(id) ?? 0);
@@ -752,7 +773,6 @@ export default function SaleReturnDashboard() {
         if (fromDate) q = q.gte("return_date", fromDate);
         if (toDate) q = q.lte("return_date", toDate);
         if (statusFilter && statusFilter !== "all") q = q.eq("credit_status", statusFilter);
-        if (dcNotIn) q = q.not("id", "in", dcNotIn);
         return q;
       };
 
@@ -768,7 +788,7 @@ export default function SaleReturnDashboard() {
           ).range(offset, offset + PAGE - 1);
           if (error) throw error;
           if (!data?.length) break;
-          returnIdsInScope.push(...data.map((r) => r.id).filter(Boolean));
+          returnIdsInScope.push(...data.map((r) => r.id).filter((id) => id && !hiddenDc(id)));
           if (data.length < PAGE) break;
           offset += PAGE;
         }
@@ -837,11 +857,7 @@ export default function SaleReturnDashboard() {
         return q;
       };
 
-      const { count, error: countError } = await withSearch(
-        supabase.from("sale_returns").select(saleReturnsSelectForDcView("id", { onlyDc }), { count: "exact", head: true }),
-      );
-      if (countError) throw countError;
-
+      let count = 0;
       let totalValue = 0;
       let totalGross = 0;
       let totalGst = 0;
@@ -857,6 +873,8 @@ export default function SaleReturnDashboard() {
         if (pageError) throw pageError;
         if (!pageRows?.length) break;
         for (const row of pageRows) {
+          if (hiddenDc(row.id)) continue;
+          count += 1;
           const keep = keepShare(row.id);
           totalValue += Number(row.net_amount || 0) * keep;
           totalGross += Number(row.gross_amount || 0) * keep;
@@ -882,7 +900,7 @@ export default function SaleReturnDashboard() {
         );
       }
 
-      return { totalReturns: count || 0, totalValue, totalQty, totalGross, totalGst };
+      return { totalReturns: count, totalValue, totalQty, totalGross, totalGst };
     },
     enabled: !!currentOrganization?.id,
     staleTime: STALE_LIVE,

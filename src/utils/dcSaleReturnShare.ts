@@ -3,7 +3,7 @@
  * sale_return_items.is_dc_item marks a returned DC line (set by the DC SQL of 24 Oct 2026).
  * A return whose every line is DC is left out; a mixed return keeps its row (credit notes and
  * refunds need the full amount) and only the summary tiles take its DC share out.
- * A lookup error hides nothing.
+ * A lookup error hides nothing; it is logged to the console so it is not mistaken for a shop with no DC returns.
  */
 
 type Line = { return_id: string; line_total?: number | null; is_dc_item?: boolean | null };
@@ -16,6 +16,11 @@ export type DcReturnSplit = {
 };
 
 const EMPTY: DcReturnSplit = { allDc: new Set(), dcShare: new Map() };
+
+function lookupFailed(error: unknown): DcReturnSplit {
+  console.warn("[dcSaleReturnShare] DC return lookup failed; DC returns are shown", error);
+  return EMPTY;
+}
 const PAGE = 1000;
 const CHUNK = 200;
 
@@ -61,7 +66,7 @@ export async function fetchDcReturnSplit(
       if (fromDate) q = q.gte("sale_returns.return_date", fromDate);
       if (toDate) q = q.lte("sale_returns.return_date", toDate);
       const { data, error } = await q.range(offset, offset + PAGE - 1);
-      if (error) return EMPTY;
+      if (error) return lookupFailed(error);
       for (const r of (data || []) as Line[]) dcIds.add(r.return_id);
       if (!data || data.length < PAGE) break;
     }
@@ -78,18 +83,13 @@ export async function fetchDcReturnSplit(
           .is("deleted_at", null)
           .order("id")
           .range(offset, offset + PAGE - 1);
-        if (error) return EMPTY;
+        if (error) return lookupFailed(error);
         lines.push(...((data || []) as Line[]));
         if (!data || data.length < PAGE) break;
       }
     }
     return splitDcReturns(lines);
-  } catch {
-    return EMPTY;
+  } catch (e) {
+    return lookupFailed(e);
   }
-}
-
-/** PostgREST "not in" list for the all-DC returns, or null when there are none. */
-export function dcReturnNotInList(split: DcReturnSplit): string | null {
-  return split.allDc.size > 0 ? `(${[...split.allDc].join(",")})` : null;
 }
