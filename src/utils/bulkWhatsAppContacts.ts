@@ -59,7 +59,9 @@ export function parseContactSheet(rows: unknown[][]): { contacts: BulkContact[];
   if (!data.length) return { contacts: [], invalid: 0 };
   const header = data[0].map((c) => String(c ?? "").trim());
   const headerHasPhone = header.some((h) => PHONE_HEADER.test(h) && !normalizeBulkPhone(h));
-  let phoneCol = headerHasPhone ? header.findIndex((h) => PHONE_HEADER.test(h)) : -1;
+  // "Contact Name" also matches the phone words, so a phone heading without "name" wins.
+  const phoneHeader = header.findIndex((h) => PHONE_HEADER.test(h) && !NAME_HEADER.test(h));
+  let phoneCol = headerHasPhone ? (phoneHeader >= 0 ? phoneHeader : header.findIndex((h) => PHONE_HEADER.test(h))) : -1;
   let nameCol = headerHasPhone ? header.findIndex((h, i) => i !== phoneCol && NAME_HEADER.test(h)) : -1;
   const body = headerHasPhone ? data.slice(1) : data;
 
@@ -117,6 +119,29 @@ export function mergeContacts(existing: BulkContact[], added: BulkContact[]): { 
   return { contacts: [...byPhone.values()], duplicates };
 }
 
+export const DEFAULT_NO_NAME_PREFIX = "Customer";
+
+/**
+ * Name a number is saved under in WhatsApp / the phone: its own name, else "<prefix> <last 4 digits>"
+ * (e.g. "Customer 3210") so it does not show as a bare number.
+ */
+export function contactSaveName(c: BulkContact, prefix: string = DEFAULT_NO_NAME_PREFIX): string {
+  const name = (c.name ?? "").replace(/\s+/g, " ").trim();
+  if (name) return name.slice(0, 100);
+  const p = prefix.replace(/\s+/g, " ").trim().slice(0, 60) || DEFAULT_NO_NAME_PREFIX;
+  return `${p} ${c.phone.slice(-4)}`;
+}
+
+/** Rows of the sample Excel for the import: the headings the page reads, and a few example lines. */
+export function sampleContactSheetRows(): string[][] {
+  return [
+    ["Name", "Mobile"],
+    ["Ravi Sharma", "9876543210"],
+    ["Sana Shaikh", "9123456789"],
+    ["Amit Patel", "+91 98200 12345"],
+  ];
+}
+
 /** vCard text value: backslash, comma, semicolon and line breaks escaped. */
 function vcardText(v: string): string {
   return v.replace(/\\/g, "\\\\").replace(/[,;]/g, (m) => `\\${m}`).replace(/\r?\n/g, "\\n");
@@ -124,12 +149,12 @@ function vcardText(v: string): string {
 
 /**
  * Contacts file (.vcf, vCard 3.0) to import into Google Contacts / the phone, so the shop phone has
- * every number saved. A number with no name is saved under its phone number.
+ * every number saved. A number with no name is saved as "<prefix> <last 4 digits>".
  */
-export function buildContactsVcf(contacts: BulkContact[]): string {
+export function buildContactsVcf(contacts: BulkContact[], noNamePrefix?: string): string {
   return contacts
     .map((c) => {
-      const name = vcardText((c.name ?? "").replace(/\s+/g, " ").trim() || formatBulkPhone(c.phone));
+      const name = vcardText(contactSaveName(c, noNamePrefix));
       return ["BEGIN:VCARD", "VERSION:3.0", `FN:${name}`, `N:;${name};;;`, `TEL;TYPE=CELL:+${c.phone}`, "END:VCARD"].join("\r\n");
     })
     .join("\r\n")

@@ -50,6 +50,8 @@ import { CustomerMasterPicker } from "./CustomerMasterPicker";
 import {
   buildBulkLinkLines,
   buildContactsVcf,
+  contactSaveName,
+  DEFAULT_NO_NAME_PREFIX,
   EMPTY_BULK_LINKS,
   estimateBulkMinutes,
   fillBulkMessage,
@@ -57,6 +59,7 @@ import {
   mergeContacts,
   parseContactSheet,
   parseTypedContacts,
+  sampleContactSheetRows,
   stripBulkExtras,
   type BulkContact,
   type BulkLinks,
@@ -81,6 +84,15 @@ const SHOWN_CONTACTS = 200;
 /** Added under the message so customers know how to stop bulk messages (STOP is handled by the WhatsApp server). */
 const STOP_LINE = "Reply STOP to stop these messages";
 const linksKey = (orgId: string) => `bulk_whatsapp_links_${orgId}`;
+const noNameKey = (orgId: string) => `bulk_whatsapp_no_name_${orgId}`;
+
+function readNoNamePrefix(orgId: string): string {
+  try {
+    return localStorage.getItem(noNameKey(orgId)) ?? DEFAULT_NO_NAME_PREFIX;
+  } catch {
+    return DEFAULT_NO_NAME_PREFIX;
+  }
+}
 
 /** Shop links are kept per shop in this browser so they are filled in next time. */
 function readLinks(orgId: string): BulkLinks {
@@ -173,8 +185,17 @@ export function BulkWhatsAppWorkspace({
   /** Set when a check fails (e.g. WhatsApp server not updated yet): no automatic retry until Check again. */
   const [checkError, setCheckError] = useState<string | null>(null);
   const [savingContacts, setSavingContacts] = useState<{ done: number; total: number } | null>(null);
-  /** Numbers saved as contacts on the linked WhatsApp from this page, so a second press skips them. */
+  /** "phone|name" saved as contacts on the linked WhatsApp from this page, so a second press skips them (a new name saves again). */
   const [savedContacts, setSavedContacts] = useState<Set<string>>(() => new Set());
+  /** Numbers without a name are saved as "<this> <last 4 digits>", kept per shop in this browser. */
+  const [noNamePrefix, setNoNamePrefix] = useState(() => readNoNamePrefix(orgId));
+  useEffect(() => {
+    try {
+      localStorage.setItem(noNameKey(orgId), noNamePrefix);
+    } catch {
+      /* private mode: default name next time */
+    }
+  }, [orgId, noNamePrefix]);
   const saveRun = useRef(0);
   const [contacts, setContacts] = useState<BulkContact[]>([]);
   const [typed, setTyped] = useState("");
@@ -234,6 +255,23 @@ export function BulkWhatsAppWorkspace({
       addContacts(found, invalid, "Excel");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not read the Excel file");
+    }
+  };
+
+  const unnamed = contacts.filter((c) => !c.name?.trim());
+  const unnamedCount = unnamed.length;
+  const unnamedExample = unnamed[0]?.phone ?? "919876543210";
+
+  const downloadSampleExcel = async () => {
+    try {
+      const XLSX = await loadXlsx();
+      const sheet = XLSX.utils.aoa_to_sheet(sampleContactSheetRows());
+      sheet["!cols"] = [{ wch: 24 }, { wch: 18 }];
+      const book = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(book, sheet, "Numbers");
+      XLSX.writeFile(book, "bulk-whatsapp-sample.xlsx");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not make the sample file");
     }
   };
 
@@ -408,7 +446,7 @@ export function BulkWhatsAppWorkspace({
   }, [linked, checking, savingContacts, sending, checkError, unchecked]);
 
   const downloadContacts = () => {
-    const blob = new Blob([buildContactsVcf(contacts)], { type: "text/vcard;charset=utf-8" });
+    const blob = new Blob([buildContactsVcf(contacts, noNamePrefix)], { type: "text/vcard;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -422,7 +460,9 @@ export function BulkWhatsAppWorkspace({
 
   const saveToWhatsApp = async () => {
     if (!orgId || savingContacts) return;
-    const list = contacts.filter((c) => !savedContacts.has(c.phone));
+    const list = contacts
+      .map((c) => ({ phone: c.phone, name: contactSaveName(c, noNamePrefix) }))
+      .filter((c) => !savedContacts.has(`${c.phone}|${c.name}`));
     if (!list.length) {
       toast.success("These numbers are already saved in your WhatsApp");
       return;
@@ -431,6 +471,9 @@ export function BulkWhatsAppWorkspace({
     if (
       !window.confirm(
         `Save ${list.length.toLocaleString("en-IN")} numbers as contacts in your linked WhatsApp and on that phone?\n\n` +
+          (unnamedCount
+            ? `${unnamedCount.toLocaleString("en-IN")} without a name will be saved as "${contactSaveName({ phone: unnamedExample, name: null }, noNamePrefix)}" style names.\n\n`
+            : "") +
           `It saves one number every 1-2 seconds (about ${minutes} min). Keep this page open until it finishes.`,
       )
     ) {
@@ -447,13 +490,14 @@ export function BulkWhatsAppWorkspace({
         const res = await callBulkWhatsApp<{ saved?: string[]; failed?: { phone: string; error: string }[] }>(
           orgId,
           "save-contacts",
-          { contacts: batch.map((c) => ({ phone: c.phone, name: c.name?.trim() || formatBulkPhone(c.phone) })) },
+          { contacts: batch },
         );
         const ok = res.saved ?? [];
         saved += ok.length;
         failed += res.failed?.length ?? 0;
         error ||= res.failed?.[0]?.error ?? "";
-        setSavedContacts((cur) => new Set([...cur, ...ok]));
+        const okSet = new Set(ok);
+        setSavedContacts((cur) => new Set([...cur, ...batch.filter((c) => okSet.has(c.phone)).map((c) => `${c.phone}|${c.name}`)]));
         if (run === saveRun.current) setSavingContacts({ done: Math.min(list.length, i + batch.length), total: list.length });
         // A whole batch failing (e.g. WhatsApp disconnected) will not get better on the next one.
         if (!ok.length) break;
@@ -846,6 +890,12 @@ export function BulkWhatsAppWorkspace({
             </button>
           </div>
           <p className="text-[11px] text-slate-500">
+            Excel needs a <b>Name</b> and a <b>Mobile</b> column (10-digit or with +91), one customer per row.{" "}
+            <button type="button" className="inline-flex items-center font-medium text-emerald-700 hover:underline" onClick={() => void downloadSampleExcel()}>
+              <Download className="mr-0.5 h-3 w-3" /> Download sample Excel
+            </button>
+          </p>
+          <p className="text-[11px] text-slate-500">
             Duplicate numbers and numbers without WhatsApp are removed automatically.
             {optOuts.data ? ` ${optOuts.data.toLocaleString("en-IN")} unsubscribed ${optOuts.data === 1 ? "customer is" : "customers are"} always left out.` : ""}
           </p>
@@ -907,6 +957,21 @@ export function BulkWhatsAppWorkspace({
               )}
             </div>
           )}
+          {unnamedCount > 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
+              <span>
+                <b className="tabular-nums">{unnamedCount.toLocaleString("en-IN")}</b> {unnamedCount === 1 ? "number has" : "numbers have"} no
+                name. Type names in the list below, or save them as
+              </span>
+              <Input
+                value={noNamePrefix}
+                onChange={(e) => setNoNamePrefix(e.target.value.slice(0, 60))}
+                onBlur={() => !noNamePrefix.trim() && setNoNamePrefix(DEFAULT_NO_NAME_PREFIX)}
+                className="no-uppercase h-7 w-36 bg-white text-xs"
+              />
+              <span className="text-slate-500">+ last 4 digits, e.g. {contactSaveName({ phone: unnamedExample, name: null }, noNamePrefix)}</span>
+            </div>
+          )}
           {contacts.length > 0 && (
             <div className="max-h-64 overflow-auto rounded-lg border border-slate-200">
               <table className="w-full text-sm">
@@ -923,7 +988,18 @@ export function BulkWhatsAppWorkspace({
                     <tr key={c.phone} className="hover:bg-slate-50">
                       <td className="px-2 py-1.5 tabular-nums text-slate-400">{i + 1}</td>
                       <td className="whitespace-nowrap px-2 py-1.5 tabular-nums text-slate-800">{formatBulkPhone(c.phone)}</td>
-                      <td className="max-w-[160px] truncate px-2 py-1.5 text-slate-600">{c.name ?? ""}</td>
+                      <td className="px-1 py-0.5">
+                        <input
+                          value={c.name ?? ""}
+                          onChange={(e) => {
+                            const name = e.target.value.slice(0, 100);
+                            setContacts((cur) => cur.map((x) => (x.phone === c.phone ? { ...x, name: name.trim() ? name : null } : x)));
+                          }}
+                          placeholder={contactSaveName({ ...c, name: null }, noNamePrefix)}
+                          title="Name saved in WhatsApp and used for {name}"
+                          className="no-uppercase w-full min-w-[110px] rounded border border-transparent bg-transparent px-1 py-1 text-sm text-slate-700 placeholder:italic placeholder:text-slate-400 hover:border-slate-200 focus:border-emerald-300 focus:bg-white focus:outline-none"
+                        />
+                      </td>
                       <td className="px-2 py-1.5 text-right">
                         <button
                           type="button"
