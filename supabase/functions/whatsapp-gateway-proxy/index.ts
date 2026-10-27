@@ -22,6 +22,12 @@ const VALID_STATUS = new Set(["connected", "connecting", "qr", "disconnected", "
 const RESEND_MARK = "Resending after WhatsApp linked again";
 /** Bills that failed with "not connected" within this window are resent after the next link. */
 const RESEND_WINDOW_MS = 24 * 60 * 60 * 1000;
+/**
+ * A bill handed to the gateway stays with it this long before the next "connected" event may hand it
+ * over again. Baileys reconnects several times a day, and every reconnect fires that event; without
+ * this gate a bill still in the gateway's queue (or sent, with its result report lost) went out twice.
+ */
+const RESEND_RETRY_AFTER_MS = 30 * 60 * 1000;
 
 /**
  * Browser -> gateway control plane for "Ezzy ERP WhatsApp" (start/QR, status, logout, groups), authorized
@@ -238,7 +244,18 @@ interface FailedBill {
   status: string;
   error_message: string | null;
   created_at: string;
-  provider_response: { retry?: { message?: string | null; fileUrl?: string | null; filename?: string | null; singleMessage?: boolean } } | null;
+  provider_response: {
+    retry?: { message?: string | null; fileUrl?: string | null; filename?: string | null; singleMessage?: boolean };
+    /** When this bill was last handed to the gateway for a resend (ISO). */
+    resend_handed_at?: string | null;
+  } | null;
+}
+
+/** A pending bill handed to the gateway recently is still its job: leave it alone. */
+function resendHandedRecently(row: Pick<FailedBill, "status" | "provider_response">, now = Date.now()): boolean {
+  if (row.status !== "pending") return false;
+  const at = Date.parse(String(row.provider_response?.resend_handed_at ?? ""));
+  return Number.isFinite(at) && now - at < RESEND_RETRY_AFTER_MS;
 }
 
 /**
@@ -260,7 +277,9 @@ async function resendAfterRelink(supabaseAdmin: SupabaseClient, organizationId: 
     .limit(300);
   if (error) throw error;
   const candidates = ((data ?? []) as FailedBill[]).filter((row) =>
-    row.status === "failed" ? /not connected/i.test(row.error_message ?? "") : row.error_message === RESEND_MARK
+    row.status === "failed"
+      ? /not connected/i.test(row.error_message ?? "")
+      : row.error_message === RESEND_MARK && !resendHandedRecently(row)
   );
   if (!candidates.length) return 0;
 
@@ -316,7 +335,20 @@ async function resendAfterRelink(supabaseAdmin: SupabaseClient, organizationId: 
   if (!jobs.length) return 0;
 
   const ids = jobs.map((j) => j.logId);
-  await supabaseAdmin.from("whatsapp_logs").update({ status: "pending", error_message: RESEND_MARK }).in("id", ids);
+  const handedAt = new Date().toISOString();
+  const byId = new Map([...newest.values()].map((r) => [r.id, r]));
+  await Promise.all(
+    ids.map((id) =>
+      supabaseAdmin
+        .from("whatsapp_logs")
+        .update({
+          status: "pending",
+          error_message: RESEND_MARK,
+          provider_response: { ...(byId.get(id)?.provider_response ?? {}), resend_handed_at: handedAt },
+        })
+        .eq("id", id)
+    ),
+  );
   const result = await gatewayRequest(`/sessions/${encodeURIComponent(organizationId)}/resend`, {
     method: "POST",
     body: { jobs },

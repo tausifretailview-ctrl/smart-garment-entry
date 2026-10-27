@@ -876,17 +876,26 @@ export class SessionManager {
     }
   }
 
+  /**
+   * Tells the app how one resent bill went. Retried a few times: a lost result leaves the bill
+   * "pending" in the app, and after 30 minutes the next link would hand it over (and send it) again.
+   */
   private async reportResend(orgId: string, logId: string, result: { success: boolean; messageId?: string | null; error?: string }) {
     if (!APP_EVENT_URL) return;
-    try {
-      const res = await fetch(APP_EVENT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": API_KEY },
-        body: JSON.stringify({ action: "gateway-resend-result", organizationId: orgId, logId, ...result }),
-      });
-      if (!res.ok) logger.warn({ status: res.status }, "resend result rejected");
-    } catch (e) {
-      logger.warn({ err: e }, "resend result failed");
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (attempt > 0) await sleep(2000 * 2 ** (attempt - 1));
+      try {
+        const res = await fetch(APP_EVENT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-api-key": API_KEY },
+          body: JSON.stringify({ action: "gateway-resend-result", organizationId: orgId, logId, ...result }),
+        });
+        if (res.ok) return;
+        logger.warn({ status: res.status, attempt }, "resend result rejected");
+        if (res.status >= 400 && res.status < 500) return;
+      } catch (e) {
+        logger.warn({ err: e, attempt }, "resend result failed");
+      }
     }
   }
 
