@@ -52,8 +52,13 @@ export function useShopChatThreads() {
     queryKey: shopChatThreadsKey(orgId),
     enabled: !!orgId,
     staleTime: 60_000,
-    // Realtime (ShopChatHost) keeps this fresh; no polling.
-    refetchInterval: false,
+    // Realtime (ShopChatHost) keeps an open conversation fresh, but it only runs once this
+    // list has a thread: a shop whose admin just turned chat on, or a laptop back from
+    // sleep, needs the list read again. Every 3 minutes while the tab is visible, and
+    // whenever the window gets focus.
+    refetchInterval: 3 * 60_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
     queryFn: async (): Promise<ShopChatThread[]> => {
       const { data, error } = await db.rpc("get_shop_chat_threads", { p_organization_id: orgId });
       if (error) {
