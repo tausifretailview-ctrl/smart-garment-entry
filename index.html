@@ -338,7 +338,7 @@
         // Dismiss splash if React mounted but auth never called hideAppBootSplash (Windows Electron).
         setTimeout(function() {
           var splash = document.getElementById('splash-screen');
-          if (!splash || splash.dataset.hiding === '1') return;
+          if (!splash || splash.dataset.hiding === '1' || splash.dataset.bootFailed === '1') return;
           var root = document.getElementById('root');
           if (root && root.childNodes.length > 0) {
             splash.dataset.hiding = '1';
