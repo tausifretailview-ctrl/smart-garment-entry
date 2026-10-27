@@ -39,6 +39,7 @@ import {
 } from "../_shared/wappConnectInbound.ts";
 import { sendViaWappConnect } from "../_shared/wappConnectSend.ts";
 import { getGatewayConfig, sendViaBuiltinGateway } from "../_shared/builtinGatewaySend.ts";
+import { dropOptedOutFromCampaigns } from "../_shared/bulkOptOutDrop.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -1045,6 +1046,8 @@ async function handleStopMessage(supabase: any, organizationId: string, phone10:
     await supabase
       .from('bulk_whatsapp_optouts')
       .upsert({ organization_id: organizationId, phone: `91${phone10}`, source: 'reply' }, { onConflict: 'organization_id,phone' });
+    // A campaign scheduled or still sending already holds the number: drop it there too.
+    await dropOptedOutFromCampaigns(supabase, [organizationId], `91${phone10}`);
     await builtinReply(
       supabase,
       organizationId,
