@@ -18,6 +18,8 @@ interface CampaignItem {
   phone: string;
   text: string;
   done: boolean;
+  /** Kept so a scheduled campaign's message can be edited before it starts. */
+  name?: string;
 }
 
 interface CampaignMedia {
@@ -42,6 +44,8 @@ interface CampaignJob {
   reportUrl?: string;
   /** Scheduled campaigns: nothing is sent before this time (ISO). */
   startAt?: string;
+  /** When the scheduled time came; campaigns on one number go out in this order. */
+  queuedAt?: string;
 }
 
 const AUTH_DIR = process.env.AUTH_DIR ?? "./data/sessions";
@@ -256,6 +260,7 @@ export class CampaignRunner {
         phone: String(it.phone ?? ""),
         text: fillName(message, String(it.name ?? "")),
         done: false,
+        name: String(it.name ?? ""),
       };
     });
     let media: CampaignMedia | null = null;
@@ -320,6 +325,33 @@ export class CampaignRunner {
     return this.summary(job);
   }
 
+  /**
+   * A scheduled campaign that has not started yet: move it to a new time and, optionally, change its
+   * message. Numbers and poster stay the same.
+   */
+  reschedule(campaignId: string, input: Record<string, unknown>) {
+    const job = this.find(campaignId);
+    if (!this.waitingForStart(job)) throw new Error("This campaign has already started");
+    const at = Date.parse(String(input.startAt ?? ""));
+    if (!Number.isFinite(at)) throw new Error("Invalid start time");
+    if (at - Date.now() > MAX_SCHEDULE_MS) throw new Error("Schedule at most 14 days ahead");
+    if (at <= Date.now() + 60_000) throw new Error("Pick a time later than now");
+    // Campaigns saved before names were kept get them from the app.
+    const names = (input.names ?? {}) as Record<string, unknown>;
+    for (const item of job.items) {
+      if (typeof names[item.recipientId] === "string") item.name = String(names[item.recipientId]);
+    }
+    if (typeof input.message === "string") {
+      const message = input.message;
+      if (!job.media && !message.trim()) throw new Error("Message or poster is required");
+      for (const item of job.items) item.text = fillName(message, item.name ?? "");
+    }
+    job.startAt = new Date(at).toISOString();
+    this.save(job);
+    this.wakeAtStart(job);
+    return { ...this.summary(job), startAt: job.startAt };
+  }
+
   /** Scheduled job: start its number's worker when the time comes. */
   private wakeAtStart(job: CampaignJob) {
     const wait = job.startAt ? Date.parse(job.startAt) - Date.now() : 0;
@@ -348,7 +380,7 @@ export class CampaignRunner {
     removeCampaignVideos(VIDEO_DIR, job.campaignId);
   }
 
-  /** One worker per linked number: its campaigns go out in the order they were created. */
+  /** One worker per linked number: its campaigns go out one after another, in the order they became due. */
   private kick(sessionId: string) {
     if (this.workers.has(sessionId)) return;
     this.workers.add(sessionId);
@@ -360,7 +392,7 @@ export class CampaignRunner {
   private nextJob(sessionId: string) {
     return [...this.jobs.values()]
       .filter((j) => j.sessionId === sessionId && j.status === "running" && !this.waitingForStart(j))
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
+      .sort((a, b) => (a.queuedAt ?? a.createdAt).localeCompare(b.queuedAt ?? b.createdAt))[0];
   }
 
   private waitingForStart(job: CampaignJob) {
@@ -410,6 +442,7 @@ export class CampaignRunner {
       if (!job) return;
       if (job.startAt) {
         // Scheduled time reached: clear the "Starts at" note in the app.
+        job.queuedAt = job.startAt;
         delete job.startAt;
         this.save(job);
         this.report(job, null);

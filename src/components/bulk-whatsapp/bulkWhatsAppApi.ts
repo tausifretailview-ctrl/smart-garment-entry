@@ -89,6 +89,7 @@ export async function fetchCampaigns(organizationId: string): Promise<BulkCampai
 }
 
 const isLive = (c: BulkCampaign) => c.status === "running" || c.status === "paused";
+const isWaitingToStart = (c: BulkCampaign) => (scheduledStart(c)?.getTime() ?? 0) > Date.now();
 
 /**
  * One shared list for the summary cards and the report table (same key, one request). Refreshes
@@ -99,8 +100,9 @@ export function useBulkCampaigns(organizationId: string) {
   return useQuery({
     queryKey: ["bulk-whatsapp-campaigns", organizationId],
     queryFn: () => fetchCampaigns(organizationId),
+    // Campaigns still waiting for their scheduled time do not need the fast refresh.
     refetchInterval: (query) =>
-      (query.state.data as BulkCampaign[] | undefined)?.some(isLive) ? 6000 : 60000,
+      (query.state.data as BulkCampaign[] | undefined)?.some((c) => isLive(c) && !isWaitingToStart(c)) ? 6000 : 60000,
   });
 }
 

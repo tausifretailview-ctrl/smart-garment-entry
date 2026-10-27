@@ -12,6 +12,7 @@ import {
   Loader2,
   Megaphone,
   Pause,
+  Pencil,
   Play,
   RefreshCcw,
   RotateCcw,
@@ -40,6 +41,7 @@ import {
   type BulkCampaignMessage,
   type BulkRecipient,
 } from "./bulkWhatsAppApi";
+import { EditScheduleDialog } from "./BulkWhatsAppScheduled";
 
 /** Chart code loads only when a report with at least two finished campaigns is shown. */
 const BulkWhatsAppTrend = lazy(() => import("./BulkWhatsAppTrend"));
@@ -502,12 +504,27 @@ function CampaignActions({
   c,
   busy,
   onControl,
+  onEdit,
 }: {
   c: BulkCampaign;
   busy: boolean;
   onControl: (c: BulkCampaign, action: "pause" | "resume" | "stop") => void;
+  onEdit: (c: BulkCampaign) => void;
 }) {
   if (!isLive(c)) return null;
+  const startsAt = scheduledStart(c);
+  if (startsAt && startsAt.getTime() > Date.now()) {
+    return (
+      <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+        <Button size="icon" variant="outline" className="h-7 w-7" title="Edit time or message" disabled={busy} onClick={() => onEdit(c)}>
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+        <Button size="icon" variant="outline" className="h-7 w-7 text-destructive" title="Cancel" disabled={busy} onClick={() => onControl(c, "stop")}>
+          <XCircle className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    );
+  }
   return (
     <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
       {c.status === "running" ? (
@@ -590,6 +607,7 @@ export function BulkWhatsAppReport({
   const queryClient = useQueryClient();
   const [openId, setOpenId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<BulkCampaign | null>(null);
   const [search, setSearch] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -621,7 +639,11 @@ export function BulkWhatsAppReport({
   }, [q.data, fullPage, search, from, to, sort]);
 
   const control = async (c: BulkCampaign, action: "pause" | "resume" | "stop") => {
-    if (action === "stop" && !window.confirm(`Stop "${c.name}"? Numbers not sent yet will be skipped.`)) return;
+    const scheduled = (scheduledStart(c)?.getTime() ?? 0) > Date.now();
+    const ask = scheduled
+      ? `Cancel the scheduled campaign "${c.name}"? No number will get it.`
+      : `Stop "${c.name}"? Numbers not sent yet will be skipped.`;
+    if (action === "stop" && !window.confirm(ask)) return;
     setBusyId(c.id);
     try {
       await callBulkWhatsApp(organizationId, action, { campaignId: c.id });
@@ -734,7 +756,7 @@ export function BulkWhatsAppReport({
                         {c.user_id !== userId ? " · Other user" : ""}
                       </div>
                     </div>
-                    <CampaignActions c={c} busy={busyId === c.id} onControl={(x, a) => void control(x, a)} />
+                    <CampaignActions c={c} busy={busyId === c.id} onControl={(x, a) => void control(x, a)} onEdit={setEditing} />
                   </div>
                   <div>
                     <StatusCell c={c} />
@@ -804,7 +826,7 @@ export function BulkWhatsAppReport({
                       </td>
                       <td className={cn(NUM, c.failed_count ? "text-red-600" : "text-slate-300")}>{num(c.failed_count)}</td>
                       <td className={cn(TD, "whitespace-nowrap")}>
-                        <CampaignActions c={c} busy={busyId === c.id} onControl={(x, a) => void control(x, a)} />
+                        <CampaignActions c={c} busy={busyId === c.id} onControl={(x, a) => void control(x, a)} onEdit={setEditing} />
                       </td>
                     </tr>
                   );
@@ -817,6 +839,7 @@ export function BulkWhatsAppReport({
       {open && (
         <CampaignDetail campaign={open} organizationId={organizationId} onClose={() => setOpenId(null)} onReuse={onReuse} />
       )}
+      <EditScheduleDialog organizationId={organizationId} campaign={editing} onClose={() => setEditing(null)} />
     </div>
     </div>
   );

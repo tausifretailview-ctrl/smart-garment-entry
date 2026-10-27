@@ -46,6 +46,7 @@ import { BulkWhatsAppLink } from "./BulkWhatsAppLink";
 import { BulkWhatsAppReport, BulkWhatsAppStats } from "./BulkWhatsAppReport";
 import { callBulkWhatsApp, fetchOptOutCount, saveTemplate, type BulkCampaignMessage, type BulkTemplate } from "./bulkWhatsAppApi";
 import { BulkWhatsAppTemplates } from "./BulkWhatsAppTemplates";
+import { SCHEDULE_MAX_DAYS, ScheduledCampaigns, localInput, scheduleTimeOk } from "./BulkWhatsAppScheduled";
 import { CustomerMasterPicker } from "./CustomerMasterPicker";
 import {
   buildBulkLinkLines,
@@ -69,6 +70,8 @@ let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
 const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
 const MAX_CONTACTS = 5000;
+/** Times one message can be scheduled for in one go (one campaign each). */
+const MAX_SCHEDULE_TIMES = 10;
 const MAX_MEDIA_BYTES = 16 * 1024 * 1024;
 /** Videos made Small / Medium on the WhatsApp server may start bigger; it sends the smaller copy. */
 const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
@@ -122,7 +125,6 @@ const CHECK_PAUSE_MS = 1500;
 /** Contacts are saved on the linked WhatsApp 10 per call; the server pauses 1-2.5 s between numbers. */
 const SAVE_CONTACTS_BATCH = 10;
 /** datetime-local value (local time, minutes). */
-const localInput = (d: Date) => format(d, "yyyy-MM-dd'T'HH:mm");
 
 export type BulkWhatsAppView = "all" | "send" | "reports";
 
@@ -175,7 +177,8 @@ export function BulkWhatsAppWorkspace({
   const [videoQuality, setVideoQuality] = useState<VideoQuality>("medium");
   const [savedMedia, setSavedMedia] = useState<SavedMedia | null>(null);
   const [scheduleOn, setScheduleOn] = useState(false);
-  const [sendAt, setSendAt] = useState("");
+  /** One campaign is made per time: the same message can go out morning and evening, or on several days. */
+  const [sendAts, setSendAts] = useState<string[]>([]);
   const [checking, setChecking] = useState<{ done: number; total: number } | null>(null);
   /** Numbers already checked (on WhatsApp, or added back by the user), so only new ones are looked up. */
   const [verified, setVerified] = useState<Set<string>>(() => new Set());
@@ -541,8 +544,18 @@ export function BulkWhatsAppWorkspace({
   }, [message, linkLines, addStopLine]);
   const preview = useMemo(() => fillBulkMessage(outgoing, contacts[0]?.name ?? "Ravi"), [outgoing, contacts]);
   const attachment = media ? { name: media.name, type: media.type } : savedMedia;
-  const scheduleTime = scheduleOn && sendAt ? new Date(sendAt) : null;
-  const scheduleOk = !scheduleOn || (scheduleTime !== null && scheduleTime.getTime() > Date.now() + 60_000);
+  const scheduleTimes = useMemo(
+    () => (scheduleOn ? sendAts.map((v) => new Date(v)).sort((a, b) => a.getTime() - b.getTime()) : []),
+    [scheduleOn, sendAts],
+  );
+  const timeProblem = (i: number) => {
+    const v = sendAts[i];
+    if (!scheduleTimeOk(v ? new Date(v) : null)) return `Pick a time later than now, up to ${SCHEDULE_MAX_DAYS} days ahead`;
+    if (sendAts.indexOf(v) !== i) return "Same time added twice";
+    return null;
+  };
+  const scheduleOk = !scheduleOn || (sendAts.length > 0 && sendAts.every((_, i) => timeProblem(i) === null));
+  const fmtTimes = (fmt: string) => scheduleTimes.map((t) => format(t, fmt)).join(", ");
   const canSend =
     linked &&
     contacts.length > 0 &&
@@ -559,22 +572,35 @@ export function BulkWhatsAppWorkspace({
     try {
       let mediaUrl: string | null = savedMedia?.url ?? null;
       if (media) mediaUrl = await uploadMedia(media);
-      const res = await callBulkWhatsApp<{ total?: number; unsubscribed?: number; alreadySent?: number }>(orgId, "create", {
-        name: name.trim(),
-        message: outgoing,
-        mediaUrl,
-        mediaType: attachment?.type ?? null,
-        mediaName: attachment?.name ?? null,
-        videoQuality: attachment?.type.startsWith("video/") ? videoQuality : null,
-        startAt: scheduleTime ? scheduleTime.toISOString() : null,
-        recipients: contacts,
-      });
+      const times: (Date | null)[] = scheduleTimes.length ? scheduleTimes : [null];
+      let res: { total?: number; unsubscribed?: number; alreadySent?: number } = {};
+      for (let i = 0; i < times.length; i++) {
+        const t = times[i];
+        const label = name.trim();
+        try {
+          res = await callBulkWhatsApp<{ total?: number; unsubscribed?: number; alreadySent?: number }>(orgId, "create", {
+            // Several times: each campaign's name says when it goes, so the report tells them apart.
+            name: times.length > 1 && t ? `${label || "Bulk"} · ${format(t, "dd MMM hh:mm a")}` : label,
+            message: outgoing,
+            mediaUrl,
+            mediaType: attachment?.type ?? null,
+            mediaName: attachment?.name ?? null,
+            videoQuality: attachment?.type.startsWith("video/") ? videoQuality : null,
+            startAt: t ? t.toISOString() : null,
+            recipients: contacts,
+          });
+        } catch (e) {
+          if (i === 0) throw e;
+          const left = times.slice(i).map((x) => (x ? format(x, "dd MMM, hh:mm a") : "")).join(", ");
+          throw new Error(`${i} of ${times.length} scheduled. Not scheduled: ${left}. ${e instanceof Error ? e.message : ""}`);
+        }
+      }
       let skipped = res.unsubscribed ? ` ${res.unsubscribed} unsubscribed ${res.unsubscribed === 1 ? "number was" : "numbers were"} left out.` : "";
       if (res.alreadySent) {
         skipped += ` ${res.alreadySent} ${res.alreadySent === 1 ? "number" : "numbers"} are still getting this message from a campaign that is sending, so ${res.alreadySent === 1 ? "it was" : "they were"} left out.`;
       }
-      const when = scheduleTime
-        ? `Scheduled for ${format(scheduleTime, "dd MMM, hh:mm a")} to ${res.total ?? contacts.length} numbers.`
+      const when = scheduleTimes.length
+        ? `Scheduled for ${fmtTimes("dd MMM, hh:mm a")} to ${res.total ?? contacts.length} numbers.`
         : `Sending to ${res.total ?? contacts.length} numbers.`;
       toast.success(`${when}${skipped} You can close this page; it keeps sending.`, {
         action: onOpenReports ? { label: "See report", onClick: onOpenReports } : undefined,
@@ -582,6 +608,7 @@ export function BulkWhatsAppWorkspace({
       clearContacts();
       setName("");
       setScheduleOn(false);
+      setSendAts([]);
       await queryClient.invalidateQueries({ queryKey: ["bulk-whatsapp-campaigns", orgId] });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not start sending");
@@ -1051,7 +1078,7 @@ export function BulkWhatsAppWorkspace({
                   type="button"
                   onClick={() => {
                     setScheduleOn(later);
-                    if (later && !sendAt) setSendAt(localInput(new Date(Date.now() + 60 * 60 * 1000)));
+                    if (later && !sendAts.length) setSendAts([localInput(new Date(Date.now() + 60 * 60 * 1000))]);
                   }}
                   className={cn(
                     "flex items-center justify-center gap-1.5 rounded-md py-1.5 transition",
@@ -1064,17 +1091,56 @@ export function BulkWhatsAppWorkspace({
               ))}
             </div>
             {scheduleOn && (
-              <div className="space-y-1">
-                <Input
-                  type="datetime-local"
-                  value={sendAt}
-                  min={localInput(new Date(Date.now() + 5 * 60 * 1000))}
-                  max={localInput(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000))}
-                  onChange={(e) => setSendAt(e.target.value)}
-                  className="h-9 text-sm"
-                />
-                <p className={cn("text-[11px]", scheduleOk ? "text-slate-500" : "text-red-600")}>
-                  {scheduleOk ? "Starts by itself at this time, up to 14 days ahead. Keep your phone online." : "Pick a time later than now"}
+              <div className="space-y-1.5">
+                {sendAts.map((v, i) => {
+                  const problem = timeProblem(i);
+                  return (
+                    <div key={i} className="space-y-0.5">
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="datetime-local"
+                          value={v}
+                          min={localInput(new Date(Date.now() + 5 * 60 * 1000))}
+                          max={localInput(new Date(Date.now() + SCHEDULE_MAX_DAYS * 24 * 60 * 60 * 1000))}
+                          onChange={(e) => setSendAts(sendAts.map((x, j) => (j === i ? e.target.value : x)))}
+                          className="h-9 text-sm"
+                        />
+                        {sendAts.length > 1 && (
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 shrink-0 text-slate-500"
+                            title="Remove this time"
+                            onClick={() => setSendAts(sendAts.filter((_, j) => j !== i))}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      {problem && <p className="text-[11px] text-red-600">{problem}</p>}
+                    </div>
+                  );
+                })}
+                {sendAts.length < MAX_SCHEDULE_TIMES && (
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline"
+                    onClick={() => {
+                      const last = sendAts.length ? new Date(sendAts[sendAts.length - 1]) : new Date();
+                      const base = Number.isNaN(last.getTime()) ? new Date() : last;
+                      setSendAts([...sendAts, localInput(new Date(base.getTime() + 24 * 60 * 60 * 1000))]);
+                    }}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add another time
+                  </button>
+                )}
+                <p className="text-[11px] text-slate-500">
+                  {sendAts.length > 1
+                    ? `Sends the same message ${sendAts.length} times, once at each time (IST). `
+                    : "Starts by itself at this time (IST). "}
+                  Up to {SCHEDULE_MAX_DAYS} days ahead. Keep your phone online.
                 </p>
               </div>
             )}
@@ -1086,6 +1152,7 @@ export function BulkWhatsAppWorkspace({
             >
               {sending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : scheduleOn ? <CalendarClock className="mr-1.5 h-4 w-4" /> : <Send className="mr-1.5 h-4 w-4" />}
               {scheduleOn ? "Schedule for" : "Send to"} {contacts.length.toLocaleString("en-IN")} numbers
+              {scheduleOn && sendAts.length > 1 ? ` × ${sendAts.length}` : ""}
             </Button>
             {checking && (
               <p className="text-center text-[11px] text-sky-700">Checking numbers for WhatsApp first ({checking.done}/{checking.total})</p>
@@ -1096,6 +1163,8 @@ export function BulkWhatsAppWorkspace({
               </p>
             )}
           </div>
+
+          {orgId && <ScheduledCampaigns organizationId={orgId} />}
 
           <Alert className="border-amber-200 bg-amber-50">
             <ShieldAlert className="h-4 w-4 text-amber-700" />
@@ -1128,10 +1197,12 @@ export function BulkWhatsAppWorkspace({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {scheduleTime ? `Schedule for ${contacts.length} numbers?` : `Send to ${contacts.length} numbers?`}
+              {scheduleTimes.length
+                ? `Schedule for ${contacts.length} numbers${scheduleTimes.length > 1 ? `, ${scheduleTimes.length} times` : ""}?`
+                : `Send to ${contacts.length} numbers?`}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {scheduleTime ? `Starts ${format(scheduleTime, "dd MMM yyyy, hh:mm a")} and takes` : "This takes"} about{" "}
+              {scheduleTimes.length ? `Starts ${fmtTimes("dd MMM yyyy, hh:mm a")}. Each send takes` : "This takes"} about{" "}
               {estimateBulkMinutes(contacts.length)} minutes. It keeps sending even if you close this page or the browser.
               You can pause or stop it from the delivery report.
             </AlertDialogDescription>
@@ -1146,7 +1217,7 @@ export function BulkWhatsAppWorkspace({
               }}
             >
               {sending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
-              {scheduleTime ? "Schedule" : "Start sending"}
+              {scheduleTimes.length ? "Schedule" : "Start sending"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
