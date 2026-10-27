@@ -14,6 +14,7 @@ import {
   shopChatMessagesKey,
   shopChatThreadsKey,
   useShopChatPanel,
+  useShopOnlineCount,
   useShopChatThreads,
   useSiblingShopsForChat,
   type ShopChatMessage,
@@ -40,9 +41,10 @@ export default function ShopChatPanel() {
   const { data: threads = [], isLoading } = useShopChatThreads();
   const { data: siblings = [] } = useSiblingShopsForChat();
 
-  const active = threads.find((t) => t.organization_id === otherOrgId) ?? null;
-
   const unlinked = siblings.filter((s) => !threads.some((t) => t.organization_id === s.id));
+  // With a single linked shop (and nothing to turn on), skip the list and open the chat with the typing box.
+  const onlyShop = threads.length === 1 && unlinked.length === 0 ? threads[0] : null;
+  const active = threads.find((t) => t.organization_id === otherOrgId) ?? onlyShop;
 
   return (
     <aside
@@ -61,14 +63,15 @@ export default function ShopChatPanel() {
           otherOrgId={active.organization_id}
           otherName={active.name}
           canUnlink={organizationRole === "admin" && siblings.some((s) => s.id === active.organization_id)}
+          showBack={!onlyShop}
         />
       ) : (
         <>
-          <header className="flex h-14 sm:h-12 shrink-0 items-center gap-2 border-b bg-primary px-3 text-primary-foreground">
+          <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-primary px-3 text-primary-foreground">
             <MessagesSquare className="h-5 w-5" />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold leading-tight">Shop chat</p>
-              <p className="truncate text-[11px] opacity-80">{currentOrganization?.name}</p>
+              <p className="truncate text-xs font-medium text-white">{currentOrganization?.name}</p>
             </div>
             <Button
               variant="ghost"
@@ -83,10 +86,15 @@ export default function ShopChatPanel() {
           <div className="min-h-0 flex-1 overflow-y-auto">
             {isLoading ? (
               <div className="flex justify-center p-6">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                <Loader2 className="h-5 w-5 animate-spin text-slate-600 dark:text-slate-300" />
               </div>
             ) : (
               <>
+                {threads.length > 0 && (
+                  <p className="border-b bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 dark:bg-slate-900 dark:text-slate-300">
+                    Tap a shop to open the chat and type a message
+                  </p>
+                )}
                 {threads.map((t) => (
                   <button
                     key={t.organization_id}
@@ -94,20 +102,18 @@ export default function ShopChatPanel() {
                     onClick={() => selectShopChat(t.organization_id)}
                     className="flex w-full items-center gap-3 border-b px-3 py-3 text-left hover:bg-muted/60"
                   >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      <Store className="h-5 w-5" />
-                    </span>
+                    <ShopListAvatar orgId={t.organization_id} />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-baseline gap-2">
-                        <span className="truncate text-sm font-semibold">{t.name}</span>
-                        <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">{timeLabel(t.last_at)}</span>
+                        <span className="truncate text-sm font-bold text-slate-900 dark:text-slate-50">{t.name}</span>
+                        <span className="ml-auto shrink-0 text-xs text-slate-600 dark:text-slate-300">{timeLabel(t.last_at)}</span>
                       </span>
                       <span className="flex items-center gap-2">
-                        <span className={cn("truncate text-xs", t.unread > 0 ? "font-medium text-foreground" : "text-muted-foreground")}>
+                        <span className={cn("truncate text-xs", t.unread > 0 ? "font-semibold text-slate-900 dark:text-slate-50" : "text-slate-600 dark:text-slate-300")}>
                           {t.last_body ? `${t.last_from_me ? "You: " : ""}${t.last_body}` : "No messages yet"}
                         </span>
                         {t.unread > 0 && (
-                          <span className="ml-auto flex h-5 min-w-[20px] shrink-0 items-center justify-center rounded-full bg-emerald-600 px-1.5 text-[11px] font-bold text-white">
+                          <span className="ml-auto flex h-5 min-w-[20px] shrink-0 items-center justify-center rounded-full bg-emerald-600 px-1.5 text-xs font-bold text-white">
                             {t.unread > 99 ? "99+" : t.unread}
                           </span>
                         )}
@@ -117,7 +123,7 @@ export default function ShopChatPanel() {
                 ))}
 
                 {threads.length === 0 && unlinked.length === 0 && (
-                  <p className="p-6 text-center text-sm text-muted-foreground">
+                  <p className="p-6 text-center text-sm text-slate-600 dark:text-slate-300">
                     No shop is linked for chat yet. Ask your admin to turn on chat with your other shop.
                   </p>
                 )}
@@ -160,14 +166,14 @@ function LinkShops({ orgId, shops }: { orgId: string; shops: { id: string; name:
 
   return (
     <div className="p-3">
-      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Your other shops</p>
-      <p className="mb-3 text-xs text-muted-foreground">
+      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-300">Your other shops</p>
+      <p className="mb-3 text-xs text-slate-600 dark:text-slate-300">
         Turn on chat to let staff of both shops message each other.
       </p>
       <div className="space-y-2">
         {shops.map((s) => (
           <div key={s.id} className="flex items-center gap-2 rounded-md border p-2">
-            <Store className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <Store className="h-4 w-4 shrink-0 text-slate-600 dark:text-slate-300" />
             <span className="min-w-0 flex-1 truncate text-sm">{s.name}</span>
             <Button size="sm" variant="outline" disabled={link.isPending} onClick={() => link.mutate(s.id)}>
               Turn on chat
@@ -184,12 +190,15 @@ function Conversation({
   otherOrgId,
   otherName,
   canUnlink,
+  showBack,
 }: {
   orgId: string;
   otherOrgId: string;
   otherName: string;
   canUnlink: boolean;
+  showBack: boolean;
 }) {
+  const online = useShopOnlineCount(otherOrgId);
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState<ShopChatMessage | null>(null);
@@ -286,25 +295,30 @@ function Conversation({
 
   return (
     <>
-      <header className="flex h-14 sm:h-12 shrink-0 items-center gap-2 border-b bg-primary px-2 text-primary-foreground">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/15"
-          onClick={() => selectShopChat(null)}
-          aria-label="All shops"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-foreground/15">
-          <Store className="h-4 w-4" />
-        </span>
-        <p className="min-w-0 flex-1 truncate text-sm font-semibold">{otherName}</p>
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-primary px-2 text-primary-foreground">
+        {showBack && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/15"
+            onClick={() => selectShopChat(null)}
+            aria-label="All shops"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        )}
+        <ShopAvatar online={online > 0} onPrimary />
+        <div className="min-w-0 flex-1 pl-0.5">
+          <p className="truncate text-sm font-bold leading-tight">{otherName}</p>
+          <p className="text-xs font-medium leading-tight text-white">
+            {online > 0 ? (online > 1 ? `Online · ${online} users` : "Online") : "Offline"}
+          </p>
+        </div>
         {canUnlink && (
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-[11px] text-primary-foreground/80 hover:bg-primary-foreground/15 hover:text-primary-foreground"
+            className="h-7 px-2 text-xs text-white hover:bg-primary-foreground/15 hover:text-primary-foreground"
             disabled={unlink.isPending}
             onClick={() => {
               if (window.confirm(`Turn off chat with ${otherName}? Staff of both shops will stop seeing this chat.`)) {
@@ -326,14 +340,14 @@ function Conversation({
         </Button>
       </header>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 space-y-1.5 overflow-y-auto bg-muted/40 px-3 py-3">
+      <div ref={scrollRef} className="min-h-0 flex-1 space-y-1.5 overflow-y-auto bg-slate-100 px-3 py-3 dark:bg-slate-900">
         {isLoading && (
           <div className="flex justify-center p-6">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <Loader2 className="h-5 w-5 animate-spin text-slate-600 dark:text-slate-300" />
           </div>
         )}
         {!isLoading && messages.length === 0 && (
-          <p className="p-6 text-center text-sm text-muted-foreground">Say hello to {otherName}.</p>
+          <p className="p-6 text-center text-sm text-slate-600 dark:text-slate-300">Say hello to {otherName}.</p>
         )}
         {messages.map((m) => {
           const mine = m.from_organization_id === orgId;
@@ -346,7 +360,7 @@ function Conversation({
             <div key={m.id}>
               {showDay && (
                 <div className="my-2 flex justify-center">
-                  <span className="rounded-full bg-background px-2.5 py-0.5 text-[11px] text-muted-foreground shadow-sm">
+                  <span className="rounded-full bg-background px-2.5 py-0.5 text-xs text-slate-600 dark:text-slate-300 shadow-sm">
                     {day}
                   </span>
                 </div>
@@ -356,22 +370,24 @@ function Conversation({
                 <div
                   className={cn(
                     "max-w-[80%] rounded-lg px-2.5 py-1.5 text-sm shadow-sm",
-                    mine ? "rounded-br-sm bg-emerald-100 text-emerald-950 dark:bg-emerald-900 dark:text-emerald-50" : "rounded-bl-sm bg-background",
+                    mine
+                      ? "rounded-br-sm bg-emerald-100 text-emerald-950 dark:bg-emerald-900 dark:text-emerald-50"
+                      : "rounded-bl-sm border border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50",
                   )}
                 >
                   {m.sender_name && (
-                    <p className={cn("text-[11px] font-semibold", mine ? "text-emerald-700 dark:text-emerald-300" : "text-primary")}>
+                    <p className={cn("text-xs font-semibold", mine ? "text-emerald-700 dark:text-emerald-300" : "text-primary")}>
                       {m.sender_name}
                     </p>
                   )}
                   {quoted && (
-                    <div className="mb-1 rounded border-l-2 border-primary/60 bg-black/5 px-2 py-1 text-xs text-muted-foreground dark:bg-white/10">
+                    <div className="mb-1 rounded border-l-2 border-primary/60 bg-black/5 px-2 py-1 text-xs text-slate-600 dark:text-slate-300 dark:bg-white/10">
                       <p className="font-medium">{quoted.sender_name || "Message"}</p>
                       <p className="line-clamp-2 whitespace-pre-wrap break-words">{quoted.body}</p>
                     </div>
                   )}
-                  <p className="whitespace-pre-wrap break-words">{m.body}</p>
-                  <p className="mt-0.5 text-right text-[10px] text-muted-foreground">
+                  <p className="whitespace-pre-wrap break-words text-[15px] leading-snug">{m.body}</p>
+                  <p className="mt-0.5 text-right text-[11px] text-slate-600 dark:text-slate-300">
                     {format(d, "h:mm a")}
                     {mine && m.read_at && <span className="ml-1">· Seen</span>}
                   </p>
@@ -388,9 +404,9 @@ function Conversation({
           <div className="mb-2 flex items-start gap-2 rounded-md border-l-2 border-primary bg-muted px-2 py-1.5 text-xs">
             <div className="min-w-0 flex-1">
               <p className="font-medium">Replying to {replyTo.sender_name || "message"}</p>
-              <p className="line-clamp-2 whitespace-pre-wrap break-words text-muted-foreground">{replyTo.body}</p>
+              <p className="line-clamp-2 whitespace-pre-wrap break-words text-slate-600 dark:text-slate-300">{replyTo.body}</p>
             </div>
-            <button type="button" onClick={() => setReplyTo(null)} aria-label="Cancel reply" className="text-muted-foreground hover:text-foreground">
+            <button type="button" onClick={() => setReplyTo(null)} aria-label="Cancel reply" className="text-slate-600 dark:text-slate-300 hover:text-foreground">
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -402,7 +418,7 @@ function Conversation({
             maxLength={2000}
             rows={1}
             placeholder={`Message ${otherName}`}
-            className="max-h-32 min-h-[40px] flex-1 resize-none"
+            className="max-h-32 min-h-[44px] flex-1 resize-none border-slate-300 bg-white text-[15px] no-uppercase normal-case text-slate-900 placeholder:normal-case placeholder:text-slate-500 dark:bg-slate-800 dark:text-slate-50"
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               // Keep POS / app shortcuts from firing while typing here.
@@ -431,11 +447,35 @@ function ReplyButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="mb-1 rounded-full p-1 text-muted-foreground opacity-60 hover:bg-background hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100"
+      className="mb-1 rounded-full p-1 text-slate-600 dark:text-slate-300 opacity-60 hover:bg-background hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100"
       aria-label="Reply"
       title="Reply"
     >
       <CornerUpLeft className="h-3.5 w-3.5" />
     </button>
   );
+}
+
+function ShopAvatar({ online, onPrimary = false }: { online: boolean; onPrimary?: boolean }) {
+  return (
+    <span
+      className={cn(
+        "relative flex shrink-0 items-center justify-center rounded-full",
+        onPrimary ? "h-8 w-8 bg-primary-foreground/15" : "h-10 w-10 bg-primary/10 text-primary",
+      )}
+    >
+      <Store className={onPrimary ? "h-4 w-4" : "h-5 w-5"} />
+      {online && (
+        <span
+          className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-green-500"
+          aria-label="Online"
+        />
+      )}
+    </span>
+  );
+}
+
+function ShopListAvatar({ orgId }: { orgId: string }) {
+  const online = useShopOnlineCount(orgId);
+  return <ShopAvatar online={online > 0} />;
 }

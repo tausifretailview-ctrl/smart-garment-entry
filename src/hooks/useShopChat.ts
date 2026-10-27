@@ -115,4 +115,34 @@ export function useShopChatPanel(): PanelState {
   );
 }
 
+// --- Who is online per shop (Supabase realtime presence, filled by ShopChatHost) ---
+
+let onlineByOrg: Record<string, number> = {};
+const onlineListeners = new Set<() => void>();
+
+export function setShopOnlineCount(orgId: string, count: number) {
+  if ((onlineByOrg[orgId] ?? 0) === count) return;
+  onlineByOrg = { ...onlineByOrg, [orgId]: count };
+  onlineListeners.forEach((l) => l());
+}
+
+export function clearShopOnlineCounts() {
+  onlineByOrg = {};
+  onlineListeners.forEach((l) => l());
+}
+
+/** Number of other people with the app open in that shop right now. */
+export function useShopOnlineCount(orgId: string): number {
+  return useSyncExternalStore(
+    (cb) => {
+      onlineListeners.add(cb);
+      return () => onlineListeners.delete(cb);
+    },
+    () => onlineByOrg[orgId] ?? 0,
+    () => 0,
+  );
+}
+
+export const shopPresenceTopic = (orgId: string) => `shop-chat-presence-${orgId}`;
+
 export const shopChatDb = db;
