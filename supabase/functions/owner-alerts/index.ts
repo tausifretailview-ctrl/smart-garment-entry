@@ -125,7 +125,6 @@ async function hidesDc(db: Db, organizationId: string): Promise<boolean> {
   return data?.purchase_settings?.dc_visibility_mode === "hide";
 }
 
-/** DC line net and all-line net per bill, for bills that have a DC line. Errors (DC update not run) → empty. */
 type DcLine = { sale_id: string; net_after_discount: number | null };
 const LINE_PAGE = 1000;
 
@@ -141,6 +140,7 @@ async function allLinePages(build: () => any): Promise<DcLine[] | null> {
   return rows;
 }
 
+/** DC line net and all-line net per bill, for bills that have a DC line. Errors (DC update not run) → empty. */
 async function dcSharesBySale(db: Db, saleIds: string[]): Promise<Map<string, { dcNet: number; allNet: number }>> {
   const out = new Map<string, { dcNet: number; allNet: number }>();
   for (let i = 0; i < saleIds.length; i += 200) {
