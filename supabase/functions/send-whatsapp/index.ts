@@ -900,7 +900,19 @@ serve(async (req) => {
             wamid: wappConnectResult.messageId || null,
             sent_at: new Date().toISOString(),
             error_message: wappConnectResult.error || null,
-            provider_response: redactedResponse,
+            // Ezzy ERP WhatsApp not linked: keep what to send so the bill goes out by itself after the
+            // shop links again (whatsapp-gateway-proxy resends these one by one on the "connected" event).
+            provider_response: isBuiltin && !wappConnectResult.success && /not connected/i.test(wappConnectResult.error ?? '')
+              ? {
+                  ...redactedResponse,
+                  retry: {
+                    message: resolvedMessage || null,
+                    fileUrl: resolvedFileUrl || null,
+                    filename: documentFilename || 'Invoice.pdf',
+                    singleMessage: wantsSingleMessage,
+                  },
+                }
+              : redactedResponse,
             provider: isBuiltin ? 'builtin' : 'wappconnect',
           })
           .eq('id', logEntry.id);

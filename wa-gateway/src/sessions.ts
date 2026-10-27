@@ -160,6 +160,11 @@ const CONTACT_SAVE_AFTER_LINK_MS = 24 * 60 * 60 * 1000;
 const LINKED_AT_FILE = "linked-at.json";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MIN_GAP_MS = 2000;
+/** A bill send waits this long for a linked number that is reconnecting before it fails. */
+const BILL_SEND_WAIT_MS = 30_000;
+/** Bills resent after a relink go out one by one with this extra gap (on top of the normal send gap). */
+const RESEND_MIN_GAP_MS = 8000;
+const RESEND_MAX_GAP_MS = 15_000;
 const MAX_GAP_MS = 5000;
 /** Bill customers added to a WhatsApp group per shop number per day, and the gap between two adds. */
 const MAX_GROUP_ADDS_PER_DAY = Number(process.env.MAX_GROUP_ADDS_PER_DAY ?? 25);
@@ -234,6 +239,15 @@ export interface BulkContent {
 }
 
 export type ReceiptStatus = "delivered" | "read";
+
+/** A bill that failed while the number was not linked: its log row and the same send steps as a normal bill. */
+export interface ResendJob {
+  logId: string;
+  phone: string;
+  fileUrl?: string;
+  filename?: string;
+  steps: { kind: "text" | "file"; message?: string }[];
+}
 
 /** A message in a bulk number's chat with a customer, for the app's Inbox. */
 export interface InboxEvent {
@@ -760,6 +774,122 @@ export class SessionManager {
     return s;
   }
 
+  /**
+   * Like ready(), but a linked number that is reconnecting (a network drop, WhatsApp's own restarts, this
+   * server restarting after a redeploy) gets up to `waitMs` to come back, so a bill sent in those seconds
+   * goes out instead of failing with "not connected".
+   */
+  private async readySoon(orgId: string, waitMs = BILL_SEND_WAIT_MS): Promise<Session> {
+    this.assertOrg(orgId);
+    const s = this.get(orgId);
+    const until = Date.now() + waitMs;
+    while (
+      (s.status !== "connected" || !s.sock) &&
+      Date.now() < until &&
+      !s.stopped &&
+      !this.shuttingDown &&
+      s.status !== "logged_out" &&
+      s.status !== "qr" &&
+      hasLinkedCredsOnDisk(this.dir(orgId))
+    ) {
+      await sleep(500);
+    }
+    return this.ready(orgId);
+  }
+
+  /** Every number this server knows (in memory or linked on the volume) and its live state, for the platform page. */
+  listStatus() {
+    const ids = new Set(this.sessions.keys());
+    try {
+      for (const id of fs.readdirSync(AUTH_DIR)) {
+        if (SESSION_ID_RE.test(id) && hasLinkedCredsOnDisk(this.dir(id))) ids.add(id);
+      }
+    } catch {
+      /* no volume yet */
+    }
+    return [...ids].map((id) => {
+      const s = this.sessions.get(id);
+      return {
+        id,
+        status: s?.status ?? "disconnected",
+        connectedNumber: s?.number ?? null,
+        linkedOnServer: hasLinkedCredsOnDisk(this.dir(id)),
+        lastDisconnect: s?.lastClose ?? null,
+        retries: s?.retries ?? 0,
+      };
+    });
+  }
+
+  // ---- Bills that failed while the number was unlinked, resent one by one after it links again ----
+  private resends = new Map<string, { jobs: ResendJob[]; ids: Set<string>; running: boolean }>();
+
+  /** Adds jobs (skipping ones already queued) and starts sending; returns how many were added. */
+  queueResend(orgId: string, jobs: ResendJob[]): number {
+    this.assertOrg(orgId);
+    const q = this.resends.get(orgId) ?? { jobs: [], ids: new Set<string>(), running: false };
+    this.resends.set(orgId, q);
+    let added = 0;
+    for (const job of jobs) {
+      if (!job?.logId || q.ids.has(job.logId) || !Array.isArray(job.steps) || !job.steps.length) continue;
+      q.ids.add(job.logId);
+      q.jobs.push(job);
+      added++;
+    }
+    if (!q.running) void this.runResends(orgId, q);
+    return added;
+  }
+
+  private async runResends(orgId: string, q: { jobs: ResendJob[]; ids: Set<string>; running: boolean }) {
+    q.running = true;
+    logger.warn({ orgId, waiting: q.jobs.length }, "resending bills that failed while WhatsApp was not linked");
+    try {
+      let first = true;
+      while (q.jobs.length) {
+        if (!first) await sleep(RESEND_MIN_GAP_MS + Math.random() * (RESEND_MAX_GAP_MS - RESEND_MIN_GAP_MS));
+        first = false;
+        const job = q.jobs.shift()!;
+        let result: { success: boolean; messageId?: string | null; error?: string };
+        try {
+          let messageId: string | null = null;
+          for (const step of job.steps) {
+            messageId =
+              step.kind === "file"
+                ? await this.sendFile(orgId, job.phone, String(job.fileUrl ?? ""), job.filename || "Invoice.pdf", step.message || undefined)
+                : await this.sendText(orgId, job.phone, step.message ?? "");
+          }
+          result = { success: true, messageId };
+        } catch (e) {
+          result = { success: false, error: e instanceof Error ? e.message : String(e) };
+        }
+        q.ids.delete(job.logId);
+        await this.reportResend(orgId, job.logId, result);
+        if (!result.success && /not connected/i.test(result.error ?? "")) {
+          // Dropped again: the rest stay failed and go out after the next link.
+          for (const rest of q.jobs.splice(0)) {
+            q.ids.delete(rest.logId);
+            await this.reportResend(orgId, rest.logId, result);
+          }
+        }
+      }
+    } finally {
+      q.running = false;
+    }
+  }
+
+  private async reportResend(orgId: string, logId: string, result: { success: boolean; messageId?: string | null; error?: string }) {
+    if (!APP_EVENT_URL) return;
+    try {
+      const res = await fetch(APP_EVENT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": API_KEY },
+        body: JSON.stringify({ action: "gateway-resend-result", organizationId: orgId, logId, ...result }),
+      });
+      if (!res.ok) logger.warn({ status: res.status }, "resend result rejected");
+    } catch (e) {
+      logger.warn({ err: e }, "resend result failed");
+    }
+  }
+
   /** Why a campaign on this number is waiting, in the user's words. */
   offlineNote(id: string): string {
     const s = this.sessions.get(id);
@@ -808,7 +938,7 @@ export class SessionManager {
   }
 
   async sendText(orgId: string, phone: string, message: string) {
-    const s = this.ready(orgId);
+    const s = await this.readySoon(orgId);
     if (!message.trim()) throw new Error("message is required");
     const jid = toJid(phone);
     return this.enqueue(s, async () => {
@@ -819,7 +949,7 @@ export class SessionManager {
   }
 
   async sendFile(orgId: string, phone: string, fileUrl: string, filename: string, caption?: string) {
-    const s = this.ready(orgId);
+    const s = await this.readySoon(orgId);
     const jid = toJid(phone);
     const url = new URL(fileUrl);
     if (url.protocol !== "https:") throw new Error("fileUrl must be https");

@@ -34,6 +34,7 @@ import { PlatformWhatsAppSettings } from "@/components/PlatformWhatsAppSettings"
 import { PlatformWhatsAppLogs } from "@/components/PlatformWhatsAppLogs";
 import { PlatformWhatsAppShops } from "@/components/PlatformWhatsAppShops";
 import { PlatformSupportTokens } from "@/components/PlatformSupportTokens";
+import { PlatformWhatsAppLinkAlerts } from "@/components/PlatformWhatsAppLinkAlerts";
 import { CloudUsageWidget } from "@/components/dashboard/CloudUsageWidget";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -1082,6 +1083,8 @@ export default function PlatformAdmin() {
             </CardContent>
           </Card>
         </div>
+
+        <PlatformWhatsAppLinkAlerts />
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={openTab} className="space-y-4">
