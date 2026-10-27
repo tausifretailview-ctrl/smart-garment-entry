@@ -69,13 +69,17 @@ interface HistoryData {
   hasMore: boolean;
 }
 
-async function fetchHistory(orgId: string, userId: string, limit: number): Promise<HistoryData> {
-  const { data, error } = await ownerAlertsDb
-    .from("owner_push_log")
-    .select("*")
-    .eq("organization_id", orgId)
-    .order("created_at", { ascending: false })
-    .limit(limit);
+/** Optional sent-time window (UTC ISO bounds, inclusive). */
+export interface OwnerAlertRange {
+  from?: string;
+  to?: string;
+}
+
+async function fetchHistory(orgId: string, userId: string, limit: number, range?: OwnerAlertRange): Promise<HistoryData> {
+  let q = ownerAlertsDb.from("owner_push_log").select("*").eq("organization_id", orgId);
+  if (range?.from) q = q.gte("created_at", range.from);
+  if (range?.to) q = q.lte("created_at", range.to);
+  const { data, error } = await q.order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
   const rows = ((data ?? []) as OwnerPushLogRow[]).filter(isShownOwnerAlert);
 
@@ -108,14 +112,14 @@ async function fetchHistory(orgId: string, userId: string, limit: number): Promi
   };
 }
 
-export function useOwnerAlertHistory(limit = OWNER_ALERT_BADGE_LIMIT, enabled = true) {
+export function useOwnerAlertHistory(limit = OWNER_ALERT_BADGE_LIMIT, enabled = true, range?: OwnerAlertRange) {
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
   const orgId = currentOrganization?.id;
   const userId = user?.id;
 
   const query = useQuery({
-    queryKey: ["owner-alert-history", orgId, userId, limit],
+    queryKey: ["owner-alert-history", orgId, userId, limit, range?.from ?? "", range?.to ?? ""],
     enabled: enabled && !!orgId && !!userId,
     staleTime: 60_000,
     refetchInterval: 5 * 60_000,
@@ -123,7 +127,7 @@ export function useOwnerAlertHistory(limit = OWNER_ALERT_BADGE_LIMIT, enabled = 
     // Keep the list on screen while "Show older" loads (same shop and login only).
     placeholderData: (prev, prevQuery) =>
       prevQuery?.queryKey[1] === orgId && prevQuery?.queryKey[2] === userId ? prev : undefined,
-    queryFn: () => fetchHistory(orgId!, userId!, limit),
+    queryFn: () => fetchHistory(orgId!, userId!, limit, range),
   });
 
   useSyncExternalStore(subscribe, () => version);

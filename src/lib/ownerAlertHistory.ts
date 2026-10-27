@@ -178,3 +178,33 @@ export function saveLocalReadIds(orgId: string, userId: string, ids: Iterable<st
     /* private mode / storage full: read marks only last for this session */
   }
 }
+
+/** Short type name shown in the Notifications list. */
+export function ownerAlertKindLabel(kind: string): string {
+  switch (kind) {
+    case "invoice":
+      return "Bill";
+    case "cashier":
+      return "Business report";
+    case "day_end":
+      return "Day-end";
+    case "low_stock":
+      return "Low stock";
+    case "review":
+      return "Review";
+    case "test":
+      return "Test";
+    default:
+      return "Alert";
+  }
+}
+
+/** IST calendar day "YYYY-MM-DD" → UTC ISO bounds for the whole day. */
+export function istDayBoundsIso(day: string, edge: "start" | "end"): string {
+  return new Date(`${day}T${edge === "start" ? "00:00:00.000" : "23:59:59.999"}+05:30`).toISOString();
+}
+
+/** Today in IST, shifted by whole days. */
+export function istDayOffset(days: number, now = new Date()): string {
+  return istDate(new Date(now.getTime() + days * 24 * 60 * 60_000).toISOString());
+}

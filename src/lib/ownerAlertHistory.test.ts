@@ -88,3 +88,14 @@ describe("history helpers", () => {
     ]);
   });
 });
+
+describe("date helpers", () => {
+  it("builds IST day bounds", async () => {
+    const { istDayBoundsIso, istDayOffset, ownerAlertKindLabel } = await import("./ownerAlertHistory");
+    expect(istDayBoundsIso("2026-10-27", "start")).toBe("2026-10-26T18:30:00.000Z");
+    expect(istDayBoundsIso("2026-10-27", "end")).toBe("2026-10-27T18:29:59.999Z");
+    expect(istDayOffset(0, new Date("2026-10-26T19:00:00Z"))).toBe("2026-10-27");
+    expect(istDayOffset(-29, new Date("2026-10-27T05:00:00Z"))).toBe("2026-09-28");
+    expect(ownerAlertKindLabel("day_end")).toBe("Day-end");
+  });
+});
