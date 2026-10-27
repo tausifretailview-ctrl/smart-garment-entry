@@ -69,13 +69,19 @@ export async function fetchDcReturnSplit(
     const ids = [...dcIds];
     const lines: Line[] = [];
     for (let i = 0; i < ids.length; i += CHUNK) {
-      const { data, error } = await client
-        .from("sale_return_items")
-        .select("return_id, line_total, is_dc_item")
-        .in("return_id", ids.slice(i, i + CHUNK))
-        .is("deleted_at", null);
-      if (error) return EMPTY;
-      lines.push(...((data || []) as Line[]));
+      // Page: 200 returns can hold more than the 1,000 rows one request returns.
+      for (let offset = 0; ; offset += PAGE) {
+        const { data, error } = await client
+          .from("sale_return_items")
+          .select("return_id, line_total, is_dc_item")
+          .in("return_id", ids.slice(i, i + CHUNK))
+          .is("deleted_at", null)
+          .order("id")
+          .range(offset, offset + PAGE - 1);
+        if (error) return EMPTY;
+        lines.push(...((data || []) as Line[]));
+        if (!data || data.length < PAGE) break;
+      }
     }
     return splitDcReturns(lines);
   } catch {

@@ -102,6 +102,27 @@ type SaleItemsClient = {
 };
 
 const CHUNK = 200;
+/** Supabase answers at most this many rows per request (max_rows); more lines need another page. */
+const PAGE = 1000;
+
+/**
+ * Every row of a line query, page by page. 200 bills with 5+ lines each pass the 1,000-row
+ * cap, and a single request then dropped lines silently: DC bills counted as GST and mixed
+ * bills were scaled by a share that was missing lines.
+ */
+async function fetchAllLinePages(
+  page: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: unknown }>,
+): Promise<LineRow[]> {
+  const rows: LineRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await page(from, from + PAGE - 1);
+    if (error) throw error;
+    const batch = (data || []) as LineRow[];
+    rows.push(...batch);
+    if (batch.length < PAGE) break;
+  }
+  return rows;
+}
 
 /** DC shares for these bills (two small queries; the DC one uses the partial DC-line index). */
 export async function fetchDcLineShares(
@@ -112,25 +133,33 @@ export async function fetchDcLineShares(
   const ids = [...new Set(saleIds.filter(Boolean))];
   const dcLines: LineRow[] = [];
   for (let i = 0; i < ids.length; i += CHUNK) {
-    const { data, error } = await client
-      .from("sale_items")
-      .select("sale_id, net_after_discount, line_total, quantity")
-      .in("sale_id", ids.slice(i, i + CHUNK))
-      .eq("is_dc_item", true)
-      .is("deleted_at", null);
-    if (error) throw error;
-    dcLines.push(...((data || []) as LineRow[]));
+    dcLines.push(
+      ...(await fetchAllLinePages((from, to) =>
+        client
+          .from("sale_items")
+          .select("sale_id, net_after_discount, line_total, quantity")
+          .in("sale_id", ids.slice(i, i + CHUNK))
+          .eq("is_dc_item", true)
+          .is("deleted_at", null)
+          .order("id")
+          .range(from, to),
+      )),
+    );
   }
   const dcSaleIds = [...new Set(dcLines.map((l) => String(l.sale_id)))];
   const allLines: LineRow[] = [];
   for (let i = 0; i < dcSaleIds.length; i += CHUNK) {
-    const { data, error } = await client
-      .from("sale_items")
-      .select("sale_id, net_after_discount, line_total")
-      .in("sale_id", dcSaleIds.slice(i, i + CHUNK))
-      .is("deleted_at", null);
-    if (error) throw error;
-    allLines.push(...((data || []) as LineRow[]));
+    allLines.push(
+      ...(await fetchAllLinePages((from, to) =>
+        client
+          .from("sale_items")
+          .select("sale_id, net_after_discount, line_total")
+          .in("sale_id", dcSaleIds.slice(i, i + CHUNK))
+          .is("deleted_at", null)
+          .order("id")
+          .range(from, to),
+      )),
+    );
   }
   return buildDcLineShares(dcLines, allLines);
 }

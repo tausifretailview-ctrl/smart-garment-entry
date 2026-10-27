@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildDcLineShares,
   dcOnlyShare,
+  fetchDcLineShares,
   nonDcShare,
   saleRowOnlyDc,
   saleRowWithoutDc,
@@ -103,5 +104,55 @@ describe("dcSaleShare", () => {
     expect(rows).toEqual([{ id: "a", net_amount: 500, total_qty: 2 }]);
     const same = [{ id: "z", net_amount: 1 }];
     expect(await saleRowsForDcView(client, same, {})).toBe(same);
+  });
+});
+
+describe("fetchDcLineShares paging", () => {
+  /** Fake PostgREST client: one table of rows, honours in(), eq(), range(). */
+  function fakeClient(rows: Array<{ id: number; sale_id: string; is_dc_item: boolean; net_after_discount: number; line_total: number; quantity: number }>) {
+    const calls: Array<{ from: number; to: number }> = [];
+    const client = {
+      from: () => {
+        let list = rows;
+        const q: any = {
+          select: () => q,
+          in: (_k: string, ids: string[]) => {
+            list = list.filter((r) => ids.includes(r.sale_id));
+            return q;
+          },
+          eq: (k: string, v: unknown) => {
+            list = list.filter((r) => (r as any)[k] === v);
+            return q;
+          },
+          is: () => q,
+          order: () => q,
+          range: (from: number, to: number) => {
+            calls.push({ from, to });
+            return Promise.resolve({ data: list.slice(from, to + 1), error: null });
+          },
+        };
+        return q;
+      },
+    };
+    return { client, calls };
+  }
+
+  it("reads past the 1,000-row cap so no bill loses lines", async () => {
+    // 300 bills, 4 DC lines + 1 GST line each = 1,200 DC lines, 1,500 lines in all.
+    const rows: any[] = [];
+    let id = 0;
+    for (let b = 0; b < 300; b++) {
+      for (let l = 0; l < 4; l++) rows.push({ id: id++, sale_id: `s${b}`, is_dc_item: true, net_after_discount: 100, line_total: 100, quantity: 1 });
+      rows.push({ id: id++, sale_id: `s${b}`, is_dc_item: false, net_after_discount: 400, line_total: 400, quantity: 1 });
+    }
+    const { client, calls } = fakeClient(rows);
+    const shares = await fetchDcLineShares(client, rows.map((r) => r.sale_id));
+    expect(shares.size).toBe(300);
+    for (const s of shares.values()) {
+      expect(s.dcNet).toBe(400);
+      expect(s.allNet).toBe(800);
+      expect(s.dcQty).toBe(4);
+    }
+    expect(calls.some((c) => c.from === 1000)).toBe(true);
   });
 });
