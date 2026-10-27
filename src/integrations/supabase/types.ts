@@ -1095,6 +1095,54 @@ export type Database = {
           },
         ]
       }
+      bulk_whatsapp_contact_lists: {
+        Row: {
+          contact_count: number
+          contacts: Json
+          created_at: string
+          id: string
+          name: string
+          organization_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          contact_count?: number
+          contacts?: Json
+          created_at?: string
+          id?: string
+          name: string
+          organization_id: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          contact_count?: number
+          contacts?: Json
+          created_at?: string
+          id?: string
+          name?: string
+          organization_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_whatsapp_contact_lists_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_whatsapp_contact_lists_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       bulk_whatsapp_messages: {
         Row: {
           body: string
