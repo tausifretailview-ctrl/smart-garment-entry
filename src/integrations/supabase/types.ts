@@ -9911,6 +9911,7 @@ export type Database = {
           builtin_group_name: string | null
           builtin_save_contacts: boolean
           builtin_status: string | null
+          builtin_status_at: string | null
           business_hours_enabled: boolean | null
           business_hours_end: string | null
           business_hours_start: string | null
@@ -9985,6 +9986,7 @@ export type Database = {
           builtin_group_name?: string | null
           builtin_save_contacts?: boolean
           builtin_status?: string | null
+          builtin_status_at?: string | null
           business_hours_enabled?: boolean | null
           business_hours_end?: string | null
           business_hours_start?: string | null
@@ -10059,6 +10061,7 @@ export type Database = {
           builtin_group_name?: string | null
           builtin_save_contacts?: boolean
           builtin_status?: string | null
+          builtin_status_at?: string | null
           business_hours_enabled?: boolean | null
           business_hours_end?: string | null
           business_hours_start?: string | null
