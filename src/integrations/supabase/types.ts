@@ -8025,6 +8025,131 @@ export type Database = {
         }
         Relationships: []
       }
+      shop_chat_links: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          org_a: string
+          org_b: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          org_a: string
+          org_b: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          org_a?: string
+          org_b?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_chat_links_org_a_fkey"
+            columns: ["org_a"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_chat_links_org_a_fkey"
+            columns: ["org_a"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "shop_chat_links_org_b_fkey"
+            columns: ["org_b"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_chat_links_org_b_fkey"
+            columns: ["org_b"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      shop_chat_messages: {
+        Row: {
+          body: string
+          created_at: string
+          from_organization_id: string
+          id: string
+          read_at: string | null
+          reply_to_id: string | null
+          sender_name: string | null
+          sender_user_id: string | null
+          to_organization_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          from_organization_id: string
+          id?: string
+          read_at?: string | null
+          reply_to_id?: string | null
+          sender_name?: string | null
+          sender_user_id?: string | null
+          to_organization_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          from_organization_id?: string
+          id?: string
+          read_at?: string | null
+          reply_to_id?: string | null
+          sender_name?: string | null
+          sender_user_id?: string | null
+          to_organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_chat_messages_from_organization_id_fkey"
+            columns: ["from_organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_chat_messages_from_organization_id_fkey"
+            columns: ["from_organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "shop_chat_messages_reply_to_id_fkey"
+            columns: ["reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "shop_chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_chat_messages_to_organization_id_fkey"
+            columns: ["to_organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shop_chat_messages_to_organization_id_fkey"
+            columns: ["to_organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       size_groups: {
         Row: {
           created_at: string | null
@@ -12520,6 +12645,17 @@ export type Database = {
         Args: { p_end_date: string; p_org_id: string; p_start_date: string }
         Returns: Json
       }
+      get_shop_chat_threads: {
+        Args: { p_organization_id: string }
+        Returns: {
+          last_at: string
+          last_body: string
+          last_from_me: boolean
+          name: string
+          organization_id: string
+          unread: number
+        }[]
+      }
       get_sibling_shops: {
         Args: { p_organization_id: string }
         Returns: {
@@ -12797,6 +12933,10 @@ export type Database = {
       login_attempts_rate_ok: {
         Args: { _identifier: string }
         Returns: boolean
+      }
+      mark_shop_chat_read: {
+        Args: { p_organization_id: string; p_other_organization_id: string }
+        Returns: number
       }
       mark_stale_backups: { Args: never; Returns: number }
       merge_products: {
@@ -13196,6 +13336,39 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: undefined
       }
+      send_shop_chat_message: {
+        Args: {
+          p_body: string
+          p_from_organization_id: string
+          p_reply_to_id?: string
+          p_to_organization_id: string
+        }
+        Returns: {
+          body: string
+          created_at: string
+          from_organization_id: string
+          id: string
+          read_at: string | null
+          reply_to_id: string | null
+          sender_name: string | null
+          sender_user_id: string | null
+          to_organization_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "shop_chat_messages"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_shop_chat_link: {
+        Args: {
+          p_enabled: boolean
+          p_organization_id: string
+          p_other_organization_id: string
+        }
+        Returns: undefined
+      }
       set_whatsapp_send_provider: {
         Args: { p_organization_id: string; p_send_provider: string }
         Returns: undefined
@@ -13207,6 +13380,10 @@ export type Database = {
           p_session_id: string
         }
         Returns: Json
+      }
+      shop_chat_is_linked: {
+        Args: { p_org1: string; p_org2: string }
+        Returns: boolean
       }
       snapshot_accounting_invariants: {
         Args: { p_date?: string }
