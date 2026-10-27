@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Layout } from "@/components/Layout";
+import { PlatformAdminLayout } from "@/components/PlatformAdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -161,7 +161,7 @@ export default function PlatformDataIntegrity() {
   );
 
   return (
-    <Layout>
+    <PlatformAdminLayout>
       <div className="space-y-4 p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -326,7 +326,7 @@ export default function PlatformDataIntegrity() {
           </TabsContent>
         </Tabs>
       </div>
-    </Layout>
+    </PlatformAdminLayout>
   );
 }
 
