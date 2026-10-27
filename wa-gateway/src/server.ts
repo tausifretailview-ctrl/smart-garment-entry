@@ -1,6 +1,6 @@
 import path from "node:path";
 import express, { type NextFunction, type Request, type Response } from "express";
-import { SessionManager } from "./sessions.js";
+import { SessionManager, type ResendJob } from "./sessions.js";
 import { CampaignRunner } from "./campaigns.js";
 import { describeDisk, describeFolders, diskLow, diskUsage, fileKinds, folderFileCounts } from "./storage.js";
 
@@ -36,6 +36,17 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 app.post("/sessions/:orgId/start", wrap(async (req, res) => {
   const phone = typeof req.body?.phone === "string" && req.body.phone.trim() ? req.body.phone : undefined;
   res.json({ success: true, ...(await sessions.start(req.params.orgId, phone)) });
+}));
+
+// Platform page: every number this server knows and why it last dropped.
+app.get("/sessions", wrap(async (_req, res) => {
+  res.json({ success: true, sessions: sessions.listStatus() });
+}));
+
+// Bills that failed while the number was unlinked: sent again one by one, results posted to APP_EVENT_URL.
+app.post("/sessions/:orgId/resend", wrap(async (req, res) => {
+  const jobs = Array.isArray(req.body?.jobs) ? (req.body.jobs as ResendJob[]).slice(0, 300) : [];
+  res.json({ success: true, queued: sessions.queueResend(req.params.orgId, jobs) });
 }));
 
 app.get("/sessions/:orgId/status", wrap(async (req, res) => {
