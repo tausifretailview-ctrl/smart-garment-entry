@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { gatewayBaseUrl, gatewayRequest, getGatewayConfig } from "../_shared/builtinGatewaySend.ts";
+import { optOutKeyword } from "../_shared/bulkOptOutKeyword.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -204,7 +205,7 @@ serve(async (req) => {
     return json({ success: true, status });
   }
 
-  if (action === "inbox-send" || action === "inbox-read" || action === "inbox-tags") {
+  if (action === "inbox-send" || action === "inbox-read" || action === "inbox-tags" || action === "inbox-optout") {
     return await inboxAction(admin, action, body, userId, organizationId, access.isAdmin, sessionPath);
   }
 
@@ -551,16 +552,7 @@ async function handleGateway(admin: SupabaseClient, action: string, body: Record
       .limit(50);
     const orgIds = [...new Set((hits ?? []).map((h) => h.organization_id as string))];
     if (!orgIds.length) return json({ success: true, organizations: 0 });
-    if (body.subscribe === true) {
-      await admin.from("bulk_whatsapp_optouts").delete().eq("phone", phone).in("organization_id", orgIds);
-    } else {
-      await admin
-        .from("bulk_whatsapp_optouts")
-        .upsert(orgIds.map((organization_id) => ({ organization_id, phone, source: "reply" })), {
-          onConflict: "organization_id,phone",
-          ignoreDuplicates: true,
-        });
-    }
+    await setOptOut(admin, orgIds, phone, body.subscribe !== true, "reply");
     return json({ success: true, organizations: orgIds.length });
   }
 
@@ -621,6 +613,9 @@ async function gatewayInbox(admin: SupabaseClient, body: Record<string, unknown>
   // A reply means the customer opened the chat, so bulk messages sent to them before it count as read
   // (customers with blue ticks off never send a read receipt).
   if (!fromMe) await markRepliedAsRead(admin, userId, phone, at);
+  // STOP / START is also saved here, so the unsubscribe holds even if the server's own report is lost.
+  const keyword = fromMe ? null : optOutKeyword(text);
+  if (keyword) await setOptOut(admin, [...orgs.keys()], phone, keyword === "stop", "reply");
   const preview = (text || (mediaType ? MEDIA_LABEL[mediaType] : "") || "Message").slice(0, 200);
   const pushName = typeof body.name === "string" ? body.name.trim().slice(0, 80) || null : null;
   const messageId = body.messageId ? String(body.messageId).slice(0, 128) : null;
@@ -676,6 +671,20 @@ async function gatewayInbox(admin: SupabaseClient, body: Record<string, unknown>
   return json({ success: true, tracked: true });
 }
 
+/** Unsubscribes (or subscribes again) a number from these shops' bulk messages. */
+async function setOptOut(admin: SupabaseClient, orgIds: string[], phone: string, unsubscribe: boolean, source: string) {
+  if (!orgIds.length) return null;
+  const { error } = unsubscribe
+    ? await admin
+        .from("bulk_whatsapp_optouts")
+        .upsert(orgIds.map((organization_id) => ({ organization_id, phone, source })), {
+          onConflict: "organization_id,phone",
+          ignoreDuplicates: true,
+        })
+    : await admin.from("bulk_whatsapp_optouts").delete().eq("phone", phone).in("organization_id", orgIds);
+  return error;
+}
+
 async function markRepliedAsRead(admin: SupabaseClient, userId: string, phone: string, at: string) {
   const { data: rows, error } = await admin
     .from("bulk_whatsapp_recipients")
@@ -699,7 +708,7 @@ async function markRepliedAsRead(admin: SupabaseClient, userId: string, phone: s
   }
 }
 
-/** Inbox actions from the page: reply (from the user's own linked number), mark read, set tags. */
+/** Inbox actions from the page: reply (from the user's own linked number), mark read, set tags, block / unblock. */
 async function inboxAction(
   admin: SupabaseClient,
   action: string,
@@ -721,6 +730,14 @@ async function inboxAction(
   if (action === "inbox-read") {
     await admin.from("bulk_whatsapp_chats").update({ unread_count: 0 }).eq("id", chat.id);
     return json({ success: true });
+  }
+
+  // Block: this number gets no more bulk messages from this shop, same as the customer replying STOP.
+  if (action === "inbox-optout") {
+    const unsubscribe = body.unsubscribe !== false;
+    const error = await setOptOut(admin, [organizationId], chat.phone, unsubscribe, "manual");
+    if (error) return json({ error: error.message }, 500);
+    return json({ success: true, unsubscribed: unsubscribe });
   }
 
   if (action === "inbox-tags") {
