@@ -75,6 +75,10 @@ interface Session {
   lastGroupAddAt: number;
   groupQueue: Promise<unknown>;
   groupPending: number;
+  /** A new link (QR / code) is being made; on open its time is written to LINKED_AT_FILE. */
+  newLink: boolean;
+  contactSavesToday: number;
+  contactDay: string;
 }
 
 /** Plain words for WhatsApp's close codes (Baileys DisconnectReason). */
@@ -140,6 +144,21 @@ const API_KEY = process.env.GATEWAY_API_KEY ?? "";
 const MAX_PER_DAY = Number(process.env.MAX_MSGS_PER_DAY ?? 300);
 /** Bulk WhatsApp: each user links their own number (session id "u_<userId>") with its own daily cap. */
 const MAX_BULK_PER_DAY = Number(process.env.MAX_BULK_MSGS_PER_DAY ?? 500);
+/**
+ * A freshly linked bulk number starts slow: WhatsApp logs out or bans new links that message many
+ * strangers on day one. Caps by day since the QR scan (day 1 = first 24 h); BULK_WARMUP=off turns it off.
+ */
+const BULK_WARMUP_CAPS = process.env.BULK_WARMUP === "off" ? [] : [30, 60, 100, 150, 200, 300, 400];
+/** Gap between two campaign messages while a number warms up (the normal campaign gap is 8-20 s). */
+export const WARMUP_GAP_MS: [number, number] = [30_000, 60_000];
+/** Contacts saved to a bulk number per day, the pause between two, and no saves in the first hours after linking. */
+const MAX_CONTACT_SAVES_PER_DAY = Number(process.env.MAX_CONTACT_SAVES_PER_DAY ?? 50);
+const CONTACT_SAVE_MIN_GAP_MS = 4000;
+const CONTACT_SAVE_MAX_GAP_MS = 8000;
+const CONTACT_SAVE_AFTER_LINK_MS = 24 * 60 * 60 * 1000;
+/** When this number was linked by QR / code on this server; missing = linked before this file existed. */
+const LINKED_AT_FILE = "linked-at.json";
+const DAY_MS = 24 * 60 * 60 * 1000;
 const MIN_GAP_MS = 2000;
 const MAX_GAP_MS = 5000;
 /** Bill customers added to a WhatsApp group per shop number per day, and the gap between two adds. */
@@ -305,7 +324,43 @@ export class SessionManager {
   }
 
   private dailyCap(id: string) {
-    return isUserSession(id) ? MAX_BULK_PER_DAY : MAX_PER_DAY;
+    if (!isUserSession(id)) return MAX_PER_DAY;
+    const day = this.linkDay(id);
+    const warm = day !== null ? BULK_WARMUP_CAPS[day] : undefined;
+    return warm !== undefined ? Math.min(warm, MAX_BULK_PER_DAY) : MAX_BULK_PER_DAY;
+  }
+
+  /** Time the number was linked on this server (ms), or null when unknown (linked before warm-up existed). */
+  private linkedAt(id: string): number | null {
+    try {
+      const at = Number((JSON.parse(fs.readFileSync(path.join(this.dir(id), LINKED_AT_FILE), "utf8")) as { at?: unknown }).at);
+      return Number.isFinite(at) && at > 0 ? at : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** 0 in the first 24 h after linking, 1 the next day, ...; null when the link time is unknown. */
+  private linkDay(id: string): number | null {
+    const at = this.linkedAt(id);
+    return at === null ? null : Math.max(0, Math.floor((Date.now() - at) / DAY_MS));
+  }
+
+  /** A bulk number still in its first days: messages today are capped lower and spaced wider. */
+  inWarmup(id: string): boolean {
+    const day = this.linkDay(id);
+    return isUserSession(id) && day !== null && day < BULK_WARMUP_CAPS.length;
+  }
+
+  /** Daily-cap note for a campaign: plain words for a warm-up cap. */
+  capNote(id: string): string {
+    if (!this.inWarmup(id)) return "Daily limit reached; continues tomorrow";
+    return `New number warm-up: ${this.dailyCap(id)} messages today (day ${(this.linkDay(id) ?? 0) + 1} after linking), more each day. Continues tomorrow by itself.`;
+  }
+
+  /** WhatsApp logged the number out (401) or it was unlinked: only a new QR scan brings it back. */
+  isLoggedOut(id: string): boolean {
+    return this.sessions.get(id)?.status === "logged_out";
   }
 
   private get(orgId: string): Session {
@@ -318,6 +373,7 @@ export class SessionManager {
         mediaCache: makeMediaCache(),
         lastClose: null,
         groupAddsToday: 0, groupDay: today(), lastGroupAddAt: 0, groupQueue: Promise.resolve(), groupPending: 0,
+        newLink: false, contactSavesToday: 0, contactDay: today(),
       };
       this.sessions.set(orgId, s);
     }
@@ -392,6 +448,9 @@ export class SessionManager {
     try {
       const { state, saveCreds, fromBackup } = await useSafeAuthState(this.dir(orgId));
       if (fromBackup) logger.warn({ orgId }, "creds.json was damaged; reconnecting with the backup copy");
+      // A QR / code link starts here; the restart WhatsApp asks for right after the scan keeps the flag.
+      if (!fresh) s.newLink = false;
+      else if (!state.creds.account) s.newLink = true;
       if (!fresh && !state.creds.account) {
         s.status = "disconnected";
         s.lastClose = { code: null, reason: LINK_LOST_REASON, at: new Date().toISOString() };
@@ -451,6 +510,15 @@ export class SessionManager {
           s.retries = 0;
           if (s.lastClose) logger.info({ orgId, after: s.lastClose.code }, "WhatsApp reconnected");
           s.number = sock.user?.id?.split(":")[0]?.split("@")[0] ?? null;
+          if (s.newLink) {
+            s.newLink = false;
+            try {
+              fs.writeFileSync(path.join(this.dir(orgId), LINKED_AT_FILE), JSON.stringify({ at: Date.now() }));
+            } catch (e) {
+              logger.warn({ orgId, err: e }, "could not save the link time");
+            }
+            if (isUserSession(orgId)) logger.warn({ orgId, number: s.number }, "Bulk number linked: warm-up limits apply");
+          }
           await this.notify(orgId, s);
         } else if (connection === "close") {
           if (s.sock !== sock) return; // an older socket closing after a restart
@@ -827,7 +895,9 @@ export class SessionManager {
 
   /**
    * Saves numbers as contacts on this WhatsApp, like "New contact" on WhatsApp Web (also saved to the
-   * phone's address book). One at a time with a short pause, at most 10 per call; not counted as sends.
+   * phone's address book). One at a time with a 4-8 s pause, at most 10 per call; not counted as sends.
+   * Every save is a sync to the phone, so a bulk number gets none in its first 24 h after linking and at
+   * most MAX_CONTACT_SAVES_PER_DAY a day (dozens of saves right after a QR scan look like a bot).
    */
   async saveContacts(
     orgId: string,
@@ -837,16 +907,36 @@ export class SessionManager {
     const list = contacts.slice(0, 10);
     const saved: string[] = [];
     const failed: { phone: string; error: string }[] = [];
+    if (isUserSession(orgId)) {
+      const at = this.linkedAt(orgId);
+      if (at !== null && Date.now() - at < CONTACT_SAVE_AFTER_LINK_MS) {
+        const hours = Math.ceil((at + CONTACT_SAVE_AFTER_LINK_MS - Date.now()) / 3_600_000);
+        throw new Error(
+          `This number was linked less than a day ago. Saving many contacts right after linking can make WhatsApp log it out; try again in ${hours} h.`,
+        );
+      }
+    }
+    if (s.contactDay !== today()) {
+      s.contactDay = today();
+      s.contactSavesToday = 0;
+    }
     for (const [i, c] of list.entries()) {
       const phone = String(c.phone ?? "").replace(/\D/g, "");
       const name = cleanName(c.name);
+      if (s.contactSavesToday >= MAX_CONTACT_SAVES_PER_DAY) {
+        failed.push({ phone, error: `Daily limit of ${MAX_CONTACT_SAVES_PER_DAY} contact saves reached; save the rest tomorrow` });
+        continue;
+      }
       try {
         await this.saveOneContact(s, phone, name);
+        s.contactSavesToday++;
         saved.push(phone);
       } catch (e) {
         failed.push({ phone, error: e instanceof Error ? e.message : String(e) });
       }
-      if (i < list.length - 1) await sleep(1000 + Math.random() * 1500);
+      if (i < list.length - 1 && s.contactSavesToday < MAX_CONTACT_SAVES_PER_DAY) {
+        await sleep(CONTACT_SAVE_MIN_GAP_MS + Math.random() * (CONTACT_SAVE_MAX_GAP_MS - CONTACT_SAVE_MIN_GAP_MS));
+      }
     }
     if (failed.length) logger.warn({ orgId, saved: saved.length, failed: failed.length, error: failed[0].error }, "Save contacts failed");
     return { saved, failed };

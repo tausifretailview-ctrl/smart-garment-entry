@@ -498,14 +498,14 @@ export function BulkWhatsAppWorkspace({
       toast.success("These numbers are already saved in your WhatsApp");
       return;
     }
-    const minutes = Math.max(1, Math.round((list.length * 2) / 60));
+    const minutes = Math.max(1, Math.round((list.length * 6) / 60));
     if (
       !window.confirm(
         `Save ${list.length.toLocaleString("en-IN")} numbers as contacts in your linked WhatsApp and on that phone?\n\n` +
           (unnamedCount
             ? `${unnamedCount.toLocaleString("en-IN")} without a name will be saved as "${contactSaveName({ phone: unnamedExample, name: null }, noNamePrefix)}" style names.\n\n`
             : "") +
-          `It saves one number every 1-2 seconds (about ${minutes} min). Keep this page open until it finishes.`,
+          `It saves one number every 4-8 seconds (about ${minutes} min, at most 50 a day; not on the first day after linking). Keep this page open until it finishes.`,
       )
     ) {
       return;
