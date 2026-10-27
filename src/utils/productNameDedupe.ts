@@ -35,29 +35,48 @@ export async function findSameNameProductsInOrg(
   // The key also ignores - _ . / so its rows cover every same-name product; the
   // brand / category / style needed below come from a by-id read.
   let candidateIds: string[] | null = null;
+  // The RPC already sums live variant stock, so the by-id read skips the
+  // product_variants embed. That embed had no deleted_at filter, so it could not
+  // use the variants index (partial, deleted_at IS NULL): avg 1.37 s, up to 6.7 s (27 Oct).
+  const rpcStockById = new Map<string, number>();
   if (!productNameKeyRpcMissing) {
     const { data: keyRows, error: keyError } = await (supabase.rpc as any)("find_products_by_name_key", {
       p_organization_id: organizationId,
       p_name: cleanProductName(name),
     });
     if (!keyError && Array.isArray(keyRows)) {
-      candidateIds = (keyRows as ProductNameMatchRow[]).map((r) => r.id);
+      candidateIds = (keyRows as ProductNameMatchRow[]).map((r) => {
+        rpcStockById.set(r.id, Number(r.total_stock) || 0);
+        return r.id;
+      });
     } else if (isMissingRpcFunctionError(keyError)) {
       productNameKeyRpcMissing = true;
     }
   }
   if (candidateIds && candidateIds.length === 0) return [];
 
-  const base = supabase
+  const want = normalizeProductNameKey(name, category);
+  if (candidateIds) {
+    const { data, error } = await supabase
+      .from("products")
+      .select("id, product_name, brand, category, style, created_at")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .in("id", candidateIds);
+    if (error || !data) return [];
+    return (data as SameNameProductMatch[])
+      .filter((p) => normalizeProductNameKey(p.product_name || "", p.category) === want)
+      .map((p) => ({ ...p, total_stock: rpcStockById.get(p.id) ?? 0 }));
+  }
+
+  const { data, error } = await supabase
     .from("products")
     .select("id, product_name, brand, category, style, created_at, product_variants(stock_qty, deleted_at)")
     .eq("organization_id", organizationId)
-    .is("deleted_at", null);
-  const { data, error } = candidateIds
-    ? await base.in("id", candidateIds)
-    : await base.ilike("product_name", `%${trimmed}%`).limit(10);
+    .is("deleted_at", null)
+    .ilike("product_name", `%${trimmed}%`)
+    .limit(10);
   if (error || !data) return [];
-  const want = normalizeProductNameKey(name, category);
   return (data as Array<SameNameProductMatch & { product_variants?: any[] | null }>)
     .filter((p) => normalizeProductNameKey(p.product_name || "", p.category) === want)
     .map(({ product_variants, ...p }) => ({
