@@ -124,6 +124,8 @@ export function useOwnerAlertHistory(limit = OWNER_ALERT_BADGE_LIMIT, enabled = 
     staleTime: 60_000,
     refetchInterval: 5 * 60_000,
     refetchIntervalInBackground: false,
+    // The app default re-renders on data/error only; the page's Refresh spinner and "Show older" need isFetching.
+    notifyOnChangeProps: ["data", "error", "isFetching"],
     // Keep the list on screen while "Show older" loads (same shop and login only).
     placeholderData: (prev, prevQuery) =>
       prevQuery?.queryKey[1] === orgId && prevQuery?.queryKey[2] === userId ? prev : undefined,

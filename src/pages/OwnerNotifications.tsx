@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BarChart3, Bell, BellRing, CheckCheck, ChevronRight, Loader2, PackageX, Receipt, RefreshCw, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,9 +58,25 @@ const timeOf = (iso: string) =>
 export default function OwnerNotifications() {
   const { orgNavigate } = useOrgNavigation();
   const canSee = useCanSeeOwnerAlerts();
-  const today = istDayOffset(0);
+  const [today, setToday] = useState(() => istDayOffset(0));
   const [fromDay, setFromDay] = useState(() => istDayOffset(-29));
   const [toDay, setToDay] = useState(today);
+
+  // A tab left open over midnight: "To" was today, so it follows the date; a chosen past day stays.
+  useEffect(() => {
+    const roll = () => {
+      const now = istDayOffset(0);
+      if (now === today) return;
+      setToDay((d) => (d === today ? now : d));
+      setToday(now);
+    };
+    const timer = window.setInterval(roll, 60_000);
+    document.addEventListener("visibilitychange", roll);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", roll);
+    };
+  }, [today]);
   const [limit, setLimit] = useState(PAGE);
   const [filter, setFilter] = useState<OwnerAlertFilter>("all");
 

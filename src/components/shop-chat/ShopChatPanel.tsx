@@ -208,6 +208,8 @@ function Conversation({
   const { data: messages = [], isLoading } = useQuery({
     queryKey: shopChatMessagesKey(orgId, otherOrgId),
     staleTime: 30_000,
+    // No keepPreviousData here: switching shop must not show the last shop's messages under the new name.
+    placeholderData: undefined,
     queryFn: async (): Promise<ShopChatMessage[]> => {
       const { data, error } = await shopChatDb
         .from("shop_chat_messages")
