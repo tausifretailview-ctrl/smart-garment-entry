@@ -47,7 +47,9 @@ describe("dcSaleShare", () => {
         const q = {
           select: () => q,
           in: () => q,
-          is: () => Promise.resolve({ data: dcOnly ? lines.dc : lines.all, error: null }),
+          is: () => q,
+          order: () => q,
+          range: () => Promise.resolve({ data: dcOnly ? lines.dc : lines.all, error: null }),
           eq: () => {
             dcOnly = true;
             return q;
@@ -88,7 +90,9 @@ describe("dcSaleShare", () => {
         const q = {
           select: () => q,
           in: () => q,
-          is: () => Promise.resolve({ data: dcOnly ? lines.dc : lines.all, error: null }),
+          is: () => q,
+          order: () => q,
+          range: () => Promise.resolve({ data: dcOnly ? lines.dc : lines.all, error: null }),
           eq: () => {
             dcOnly = true;
             return q;
