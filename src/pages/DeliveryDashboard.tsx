@@ -8,7 +8,7 @@ import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { AnimatedChart } from "@/components/dashboard/AnimatedChart";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -64,6 +64,12 @@ const DeliveryDashboard = () => {
 
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  // One search per typing pause: address has no search index, so each letter read every bill of that status.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
@@ -218,7 +224,7 @@ const DeliveryDashboard = () => {
 
   // Fetch filtered invoices based on selected status, date range, search, and payment status
   const { data: filteredInvoices } = useQuery({
-    queryKey: ["filtered-invoices", currentOrganization?.id, selectedStatus, searchQuery, dateFrom, dateTo, paymentStatusFilter],
+    queryKey: ["filtered-invoices", currentOrganization?.id, selectedStatus, debouncedSearch, dateFrom, dateTo, paymentStatusFilter],
     queryFn: async () => {
       if (!currentOrganization?.id || !selectedStatus) return [];
 
@@ -242,8 +248,8 @@ const DeliveryDashboard = () => {
       }
 
       // Apply search filter - search by invoice, customer name, phone, and address
-      if (searchQuery) {
-        query = query.or(`sale_number.ilike.%${searchQuery}%,customer_name.ilike.%${searchQuery}%,customer_phone.ilike.%${searchQuery}%,customer_address.ilike.%${searchQuery}%`);
+      if (debouncedSearch) {
+        query = query.or(`sale_number.ilike.%${debouncedSearch}%,customer_name.ilike.%${debouncedSearch}%,customer_phone.ilike.%${debouncedSearch}%,customer_address.ilike.%${debouncedSearch}%`);
       }
 
       query = query.order("sale_date", { ascending: false });

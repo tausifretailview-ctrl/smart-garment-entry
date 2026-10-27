@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
@@ -37,6 +37,12 @@ export default function MobileSalesHub() {
   );
   const [period, setPeriod] = useState("today");
   const [search, setSearch] = useState("");
+  // One bill search per typing pause, not one per letter (a 10-digit phone was 10 searches).
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const openCustomerAccount = useOpenCustomerAccount();
   const [detailSaleId, setDetailSaleId] = useState<string | null>(null);
@@ -107,7 +113,7 @@ export default function MobileSalesHub() {
   });
 
   const { data: salesData, isLoading: listLoading } = useQuery({
-    queryKey: ["mobile-sales-list", currentOrganization?.id, start, end, search],
+    queryKey: ["mobile-sales-list", currentOrganization?.id, start, end, debouncedSearch],
     queryFn: async () => {
       return withMobileQueryTimeout(async () => {
         let q = supabase
@@ -121,8 +127,8 @@ export default function MobileSalesHub() {
           .lte("sale_date", endIso)
           .order("created_at", { ascending: false })
           .limit(50);
-        if (search.trim()) {
-          q = q.or(`sale_number.ilike.%${search}%,customer_name.ilike.%${search}%`);
+        if (debouncedSearch) {
+          q = q.or(`sale_number.ilike.%${debouncedSearch}%,customer_name.ilike.%${debouncedSearch}%`);
         }
         const { data, error } = await q;
         if (error) throw error;
