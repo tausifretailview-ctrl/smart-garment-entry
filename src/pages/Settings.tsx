@@ -189,6 +189,8 @@ interface ProductSettings {
     style?: FieldConfig;
     color?: FieldConfig;
     hsn_code?: FieldConfig;
+    /** Not a product field: prints product Style beside IMEI/Barcode on Tally A4. Off by default. */
+    warranty?: FieldConfig;
   };
 }
 
@@ -1778,12 +1780,18 @@ export default function Settings() {
                     { key: 'style', defaultLabel: 'Style' },
                     { key: 'color', defaultLabel: 'Color' },
                     { key: 'hsn_code', defaultLabel: 'HSN Code' },
+                    {
+                      key: 'warranty',
+                      defaultLabel: 'Warranty',
+                      defaultEnabled: false,
+                      hint: 'Prints the product Style beside IMEI/Barcode on the Tally A4 bill',
+                    },
                   ].map((field) => (
                     <div key={field.key} className="flex items-center gap-4 p-4 border rounded-lg">
                       <div className="flex items-center space-x-2">
                         <Checkbox
                           id={`enable_${field.key}`}
-                          checked={settings.product_settings?.fields?.[field.key as keyof NonNullable<typeof settings.product_settings.fields>]?.enabled ?? true}
+                          checked={settings.product_settings?.fields?.[field.key as keyof NonNullable<typeof settings.product_settings.fields>]?.enabled ?? (field.defaultEnabled ?? true)}
                           onCheckedChange={(checked) => {
                             setSettings({
                               ...settings,
@@ -1806,6 +1814,7 @@ export default function Settings() {
                       </div>
                       <div className="flex-1 space-y-1">
                         <Label htmlFor={`label_${field.key}`}>Field Label</Label>
+                        {field.hint ? <p className="text-xs text-muted-foreground">{field.hint}</p> : null}
                         <Input
                           id={`label_${field.key}`}
                           value={settings.product_settings?.fields?.[field.key as keyof NonNullable<typeof settings.product_settings.fields>]?.label || field.defaultLabel}
@@ -1818,14 +1827,14 @@ export default function Settings() {
                                   ...settings.product_settings?.fields,
                                   [field.key]: {
                                     label: e.target.value,
-                                    enabled: settings.product_settings?.fields?.[field.key as keyof NonNullable<typeof settings.product_settings.fields>]?.enabled ?? true,
+                                    enabled: settings.product_settings?.fields?.[field.key as keyof NonNullable<typeof settings.product_settings.fields>]?.enabled ?? (field.defaultEnabled ?? true),
                                   },
                                 },
                               },
                             });
                           }}
                           placeholder={field.defaultLabel}
-                          disabled={!(settings.product_settings?.fields?.[field.key as keyof NonNullable<typeof settings.product_settings.fields>]?.enabled ?? true)}
+                          disabled={!(settings.product_settings?.fields?.[field.key as keyof NonNullable<typeof settings.product_settings.fields>]?.enabled ?? (field.defaultEnabled ?? true))}
                         />
                       </div>
                     </div>

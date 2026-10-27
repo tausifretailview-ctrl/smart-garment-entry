@@ -64,7 +64,6 @@ import {
 } from '@/utils/organizationBankAccounts';
 import { organizationBankAccountsQueryKey } from '@/hooks/useOrganizationBankAccounts';
 import { formatInvoiceProductDescription, type InvoiceDescriptionSequence } from '@/utils/invoiceProductDescription';
-import { getProductFieldLabel } from '@/utils/productFieldSettingsForLabels';
 import { applyPrintFirmToSettings, type PrintFirm } from '@/utils/secondFirm';
 import {
   needsInvoiceCustomerAddressLookup,
@@ -332,14 +331,13 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const descriptionSequence: InvoiceDescriptionSequence =
       saleSettingsForDescription.invoice_description_sequence === "product_first" ? "product_first" : "brand_first";
     const descriptionTemplate = props.template || saleSettingsForDescription.invoice_template || "";
-    const tallyMobileErp = settings?.product_settings?.mobile_erp?.enabled === true;
-    // Style printed as its own line under the item (electronics shops keep warranty in Style).
-    // Item Details Display > Style; Mobile ERP shops get it unless they untick it.
-    const tallyStyleLineEnabled =
-      descriptionTemplate === "tally-tax-invoice" &&
-      ((settings?.sale_settings?.show_item_style as boolean | undefined) ?? tallyMobileErp) === true;
-    const productStyleLabel = getProductFieldLabel("style", "Style", settings?.product_settings?.fields);
-    const tallyStyleLabel = productStyleLabel === "Style" && tallyMobileErp ? "Warranty" : productStyleLabel;
+    // Product Style printed beside the IMEI/Barcode (electronics shops keep warranty in Style).
+    // Settings > Product > Warranty row; off unless the shop ticks it.
+    const warrantyField = settings?.product_settings?.fields?.warranty as
+      | { enabled?: boolean; label?: string }
+      | undefined;
+    const tallyStyleLineEnabled = descriptionTemplate === "tally-tax-invoice" && warrantyField?.enabled === true;
+    const tallyStyleLabel = warrantyField?.label?.trim() || "Warranty";
     const descriptionProductIds = [
       ...new Set(
         (props.items || [])

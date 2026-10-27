@@ -689,14 +689,18 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                           <strong>Color:</strong> {item.color}
                         </div>
                       )}
-                      {item.barcode && (
-                        <div style={{ fontSize: "10px", color: "#000", fontFamily: "monospace", marginTop: "2px" }}>
-                          {tallyItemCodeLabel(item.barcode, mobileErp)}: {item.barcode}
-                        </div>
-                      )}
-                      {item.styleLine && (
-                        <div style={{ fontSize: "10px", color: "#000", marginTop: "1px" }}>
-                          <strong>{styleLineLabel}:</strong> {item.styleLine}
+                      {(item.barcode || item.styleLine) && (
+                        <div style={{ fontSize: "10px", color: "#000", marginTop: "2px" }}>
+                          {item.barcode && (
+                            <span style={{ fontFamily: "monospace" }}>
+                              {tallyItemCodeLabel(item.barcode, mobileErp)}: {item.barcode}
+                            </span>
+                          )}
+                          {item.styleLine && (
+                            <span style={{ marginLeft: item.barcode ? "12px" : 0 }}>
+                              <strong>{styleLineLabel}:</strong> {item.styleLine}
+                            </span>
+                          )}
                         </div>
                       )}
                     </td>
