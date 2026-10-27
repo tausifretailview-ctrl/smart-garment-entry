@@ -890,7 +890,7 @@ serve(async (req) => {
           requestUrl: wappConnectResult.requestUrlRedacted,
         },
         instanceId,
-      );
+      ) as Record<string, unknown>;
 
       if (logEntry) {
         await supabase
