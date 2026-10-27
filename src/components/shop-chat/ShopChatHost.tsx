@@ -5,8 +5,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import {
+  clearShopOnlineCounts,
   openShopChat,
+  setShopOnlineCount,
   shopChatDb,
+  shopPresenceTopic,
   shopChatMessagesKey,
   shopChatThreadsKey,
   useShopChatPanel,
@@ -89,6 +92,36 @@ export function ShopChatHost() {
       void supabase.removeChannel(channel);
     };
   }, [orgId, hasThreads, queryClient]);
+
+  // Presence: announce this login in its own shop, and watch who is online in each linked shop.
+  const userId = user?.id;
+  const userName =
+    (user?.user_metadata?.full_name as string | undefined)?.trim() || user?.email?.split("@")[0] || "User";
+  const linkedIds = threads.map((t) => t.organization_id).sort().join(",");
+  useEffect(() => {
+    if (!orgId || !userId || !linkedIds) return;
+
+    const own = supabase.channel(shopPresenceTopic(orgId), { config: { presence: { key: userId } } });
+    own.subscribe((status) => {
+      if (status === "SUBSCRIBED") void own.track({ name: userName, at: new Date().toISOString() });
+    });
+
+    const watchers = linkedIds.split(",").map((otherId) => {
+      const ch = supabase.channel(shopPresenceTopic(otherId));
+      ch.on("presence", { event: "sync" }, () => {
+        // Don't count this same login if it is also open in the other shop.
+        const keys = Object.keys(ch.presenceState()).filter((k) => k !== userId);
+        setShopOnlineCount(otherId, keys.length);
+      }).subscribe();
+      return ch;
+    });
+
+    return () => {
+      void supabase.removeChannel(own);
+      watchers.forEach((ch) => void supabase.removeChannel(ch));
+      clearShopOnlineCounts();
+    };
+  }, [orgId, userId, userName, linkedIds]);
 
   if (!open || !orgId) return null;
   return (
