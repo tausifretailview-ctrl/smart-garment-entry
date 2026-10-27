@@ -37,6 +37,7 @@ import { WindowTabsBar } from "@/components/WindowTabsBar";
 import { ChatProvider } from "@/contexts/ChatContext";
 import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
 import { WhatsAppMessageNotifier } from "@/components/WhatsAppMessageNotifier";
+import { ShopChatHost } from "@/components/shop-chat/ShopChatHost";
 import { StorefrontEnquiryNotifier } from "@/components/StorefrontEnquiryNotifier";
 import { CustomerReviewNotifier } from "@/components/CustomerReviewNotifier";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
@@ -365,6 +366,7 @@ function PosDeliveryChallanLayoutContent({ children }: { children: ReactNode }) 
       <MobileBottomNav />
       {dialogs}
       <WhatsAppMessageNotifier />
+      <ShopChatHost />
       <StorefrontEnquiryNotifier />
       <CustomerReviewNotifier />
       <IdleMount>

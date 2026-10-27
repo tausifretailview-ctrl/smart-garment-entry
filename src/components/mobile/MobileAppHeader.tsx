@@ -4,6 +4,7 @@ import { useHideMobileAppHeader } from "@/hooks/useMobileChrome";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { cn } from "@/lib/utils";
 import { OwnerNotificationsButton } from "@/components/OwnerNotificationsButton";
+import { ShopChatButton } from "@/components/shop-chat/ShopChatButton";
 
 interface MobileAppHeaderProps {
   title?: string;
@@ -50,7 +51,12 @@ export function MobileAppHeader({ title, className }: MobileAppHeaderProps) {
             <p className="text-[10px] opacity-80 truncate">{currentOrganization.name}</p>
           )}
         </div>
-        <div className="w-11 shrink-0">
+        <div className="min-w-[44px] shrink-0 flex items-center">
+          <ShopChatButton
+            className="h-11 w-11 min-h-[44px] min-w-[44px] rounded-xl text-primary-foreground hover:bg-primary-foreground/15 active:scale-95"
+            iconClassName="h-5 w-5"
+            badgeClassName="top-1 right-1"
+          />
           <OwnerNotificationsButton
             className="h-11 w-11 min-h-[44px] min-w-[44px] rounded-xl text-primary-foreground hover:bg-primary-foreground/15 active:scale-95"
             iconClassName="h-5 w-5"

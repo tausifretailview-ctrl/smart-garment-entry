@@ -9,6 +9,7 @@ import { ChatProvider } from "@/contexts/ChatContext";
 import { LazyFloatingChatButton } from "@/components/lazyFloatingWidgets";
 import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
 import { WhatsAppMessageNotifier } from "@/components/WhatsAppMessageNotifier";
+import { ShopChatHost } from "@/components/shop-chat/ShopChatHost";
 import { StorefrontEnquiryNotifier } from "@/components/StorefrontEnquiryNotifier";
 import { CustomerReviewNotifier } from "@/components/CustomerReviewNotifier";
 import { AlertPopupHost } from "@/components/alert-popups/AlertPopupHost";
@@ -141,6 +142,7 @@ export const Layout = ({ children }: LayoutProps) => {
 
             <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="general" />
             <WhatsAppMessageNotifier />
+            <ShopChatHost />
             <StorefrontEnquiryNotifier />
             <CustomerReviewNotifier />
             <IdleMount>

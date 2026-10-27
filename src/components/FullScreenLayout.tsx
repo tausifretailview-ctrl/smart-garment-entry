@@ -7,6 +7,7 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { ChatProvider } from "@/contexts/ChatContext";
 import { LazyFloatingChatButton } from "@/components/lazyFloatingWidgets";
 import { WhatsAppMessageNotifier } from "@/components/WhatsAppMessageNotifier";
+import { ShopChatHost } from "@/components/shop-chat/ShopChatHost";
 import { StorefrontEnquiryNotifier } from "@/components/StorefrontEnquiryNotifier";
 import { CustomerReviewNotifier } from "@/components/CustomerReviewNotifier";
 import { OwnerBottomNav } from "@/components/mobile/OwnerBottomNav";
@@ -147,6 +148,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
             </IdleMount>
 
             <WhatsAppMessageNotifier />
+            <ShopChatHost />
             <StorefrontEnquiryNotifier />
             <CustomerReviewNotifier />
             <OrgMoneyRealtimeInvalidation />

@@ -31,6 +31,9 @@ const LazyFloatingWhatsAppInbox = lazy(() =>
 const LazyWhatsAppMessageNotifier = lazy(() =>
   import("@/components/WhatsAppMessageNotifier").then((m) => ({ default: m.WhatsAppMessageNotifier })),
 );
+const LazyShopChatHost = lazy(() =>
+  import("@/components/shop-chat/ShopChatHost").then((m) => ({ default: m.ShopChatHost })),
+);
 const LazyStorefrontEnquiryNotifier = lazy(() =>
   import("@/components/StorefrontEnquiryNotifier").then((m) => ({ default: m.StorefrontEnquiryNotifier })),
 );
@@ -41,6 +44,7 @@ const LazyPOSFloatingChat = lazy(() => import("@/components/POSFloatingChat"));
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { OfflinePosButton } from "@/components/pos/OfflinePosButton";
+import { ShopChatButton } from "@/components/shop-chat/ShopChatButton";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
 import {
   LazyFloatingCashTally,
@@ -354,6 +358,10 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
               </TooltipContent>
             </Tooltip>}
             <OfflinePosButton className={posNavBtnClass} />
+            <ShopChatButton
+              className="text-primary-foreground hover:bg-primary/80 h-9 w-9 rounded-md"
+              iconClassName="h-5 w-5"
+            />
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button 
@@ -415,6 +423,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
         <PwaInstallBanner />
         <Suspense fallback={null}>
           <LazyWhatsAppMessageNotifier />
+          <LazyShopChatHost />
           <LazyStorefrontEnquiryNotifier />
           <LazyCustomerReviewNotifier />
         </Suspense>
