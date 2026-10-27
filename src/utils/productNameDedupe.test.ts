@@ -66,19 +66,13 @@ describe("findSameNameProductsInOrg", () => {
   it("reads RPC hits by id and keeps only same name+category", async () => {
     vi.mocked(supabase.rpc).mockResolvedValue({
       data: [
-        { id: "1", product_name: "AEROSYNC PB-12" },
-        { id: "4", product_name: "AEROSYNC PB12" },
+        { id: "1", product_name: "AEROSYNC PB-12", total_stock: 4 },
+        { id: "4", product_name: "AEROSYNC PB12", total_stock: 0 },
       ],
       error: null,
     } as never);
     const { inIds } = mockProductsByIds([
-      {
-        id: "1",
-        product_name: "AEROSYNC PB-12",
-        brand: "AEROSYNC",
-        category: "ACCESSORIES",
-        product_variants: [{ stock_qty: 4, deleted_at: null }, { stock_qty: 9, deleted_at: "2026-01-01" }],
-      },
+      { id: "1", product_name: "AEROSYNC PB-12", brand: "AEROSYNC", category: "ACCESSORIES" },
       { id: "4", product_name: "AEROSYNC PB12", brand: "AEROSYNC", category: "ACCESSORIES" },
     ]);
     const matches = await findSameNameProductsInOrg("org-1", "aerosync pb-12", "accessories");

@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-10-27",
-  "count": 895,
-  "fileCount": 913,
+  "count": 896,
+  "fileCount": 914,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -898,7 +898,8 @@
     "20270308120000",
     "20270309120000",
     "20270310120000",
-    "20270311120000"
+    "20270311120000",
+    "20270312120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1813,7 +1814,8 @@
     "20270308120000_whatsapp_auto_messages.sql",
     "20270309120000_bulk_whatsapp_contact_lists.sql",
     "20270310120000_whatsapp_builtin_status_at.sql",
-    "20270311120000_sibling_shop_chat.sql"
+    "20270311120000_sibling_shop_chat.sql",
+    "20270312120000_audit_product_changes_changed_fields.sql"
   ],
   "duplicateVersions": [
     {
