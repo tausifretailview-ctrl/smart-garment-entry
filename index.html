@@ -44,6 +44,11 @@
         var WINDOW_MS = 2 * 60 * 1000;
         var MAX_AUTO = 2;
         var running = false;
+        // Same phrases the app's own isChunkLoadError() accepts (src/lib/chunkLoadRetry.ts):
+        // a dynamic import() whose file the browser could not fetch at all.
+        var MODULE_LOAD_FAIL =
+          /failed to fetch dynamically imported module|loading chunk .* failed|importing a module script failed|error loading dynamically imported module|loading css chunk .* failed/i;
+
 
         function appAssetUrl(raw) {
           try {
@@ -129,18 +134,21 @@
         }
 
         // manual = the user pressed Reload on the "taking longer" screen.
+        // Returns true when a recovery reload was started, false when it declined
+        // (already running, app rendered, offline, or the two-try budget is spent) —
+        // the caller then shows the Reload screen instead of a blank page.
         function recover(failedUrl, manual) {
-          if (running) return;
+          if (running) return false;
           if (!manual) {
-            if (appRendered()) return;
-            if (navigator.onLine === false) return;
+            if (appRendered()) return false;
+            if (navigator.onLine === false) return false;
             var attempts = recentAttempts();
-            if (attempts.length >= MAX_AUTO) return;
+            if (attempts.length >= MAX_AUTO) return false;
             attempts.push(Date.now());
             try {
               sessionStorage.setItem(KEY, JSON.stringify(attempts));
             } catch (e) {
-              return;
+              return false;
             }
           }
           running = true;
@@ -166,11 +174,29 @@
             } catch (e) {}
             location.reload();
           });
+          return true;
         }
 
         window.__ezzyBootRecover = function () {
           recover("", true);
         };
+
+        // A failed dynamic import() (erpBootstrap-<hash>.js gone after a deploy) rejects
+        // the promise in main.tsx and never fires a script/link error event, so the
+        // listener below cannot see it: the tab sat on a blank splash with "Failed to
+        // fetch dynamically imported module" (2026-10-27). main.tsx routes those
+        // rejections here so boot chunks get the same purge + cache-busting reload.
+        // A message that names no app file and is not a module-load failure is a real
+        // app error — recovering from that would only loop the tab.
+        window.__ezzyBootImportFailed = function (msg) {
+          var text = typeof msg === "string" ? msg : "";
+          var m = text.match(/(https?:\/\/[^\s'"]+?\.js|\/assets\/[^\s'"]+?\.js)/i);
+          var url = m ? appAssetUrl(m[1]) : "";
+          if (!url && !MODULE_LOAD_FAIL.test(text)) return false;
+          recover(url, false);
+          return running;
+        };
+
 
         window.addEventListener(
           "error",
