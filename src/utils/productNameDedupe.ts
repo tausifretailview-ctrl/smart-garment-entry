@@ -36,8 +36,8 @@ export async function findSameNameProductsInOrg(
   // brand / category / style needed below come from a by-id read.
   let candidateIds: string[] | null = null;
   // The RPC already sums live variant stock, so the by-id read skips the
-  // product_variants embed. That embed had no deleted_at filter, so it could not
-  // use the variants index (partial, deleted_at IS NULL): avg 1.37 s, up to 6.7 s (27 Oct).
+  // product_variants embed (avg 1.37 s, up to 6.7 s on 27 Oct). The embed has no
+  // deleted_at filter, so it likely missed the partial variants index (deleted_at IS NULL).
   const rpcStockById = new Map<string, number>();
   if (!productNameKeyRpcMissing) {
     const { data: keyRows, error: keyError } = await (supabase.rpc as any)("find_products_by_name_key", {
