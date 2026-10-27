@@ -367,15 +367,27 @@ async function resendAfterRelink(supabaseAdmin: SupabaseClient, organizationId: 
 
 /** Shops on Ezzy ERP WhatsApp whose link is not up right now, with the gateway's reason and bills waiting. */
 async function platformLinkAlerts(supabaseAdmin: SupabaseClient) {
-  let { data: settings, error } = await supabaseAdmin
+  type BuiltinSettingsRow = {
+    organization_id: string;
+    is_active: boolean | null;
+    builtin_status: string | null;
+    builtin_status_at?: string | null;
+    builtin_connected_number: string | null;
+    updated_at: string | null;
+  };
+  const first = await supabaseAdmin
     .from("whatsapp_api_settings")
     .select("organization_id, is_active, builtin_status, builtin_status_at, builtin_connected_number, updated_at")
     .eq("send_provider", "builtin");
+  let settings = first.data as BuiltinSettingsRow[] | null;
+  let error = first.error;
   if (error && /builtin_status_at/.test(error.message)) {
-    ({ data: settings, error } = await supabaseAdmin
+    const fallback = await supabaseAdmin
       .from("whatsapp_api_settings")
       .select("organization_id, is_active, builtin_status, builtin_connected_number, updated_at")
-      .eq("send_provider", "builtin"));
+      .eq("send_provider", "builtin");
+    settings = fallback.data as BuiltinSettingsRow[] | null;
+    error = fallback.error;
   }
   if (error) return { success: false, error: error.message };
   const rows = (settings ?? []) as {
