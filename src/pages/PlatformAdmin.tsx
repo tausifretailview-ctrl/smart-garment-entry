@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { useCreateFormDraftPersistence } from "@/hooks/useCreateFormDraftPersistence";
 import { supabase } from "@/integrations/supabase/client";
-import { Layout } from "@/components/Layout";
+import { PlatformAdminLayout } from "@/components/PlatformAdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1031,7 +1031,7 @@ export default function PlatformAdmin() {
   }, [orgTotalPages, safeOrgPage]);
 
   return (
-    <Layout>
+    <PlatformAdminLayout>
       <div className="w-full px-6 py-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -1836,6 +1836,6 @@ export default function PlatformAdmin() {
           </DialogContent>
         </Dialog>
       </div>
-    </Layout>
+    </PlatformAdminLayout>
   );
 }
