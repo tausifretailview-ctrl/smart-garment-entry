@@ -73,7 +73,7 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   backup: "settings_view",
   "barcode-printing": "barcode_printing",
   "stock-adjustment": "stock_adjustment",
-  "stock-transfer": "stock_adjustment",
+  "stock-transfer": "stock_transfer",
   "stock-settlement": "stock_settlement",
   "bulk-product-update": "bulk_product_update",
   "tally-export": "tally_export",
@@ -142,6 +142,7 @@ export const MENU_FALLBACK_WHEN_UNSET: Record<string, string[]> = {
   payment_flow: ["customer_party_balances", "customer_ledger", "supplier_party_balances", "accounts_dashboard"],
   cn_sr_adjustment_register: ["sale_return_dashboard", "sale_return"],
   expense_salary_report: ["accounting_reports_view"],
+  stock_transfer: ["stock_adjustment"],
 };
 
 function isGrantedInMenu(menu: Record<string, boolean>, id: string, depth = 0): boolean {
