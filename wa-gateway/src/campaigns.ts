@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import pino from "pino";
-import { type BulkContent, type InboxEvent, type ReceiptStatus, type SessionManager } from "./sessions.js";
+import { type BulkContent, type InboxEvent, type ReceiptStatus, type SessionManager, WARMUP_GAP_MS } from "./sessions.js";
 import { removeCampaignVideos, shrinkVideo, type VideoQuality } from "./video.js";
 import { pruneVideos } from "./storage.js";
 
@@ -448,10 +448,23 @@ export class CampaignRunner {
         this.report(job, null);
       }
 
-      // Number unlinked or offline, or today's cap used up: wait without failing anyone.
+      // Logged out by WhatsApp (401): pause instead of sending on by itself the moment it is linked again,
+      // because a number WhatsApp just threw out needs a rest first. The user resumes it.
+      if (this.sessions.isLoggedOut(sessionId)) {
+        job.status = "paused";
+        this.save(job);
+        this.report(
+          job,
+          `Paused: ${this.sessions.offlineNote(sessionId)} Wait a day after linking again, then press Resume.`,
+        );
+        waitingNote = null;
+        continue;
+      }
+
+      // Number offline, or today's cap used up: wait without failing anyone.
       let note: string | null = null;
       if (!this.sessions.isConnected(sessionId)) note = this.sessions.offlineNote(sessionId);
-      else if (this.sessions.remainingToday(sessionId) <= 0) note = "Daily limit reached; continues tomorrow";
+      else if (this.sessions.remainingToday(sessionId) <= 0) note = this.sessions.capNote(sessionId);
       if (note) {
         if (note !== waitingNote) this.report(job, note);
         waitingNote = note;
@@ -515,7 +528,10 @@ export class CampaignRunner {
 
       // Random human-like gap only after a real send; "not on WhatsApp" checks need no wait.
       if (status === "sent" && job.items.some((i) => !i.done)) {
-        await this.gap(job, job.minGapMs + Math.random() * (job.maxGapMs - job.minGapMs));
+        const [min, max] = this.sessions.inWarmup(sessionId)
+          ? [Math.max(job.minGapMs, WARMUP_GAP_MS[0]), Math.max(job.maxGapMs, WARMUP_GAP_MS[1])]
+          : [job.minGapMs, job.maxGapMs];
+        await this.gap(job, min + Math.random() * (max - min));
       }
     }
   }
