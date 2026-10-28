@@ -45,7 +45,21 @@ export function invalidateMoneyViewFreshness(
   void queryClient.invalidateQueries({
     queryKey: ["customer-ledger"],
   });
+  // Customer Ledger keeps its own keys for the balances it shows. Their keys do
+  // not change when the list above refetches, so without these the ledger in
+  // another tab kept the old balance / closing / payment history after a receipt.
+  for (const key of CUSTOMER_LEDGER_DETAIL_QUERY_KEYS) {
+    void queryClient.invalidateQueries({ queryKey: [key] });
+  }
 }
+
+/** Customer Ledger queries that sit beside the "customer-ledger" list query. */
+export const CUSTOMER_LEDGER_DETAIL_QUERY_KEYS = [
+  "customer-ledger-canonical-filtered",
+  "customer-ledger-canonical-page",
+  "customer-ledger-audit-closing",
+  "customer-payment-history",
+] as const;
 
 /**
  * After a local mutation — invalidate this tab and ping other tabs on the same machine.
