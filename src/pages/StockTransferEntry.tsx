@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
 import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
 import { printStockTransferNote } from "@/utils/stockTransferPrint";
+import { searchTransferProducts, type TransferSearchResult } from "@/utils/stockTransferSearch";
 import {
   addScanToLines,
   setLineQty,
@@ -42,24 +43,6 @@ interface SiblingShop {
   id: string;
   name: string;
   slug: string;
-}
-
-const VARIANT_SELECT =
-  "id, barcode, size, color, stock_qty, pur_price, sale_price, products!inner(product_name, brand, product_type, deleted_at)";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function toScanVariant(row: any): TransferScanVariant {
-  return {
-    id: row.id,
-    barcode: row.barcode,
-    size: row.size,
-    color: row.color,
-    stock_qty: Number(row.stock_qty) || 0,
-    pur_price: row.pur_price,
-    sale_price: row.sale_price,
-    product_name: row.products?.product_name ?? "",
-    brand: row.products?.brand ?? null,
-  };
 }
 
 const money = (n: number) =>
@@ -78,8 +61,11 @@ const StockTransferEntry = () => {
   const [lines, setLines] = useState<TransferLine[]>([]);
   const [notes, setNotes] = useState("");
   const [scan, setScan] = useState("");
-  const [matches, setMatches] = useState<TransferScanVariant[]>([]);
+  const [matches, setMatches] = useState<TransferSearchResult[]>([]);
+  const [highlight, setHighlight] = useState(0);
+  const [searching, setSearching] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [savedTransfer, setSavedTransfer] = useState<{ id: string; number: string } | null>(null);
   const scanRef = useRef<HTMLInputElement>(null);
 
   const { data: siblings = [], isLoading: siblingsLoading, isError: siblingsError } = useQuery({
@@ -111,50 +97,64 @@ const StockTransferEntry = () => {
     scanRef.current?.focus();
   };
 
-  const handleScan = async () => {
+  // Live search while typing, same logic as the Sale bill (debounced; a slower old search never wins).
+  const searchSeq = useRef(0);
+  useEffect(() => {
+    const term = scan.trim();
+    const seq = ++searchSeq.current;
+    if (term.length < 2 || !orgId) {
+      setMatches([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const timer = setTimeout(() => {
+      void searchTransferProducts(orgId, term)
+        .then((rows) => {
+          if (seq !== searchSeq.current) return;
+          setMatches(rows);
+          setHighlight(0);
+        })
+        .catch((e: Error) => {
+          if (seq === searchSeq.current) toast.error(e.message || "Search failed");
+        })
+        .finally(() => {
+          if (seq === searchSeq.current) setSearching(false);
+        });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [scan, orgId]);
+
+  // Enter: an exact barcode adds straight away (scanner), else the highlighted row.
+  const handleEnter = async () => {
     const code = scan.trim();
     if (!code || !orgId) return;
-    const { data, error } = await db
-      .from("product_variants")
-      .select(VARIANT_SELECT)
-      .eq("organization_id", orgId)
-      .eq("barcode", code)
-      .is("deleted_at", null)
-      .is("products.deleted_at", null)
-      .limit(10);
-    if (error) {
-      toast.error(error.message);
+    const pick = matches[highlight];
+    if (pick && !searching) {
+      addVariant(pick);
       return;
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let rows = ((data || []) as any[]).filter((r) => !["service", "combo"].includes(r.products?.product_type));
-    if (rows.length === 0 && code.length >= 2) {
-      const { data: byName, error: nameErr } = await db
-        .from("product_variants")
-        .select(VARIANT_SELECT)
-        .eq("organization_id", orgId)
-        .is("deleted_at", null)
-        .is("products.deleted_at", null)
-        .ilike("products.product_name", `%${code}%`)
-        .gt("stock_qty", 0)
-        .limit(30);
-      if (nameErr) {
-        toast.error(nameErr.message);
+    searchSeq.current += 1;
+    setSearching(true);
+    try {
+      const rows = await searchTransferProducts(orgId, code);
+      const exact = rows.filter((r) => (r.barcode ?? "").toLowerCase() === code.toLowerCase());
+      if (exact.length === 1 || rows.length === 1) {
+        addVariant(exact[0] ?? rows[0]);
         return;
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      rows = ((byName || []) as any[]).filter((r) => !["service", "combo"].includes(r.products?.product_type));
+      if (rows.length === 0) {
+        toast.error(`No item with stock found for "${code}"`);
+        setMatches([]);
+        return;
+      }
+      setMatches(rows);
+      setHighlight(0);
+    } catch (e) {
+      toast.error((e as Error).message || "Search failed");
+    } finally {
+      setSearching(false);
     }
-    if (rows.length === 0) {
-      toast.error(`No item found for "${code}"`);
-      setMatches([]);
-      return;
-    }
-    if (rows.length === 1) {
-      addVariant(toScanVariant(rows[0]));
-      return;
-    }
-    setMatches(rows.map(toScanVariant));
   };
 
   const saveMutation = useMutation({
@@ -188,7 +188,7 @@ const StockTransferEntry = () => {
       setConfirmOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
       invalidateStatusBarSummary(queryClient, orgId);
-      void printStockTransferNote(res.transfer_id, shopName);
+      setSavedTransfer({ id: res.transfer_id, number: res.transfer_number });
     },
     onError: (e: Error) => {
       setConfirmOpen(false);
@@ -285,7 +285,7 @@ const StockTransferEntry = () => {
               className="flex items-center gap-3 flex-wrap"
               onSubmit={(e) => {
                 e.preventDefault();
-                void handleScan();
+                void handleEnter();
               }}
             >
               <div className="relative flex-1 min-w-[280px]">
@@ -295,41 +295,75 @@ const StockTransferEntry = () => {
                   type="text"
                   autoFocus
                   autoComplete="off"
-                  placeholder="SCAN BARCODE OR TYPE ITEM NAME, THEN ENTER"
+                  placeholder="SCAN BARCODE OR SEARCH BY NAME, BRAND, CATEGORY, STYLE..."
                   value={scan}
                   onChange={(e) => setScan(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Escape") {
                       setScan("");
                       setMatches([]);
+                    } else if (e.key === "ArrowDown" && matches.length > 0) {
+                      e.preventDefault();
+                      setHighlight((h) => Math.min(h + 1, Math.min(matches.length, 50) - 1));
+                    } else if (e.key === "ArrowUp" && matches.length > 0) {
+                      e.preventDefault();
+                      setHighlight((h) => Math.max(h - 1, 0));
                     }
                   }}
                   className="pl-10 h-10 text-sm bg-white border-black/20 uppercase font-semibold"
                 />
-                {matches.length > 0 && (
-                  <div className="absolute left-0 right-0 top-full mt-1 z-30 border border-black/20 rounded-md bg-white shadow-lg divide-y max-h-72 overflow-auto">
-                    {matches.map((m) => (
-                      <button
-                        key={m.id}
-                        type="button"
-                        className="w-full text-left px-3 py-2 hover:bg-sky-50 flex justify-between gap-2"
-                        onClick={() => addVariant(m)}
-                      >
-                        <span className="min-w-0">
-                          <span className="font-bold text-[15px] text-black">{m.product_name}</span>{" "}
-                          <span className="text-[13px] text-black/60">
-                            {[m.size, m.color].filter(Boolean).join(" / ")} · {m.barcode || "no barcode"}
-                          </span>
-                        </span>
-                        <span className="text-[13px] text-black/60 whitespace-nowrap">Stock {m.stock_qty}</span>
-                      </button>
-                    ))}
+                {scan.trim().length >= 2 && (matches.length > 0 || !searching) && (
+                  <div className="absolute left-0 right-0 top-full mt-1 z-30 border border-black/20 rounded-md bg-white shadow-lg max-h-80 overflow-auto">
+                    {matches.length === 0 ? (
+                      <p className="px-3 py-3 text-sm text-black/50 text-center">No products with stock found</p>
+                    ) : (
+                      matches.slice(0, 50).map((m, i) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onMouseEnter={() => setHighlight(i)}
+                          onClick={() => addVariant(m)}
+                          className={cn(
+                            "w-full text-left px-3.5 py-2.5 border-b border-black/5 last:border-0 transition-colors",
+                            i === highlight ? "bg-sky-50" : "hover:bg-sky-50",
+                          )}
+                        >
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[15px] font-bold text-black truncate">{m.product_name}</p>
+                              <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                                {m.brand && (
+                                  <span className="text-[11px] bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded">{m.brand}</span>
+                                )}
+                                {m.category && (
+                                  <span className="text-[11px] bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded">{m.category}</span>
+                                )}
+                                {m.style && (
+                                  <span className="text-[11px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded">{m.style}</span>
+                                )}
+                                {m.color && m.color !== "-" && (
+                                  <span className="text-[11px] bg-neutral-100 text-black/70 px-1.5 py-0.5 rounded">{m.color}</span>
+                                )}
+                                {m.size && (
+                                  <span className="text-[11px] bg-neutral-100 text-black/70 px-1.5 py-0.5 rounded font-mono">Size: {m.size}</span>
+                                )}
+                                {m.barcode && <span className="text-xs text-black/50 font-mono ml-1">{m.barcode}</span>}
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-sm font-bold text-black">₹{Number(m.sale_price) || 0}</p>
+                              <p className="text-[11px] font-medium text-emerald-600">Stock: {m.stock_qty}</p>
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    )}
                   </div>
                 )}
               </div>
               <Button type="submit" className="h-10 px-5 bg-black text-white hover:bg-black/90 font-bold shrink-0">
-                <Search className="h-4 w-4 mr-1" />
-                Find
+                {searching ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Search className="h-4 w-4 mr-1" />}
+                Add
               </Button>
               <div className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg ml-auto shrink-0">
                 <span className="text-[12px] font-bold opacity-80">Total Qty</span>
@@ -491,6 +525,37 @@ const StockTransferEntry = () => {
               }}
             >
               Send stock
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!savedTransfer} onOpenChange={(o) => !o && setSavedTransfer(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Print Transfer Note?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Transfer {savedTransfer?.number} has been sent successfully. Would you like to print it now?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setSavedTransfer(null);
+                setTimeout(() => scanRef.current?.focus(), 50);
+              }}
+            >
+              Skip
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                const id = savedTransfer?.id;
+                setSavedTransfer(null);
+                if (id) void printStockTransferNote(id, shopName);
+              }}
+            >
+              Print Now
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

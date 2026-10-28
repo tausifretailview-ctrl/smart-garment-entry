@@ -243,6 +243,7 @@ interface SaleSettings {
   gift_vouchers_enabled?: boolean;
   /** Settings > WhatsApp: Bulk WhatsApp page and menu (off until turned on). */
   bulk_whatsapp_enabled?: boolean;
+  stock_transfer_enabled?: boolean;
   /** Settings > WhatsApp > Automatic messages (whatsapp-auto cron, linked number only). */
   auto_birthday_wish_enabled?: boolean;
   auto_birthday_offer?: string;
@@ -2894,6 +2895,27 @@ export default function Settings() {
                           ...settings.sale_settings,
                           allow_negative_stock_sale: checked,
                         } as any,
+                      })
+                    }
+                />
+                </div>
+
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="stock_transfer_enabled" className="text-sm font-medium">
+                      Stock Transfer
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Shows the Transfer Out column in the Stock Report (stock sent to your other shop).
+                    </p>
+                  </div>
+                  <Switch
+                    id="stock_transfer_enabled"
+                    checked={settings.sale_settings?.stock_transfer_enabled === true}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: { ...settings.sale_settings, stock_transfer_enabled: checked },
                       })
                     }
                 />

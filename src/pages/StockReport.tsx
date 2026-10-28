@@ -24,6 +24,8 @@ import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useProductFieldSettings, useSettings, type ProductFieldKey } from "@/hooks/useSettings";
+import { fetchTransferInByVariantId, fetchTransferOutByVariantId } from "@/lib/stockTransferStockReport";
+import { isStockTransferEnabled } from "@/utils/stockTransfer";
 import { ProductSearchDropdown } from "@/components/ProductSearchDropdown";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -98,6 +100,7 @@ interface StockItem {
   purchase_return_qty: number;
   sales_qty: number;
   sale_return_qty: number;
+  transfer_out_qty: number;
   sale_price: number;
   pur_price: number | null;
   barcode: string;
@@ -209,6 +212,9 @@ export default function StockReport() {
   const navigate = useNavigate();
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const { data: orgSettings } = useSettings();
+  const showTransferOut = isStockTransferEnabled(
+    (orgSettings as { sale_settings?: unknown } | undefined)?.sale_settings,
+  );
   /** Settings → Purchase "Show MRP" (the MRP feature): adds an MRP column before Sale Price. */
   const showMrp =
     (orgSettings as { purchase_settings?: { show_mrp?: boolean } } | undefined)?.purchase_settings?.show_mrp === true;
@@ -793,16 +799,29 @@ export default function StockReport() {
         }
 
         setServerTotalRows(Number(rows[0]?.total_rows ?? rows.length ?? 0));
-        const purchaseSourceByVariantId = await fetchLatestPurchaseSourceByVariantId(
-          currentOrganization.id,
-          rows.map((row) => row.variant_id),
-        );
+        const [purchaseSourceByVariantId, transferInByVariantId, transferOutByVariantId] = await Promise.all([
+          fetchLatestPurchaseSourceByVariantId(
+            currentOrganization.id,
+            rows.map((row) => row.variant_id),
+          ),
+          fetchTransferInByVariantId(
+            currentOrganization.id,
+            rows.map((row) => row.variant_id),
+          ),
+          showTransferOut
+            ? fetchTransferOutByVariantId(
+                currentOrganization.id,
+                rows.map((row) => row.variant_id),
+              )
+            : Promise.resolve(new Map<string, number>()),
+        ]);
         if (requestId !== searchRequestIdRef.current) return;
 
         setStockItems(
           rows.map((row) => {
             const purchaseSource = purchaseSourceByVariantId.get(row.variant_id);
             const matchedPurchase = purchaseLabelByVariantId.get(row.variant_id);
+            const transferIn = transferInByVariantId.get(row.variant_id);
             return {
               id: row.variant_id,
               product_name: row.product_name || "",
@@ -810,17 +829,19 @@ export default function StockReport() {
               color: row.color || "",
               size: row.size || "",
               stock_qty: row.current_stock ?? 0,
-              opening_qty: row.opening_qty ?? 0,
+              // Stock received by Stock Transfer counts as opening stock here.
+              opening_qty: (row.opening_qty ?? 0) + (transferIn?.qty ?? 0),
               purchase_qty: Number(row.purchase_qty ?? 0),
               purchase_return_qty: Number(row.purchase_return_qty ?? 0),
               sales_qty: Number(row.sales_qty ?? 0),
               sale_return_qty: Number(row.sale_return_qty ?? 0),
+              transfer_out_qty: transferOutByVariantId.get(row.variant_id) ?? 0,
               sale_price: Number(row.sale_price ?? 0),
               pur_price: row.pur_price != null ? Number(row.pur_price) : null,
               barcode: row.barcode || "",
               matched_purchase_barcode: matchedPurchase,
-              supplier_name: purchaseSource?.supplier_name || "",
-              supplier_invoice_no: purchaseSource?.supplier_invoice_no || "",
+              supplier_name: purchaseSource?.supplier_name || transferIn?.supplier_name || "",
+              supplier_invoice_no: purchaseSource?.supplier_invoice_no || transferIn?.supplier_invoice_no || "",
               category: row.category || "",
               department: row.style || "",
               uom: row.uom || "NOS",
@@ -859,6 +880,7 @@ export default function StockReport() {
       stockStatusFilter,
       lowStockThreshold,
       hideDc,
+      showTransferOut,
       ITEMS_PER_PAGE,
       SIZE_WISE_FETCH_LIMIT,
     ],
@@ -1173,6 +1195,7 @@ export default function StockReport() {
       purchaseReturn: filteredStockItems.reduce((s, i) => s + i.purchase_return_qty, 0),
       sales: filteredStockItems.reduce((s, i) => s + i.sales_qty, 0),
       saleReturn: filteredStockItems.reduce((s, i) => s + i.sale_return_qty, 0),
+      transferOut: filteredStockItems.reduce((s, i) => s + i.transfer_out_qty, 0),
       currentStock: filteredStockItems.reduce((s, i) => s + i.stock_qty, 0),
       stockValue: Math.round(filteredStockItems.reduce((s, i) => s + (i.pur_price || 0) * i.stock_qty, 0)),
       saleValue: Math.round(filteredStockItems.reduce((s, i) => s + i.sale_price * i.stock_qty, 0)),
@@ -1388,6 +1411,7 @@ export default function StockReport() {
       "Pur Return",
       "Sales Qty",
       "Sale Return",
+      ...(showTransferOut ? ["Transfer Out"] : []),
       "Current Stock",
       "Pur Price",
       "Stock Value",
@@ -1410,6 +1434,7 @@ export default function StockReport() {
       item.purchase_return_qty,
       item.sales_qty,
       item.sale_return_qty,
+      ...(showTransferOut ? [item.transfer_out_qty] : []),
       item.stock_qty,
       item.pur_price || 0,
       Math.round((item.pur_price || 0) * item.stock_qty),
@@ -1426,6 +1451,7 @@ export default function StockReport() {
       filteredStockItems.reduce((s, i) => s + i.purchase_return_qty, 0),
       filteredStockItems.reduce((s, i) => s + i.sales_qty, 0),
       filteredStockItems.reduce((s, i) => s + i.sale_return_qty, 0),
+      ...(showTransferOut ? [filteredStockItems.reduce((s, i) => s + i.transfer_out_qty, 0)] : []),
       filteredStockItems.reduce((s, i) => s + i.stock_qty, 0),
       "",
       Math.round(filteredStockItems.reduce((s, i) => s + (i.pur_price || 0) * i.stock_qty, 0)),
@@ -1585,6 +1611,7 @@ export default function StockReport() {
         <td style="text-align:right">${item.purchase_return_qty}</td>
         <td style="text-align:right">${item.sales_qty}</td>
         <td style="text-align:right">${item.sale_return_qty}</td>
+        ${showTransferOut ? `<td style="text-align:right">${item.transfer_out_qty}</td>` : ""}
         <td style="text-align:right;font-weight:bold">${item.stock_qty}</td>
         <td style="text-align:right">${item.pur_price ? '₹' + item.pur_price : '-'}</td>
         ${showMrp ? `<td style="text-align:right">${mrpOf(item.id) ? '₹' + mrpOf(item.id) : '-'}</td>` : ""}
@@ -1599,6 +1626,7 @@ export default function StockReport() {
         <td style="text-align:right">${filteredStockItems.reduce((s, i) => s + i.purchase_return_qty, 0)}</td>
         <td style="text-align:right">${filteredStockItems.reduce((s, i) => s + i.sales_qty, 0)}</td>
         <td style="text-align:right">${filteredStockItems.reduce((s, i) => s + i.sale_return_qty, 0)}</td>
+        ${showTransferOut ? `<td style="text-align:right">${filteredStockItems.reduce((s, i) => s + i.transfer_out_qty, 0)}</td>` : ""}
         <td style="text-align:right">${filteredStockItems.reduce((s, i) => s + i.stock_qty, 0)}</td>
         <td style="text-align:right">₹${Math.round(filteredStockItems.reduce((s, i) => s + (i.pur_price || 0) * i.stock_qty, 0)).toLocaleString('en-IN')}</td>
         ${showMrp ? "<td></td>" : ""}
@@ -1621,7 +1649,7 @@ export default function StockReport() {
       <table>
         <thead><tr>
           <th>Sr</th><th>Product</th>${showBrand ? `<th>${fieldLabels.brand}</th>` : ""}<th>Size</th>${showColor ? `<th>${fieldLabels.color}</th>` : ""}<th>Barcode</th>
-          <th>Open</th><th>Pur</th><th>P.Ret</th><th>Sales</th><th>S.Ret</th><th>Stock</th><th>Pur ₹</th>${showMrp ? "<th>MRP ₹</th>" : ""}<th>Sale ₹</th>
+          <th>Open</th><th>Pur</th><th>P.Ret</th><th>Sales</th><th>S.Ret</th>${showTransferOut ? "<th>T.Out</th>" : ""}<th>Stock</th><th>Pur ₹</th>${showMrp ? "<th>MRP ₹</th>" : ""}<th>Sale ₹</th>
         </tr></thead>
         <tbody>${rows}${totalRow}</tbody>
       </table></body></html>`);
@@ -2142,6 +2170,7 @@ export default function StockReport() {
                     <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-orange-50 dark:bg-orange-950 text-orange-800 dark:text-orange-100")}>Pur Return</TableHead>
                     <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-100")}>Sales Qty</TableHead>
                     <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-100")}>Sale Return</TableHead>
+                    {showTransferOut && <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-sky-50 dark:bg-sky-950 text-sky-800 dark:text-sky-100")}>Transfer Out</TableHead>}
                     <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-violet-50 dark:bg-violet-950 text-violet-800 dark:text-violet-100")}>Current Stock</TableHead>
                     <TableHead className={cn("text-right", STOCK_NEUTRAL_TH)}>Pur Price</TableHead>
                     <TableHead className={cn("text-right", STOCK_NEUTRAL_TH)}>Stock Value</TableHead>
@@ -2260,6 +2289,7 @@ export default function StockReport() {
                         <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-orange-50 dark:bg-orange-950 text-orange-800 dark:text-orange-100")}>Pur Return</TableHead>
                         <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-100")}>Sales Qty</TableHead>
                         <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-100")}>Sale Return</TableHead>
+                        {showTransferOut && <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-sky-50 dark:bg-sky-950 text-sky-800 dark:text-sky-100")}>Transfer Out</TableHead>}
                         <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-violet-50 dark:bg-violet-950 text-violet-800 dark:text-violet-100")}>Current Stock</TableHead>
                         <TableHead className={cn("text-right", STOCK_NEUTRAL_TH)}>Pur Price</TableHead>
                         <TableHead className={cn("text-right", STOCK_NEUTRAL_TH)}>Stock Value</TableHead>
@@ -2271,7 +2301,7 @@ export default function StockReport() {
                     <TableBody>
                       {paginatedStockItems.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={showMrp ? 20 : 19} className="h-20 text-center text-base text-muted-foreground">
+                          <TableCell colSpan={(showMrp ? 20 : 19) + (showTransferOut ? 1 : 0)} className="h-20 text-center text-base text-muted-foreground">
                             No products found matching your search
                           </TableCell>
                         </TableRow>
@@ -2337,6 +2367,11 @@ export default function StockReport() {
                             <TableCell className={cn(STOCK_DATA_CELL, "text-right bg-emerald-50/80 dark:bg-emerald-950/50 font-medium text-emerald-700 dark:text-emerald-400")}>
                               {item.sale_return_qty > 0 ? `+${item.sale_return_qty}` : '0'}
                             </TableCell>
+                            {showTransferOut && (
+                              <TableCell className={cn(STOCK_DATA_CELL, "text-right bg-sky-50/80 dark:bg-sky-950/50 font-medium text-sky-700 dark:text-sky-400")}>
+                                {item.transfer_out_qty > 0 ? `-${item.transfer_out_qty}` : '0'}
+                              </TableCell>
+                            )}
                             <TableCell className={STOCK_QTY_HIGHLIGHT_CELL}>
                               {item.stock_qty}{item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' ? ` ${item.uom}` : ''}
                             </TableCell>
@@ -2401,6 +2436,11 @@ export default function StockReport() {
                           <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-emerald-200 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-400")}>
                             +{allStockTotals.saleReturn.toLocaleString('en-IN')}
                           </TableCell>
+                          {showTransferOut && (
+                            <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-sky-200 dark:bg-sky-900 text-sky-800 dark:text-sky-400")}>
+                              -{allStockTotals.transferOut.toLocaleString('en-IN')}
+                            </TableCell>
+                          )}
                           <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-violet-300 dark:bg-violet-900 text-violet-950 dark:text-violet-300")}>
                             {allStockTotals.currentStock.toLocaleString('en-IN')}
                           </TableCell>
