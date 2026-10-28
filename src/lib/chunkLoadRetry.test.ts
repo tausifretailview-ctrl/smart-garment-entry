@@ -459,8 +459,11 @@ describe("loadRouteChunk", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-28T09:00:00Z"));
+    // importWithTimeout arms its 60s guard on window (node test environment).
+    vi.stubGlobal("window", { setTimeout, clearTimeout });
   });
   afterEach(() => {
+    vi.unstubAllGlobals();
     vi.useRealTimers();
   });
 
