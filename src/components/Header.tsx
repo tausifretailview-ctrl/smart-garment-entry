@@ -31,7 +31,6 @@ import { isElectronShell } from "@/lib/electronShell";
 import { requestPosBarcodeFocus } from "@/utils/posSalesRefresh";
 import { useForceDesktopView } from "@/hooks/useDesktopViewPreference";
 import { useIsNarrowViewport } from "@/hooks/use-mobile";
-import { ActivityCenterBell } from "@/components/activity-center/ActivityCenterBell";
 import { OwnerNotificationsButton } from "@/components/OwnerNotificationsButton";
 import { ShopChatButton } from "@/components/shop-chat/ShopChatButton";
 import {
@@ -402,14 +401,14 @@ export const Header = () => {
             <SupportToolbarButton onClick={() => setSupportOpen(true)} />
           </div>
           <ShopChatButton
-            className="erp-no-drag h-8 w-8 rounded-md text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10"
+            className="erp-no-drag h-9 w-9 rounded-md text-white hover:bg-white/10"
+            iconClassName="h-6 w-6"
             badgeClassName="border-2 border-[var(--erp-chrome)]"
           />
           <OwnerNotificationsButton
             className="erp-no-drag h-8 w-8 rounded-md text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10"
             badgeClassName="border-2 border-[var(--erp-chrome)]"
           />
-          <ActivityCenterBell />
           <UIScaleSelector triggerClassName="h-8 w-8 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10 hidden md:flex" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

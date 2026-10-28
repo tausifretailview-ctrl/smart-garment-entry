@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import {
   clearShopOnlineCounts,
+  loadShopChatPanel,
   openShopChat,
   setShopOnlineCount,
   shopChatDb,
@@ -17,7 +18,7 @@ import {
   type ShopChatMessage,
 } from "@/hooks/useShopChat";
 
-const ShopChatPanel = lazy(() => import("@/components/shop-chat/ShopChatPanel"));
+const ShopChatPanel = lazy(loadShopChatPanel);
 
 /**
  * Always-mounted part of the shop chat: listens for new messages (realtime), refreshes
@@ -93,6 +94,13 @@ export function ShopChatHost() {
     };
   }, [orgId, hasThreads, queryClient]);
 
+  // Fetch the window's code once this shop has a chat, so the first click opens it at once.
+  useEffect(() => {
+    if (!hasThreads) return;
+    const id = window.setTimeout(() => void loadShopChatPanel().catch(() => undefined), 1500);
+    return () => window.clearTimeout(id);
+  }, [hasThreads]);
+
   // Presence: announce this login in its own shop, and watch who is online in each linked shop.
   const userId = user?.id;
   const userName =
@@ -125,7 +133,13 @@ export function ShopChatHost() {
 
   if (!open || !orgId) return null;
   return (
-    <Suspense fallback={null}>
+    <Suspense
+      fallback={
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background sm:inset-auto sm:bottom-12 sm:right-4 sm:h-[480px] sm:w-[340px] sm:rounded-xl sm:border sm:shadow-2xl">
+          <span className="text-sm font-medium text-slate-600">Opening chat…</span>
+        </div>
+      }
+    >
       <ShopChatPanel />
     </Suspense>
   );
