@@ -169,6 +169,10 @@ const CONTACT_SAVE_AFTER_LINK_MS = 24 * 60 * 60 * 1000;
 const LINKED_AT_FILE = "linked-at.json";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MIN_GAP_MS = 2000;
+/** One send (including its media upload) may take this long before it fails and the shop's queue moves on. */
+const SEND_JOB_TIMEOUT_MS = 75_000;
+const MEDIA_UPLOAD_TIMEOUT_MS = 60_000;
+const BULK_JOB_TIMEOUT_MS = 5 * 60_000;
 /** A bill send waits this long for a linked number that is reconnecting before it fails. */
 const BILL_SEND_WAIT_MS = 30_000;
 /** Bills resent after a relink go out one by one with this extra gap (on top of the normal send gap). */
@@ -229,6 +233,17 @@ export const DISK_FULL_MESSAGE =
   "The WhatsApp server's storage is full. Old files are being cleared now; try again in a minute. If it keeps happening, give the server's volume more space.";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function withTimeout<T>(work: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      logger.warn({ ms }, "send timed out");
+      reject(new Error(message));
+    }, ms);
+  });
+  return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
+}
 const today = () => new Date().toISOString().slice(0, 10);
 
 /** Digits only; 10-digit numbers get India's 91 (same rule as the edge function). A group JID passes through. */
@@ -1003,7 +1018,7 @@ export class SessionManager {
   }
 
   /** Serialize sends per org with a random human-like gap and a daily cap (ban protection). */
-  private enqueue<T>(s: Session, job: () => Promise<T>, cap = MAX_PER_DAY): Promise<T> {
+  private enqueue<T>(s: Session, job: () => Promise<T>, cap = MAX_PER_DAY, timeoutMs = SEND_JOB_TIMEOUT_MS): Promise<T> {
     const run = async () => {
       if (s.day !== today()) {
         s.day = today();
@@ -1013,7 +1028,9 @@ export class SessionManager {
       const gap = MIN_GAP_MS + Math.random() * (MAX_GAP_MS - MIN_GAP_MS);
       const wait = s.lastSendAt + gap - Date.now();
       if (wait > 0) await sleep(wait);
-      const result = await job();
+      // A send WhatsApp never answers (stuck media upload, socket dropped mid-send) must not hold every
+      // later bill of this shop in the queue: give up on it after SEND_JOB_TIMEOUT_MS.
+      const result = await withTimeout(job(), timeoutMs, "WhatsApp did not confirm this message in time. Check the shop phone's WhatsApp and send again.");
       s.sentToday++;
       s.lastSendAt = Date.now();
       return result;
@@ -1039,7 +1056,7 @@ export class SessionManager {
     const jid = toJid(phone);
     const url = new URL(fileUrl);
     if (url.protocol !== "https:") throw new Error("fileUrl must be https");
-    const resp = await fetch(url);
+    const resp = await fetch(url, { signal: AbortSignal.timeout(30_000) });
     if (!resp.ok) throw new Error(`Could not download file (${resp.status})`);
     const buffer = Buffer.from(await resp.arrayBuffer());
     if (buffer.length > 16 * 1024 * 1024) throw new Error("File too large");
@@ -1049,7 +1066,7 @@ export class SessionManager {
         mimetype: resp.headers.get("content-type")?.split(";")[0] || "application/pdf",
         fileName: filename,
         caption,
-      });
+      }, { mediaUploadTimeoutMs: MEDIA_UPLOAD_TIMEOUT_MS });
       remember(s, res);
       return res?.key?.id ?? null;
     });
@@ -1077,6 +1094,8 @@ export class SessionManager {
         return res?.key?.id ?? null;
       },
       this.dailyCap(id),
+      // Bulk posters and videos are bigger than a bill PDF.
+      BULK_JOB_TIMEOUT_MS,
     );
   }
 
