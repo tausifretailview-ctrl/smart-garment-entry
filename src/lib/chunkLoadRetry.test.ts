@@ -19,6 +19,8 @@ import {
   ACCOUNTS_TAB_PREFETCH_PATHS,
   POS_CONTEXT_PURCHASE_PREFETCH_PATHS,
   POS_CONTEXT_WARM_TAB_PATH,
+  isBackgroundPrefetchAllowed,
+  loadRouteChunk,
 } from "./chunkLoadRetry";
 import { LONG_BUDGET_OUTLET_ENTRY_PATHS } from "./tabCacheReadiness";
 
@@ -450,6 +452,46 @@ describe("deploy-skew fast path", () => {
         }),
     ) as unknown as typeof fetch;
     await expect(isChunkGoneFromServer("https://app.example/assets/a.js", hang, 10)).resolves.toBe(false);
+  });
+});
+
+describe("loadRouteChunk", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-28T09:00:00Z"));
+    // importWithTimeout arms its 60s guard on window (node test environment).
+    vi.stubGlobal("window", { setTimeout, clearTimeout });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("pauses background prefetch while a user-opened Outlet page downloads", async () => {
+    // Clear any pause left by an earlier test.
+    vi.setSystemTime(new Date("2026-10-29T09:00:00Z"));
+    expect(isBackgroundPrefetchAllowed()).toBe(true);
+
+    let resolveImport: (v: { default: () => null }) => void = () => {};
+    const pending = new Promise<{ default: () => null }>((r) => {
+      resolveImport = r;
+    });
+    const load = loadRouteChunk(() => pending);
+    expect(isBackgroundPrefetchAllowed()).toBe(false);
+
+    resolveImport({ default: () => null });
+    await load;
+    // Still paused for the 30s grace after the page arrives (data fetches), then free.
+    expect(isBackgroundPrefetchAllowed()).toBe(false);
+    vi.setSystemTime(new Date("2026-10-29T09:00:31Z"));
+    expect(isBackgroundPrefetchAllowed()).toBe(true);
+  });
+
+  it("releases the priority slot when the download fails", async () => {
+    vi.setSystemTime(new Date("2026-10-30T09:00:00Z"));
+    await expect(loadRouteChunk(() => Promise.reject(new Error("boom")))).rejects.toThrow("boom");
+    vi.setSystemTime(new Date("2026-10-30T09:00:31Z"));
+    expect(isBackgroundPrefetchAllowed()).toBe(true);
   });
 });
 

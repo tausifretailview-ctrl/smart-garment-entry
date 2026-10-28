@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   AUTH_ADMIN_LIST_USERS_PER_PAGE,
   accumulateAuthUserPages,
+  fetchAuthUsersById,
   shouldFetchNextAuthUserPage,
 } from "./authAdminListUsersPaging";
 
@@ -16,6 +17,40 @@ describe("shouldFetchNextAuthUserPage", () => {
     expect(shouldFetchNextAuthUserPage(1000, AUTH_ADMIN_LIST_USERS_PER_PAGE)).toBe(true);
     expect(shouldFetchNextAuthUserPage(81, 1000)).toBe(false);
     expect(shouldFetchNextAuthUserPage(0, 1000)).toBe(false);
+  });
+});
+
+describe("fetchAuthUsersById", () => {
+  it("returns only the asked users in id order and skips deleted ones", async () => {
+    const users = await fetchAuthUsersById(["a", "gone", "b", "c"], async (id) =>
+      id === "gone" ? null : { id },
+    );
+    expect(users.map((u) => u.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("caps calls in flight", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const ids = Array.from({ length: 25 }, (_, i) => `u${i}`);
+    const users = await fetchAuthUsersById(
+      ids,
+      async (id) => {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        await new Promise((r) => setTimeout(r, 1));
+        inFlight -= 1;
+        return { id };
+      },
+      4,
+    );
+    expect(users).toHaveLength(25);
+    expect(peak).toBe(4);
+  });
+
+  it("makes no calls for an empty list", async () => {
+    let calls = 0;
+    expect(await fetchAuthUsersById([], async () => { calls += 1; return null; })).toEqual([]);
+    expect(calls).toBe(0);
   });
 });
 
@@ -71,6 +106,13 @@ describe("get-users edge function paging", () => {
     expect(fn).toContain("accumulateAuthUserPages");
     expect(fn).toMatch(/listUsers\(\{\s*page,\s*perPage,/);
     expect(fn).not.toMatch(/admin\.listUsers\(\s*\)/);
+  });
+
+  it("reads a shop admin's own users by id instead of paging the whole platform", () => {
+    const fn = readFileSync(resolve(here, "../../supabase/functions/get-users/index.ts"), "utf8");
+    expect(fn).toContain("fetchAuthUsersById(visibleIds");
+    expect(fn).toMatch(/getUserById\(id\)/);
+    expect(fn).not.toMatch(/from\("user_roles"\)\s*\.select\("\*"\)/);
   });
 
   it("is the shared directory for every listed frontend consumer", () => {

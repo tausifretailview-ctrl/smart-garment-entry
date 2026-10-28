@@ -10,7 +10,11 @@
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { accumulateAuthUserPages } from "../_shared/listAllAuthUsers.ts";
+import {
+  accumulateAuthUserPages,
+  fetchAuthUsersById,
+  MAX_USERS_BY_ID,
+} from "../_shared/listAllAuthUsers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -109,36 +113,16 @@ serve(async (req) => {
       scopedOrgIds = (myMemberships || []).map((m) => m.organization_id).filter(Boolean);
     }
 
-    // Get all users from auth. listUsers() defaults to a 50-user page size —
-    // with more than 50 platform users, later-created accounts were silently
-    // missing from every screen that depends on this function (POS Dashboard
-    // salesman filter, Employee Master user-linking, sales report filters,
-    // etc.), even though those users had genuine organization_members rows.
-    // Loop through every page rather than relying on one oversized perPage call.
-    const users = await accumulateAuthUserPages(async (page, perPage) => {
-      const { data, error: usersError } = await supabaseAdmin.auth.admin.listUsers({
-        page,
-        perPage,
-      });
-      if (usersError) throw usersError;
-      return data?.users ?? [];
-    });
-
-    // Get all user roles
-    const { data: userRoles, error: rolesError } = await supabaseAdmin
-      .from("user_roles")
-      .select("*");
-
-    if (rolesError) {
-      throw rolesError;
-    }
-
     // Non-platform-admin callers only get users who share an organization
-    // with them (see scopedOrgIds above).
-    let visibleUsers = users;
+    // with them (see scopedOrgIds above). Resolve that id list first so a shop
+    // admin's request reads only its own handful of users: paging every auth
+    // user on the platform (plus every user_roles row) made Organization >
+    // Members, User Rights and the POS Dashboard salesman filter slow for
+    // every shop as the platform grew.
+    let visibleIds: string[] | null = null;
     if (scopedOrgIds) {
       if (scopedOrgIds.length === 0) {
-        visibleUsers = [];
+        visibleIds = [];
       } else {
         const { data: coMembers, error: coMembersError } = await supabaseAdmin
           .from("organization_members")
@@ -147,9 +131,49 @@ serve(async (req) => {
         if (coMembersError) {
           throw coMembersError;
         }
-        const visibleIds = new Set((coMembers || []).map((m) => m.user_id));
-        visibleUsers = users.filter((u) => visibleIds.has(u.id));
+        visibleIds = [...new Set((coMembers || []).map((m) => m.user_id).filter(Boolean))];
       }
+    }
+
+    type AuthUser = { id: string; email?: string; created_at: string };
+    let visibleUsers: AuthUser[];
+    if (visibleIds && visibleIds.length <= MAX_USERS_BY_ID) {
+      visibleUsers = await fetchAuthUsersById(visibleIds, async (id) => {
+        const { data, error } = await supabaseAdmin.auth.admin.getUserById(id);
+        // A member row whose auth user was deleted: skip it, as the paged list did.
+        if (error || !data?.user) return null;
+        return data.user;
+      });
+    } else {
+      // Platform admin (needs everyone), or an unusually large shared directory
+      // where one paged read beats hundreds of single-user calls.
+      // listUsers() defaults to a 50-user page size — loop through every page
+      // rather than relying on one oversized perPage call, or later-created
+      // accounts go missing from every screen that depends on this function.
+      const users = await accumulateAuthUserPages(async (page, perPage) => {
+        const { data, error: usersError } = await supabaseAdmin.auth.admin.listUsers({
+          page,
+          perPage,
+        });
+        if (usersError) throw usersError;
+        return data?.users ?? [];
+      });
+      const idSet = visibleIds ? new Set(visibleIds) : null;
+      visibleUsers = idSet ? users.filter((u) => idSet.has(u.id)) : users;
+    }
+
+    // Roles only for the users being returned.
+    let userRoles: { user_id: string; role: string }[] = [];
+    if (visibleUsers.length > 0) {
+      let rolesQuery = supabaseAdmin.from("user_roles").select("user_id, role");
+      if (visibleIds && visibleIds.length <= MAX_USERS_BY_ID) {
+        rolesQuery = rolesQuery.in("user_id", visibleIds);
+      }
+      const { data, error: rolesError } = await rolesQuery;
+      if (rolesError) {
+        throw rolesError;
+      }
+      userRoles = data || [];
     }
 
     // Combine user data with roles
@@ -157,7 +181,7 @@ serve(async (req) => {
       id: user.id,
       email: user.email,
       created_at: user.created_at,
-      roles: userRoles?.filter((r) => r.user_id === user.id).map((r) => r.role) || [],
+      roles: userRoles.filter((r) => r.user_id === user.id).map((r) => r.role),
     }));
 
     return new Response(
