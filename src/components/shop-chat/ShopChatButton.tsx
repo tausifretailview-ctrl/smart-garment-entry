@@ -1,6 +1,6 @@
 import { MessagesSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { loadShopChatPanel, openShopChat, useShopChatThreads, useSiblingShopsForChat } from "@/hooks/useShopChat";
+import { openShopChat, useShopChatThreads, useSiblingShopsForChat } from "@/hooks/useShopChat";
 
 /**
  * Opens the shop chat panel (right side) with an unread badge.
@@ -28,7 +28,6 @@ export function ShopChatButton({
     <button
       type="button"
       onClick={() => openShopChat()}
-      onPointerEnter={() => void loadShopChatPanel().catch(() => undefined)}
       className={cn("relative flex items-center justify-center gap-1.5 touch-manipulation", className)}
       aria-label={unread > 0 ? `Shop chat, ${unread} unread` : "Shop chat"}
       title="Chat with your other shops"

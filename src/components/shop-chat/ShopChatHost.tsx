@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,7 +6,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import {
   clearShopOnlineCounts,
-  loadShopChatPanel,
   openShopChat,
   setShopOnlineCount,
   shopChatDb,
@@ -18,7 +17,9 @@ import {
   type ShopChatMessage,
 } from "@/hooks/useShopChat";
 
-const ShopChatPanel = lazy(loadShopChatPanel);
+// Bundled with the host, not lazy: a lazy chunk that never finished downloading (stale
+// PWA cache after a deploy, slow network) left the window stuck on "Opening chat…".
+import ShopChatPanel from "@/components/shop-chat/ShopChatPanel";
 
 /**
  * Always-mounted part of the shop chat: listens for new messages (realtime), refreshes
@@ -94,13 +95,6 @@ export function ShopChatHost() {
     };
   }, [orgId, hasThreads, queryClient]);
 
-  // Fetch the window's code once this shop has a chat, so the first click opens it at once.
-  useEffect(() => {
-    if (!hasThreads) return;
-    const id = window.setTimeout(() => void loadShopChatPanel().catch(() => undefined), 1500);
-    return () => window.clearTimeout(id);
-  }, [hasThreads]);
-
   // Presence: announce this login in its own shop, and watch who is online in each linked shop.
   const userId = user?.id;
   const userName =
@@ -132,15 +126,5 @@ export function ShopChatHost() {
   }, [orgId, userId, userName, linkedIds]);
 
   if (!open || !orgId) return null;
-  return (
-    <Suspense
-      fallback={
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background sm:inset-auto sm:bottom-12 sm:right-4 sm:h-[480px] sm:w-[340px] sm:rounded-xl sm:border sm:shadow-2xl">
-          <span className="text-sm font-medium text-slate-600">Opening chat…</span>
-        </div>
-      }
-    >
-      <ShopChatPanel />
-    </Suspense>
-  );
+  return <ShopChatPanel />;
 }
