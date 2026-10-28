@@ -372,9 +372,16 @@ export class SessionManager {
     return `New number warm-up: ${this.dailyCap(id)} messages today (day ${(this.linkDay(id) ?? 0) + 1} after linking), more each day. Continues tomorrow by itself.`;
   }
 
-  /** WhatsApp logged the number out (401) or it was unlinked: only a new QR scan brings it back. */
+  /**
+   * WhatsApp itself logged the number out (401) just now: only a new QR scan brings it back. Not a
+   * Railway redeploy or restart (sockets are closed with `stopped` set, which also reads "logged_out")
+   * and not the user's own Unlink, so those never pause a campaign with an old 401 message.
+   */
   isLoggedOut(id: string): boolean {
-    return this.sessions.get(id)?.status === "logged_out";
+    const s = this.sessions.get(id);
+    return Boolean(
+      s && !this.shuttingDown && !s.stopped && s.status === "logged_out" && s.lastClose?.code === DisconnectReason.loggedOut,
+    );
   }
 
   private get(orgId: string): Session {
