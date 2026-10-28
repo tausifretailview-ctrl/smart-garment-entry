@@ -82,6 +82,8 @@ export interface TransferNoteData {
   to_name: string;
   notes: string | null;
   cancelled: boolean;
+  /** e.g. "REJECTED" or "WAITING TO BE RECEIVED"; overrides the CANCELLED line. */
+  status_text?: string | null;
   items: TransferNoteItem[];
 }
 
@@ -129,7 +131,7 @@ tfoot td{font-weight:bold}
 .sign{display:flex;justify-content:space-between;margin-top:48px}
 </style></head><body>
 <h1>Stock Transfer Note</h1>
-${d.cancelled ? `<div class="cancel">CANCELLED</div>` : ""}
+${d.status_text ? `<div class="cancel">${esc(d.status_text)}</div>` : d.cancelled ? `<div class="cancel">CANCELLED</div>` : ""}
 <div class="meta">
 <div class="box"><b>Transfer No</b>${esc(d.transfer_number)}</div>
 <div class="box"><b>Date</b>${esc(dateText)}</div>
@@ -144,4 +146,196 @@ ${d.cancelled ? `<div class="cancel">CANCELLED</div>` : ""}
 ${d.notes ? `<p><b>Notes:</b> ${esc(d.notes)}</p>` : ""}
 <div class="sign"><div>Sent by ____________________</div><div>Received by ____________________</div></div>
 </body></html>`;
+}
+
+/* ---------------------------------------------------------------------------
+ * Dashboard: send → Receive/Accept flow (20270313120000).
+ * Before that SQL runs, rows have no status column: live rows count as
+ * accepted, cancelled ones as cancelled.
+ * ------------------------------------------------------------------------- */
+
+export type TransferStatus = "pending" | "accepted" | "rejected" | "cancelled";
+
+export interface TransferStatusRow {
+  status?: string | null;
+  cancelled_at?: string | null;
+}
+
+export function transferStatus(row: TransferStatusRow): TransferStatus {
+  const s = row.status;
+  if (s === "pending" || s === "accepted" || s === "rejected" || s === "cancelled") return s;
+  return row.cancelled_at ? "cancelled" : "accepted";
+}
+
+export type TransferTagTone = "receive" | "waiting" | "received" | "rejected" | "cancelled";
+
+/** Badge shown in the dashboard. The receiving shop sees "Receive" on a waiting transfer. */
+export function transferTag(status: TransferStatus, incoming: boolean): { label: string; tone: TransferTagTone } {
+  if (status === "pending") return incoming ? { label: "Receive", tone: "receive" } : { label: "Waiting", tone: "waiting" };
+  if (status === "accepted") return { label: "Received", tone: "received" };
+  if (status === "rejected") return { label: "Rejected", tone: "rejected" };
+  return { label: "Cancelled", tone: "cancelled" };
+}
+
+export type TransferStatusFilter = "all" | "receive" | "waiting" | "accepted" | "rejected" | "cancelled";
+export type TransferDirectionFilter = "all" | "out" | "in";
+
+export interface TransferListRow extends TransferStatusRow {
+  id: string;
+  transfer_number: string;
+  from_organization_id: string;
+  to_organization_id: string;
+  transfer_date: string;
+  total_qty: number;
+  total_value: number;
+  notes: string | null;
+}
+
+export function filterTransfers<T extends TransferListRow>(
+  rows: T[],
+  opts: {
+    orgId: string;
+    status: TransferStatusFilter;
+    direction: TransferDirectionFilter;
+    search: string;
+    shopName: (id: string) => string;
+  },
+): T[] {
+  const term = opts.search.trim().toLowerCase();
+  return rows.filter((t) => {
+    const incoming = t.to_organization_id === opts.orgId;
+    if (opts.direction === "in" && !incoming) return false;
+    if (opts.direction === "out" && incoming) return false;
+    const st = transferStatus(t);
+    if (opts.status === "receive" && !(st === "pending" && incoming)) return false;
+    if (opts.status === "waiting" && !(st === "pending" && !incoming)) return false;
+    if (opts.status !== "all" && opts.status !== "receive" && opts.status !== "waiting" && st !== opts.status) return false;
+    if (!term) return true;
+    const other = opts.shopName(incoming ? t.from_organization_id : t.to_organization_id);
+    return [t.transfer_number, other, t.notes ?? ""].some((s) => s.toLowerCase().includes(term));
+  });
+}
+
+export interface TransferKpis {
+  toReceive: number;
+  toReceiveQty: number;
+  waiting: number;
+  sentQty: number;
+  sentValue: number;
+  receivedQty: number;
+  receivedValue: number;
+}
+
+/** Sent counts everything that left this shop (waiting + received); received only what this shop accepted. */
+export function transferKpis(rows: TransferListRow[], orgId: string): TransferKpis {
+  const k: TransferKpis = { toReceive: 0, toReceiveQty: 0, waiting: 0, sentQty: 0, sentValue: 0, receivedQty: 0, receivedValue: 0 };
+  for (const t of rows) {
+    const st = transferStatus(t);
+    const incoming = t.to_organization_id === orgId;
+    const qty = Number(t.total_qty) || 0;
+    const value = Number(t.total_value) || 0;
+    if (incoming) {
+      if (st === "pending") {
+        k.toReceive += 1;
+        k.toReceiveQty += qty;
+      } else if (st === "accepted") {
+        k.receivedQty += qty;
+        k.receivedValue += value;
+      }
+    } else if (st === "pending" || st === "accepted") {
+      if (st === "pending") k.waiting += 1;
+      k.sentQty += qty;
+      k.sentValue += value;
+    }
+  }
+  return k;
+}
+
+export type TransferDatePreset = "today" | "week" | "month" | "last_month" | "year" | "all" | "custom";
+
+const ymd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** yyyy-MM-dd range for a preset (null = no date limit). Week starts Monday; year is the Apr–Mar financial year. */
+export function transferDateRange(
+  preset: TransferDatePreset,
+  now: Date,
+  custom?: { from: string; to: string },
+): { from: string; to: string } | null {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  switch (preset) {
+    case "today":
+      return { from: ymd(today), to: ymd(today) };
+    case "week": {
+      const start = new Date(today);
+      start.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+      return { from: ymd(start), to: ymd(today) };
+    }
+    case "month":
+      return { from: ymd(new Date(today.getFullYear(), today.getMonth(), 1)), to: ymd(today) };
+    case "last_month":
+      return {
+        from: ymd(new Date(today.getFullYear(), today.getMonth() - 1, 1)),
+        to: ymd(new Date(today.getFullYear(), today.getMonth(), 0)),
+      };
+    case "year": {
+      const fyStartYear = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+      return { from: ymd(new Date(fyStartYear, 3, 1)), to: ymd(today) };
+    }
+    case "custom":
+      return custom?.from && custom?.to ? { from: custom.from, to: custom.to } : null;
+    default:
+      return null;
+  }
+}
+
+export interface ReceivedVariantForLabel {
+  id: string;
+  barcode: string | null;
+  size: string | null;
+  color: string | null;
+  mrp: number | null;
+  sale_price: number | null;
+  pur_price: number | null;
+  products: {
+    product_name: string | null;
+    brand: string | null;
+    category: string | null;
+    style: string | null;
+    color: string | null;
+  } | null;
+}
+
+/**
+ * Barcode Printing payload for a received transfer: the receiving shop's own items
+ * (same barcode as sent), so labels use that shop's name, prices and label design.
+ */
+export function transferBarcodeItems(
+  transferNumber: string,
+  lines: Array<{ to_variant_id: string | null; qty: number }>,
+  variants: ReceivedVariantForLabel[],
+) {
+  const byId = new Map(variants.map((v) => [v.id, v]));
+  return lines.flatMap((l) => {
+    const v = l.to_variant_id ? byId.get(l.to_variant_id) : undefined;
+    if (!v) return [];
+    return [
+      {
+        sku_id: v.id,
+        product_name: v.products?.product_name ?? "",
+        brand: v.products?.brand ?? "",
+        category: v.products?.category ?? "",
+        color: v.color || v.products?.color || "",
+        style: v.products?.style ?? "",
+        size: v.size ?? "",
+        sale_price: v.sale_price,
+        mrp: v.mrp,
+        pur_price: v.pur_price,
+        barcode: v.barcode ?? "",
+        qty: Number(l.qty) || 0,
+        bill_number: transferNumber,
+        supplier_code: "",
+      },
+    ];
+  });
 }

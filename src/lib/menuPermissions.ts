@@ -74,6 +74,7 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   "barcode-printing": "barcode_printing",
   "stock-adjustment": "stock_adjustment",
   "stock-transfer": "stock_transfer",
+  "stock-transfer-entry": "stock_transfer",
   "stock-settlement": "stock_settlement",
   "bulk-product-update": "bulk_product_update",
   "tally-export": "tally_export",

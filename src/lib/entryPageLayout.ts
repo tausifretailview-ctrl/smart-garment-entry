@@ -1,6 +1,6 @@
 /** Bill / voucher entry routes that should use the full viewport (no sidebar gutter). */
 export const ENTRY_FULLSCREEN_PATH =
-  /\/(sales-invoice|purchase-entry|sale-return-entry|purchase-return-entry|quotation-entry|sale-order-entry|delivery-challan-entry|purchase-order-entry)(\/|$)/;
+  /\/(sales-invoice|purchase-entry|sale-return-entry|purchase-return-entry|quotation-entry|sale-order-entry|delivery-challan-entry|purchase-order-entry|stock-transfer-entry)(\/|$)/;
 
 /** POS + primary bill entry — full viewport: no sidebar or global header; window tab strip stays visible. */
 export const NO_SIDEBAR_ENTRY_PATH =
@@ -28,7 +28,7 @@ export function isFillHeightWorkspacePath(pathname: string): boolean {
 
 /** List dashboards with fixed header/cards and an internal scrolling table. */
 export const FILL_HEIGHT_DASHBOARD_PATH =
-  /\/(pos-dashboard|sales-invoice-dashboard|purchase-bills|purchase-bill-dashboard|barcode-printing|accounts|accounts-payments|customer-party-balances|customer-outstanding-report|supplier-party-balances|third-party-entry|third-party-balances|journal-vouchers|manual-journal|stock-report|stock-summary|stock-settlement|item-wise-sales|item-wise-stock|customer-master|employees|products|net-profit-analysis|reports|insights|daily-cashier-report|cn-sr-adjustment-register|customer-reviews|customer-notifications|discount-scheme-dashboard|gst-register|gst-reports|accounting-reports|settings|website|recycle-bin|salesman-commission|payment-flow|bulk-whatsapp|audit-log)(\/|$)/;
+  /\/(pos-dashboard|sales-invoice-dashboard|purchase-bills|purchase-bill-dashboard|barcode-printing|accounts|accounts-payments|customer-party-balances|customer-outstanding-report|supplier-party-balances|third-party-entry|third-party-balances|journal-vouchers|manual-journal|stock-report|stock-summary|stock-settlement|item-wise-sales|item-wise-stock|customer-master|employees|products|net-profit-analysis|reports|insights|daily-cashier-report|cn-sr-adjustment-register|customer-reviews|customer-notifications|discount-scheme-dashboard|gst-register|gst-reports|accounting-reports|settings|website|recycle-bin|salesman-commission|payment-flow|bulk-whatsapp|audit-log|stock-transfer)(\/|$)/;
 
 export function isFillHeightDashboardPath(pathname: string): boolean {
   return FILL_HEIGHT_DASHBOARD_PATH.test(pathname);
@@ -48,7 +48,7 @@ export function isMainDashboardPath(pathname: string): boolean {
 
 /** Sidebar + content only — hide global header menu and window tab strip (e.g. Customer Balances, Accounts). */
 export const SIDEBAR_ONLY_WORKSPACE_PATH =
-  /\/(customer-party-balances|customer-outstanding-report|supplier-party-balances|third-party-entry|third-party-balances|journal-vouchers|manual-journal|stock-report|stock-summary|stock-settlement|accounts|accounts-payments|item-wise-sales|item-wise-stock|products|net-profit-analysis|insights|daily-cashier-report|cn-sr-adjustment-register|customer-reviews|customer-notifications|gst-register|gst-reports|barcode-printing|accounting-reports|settings|website|recycle-bin|salesman-commission|payment-flow|bulk-whatsapp|audit-log)(\/|$)/;
+  /\/(customer-party-balances|customer-outstanding-report|supplier-party-balances|third-party-entry|third-party-balances|journal-vouchers|manual-journal|stock-report|stock-summary|stock-settlement|accounts|accounts-payments|item-wise-sales|item-wise-stock|products|net-profit-analysis|insights|daily-cashier-report|cn-sr-adjustment-register|customer-reviews|customer-notifications|gst-register|gst-reports|barcode-printing|accounting-reports|settings|website|recycle-bin|salesman-commission|payment-flow|bulk-whatsapp|audit-log|stock-transfer)(\/|$)/;
 
 export function isSidebarOnlyWorkspacePath(pathname: string): boolean {
   return SIDEBAR_ONLY_WORKSPACE_PATH.test(pathname);
@@ -56,7 +56,7 @@ export function isSidebarOnlyWorkspacePath(pathname: string): boolean {
 
 /** Voucher entry screens: keep left sidebar, hide global header + shortcut bar + window tabs. */
 export const ENTRY_SIDEBAR_ONLY_PATH =
-  /\/(quotation-entry|delivery-challan-entry|sale-return-entry|purchase-order-entry)(\/|$)/;
+  /\/(quotation-entry|delivery-challan-entry|sale-return-entry|purchase-order-entry|stock-transfer-entry)(\/|$)/;
 
 export function isEntrySidebarOnlyPath(pathname: string): boolean {
   return ENTRY_SIDEBAR_ONLY_PATH.test(pathname);
