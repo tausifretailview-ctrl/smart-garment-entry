@@ -24,6 +24,7 @@ import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useProductFieldSettings, useSettings, type ProductFieldKey } from "@/hooks/useSettings";
+import { fetchTransferInByVariantId } from "@/lib/stockTransferStockReport";
 import { ProductSearchDropdown } from "@/components/ProductSearchDropdown";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -793,16 +794,23 @@ export default function StockReport() {
         }
 
         setServerTotalRows(Number(rows[0]?.total_rows ?? rows.length ?? 0));
-        const purchaseSourceByVariantId = await fetchLatestPurchaseSourceByVariantId(
-          currentOrganization.id,
-          rows.map((row) => row.variant_id),
-        );
+        const [purchaseSourceByVariantId, transferInByVariantId] = await Promise.all([
+          fetchLatestPurchaseSourceByVariantId(
+            currentOrganization.id,
+            rows.map((row) => row.variant_id),
+          ),
+          fetchTransferInByVariantId(
+            currentOrganization.id,
+            rows.map((row) => row.variant_id),
+          ),
+        ]);
         if (requestId !== searchRequestIdRef.current) return;
 
         setStockItems(
           rows.map((row) => {
             const purchaseSource = purchaseSourceByVariantId.get(row.variant_id);
             const matchedPurchase = purchaseLabelByVariantId.get(row.variant_id);
+            const transferIn = transferInByVariantId.get(row.variant_id);
             return {
               id: row.variant_id,
               product_name: row.product_name || "",
@@ -810,7 +818,8 @@ export default function StockReport() {
               color: row.color || "",
               size: row.size || "",
               stock_qty: row.current_stock ?? 0,
-              opening_qty: row.opening_qty ?? 0,
+              // Stock received by Stock Transfer counts as opening stock here.
+              opening_qty: (row.opening_qty ?? 0) + (transferIn?.qty ?? 0),
               purchase_qty: Number(row.purchase_qty ?? 0),
               purchase_return_qty: Number(row.purchase_return_qty ?? 0),
               sales_qty: Number(row.sales_qty ?? 0),
@@ -819,8 +828,8 @@ export default function StockReport() {
               pur_price: row.pur_price != null ? Number(row.pur_price) : null,
               barcode: row.barcode || "",
               matched_purchase_barcode: matchedPurchase,
-              supplier_name: purchaseSource?.supplier_name || "",
-              supplier_invoice_no: purchaseSource?.supplier_invoice_no || "",
+              supplier_name: purchaseSource?.supplier_name || transferIn?.supplier_name || "",
+              supplier_invoice_no: purchaseSource?.supplier_invoice_no || transferIn?.supplier_invoice_no || "",
               category: row.category || "",
               department: row.style || "",
               uom: row.uom || "NOS",
