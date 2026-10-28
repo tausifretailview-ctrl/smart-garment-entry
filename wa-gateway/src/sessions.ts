@@ -510,9 +510,16 @@ export class SessionManager {
 
   async restoreAll() {
     if (!fs.existsSync(AUTH_DIR)) return;
-    for (const orgId of fs.readdirSync(AUTH_DIR)) {
-      // Only numbers that finished linking; an abandoned QR or pairing code leaves nothing worth restoring.
-      if (!SESSION_ID_RE.test(orgId) || !hasLinkedCredsOnDisk(this.dir(orgId))) continue;
+    const ids = fs.readdirSync(AUTH_DIR).filter((id) => SESSION_ID_RE.test(id));
+    // Only numbers that finished linking; an abandoned QR or pairing code leaves nothing worth restoring.
+    const linked = ids.filter((id) => hasLinkedCredsOnDisk(this.dir(id)));
+    const notLinked = ids.filter((id) => !linked.includes(id));
+    // Always printed, so the log shows after every restart which shops come back by themselves.
+    console.log(
+      `Restoring ${linked.length} linked WhatsApp numbers: ${linked.join(", ") || "none"}` +
+        (notLinked.length ? `. Folders without a finished link (QR needed): ${notLinked.join(", ")}` : ""),
+    );
+    for (const orgId of linked) {
       await this.connect(orgId).catch((e) => {
         logger.warn({ orgId, err: e }, "restore failed");
         this.reconnectLater(orgId, this.get(orgId));
@@ -614,7 +621,7 @@ export class SessionManager {
           s.qr = null;
           s.pairingCode = null;
           s.retries = 0;
-          if (s.lastClose) logger.info({ orgId, after: s.lastClose.code }, "WhatsApp reconnected");
+          console.log(`WhatsApp connected: ${orgId}${s.lastClose ? ` (after close code ${s.lastClose.code ?? "none"})` : ""}`);
           s.number = sock.user?.id?.split(":")[0]?.split("@")[0] ?? null;
           if (s.newLink) {
             s.newLink = false;
@@ -844,6 +851,7 @@ export class SessionManager {
   async logout(orgId: string) {
     this.assertOrg(orgId);
     const s = this.get(orgId);
+    console.log(`WhatsApp unlinked from the app (Disconnect button): ${orgId}`);
     s.stopped = true;
     try {
       await s.sock?.logout();
