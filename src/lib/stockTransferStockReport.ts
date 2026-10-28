@@ -51,6 +51,46 @@ export function summarizeTransferIn(
   return out;
 }
 
+export interface TransferOutRow {
+  from_variant_id: string | null;
+  qty: number;
+  stock_transfers: { cancelled_at: string | null } | null;
+}
+
+/** Qty sent out per variant: waiting + received transfers (stock already left this shop). */
+export function summarizeTransferOut(rows: TransferOutRow[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const r of rows) {
+    if (!r.from_variant_id || !r.stock_transfers || r.stock_transfers.cancelled_at) continue;
+    out.set(r.from_variant_id, (out.get(r.from_variant_id) ?? 0) + (Number(r.qty) || 0));
+  }
+  return out;
+}
+
+/** Never throws: the Stock Report still loads if transfers are not set up. */
+export async function fetchTransferOutByVariantId(
+  organizationId: string,
+  variantIds: string[],
+): Promise<Map<string, number>> {
+  const ids = [...new Set(variantIds.filter(Boolean))];
+  if (ids.length === 0) return new Map();
+  try {
+    const rows: TransferOutRow[] = [];
+    for (let i = 0; i < ids.length; i += 100) {
+      const { data, error } = await db
+        .from("stock_transfer_items")
+        .select("from_variant_id, qty, stock_transfers!inner(cancelled_at, from_organization_id)")
+        .in("from_variant_id", ids.slice(i, i + 100))
+        .eq("stock_transfers.from_organization_id", organizationId);
+      if (error) return new Map();
+      rows.push(...((data || []) as TransferOutRow[]));
+    }
+    return summarizeTransferOut(rows);
+  } catch {
+    return new Map();
+  }
+}
+
 /** Never throws: the Stock Report still loads if transfers are not set up. */
 export async function fetchTransferInByVariantId(
   organizationId: string,

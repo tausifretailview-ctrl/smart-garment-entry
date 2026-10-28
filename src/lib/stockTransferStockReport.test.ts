@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { summarizeTransferIn } from "./stockTransferStockReport";
+import { summarizeTransferIn, summarizeTransferOut } from "./stockTransferStockReport";
+import { isStockTransferEnabled } from "@/utils/stockTransfer";
 
 const t = (n: string, date: string, cancelled: string | null = null) => ({
   transfer_number: n,
@@ -21,5 +22,22 @@ describe("summarizeTransferIn", () => {
     );
     expect(m.get("v1")).toEqual({ qty: 5, supplier_name: "ADEEBA AREEBA STUDIO", supplier_invoice_no: "ST/0004" });
     expect(m.size).toBe(1);
+  });
+});
+
+describe("summarizeTransferOut", () => {
+  it("counts waiting and received transfers, not cancelled or rejected", () => {
+    const m = summarizeTransferOut([
+      { from_variant_id: "v1", qty: 2, stock_transfers: { cancelled_at: null } },
+      { from_variant_id: "v1", qty: 1, stock_transfers: { cancelled_at: null } },
+      { from_variant_id: "v1", qty: 5, stock_transfers: { cancelled_at: "2026-10-28" } },
+    ]);
+    expect(m.get("v1")).toBe(3);
+  });
+
+  it("Transfer Out column is off until Settings turns it on", () => {
+    expect(isStockTransferEnabled(undefined)).toBe(false);
+    expect(isStockTransferEnabled({})).toBe(false);
+    expect(isStockTransferEnabled({ stock_transfer_enabled: true })).toBe(true);
   });
 });

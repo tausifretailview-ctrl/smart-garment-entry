@@ -1,5 +1,10 @@
 /** Stock transfer between sibling shops (same owner, separate organizations). */
 
+/** Settings > Sale: "Stock Transfer" switch (sale_settings.stock_transfer_enabled), off until turned on. */
+export function isStockTransferEnabled(saleSettings: unknown): boolean {
+  return (saleSettings as { stock_transfer_enabled?: boolean } | null | undefined)?.stock_transfer_enabled === true;
+}
+
 export interface TransferScanVariant {
   id: string;
   barcode: string | null;
