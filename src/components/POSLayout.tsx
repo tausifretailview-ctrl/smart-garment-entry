@@ -359,8 +359,8 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
             </Tooltip>}
             <OfflinePosButton className={posNavBtnClass} />
             <ShopChatButton
-              className="text-primary-foreground hover:bg-primary/80 h-9 w-9 rounded-md"
-              iconClassName="h-5 w-5"
+              className="text-primary-foreground hover:bg-primary/80 h-10 w-10 rounded-md"
+              iconClassName="h-6 w-6"
             />
             <Tooltip>
               <TooltipTrigger asChild>

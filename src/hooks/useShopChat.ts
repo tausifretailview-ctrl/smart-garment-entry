@@ -97,6 +97,9 @@ function setPanelState(next: PanelState) {
   listeners.forEach((l) => l());
 }
 
+/** Download the chat window code ahead of the first click, so it opens at once. */
+export const loadShopChatPanel = () => import("@/components/shop-chat/ShopChatPanel");
+
 export function openShopChat(otherOrgId: string | null = null) {
   setPanelState({ open: true, otherOrgId: otherOrgId ?? panelState.otherOrgId });
 }
