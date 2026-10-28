@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
-import { CustomerAccountSummaryStrip } from "@/components/CustomerAccountSummaryStrip";
 import { createPortal, flushSync } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
@@ -93,6 +92,18 @@ const loadHtml2Canvas = (): Promise<typeof html2canvasType> =>
 
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { PaymentReceiptPrint } from "@/components/PaymentReceiptPrint";
+import { MixReceiptInputs } from "@/components/MixReceiptInputs";
+import {
+  EMPTY_MIX_RECEIPT_AMOUNTS,
+  MIX_RECEIPT_METHOD,
+  applyMixAmountEdit,
+  formatMixReceiptLabel,
+  mixVoucherSuffix,
+  validateMixReceipt,
+  type MixReceiptAmounts,
+  type MixReceiptLeg,
+  type MixReceiptMethod,
+} from "@/utils/mixReceiptSplit";
 import { getPaymentReceiptPrintPageStyle } from "@/utils/paymentReceiptPrintConfig";
 import { mapSaleFinancerDetailsForInvoice } from "@/utils/saleFinancerDetailsForInvoice";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -680,6 +691,8 @@ const POSDashboard = () => {
   const [paymentDate, setPaymentDate] = useState<Date>(new Date());
   const [paymentMode, setPaymentMode] = useState("cash");
   const [paymentNarration, setPaymentNarration] = useState("");
+  const [mixAmounts, setMixAmounts] = useState<MixReceiptAmounts>(EMPTY_MIX_RECEIPT_AMOUNTS);
+  const [mixTouched, setMixTouched] = useState<Set<MixReceiptMethod>>(new Set());
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
   const recordingPaymentRef = useRef(false);
   const [advanceBalance, setAdvanceBalance] = useState(0);
@@ -2465,6 +2478,8 @@ const POSDashboard = () => {
     setPaymentDate(new Date());
     setPaymentMode("cash");
     setPaymentNarration("");
+    setMixAmounts(EMPTY_MIX_RECEIPT_AMOUNTS);
+    setMixTouched(new Set());
     setAdvanceBalance(0);
     setShowPaymentDialog(true);
 
@@ -2499,6 +2514,25 @@ const POSDashboard = () => {
       return;
     }
 
+    const isMix = paymentMode === MIX_RECEIPT_METHOD;
+    let mixLegs: MixReceiptLeg[] = [];
+    if (isMix) {
+      const mixCheck = validateMixReceipt(mixAmounts, amount);
+      if (!mixCheck.ok) {
+        recordingPaymentRef.current = false;
+        toast({
+          title: "Check mix payment",
+          description: "message" in mixCheck ? mixCheck.message : "Invalid mix split",
+          variant: "destructive",
+        });
+        return;
+      }
+      mixLegs = mixCheck.legs;
+    }
+    // Sale row / receipt label: "multiple" shows as Mix like a POS mix bill.
+    const saleMethodForMode = isMix ? "multiple" : paymentMode;
+    const receiptMethodLabel = isMix ? formatMixReceiptLabel(mixLegs) : paymentMode;
+
     const currentPaid = getEffectivePaidAmountForDashboard(selectedSaleForPayment);
     const currentCNAdjust = selectedSaleForPayment.sale_return_adjust || 0;
     const prevOutstanding = Math.max(
@@ -2530,6 +2564,9 @@ const POSDashboard = () => {
     const saleId = selectedSaleForPayment.id;
 
     let insertedVoucherId: string | null = null;
+    // Mix writes one voucher per mode; all of them are rolled back together on error.
+    const insertedReceiptIds: string[] = [];
+    const journalPromises: Promise<unknown>[] = [];
     const isAdvanceApply = paymentMode === "advance";
     // One id per submit: a retry of THIS submit is rejected by the DB, a new
     // deliberate payment gets a new id and is never blocked.
@@ -2594,34 +2631,53 @@ const POSDashboard = () => {
         }
       } else {
         const receiptDescription = `Payment received for POS sale ${selectedSaleForPayment.sale_number}${paymentNarration ? " - " + paymentNarration : ""}`;
-        const created = await createReceiptVoucher(supabase, {
-          organizationId: orgId,
-          referenceId: saleId,
-          amount,
-          paymentMethod: paymentMode,
-          description: receiptDescription,
-          voucherDate: voucherDateYmd,
-          createdBy: user?.id ?? null,
-          clientRequestId: receiptRequestId(receiptSubmissionId, saleId),
-        });
-        insertedVoucherId = created.id;
-        voucherData = created.voucher_number;
-
-        const journalPromise = postLedger
-          ? recordCustomerReceiptJournalEntry(
+        const legs: { method: string; amount: number }[] = isMix
+          ? mixLegs
+          : [{ method: paymentMode, amount }];
+        let firstVoucherNumber = "";
+        for (let li = 0; li < legs.length; li++) {
+          const leg = legs[li];
+          const created = await createReceiptVoucher(supabase, {
+            organizationId: orgId,
+            referenceId: saleId,
+            amount: leg.amount,
+            paymentMethod: leg.method,
+            description: receiptDescription,
+            voucherDate: voucherDateYmd,
+            createdBy: user?.id ?? null,
+            // Mix: later legs share the first receipt number (RCP/…/12-B) and skip the
+            // at-sale tender backfill, which the first leg already ran.
+            voucherNumber: li > 0 && firstVoucherNumber ? `${firstVoucherNumber}-${mixVoucherSuffix(li)}` : undefined,
+            skipAtSaleTenderBackfill: li > 0 ? true : undefined,
+            clientRequestId: receiptRequestId(
+              receiptSubmissionId,
+              isMix ? `${saleId}:${leg.method}` : saleId,
+            ),
+          });
+          insertedReceiptIds.push(created.id);
+          insertedVoucherId = created.id;
+          if (li === 0) firstVoucherNumber = created.voucher_number;
+          if (postLedger) {
+            const journal = recordCustomerReceiptJournalEntry(
               created.id,
               orgId,
-              amount,
+              leg.amount,
               0,
-              paymentMode,
+              leg.method,
               voucherDateYmd,
               receiptDescription,
               supabase,
-            )
-          : Promise.resolve();
+            );
+            // Awaited below; the no-op catch only stops an early "unhandled" warning.
+            journal.catch(() => {});
+            journalPromises.push(journal);
+          }
+        }
+        voucherData = firstVoucherNumber;
+
         const [recomputed] = await Promise.all([
           applyRecomputedSalePaymentState(saleId, orgId, supabase),
-          journalPromise,
+          Promise.all(journalPromises),
         ]);
         if (!recomputed.skipped) {
           recomputedPaid = recomputed.paidAmount;
@@ -2634,7 +2690,7 @@ const POSDashboard = () => {
           .from("sales")
           .update({
             payment_date: voucherDateYmd,
-            payment_method: paymentMode,
+            payment_method: saleMethodForMode,
           })
           .eq("id", saleId)
           .eq("organization_id", orgId);
@@ -2648,7 +2704,7 @@ const POSDashboard = () => {
       patchPosDashboardSalePayment(queryClient, orgId, saleId, {
         paid_amount: recomputedPaid,
         payment_status: recomputedStatus,
-        payment_method: isAdvanceApply ? undefined : paymentMode,
+        payment_method: isAdvanceApply ? undefined : saleMethodForMode,
         prevPaymentStatus: selectedSaleForPayment.payment_status,
         netAmount: latestNet,
         outstandingCleared: Math.max(0, prevOutstanding - currentBalance),
@@ -2677,7 +2733,7 @@ const POSDashboard = () => {
         paidAmount: amount,
         previousBalance: Math.round(prevOutstanding),
         currentBalance,
-        paymentMethod: paymentMode,
+        paymentMethod: receiptMethodLabel,
         narration: paymentNarration,
       };
 
@@ -2693,14 +2749,21 @@ const POSDashboard = () => {
       invalidatePosDashboardQueries(queryClient, orgId, { refetchType: "active" });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     } catch (error: any) {
-      if (insertedVoucherId && currentOrganization?.id) {
-        await deleteJournalEntryByReference(
-          currentOrganization.id,
-          isAdvanceApply ? "CustomerAdvanceApplication" : "CustomerReceipt",
-          insertedVoucherId,
-          supabase
-        );
-        await supabase.from("voucher_entries").delete().eq("id", insertedVoucherId);
+      // Let any in-flight journal posts land so the rollback below removes them too.
+      await Promise.allSettled(journalPromises);
+      const rollbackIds = isAdvanceApply
+        ? (insertedVoucherId ? [insertedVoucherId] : [])
+        : insertedReceiptIds;
+      if (rollbackIds.length > 0 && currentOrganization?.id) {
+        for (const rollbackId of rollbackIds) {
+          await deleteJournalEntryByReference(
+            currentOrganization.id,
+            isAdvanceApply ? "CustomerAdvanceApplication" : "CustomerReceipt",
+            rollbackId,
+            supabase
+          );
+          await supabase.from("voucher_entries").delete().eq("id", rollbackId);
+        }
         try {
           await syncSalePaymentFromVouchers(
             selectedSaleForPayment.id,
@@ -5155,14 +5218,6 @@ const POSDashboard = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {selectedSaleForPayment?.customer_id && currentOrganization?.id && (
-              <CustomerAccountSummaryStrip
-                organizationId={currentOrganization.id}
-                customerId={selectedSaleForPayment.customer_id}
-                customerName={selectedSaleForPayment.customer_name}
-                compact
-              />
-            )}
             <div className="space-y-1 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Customer:</span>
@@ -5194,55 +5249,86 @@ const POSDashboard = () => {
               <Input
                 type="number"
                 value={paidAmount}
-                onChange={(e) => setPaidAmount(e.target.value)}
+                onChange={(e) => {
+                  setPaidAmount(e.target.value);
+                  // Untouched mix follows the amount (all in cash until split).
+                  if (paymentMode === MIX_RECEIPT_METHOD && mixTouched.size === 0) {
+                    setMixAmounts({ ...EMPTY_MIX_RECEIPT_AMOUNTS, cash: e.target.value });
+                  }
+                }}
                 placeholder="Enter amount"
                 step="0.01"
               />
             </div>
-            <div>
-              <Label>Payment Date *</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start">
-                    {format(paymentDate, 'dd/MM/yyyy')}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={paymentDate}
-                    onSelect={(date) => date && setPaymentDate(date)}
-                  />
-                </PopoverContent>
-              </Popover>
+            {/* Date + mode share one row so the Mix boxes fit without growing the dialog. */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Payment Date *</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start">
+                      {format(paymentDate, 'dd/MM/yyyy')}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={paymentDate}
+                      onSelect={(date) => date && setPaymentDate(date)}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div>
+                <Label>Payment Mode *</Label>
+                <Select
+                  value={paymentMode}
+                  onValueChange={(value) => {
+                    setPaymentMode(value);
+                    if (value === MIX_RECEIPT_METHOD) {
+                      setMixAmounts({ ...EMPTY_MIX_RECEIPT_AMOUNTS, cash: paidAmount });
+                      setMixTouched(new Set());
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="upi">UPI</SelectItem>
+                    <SelectItem value="card">Card</SelectItem>
+                    <SelectItem value="cheque">Cheque</SelectItem>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    <SelectItem value={MIX_RECEIPT_METHOD}>Mix (Cash + UPI …)</SelectItem>
+                    {advanceBalance > 0 && (
+                      <SelectItem value="advance">
+                        Advance (₹{Math.round(advanceBalance).toLocaleString('en-IN')})
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div>
-              <Label>Payment Mode *</Label>
-              <Select value={paymentMode} onValueChange={setPaymentMode}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="upi">UPI</SelectItem>
-                  <SelectItem value="card">Card</SelectItem>
-                  <SelectItem value="cheque">Cheque</SelectItem>
-                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                  {advanceBalance > 0 && (
-                    <SelectItem value="advance">
-                      Advance (₹{Math.round(advanceBalance).toLocaleString('en-IN')})
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+            {paymentMode === MIX_RECEIPT_METHOD && (
+              <MixReceiptInputs
+                amounts={mixAmounts}
+                target={parseFloat(paidAmount) || 0}
+                onEdit={(method, raw) => {
+                  setMixAmounts((prev) =>
+                    applyMixAmountEdit(prev, mixTouched, method, raw, parseFloat(paidAmount) || 0),
+                  );
+                  setMixTouched((prev) => new Set(prev).add(method));
+                }}
+              />
+            )}
             <div>
               <Label>Narration</Label>
               <Textarea
                 value={paymentNarration}
                 onChange={(e) => setPaymentNarration(e.target.value)}
                 placeholder="Optional notes..."
-                rows={2}
+                rows={paymentMode === MIX_RECEIPT_METHOD ? 1 : 2}
               />
             </div>
           </div>
