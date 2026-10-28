@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { withStockTransferQty } from "@/lib/stockTransferStockReport";
 import {
   parseStockReportTotalsPayload,
   stockStatusToRpcArgs,
@@ -131,7 +132,8 @@ export async function fetchMobileStockReportPages(
     offset += pageSize;
   }
 
-  return all;
+  // Same as the web Stock Report: stock received from the owner's other shop counts in Opening.
+  return withStockTransferQty(orgId, all, { transferOut: false });
 }
 
 export async function fetchMobileStockFilteredTotals(

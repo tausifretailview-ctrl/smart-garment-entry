@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { summarizeTransferIn, summarizeTransferOut } from "./stockTransferStockReport";
+import {
+  sumTransferValue,
+  summarizeTransferIn,
+  summarizeTransferOut,
+  transferValueLines,
+  type TransferValueRow,
+} from "./stockTransferStockReport";
 import { isStockTransferEnabled } from "@/utils/stockTransfer";
 
 const t = (n: string, date: string, cancelled: string | null = null) => ({
@@ -39,5 +45,46 @@ describe("summarizeTransferOut", () => {
     expect(isStockTransferEnabled(undefined)).toBe(false);
     expect(isStockTransferEnabled({})).toBe(false);
     expect(isStockTransferEnabled({ stock_transfer_enabled: true })).toBe(true);
+  });
+});
+
+describe("transfer values for P&L", () => {
+  const row = (over: Partial<TransferValueRow>): TransferValueRow => ({
+    qty: 2,
+    unit_cost: 100,
+    line_value: 200,
+    to_variant_id: "v1",
+    stock_transfers: { transfer_date: "2026-10-05T10:00:00", accepted_at: "2026-10-07T10:00:00", cancelled_at: null },
+    ...over,
+  });
+
+  it("dates sent stock by send day and received stock by accept day, skipping cancelled and waiting lines", () => {
+    const rows = [
+      row({}),
+      row({ line_value: 0, qty: 3, unit_cost: 50 }),
+      row({ stock_transfers: { transfer_date: "2026-10-05T10:00:00", accepted_at: null, cancelled_at: "2026-10-06T10:00:00" } }),
+      row({ to_variant_id: null }),
+    ];
+    expect(transferValueLines(rows, "out")).toEqual([
+      { day: "2026-10-05", value: 200 },
+      { day: "2026-10-05", value: 150 },
+      { day: "2026-10-05", value: 200 },
+    ]);
+    expect(transferValueLines(rows, "in")).toEqual([
+      { day: "2026-10-07", value: 200 },
+      { day: "2026-10-07", value: 150 },
+    ]);
+  });
+
+  it("sums only lines after the start day and up to the end day", () => {
+    const lines = [
+      { day: "2026-09-30", value: 10 },
+      { day: "2026-10-01", value: 20 },
+      { day: "2026-10-31", value: 30 },
+      { day: "2026-11-01", value: 40 },
+    ];
+    expect(sumTransferValue(lines, "2026-09-30", "2026-10-31")).toBe(50);
+    expect(sumTransferValue(lines, "2026-10-31", null)).toBe(40);
+    expect(sumTransferValue(lines, null, null)).toBe(100);
   });
 });

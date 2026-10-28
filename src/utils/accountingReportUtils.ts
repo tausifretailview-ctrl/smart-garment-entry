@@ -4,6 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchOrganizationReceivablesSummary } from "@/utils/organizationReceivables";
 import { fetchAllSaleItems, fetchSaleReturnItemsByIds, fetchVariantsByIds } from "@/utils/fetchAllRows";
 import { format, parseISO, subDays } from "date-fns";
+import {
+  fetchTransferValueLines,
+  sumTransferValue,
+  type TransferValueLine,
+} from "@/lib/stockTransferStockReport";
 
 export interface TrialBalanceEntry {
   accountName: string;
@@ -28,6 +33,9 @@ export interface ProfitLossData {
   purchases: number;
   purchasesGST: number; // For reference only
   purchaseReturns: number;
+  /** Stock received from / sent to the owner's other shop in the period, at cost. */
+  transfersIn: number;
+  transfersOut: number;
   closingStock: number;
   cogs: number;
   
@@ -798,7 +806,8 @@ export async function calculateStockValue(organizationId: string): Promise<numbe
 // Calculate Stock Value at a specific date (for opening stock)
 export async function calculateStockValueAtDate(
   organizationId: string,
-  asOfDate: string
+  asOfDate: string,
+  transferLines?: { in: TransferValueLine[]; out: TransferValueLine[] },
 ): Promise<number> {
   // Get current stock value
   const currentStock = await calculateStockValue(organizationId);
@@ -919,16 +928,24 @@ export async function calculateStockValueAtDate(
     (sum, p) => sum + ((p.qty || 0) * (p.pur_price || 0)), 0
   ) || 0;
   
+  // Stock moved to / from the owner's other shop after the date (at cost).
+  const transfers = transferLines ?? (await fetchTransferValueLines(organizationId));
+  const transferInAfter = sumTransferValue(transfers.in, asOfDate, null);
+  const transferOutAfter = sumTransferValue(transfers.out, asOfDate, null);
+
   // Stock at date = Current stock 
   //                 - Purchases after date (added to stock)
   //                 + Sales after date (sold from stock, at cost)
   //                 - Sale Returns after date (returned to stock, at cost)
   //                 + Purchase Returns after date (returned to supplier)
+  //                 - Transfers in after date + Transfers out after date
   const stockAtDate = currentStock 
     - purchasesValueAfter 
     + salesCostAfter 
     - returnsValueAfter 
-    + purchaseReturnsValueAfter;
+    + purchaseReturnsValueAfter
+    - transferInAfter
+    + transferOutAfter;
   
   return Math.max(0, stockAtDate);
 }
@@ -959,16 +976,25 @@ export async function calculateProfitLoss(
 
   // COGS SECTION (GST-Exclusive)
   const openingStockDate = format(subDays(new Date(fromDate), 1), "yyyy-MM-dd");
-  const openingStock = await calculateStockValueAtDate(organizationId, openingStockDate);
+  const transferLines = await fetchTransferValueLines(organizationId);
+  const openingStock = await calculateStockValueAtDate(organizationId, openingStockDate, transferLines);
   
   // Closing Stock at period end (not live stock)
-  const closingStock = await calculateStockValueAtDate(organizationId, toDate);
+  const closingStock = await calculateStockValueAtDate(organizationId, toDate, transferLines);
+
+  // Stock moved between the owner's shops is not a sale or a purchase: it enters COGS like a
+  // purchase (received) or a purchase return (sent), so closing stock changes do not show as profit/loss.
+  const transfersIn = sumTransferValue(transferLines.in, openingStockDate, toDate);
+  const transfersOut = sumTransferValue(transferLines.out, openingStockDate, toDate);
   
   if (closingStock < 0) {
     warnings.push("Warning: Negative closing stock detected. Please verify stock entries.");
   }
 
-  const cogs = Math.max(0, openingStock + purchasesAmount - purchaseReturnsAmount - closingStock);
+  const cogs = Math.max(
+    0,
+    openingStock + purchasesAmount - purchaseReturnsAmount + transfersIn - transfersOut - closingStock,
+  );
   const grossProfit = netSales - cogs;
   const isGrossLoss = grossProfit < 0;
 
@@ -1024,6 +1050,8 @@ export async function calculateProfitLoss(
     purchases: purchasesAmount,
     purchasesGST,
     purchaseReturns: purchaseReturnsAmount,
+    transfersIn,
+    transfersOut,
     closingStock,
     cogs,
     grossProfit,

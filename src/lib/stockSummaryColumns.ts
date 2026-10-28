@@ -17,6 +17,7 @@ export const VARIANT_HIDEABLE = [
   "purReturn",
   "sales",
   "saleReturn",
+  "transferOut",
   "purPrice",
   "stockValue",
   "salePrice",

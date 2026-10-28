@@ -35,6 +35,21 @@ function fmtQty(n: number) {
   return Number(n).toLocaleString("en-IN", { maximumFractionDigits: 3 });
 }
 
+/**
+ * Net stock moved to / from the owner's other shop. Recomputed already includes it;
+ * it is the part the other columns do not explain.
+ */
+function transferNet(row: StockReconciliationRow) {
+  const fromBills =
+    Number(row.opening_qty) +
+    Number(row.purchases) -
+    Number(row.sales) -
+    Number(row.purchase_returns) +
+    Number(row.sale_returns) -
+    Number(row.pending_dc);
+  return Math.round((Number(row.recomputed_stock_qty) - fromBills) * 1000) / 1000;
+}
+
 function matchesSearch(row: StockReconciliationRow, q: string) {
   const lower = q.toLowerCase();
   return (
@@ -49,9 +64,9 @@ function BreakdownPanel({ row }: { row: StockReconciliationRow }) {
   return (
     <div className="rounded-lg border bg-muted/30 p-4 text-sm space-y-3">
       <p className="font-medium text-muted-foreground">
-        Formula: Opening + Purchases − Sales − Pur. Returns + Sale Returns − Pending DC = Recomputed
+        Formula: Opening + Purchases − Sales − Pur. Returns + Sale Returns − Pending DC ± Stock Transfer = Recomputed
       </p>
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 font-mono tabular-nums">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-3 font-mono tabular-nums">
         <div>
           <span className="text-xs text-muted-foreground block">Opening</span>
           {fmtQty(row.opening_qty)}
@@ -75,6 +90,13 @@ function BreakdownPanel({ row }: { row: StockReconciliationRow }) {
         <div>
           <span className="text-xs text-muted-foreground block">Pending DC</span>
           <span className="text-red-600 dark:text-red-400">−{fmtQty(row.pending_dc)}</span>
+        </div>
+        <div>
+          <span className="text-xs text-muted-foreground block">Stock Transfer</span>
+          <span className={transferNet(row) < 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}>
+            {transferNet(row) < 0 ? "−" : "+"}
+            {fmtQty(Math.abs(transferNet(row)))}
+          </span>
         </div>
         <div>
           <span className="text-xs text-muted-foreground block">Recomputed</span>
@@ -141,6 +163,7 @@ export default function StockReconciliationReport() {
       "Pur Returns",
       "Sale Returns",
       "Pending DC",
+      "Stock Transfer",
     ];
     const data = filtered.map((r) => [
       r.barcode ?? "",
@@ -156,6 +179,7 @@ export default function StockReconciliationReport() {
       r.purchase_returns,
       r.sale_returns,
       r.pending_dc,
+      transferNet(r),
     ]);
     const XLSX = await loadXlsx();
     const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
