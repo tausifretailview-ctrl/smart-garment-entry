@@ -35,6 +35,12 @@ describe("Stock Transfer dashboard + entry", () => {
     const page = read("src/pages/StockTransferEntry.tsx");
     expect(page).toContain("entryPageShellClass");
     expect(page).toContain("!text-[17px]");
+    // Sale bill style live search + print prompt after send
+    expect(page).toContain("searchTransferProducts");
+    expect(page).toContain("Print Transfer Note?");
+    const search = read("src/utils/stockTransferSearch.ts");
+    expect(search).toContain("buildProductTextOrFilter");
+    expect(search).toContain("scoreProductSearchMatch");
     const app = read("src/App.tsx");
     const start = app.indexOf('path="stock-transfer-entry"');
     expect(app.slice(start, start + 400)).toContain("<FullScreenLayout>");
