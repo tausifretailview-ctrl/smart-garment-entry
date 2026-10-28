@@ -1,19 +1,30 @@
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { format, startOfMonth } from "date-fns";
+import { format } from "date-fns";
 import { toast } from "sonner";
-import { ArrowLeftRight, Ban, Printer, ScanBarcode, Search, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowLeftRight,
+  Ban,
+  Barcode,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  Plus,
+  Printer,
+  RefreshCw,
+  Search,
+  X,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { BackToDashboard } from "@/components/BackToDashboard";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,36 +35,39 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { appPrint } from "@/utils/appPrint";
-import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
+import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import {
-  addScanToLines,
-  buildTransferNoteHtml,
-  setLineQty,
-  transferTotals,
-  type TransferLine,
-  type TransferScanVariant,
+  INSIGHTS_BODY_CELL,
+  INSIGHTS_BODY_CELL_NUM,
+  INSIGHTS_BODY_ROW,
+  InsightsKpiCard,
+  InsightsPanel,
+  InsightsStaticTh,
+  InsightsTableHeader,
+} from "@/components/business-insights/insightsLayout";
+import { cn } from "@/lib/utils";
+import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
+import { printStockTransferNote } from "@/utils/stockTransferPrint";
+import {
+  filterTransfers,
+  transferBarcodeItems,
+  transferDateRange,
+  transferKpis,
+  transferStatus,
+  transferTag,
+  type ReceivedVariantForLabel,
+  type TransferDatePreset,
+  type TransferDirectionFilter,
+  type TransferListRow,
+  type TransferStatusFilter,
+  type TransferTagTone,
 } from "@/utils/stockTransfer";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-interface SiblingShop {
-  id: string;
-  name: string;
-  slug: string;
-}
-
-interface TransferRow {
-  id: string;
-  transfer_number: string;
-  from_organization_id: string;
-  to_organization_id: string;
-  transfer_date: string;
-  total_qty: number;
-  total_value: number;
-  notes: string | null;
-  cancelled_at: string | null;
+interface TransferRow extends TransferListRow {
+  reject_reason?: string | null;
 }
 
 interface TransferItemRow {
@@ -68,173 +82,125 @@ interface TransferItemRow {
   created_in_destination: boolean;
 }
 
-const VARIANT_SELECT =
-  "id, barcode, size, color, stock_qty, pur_price, sale_price, products!inner(product_name, brand, product_type, deleted_at)";
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function toScanVariant(row: any): TransferScanVariant {
-  return {
-    id: row.id,
-    barcode: row.barcode,
-    size: row.size,
-    color: row.color,
-    stock_qty: Number(row.stock_qty) || 0,
-    pur_price: row.pur_price,
-    sale_price: row.sale_price,
-    product_name: row.products?.product_name ?? "",
-    brand: row.products?.brand ?? null,
-  };
-}
-
 const money = (n: number) =>
   `₹${(Number(n) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const TAG_CLASS: Record<TransferTagTone, string> = {
+  receive: "bg-amber-500 text-white border-amber-600 animate-pulse motion-reduce:animate-none",
+  waiting: "bg-sky-100 text-sky-800 border-sky-200",
+  received: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  rejected: "bg-red-100 text-red-700 border-red-200",
+  cancelled: "bg-slate-100 text-slate-600 border-slate-200",
+};
+
+const DATE_PRESETS: Array<{ id: TransferDatePreset; label: string }> = [
+  { id: "today", label: "Today" },
+  { id: "week", label: "This week" },
+  { id: "month", label: "This month" },
+  { id: "last_month", label: "Last month" },
+  { id: "year", label: "This year (FY)" },
+  { id: "all", label: "All dates" },
+  { id: "custom", label: "Custom dates" },
+];
+
+const STATUS_FILTERS: Array<{ id: TransferStatusFilter; label: string }> = [
+  { id: "all", label: "All status" },
+  { id: "receive", label: "Receive (to accept)" },
+  { id: "waiting", label: "Waiting (sent)" },
+  { id: "accepted", label: "Received" },
+  { id: "rejected", label: "Rejected" },
+  { id: "cancelled", label: "Cancelled" },
+];
+
+const TRANSFER_SELECT = "*";
+
 const StockTransfer = () => {
   const { currentOrganization, organizations, organizationRole } = useOrganization();
-  const orgId = currentOrganization?.id;
+  const { orgNavigate } = useOrgNavigation();
+  const orgId = currentOrganization?.id ?? "";
   const queryClient = useQueryClient();
   const isAdmin = organizationRole === "admin";
+  const canReceive = organizationRole === "admin" || organizationRole === "manager";
 
-  const [tab, setTab] = useState<"new" | "list">("new");
-  const [toOrgId, setToOrgId] = useState<string>("");
-  const [lines, setLines] = useState<TransferLine[]>([]);
-  const [notes, setNotes] = useState("");
-  const [scan, setScan] = useState("");
-  const [matches, setMatches] = useState<TransferScanVariant[]>([]);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const scanRef = useRef<HTMLInputElement>(null);
-
-  const [direction, setDirection] = useState<"all" | "out" | "in">("all");
-  const [fromDate, setFromDate] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
-  const [toDate, setToDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [search, setSearch] = useState("");
+  const [datePreset, setDatePreset] = useState<TransferDatePreset>("month");
+  const [customFrom, setCustomFrom] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [customTo, setCustomTo] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [status, setStatus] = useState<TransferStatusFilter>("all");
+  const [direction, setDirection] = useState<TransferDirectionFilter>("all");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [acceptTarget, setAcceptTarget] = useState<TransferRow | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<TransferRow | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
   const [cancelTarget, setCancelTarget] = useState<TransferRow | null>(null);
+  const [labelsLoading, setLabelsLoading] = useState<string | null>(null);
 
-  const { data: siblings = [], isLoading: siblingsLoading, isError: siblingsError } = useQuery({
-    queryKey: ["sibling-shops", orgId],
+  const range = useMemo(
+    () => transferDateRange(datePreset, new Date(), { from: customFrom, to: customTo }),
+    [datePreset, customFrom, customTo],
+  );
+
+  const { data: shopNames = {} } = useQuery({
+    queryKey: ["stock-transfer-shop-names", orgId],
     enabled: !!orgId,
-    queryFn: async (): Promise<SiblingShop[]> => {
-      const { data, error } = await db.rpc("get_sibling_shops", { p_organization_id: orgId });
-      if (error) throw error;
-      return (data || []) as SiblingShop[];
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<Record<string, string>> => {
+      const { data, error } = await db.rpc("get_stock_transfer_shop_names", { p_organization_id: orgId });
+      if (error) return {};
+      const out: Record<string, string> = {};
+      for (const r of (data || []) as Array<{ id: string; name: string }>) out[r.id] = r.name;
+      return out;
     },
   });
 
   const shopName = (id: string) =>
     id === orgId
       ? currentOrganization?.name ?? "This shop"
-      : siblings.find((s) => s.id === id)?.name ??
-        organizations.find((o) => o.id === id)?.name ??
-        "Other shop";
+      : shopNames[id] ?? organizations.find((o) => o.id === id)?.name ?? "Other shop";
 
-  const totals = useMemo(() => transferTotals(lines), [lines]);
-
-  const addVariant = (v: TransferScanVariant) => {
-    const r = addScanToLines(lines, v);
-    if (!r.ok) {
-      toast.error((r as { reason: string }).reason);
-      return;
-    }
-    setLines(r.lines);
-    setMatches([]);
-    setScan("");
-    scanRef.current?.focus();
-  };
-
-  const handleScan = async () => {
-    const code = scan.trim();
-    if (!code || !orgId) return;
-    const { data, error } = await db
-      .from("product_variants")
-      .select(VARIANT_SELECT)
-      .eq("organization_id", orgId)
-      .eq("barcode", code)
-      .is("deleted_at", null)
-      .is("products.deleted_at", null)
-      .limit(10);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let rows = ((data || []) as any[]).filter((r) => !["service", "combo"].includes(r.products?.product_type));
-    if (rows.length === 0 && code.length >= 2) {
-      const { data: byName, error: nameErr } = await db
-        .from("product_variants")
-        .select(VARIANT_SELECT)
-        .eq("organization_id", orgId)
-        .is("deleted_at", null)
-        .is("products.deleted_at", null)
-        .ilike("products.product_name", `%${code}%`)
-        .gt("stock_qty", 0)
-        .limit(30);
-      if (nameErr) {
-        toast.error(nameErr.message);
-        return;
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      rows = ((byName || []) as any[]).filter((r) => !["service", "combo"].includes(r.products?.product_type));
-    }
-    if (rows.length === 0) {
-      toast.error(`No item found for "${code}"`);
-      setMatches([]);
-      return;
-    }
-    if (rows.length === 1) {
-      addVariant(toScanVariant(rows[0]));
-      return;
-    }
-    setMatches(rows.map(toScanVariant));
-  };
-
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await db.rpc("create_stock_transfer", {
-        p_from_organization_id: orgId,
-        p_to_organization_id: toOrgId,
-        p_items: lines.map((l) => ({ variant_id: l.id, qty: l.qty })),
-        p_notes: notes || null,
-      });
-      if (error) throw error;
-      return data as { transfer_id: string; transfer_number: string; total_qty: number; created_products: number };
-    },
-    onSuccess: (res) => {
-      const created = res.created_products ? `, ${res.created_products} new item(s) created there` : "";
-      toast.success(`Transfer ${res.transfer_number} saved: ${res.total_qty} pcs sent to ${shopName(toOrgId)}${created}`);
-      setLines([]);
-      setNotes("");
-      setConfirmOpen(false);
-      void queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
-      invalidateStatusBarSummary(queryClient, orgId);
-      void printTransfer(res.transfer_id);
-    },
-    onError: (e: Error) => {
-      setConfirmOpen(false);
-      toast.error(e.message || "Transfer failed");
-    },
-  });
-
-  const { data: transfers = [], isLoading: transfersLoading } = useQuery({
-    queryKey: ["stock-transfers", orgId, direction, fromDate, toDate],
-    enabled: !!orgId && tab === "list",
+  const {
+    data: transfers = [],
+    isLoading,
+    isError,
+    isFetching,
+    refetch,
+  } = useQuery({
+    queryKey: ["stock-transfers", orgId, range?.from ?? "", range?.to ?? ""],
+    enabled: !!orgId,
     queryFn: async (): Promise<TransferRow[]> => {
       let q = db
         .from("stock_transfers")
-        .select("id, transfer_number, from_organization_id, to_organization_id, transfer_date, total_qty, total_value, notes, cancelled_at")
-        .gte("transfer_date", `${fromDate}T00:00:00`)
-        .lte("transfer_date", `${toDate}T23:59:59.999`)
+        .select(TRANSFER_SELECT)
+        .or(`from_organization_id.eq.${orgId},to_organization_id.eq.${orgId}`)
         .order("transfer_date", { ascending: false })
-        .limit(500);
-      if (direction === "out") q = q.eq("from_organization_id", orgId);
-      else if (direction === "in") q = q.eq("to_organization_id", orgId);
-      else q = q.or(`from_organization_id.eq.${orgId},to_organization_id.eq.${orgId}`);
+        .limit(1000);
+      if (range) q = q.gte("transfer_date", `${range.from}T00:00:00`).lte("transfer_date", `${range.to}T23:59:59.999`);
       const { data, error } = await q;
       if (error) throw error;
-      return (data || []) as TransferRow[];
+      const rows = (data || []) as TransferRow[];
+
+      // Transfers waiting for this shop always show, whatever the date filter.
+      const { data: waiting } = await db
+        .from("stock_transfers")
+        .select(TRANSFER_SELECT)
+        .eq("to_organization_id", orgId)
+        .eq("status", "pending")
+        .order("transfer_date", { ascending: false })
+        .limit(200);
+      const seen = new Set(rows.map((r) => r.id));
+      const extra = ((waiting || []) as TransferRow[]).filter((r) => !seen.has(r.id));
+      return [...extra, ...rows];
     },
   });
 
-  const { data: expandedItems = [] } = useQuery({
+  const shown = useMemo(
+    () => filterTransfers(transfers, { orgId, status, direction, search, shopName }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [transfers, orgId, status, direction, search, shopNames, organizations],
+  );
+  const kpis = useMemo(() => transferKpis(transfers, orgId), [transfers, orgId]);
+
+  const { data: expandedItems = [], isLoading: itemsLoading } = useQuery({
     queryKey: ["stock-transfer-items", expanded],
     enabled: !!expanded,
     queryFn: async (): Promise<TransferItemRow[]> => {
@@ -248,46 +214,46 @@ const StockTransfer = () => {
     },
   });
 
-  const listTotals = useMemo(() => {
-    let outQty = 0, outValue = 0, inQty = 0, inValue = 0;
-    for (const t of transfers) {
-      if (t.cancelled_at) continue;
-      if (t.from_organization_id === orgId) {
-        outQty += Number(t.total_qty) || 0;
-        outValue += Number(t.total_value) || 0;
-      } else {
-        inQty += Number(t.total_qty) || 0;
-        inValue += Number(t.total_value) || 0;
-      }
-    }
-    return { outQty, outValue, inQty, inValue };
-  }, [transfers, orgId]);
+  const afterChange = () => {
+    void queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
+    void queryClient.invalidateQueries({ queryKey: ["stock-transfer-items"] });
+    invalidateStatusBarSummary(queryClient, orgId);
+  };
 
-  async function printTransfer(transferId: string) {
-    const [{ data: t, error: tErr }, { data: items, error: iErr }] = await Promise.all([
-      db.from("stock_transfers").select("*").eq("id", transferId).single(),
-      db
-        .from("stock_transfer_items")
-        .select("product_name, barcode, size, color, qty, unit_cost, line_value")
-        .eq("transfer_id", transferId)
-        .order("created_at"),
-    ]);
-    if (tErr || iErr || !t) {
-      toast.error("Could not load the transfer for printing");
-      return;
-    }
-    const html = buildTransferNoteHtml({
-      transfer_number: t.transfer_number,
-      transfer_date: t.transfer_date,
-      from_name: shopName(t.from_organization_id),
-      to_name: shopName(t.to_organization_id),
-      notes: t.notes,
-      cancelled: !!t.cancelled_at,
-      items: items || [],
-    });
-    const res = await appPrint({ type: "report", html, silent: false });
-    if (!res.success && res.error) toast.error(res.error);
-  }
+  const acceptMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await db.rpc("accept_stock_transfer", { p_transfer_id: id });
+      if (error) throw error;
+      return data as { transfer_number: string; total_qty: number; created_products: number };
+    },
+    onSuccess: (res) => {
+      const created = res.created_products ? ` ${res.created_products} new item(s) were added to your products.` : "";
+      toast.success(`Transfer ${res.transfer_number} received: ${res.total_qty} pcs added to stock.${created}`);
+      setAcceptTarget(null);
+      afterChange();
+    },
+    onError: (e: Error) => {
+      setAcceptTarget(null);
+      toast.error(e.message || "Accept failed");
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const { error } = await db.rpc("reject_stock_transfer", { p_transfer_id: id, p_reason: reason || null });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Transfer rejected. The stock goes back to the sending shop.");
+      setRejectTarget(null);
+      setRejectReason("");
+      afterChange();
+    },
+    onError: (e: Error) => {
+      setRejectTarget(null);
+      toast.error(e.message || "Reject failed");
+    },
+  });
 
   const cancelMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -297,8 +263,7 @@ const StockTransfer = () => {
     onSuccess: () => {
       toast.success("Transfer cancelled and stock moved back");
       setCancelTarget(null);
-      void queryClient.invalidateQueries({ queryKey: ["stock-transfers"] });
-      invalidateStatusBarSummary(queryClient, orgId);
+      afterChange();
     },
     onError: (e: Error) => {
       setCancelTarget(null);
@@ -306,344 +271,403 @@ const StockTransfer = () => {
     },
   });
 
+  async function printLabels(t: TransferRow) {
+    setLabelsLoading(t.id);
+    try {
+      const { data: lines, error } = await db
+        .from("stock_transfer_items")
+        .select("to_variant_id, qty")
+        .eq("transfer_id", t.id)
+        .order("created_at");
+      if (error) throw error;
+      const ids = [...new Set(((lines || []) as Array<{ to_variant_id: string | null }>).map((l) => l.to_variant_id).filter(Boolean))];
+      if (ids.length === 0) {
+        toast.error("Accept the transfer first, then print barcodes");
+        return;
+      }
+      const { data: variants, error: vErr } = await db
+        .from("product_variants")
+        .select("id, barcode, size, color, mrp, sale_price, pur_price, products(product_name, brand, category, style, color)")
+        .in("id", ids);
+      if (vErr) throw vErr;
+      const purchaseItems = transferBarcodeItems(
+        t.transfer_number,
+        (lines || []) as Array<{ to_variant_id: string | null; qty: number }>,
+        (variants || []) as ReceivedVariantForLabel[],
+      );
+      if (purchaseItems.length === 0) {
+        toast.error("No items of this transfer were found in your shop");
+        return;
+      }
+      orgNavigate("/barcode-printing", { state: { purchaseItems } });
+    } catch (e) {
+      toast.error((e as Error).message || "Could not load items for barcode printing");
+    } finally {
+      setLabelsLoading(null);
+    }
+  }
+
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      <BackToDashboard />
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <ArrowLeftRight className="h-6 w-6" />
-          Stock Transfer
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Send stock to your other shop. Stock leaves this shop and is added there at once.
-        </p>
-      </div>
+    <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
+        <div className="no-print flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <Button variant="outline" size="sm" className="h-9 px-3 text-sm shrink-0" onClick={() => orgNavigate("/")}>
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Dashboard
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+                <ArrowLeftRight className="h-5 w-5 shrink-0" />
+                Stock Transfer
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1 truncate">
+                Send stock to your other shop. The other shop accepts it here before it is added to their stock.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="outline" size="sm" className="h-9" onClick={() => void refetch()} disabled={isFetching}>
+              <RefreshCw className={cn("h-4 w-4 mr-1", isFetching && "animate-spin")} />
+              Refresh
+            </Button>
+            {isAdmin && (
+              <Button size="sm" className="h-9 bg-blue-600 hover:bg-blue-700" onClick={() => orgNavigate("/stock-transfer-entry")}>
+                <Plus className="h-4 w-4 mr-1" />
+                New Transfer
+              </Button>
+            )}
+          </div>
+        </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as "new" | "list")}>
-        <TabsList>
-          <TabsTrigger value="new">New Transfer</TabsTrigger>
-          <TabsTrigger value="list">Transfer Report</TabsTrigger>
-        </TabsList>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 w-full shrink-0">
+          <InsightsKpiCard
+            label="To Receive"
+            value={kpis.toReceive}
+            tone={kpis.toReceive > 0 ? "attention" : "neutral"}
+            sub={kpis.toReceive > 0 ? `${kpis.toReceiveQty} pcs waiting for you to accept` : "Nothing waiting"}
+          />
+          <InsightsKpiCard
+            label="Waiting at other shop"
+            value={kpis.waiting}
+            tone="neutral"
+            sub="Sent, not yet accepted"
+          />
+          <InsightsKpiCard label="Sent" value={kpis.sentQty} sub={`${money(kpis.sentValue)} at cost`} />
+          <InsightsKpiCard
+            label="Received"
+            value={kpis.receivedQty}
+            tone={kpis.receivedQty > 0 ? "positive" : "neutral"}
+            sub={`${money(kpis.receivedValue)} at cost`}
+          />
+        </div>
 
-        <TabsContent value="new" className="space-y-4">
-          {!isAdmin ? (
-            <Card className="p-4 text-sm text-muted-foreground">Only the shop owner/admin can transfer stock.</Card>
-          ) : siblingsError ? (
-            <Card className="p-4 text-sm text-muted-foreground">
-              Stock Transfer is not set up on the database yet. Run the stock transfer SQL once, then reload this page.
-            </Card>
-          ) : !siblingsLoading && siblings.length === 0 ? (
-            <Card className="p-4 text-sm text-muted-foreground">
-              No other shop found for this login. In the other shop, open Organization Management, use Add Existing User with
-              this login's email as Admin, then reload this page and pick the shop under "To shop".
-            </Card>
-          ) : (
-            <>
-              <Card className="p-4 grid gap-3 md:grid-cols-[1fr_2fr]">
-                <div className="space-y-1">
-                  <div className="text-xs font-medium text-muted-foreground">From</div>
-                  <div className="font-semibold">{currentOrganization?.name}</div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-xs font-medium text-muted-foreground">To shop</div>
-                  <Select value={toOrgId} onValueChange={setToOrgId}>
-                    <SelectTrigger className="max-w-md">
-                      <SelectValue placeholder={siblingsLoading ? "Loading…" : "Choose shop"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {siblings.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </Card>
-
-              <Card className="p-4 space-y-3">
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <ScanBarcode className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      ref={scanRef}
-                      autoFocus
-                      className="pl-8"
-                      placeholder="Scan barcode or type item name, then Enter"
-                      value={scan}
-                      onChange={(e) => setScan(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          void handleScan();
-                        }
-                      }}
-                    />
-                  </div>
-                  <Button variant="outline" onClick={() => void handleScan()}>
-                    <Search className="h-4 w-4 mr-1" /> Find
-                  </Button>
-                </div>
-
-                {matches.length > 0 && (
-                  <div className="border rounded-md divide-y max-h-64 overflow-auto">
-                    {matches.map((m) => (
-                      <button
-                        key={m.id}
-                        type="button"
-                        className="w-full text-left px-3 py-2 hover:bg-muted flex justify-between gap-2 text-sm"
-                        onClick={() => addVariant(m)}
-                      >
-                        <span>
-                          <span className="font-medium">{m.product_name}</span>{" "}
-                          <span className="text-muted-foreground">
-                            {[m.size, m.color].filter(Boolean).join(" / ")} · {m.barcode || "no barcode"}
-                          </span>
-                        </span>
-                        <span className="text-muted-foreground whitespace-nowrap">Stock {m.stock_qty}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                <div className="border rounded-md overflow-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Item</TableHead>
-                        <TableHead className="hidden md:table-cell">Barcode</TableHead>
-                        <TableHead>Size / Colour</TableHead>
-                        <TableHead className="text-right">Stock</TableHead>
-                        <TableHead className="text-right w-24">Qty</TableHead>
-                        <TableHead className="text-right hidden md:table-cell">Cost</TableHead>
-                        <TableHead className="text-right">Value</TableHead>
-                        <TableHead className="w-10" />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {lines.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                            Scan items to add them here
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        lines.map((l) => (
-                          <TableRow key={l.id}>
-                            <TableCell className="font-medium">{l.product_name}</TableCell>
-                            <TableCell className="hidden md:table-cell font-mono text-xs">{l.barcode || "-"}</TableCell>
-                            <TableCell>{[l.size, l.color].filter(Boolean).join(" / ") || "-"}</TableCell>
-                            <TableCell className="text-right">{l.stock_qty}</TableCell>
-                            <TableCell className="text-right">
-                              <Input
-                                type="number"
-                                min={1}
-                                max={l.stock_qty}
-                                className="h-8 w-20 ml-auto text-right"
-                                value={l.qty}
-                                onChange={(e) => setLines(setLineQty(lines, l.id, Number(e.target.value)))}
-                              />
-                            </TableCell>
-                            <TableCell className="text-right hidden md:table-cell">{money(Number(l.pur_price) || 0)}</TableCell>
-                            <TableCell className="text-right">{money(l.qty * (Number(l.pur_price) || 0))}</TableCell>
-                            <TableCell>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => setLines(lines.filter((x) => x.id !== l.id))}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                <Textarea placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
-
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="text-sm">
-                    <span className="font-semibold">{lines.length}</span> items ·{" "}
-                    <span className="font-semibold">{totals.qty}</span> pcs · Value at cost{" "}
-                    <span className="font-semibold">{money(totals.value)}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" disabled={lines.length === 0} onClick={() => setLines([])}>
-                      Clear
-                    </Button>
-                    <Button
-                      disabled={lines.length === 0 || !toOrgId || saveMutation.isPending}
-                      onClick={() => setConfirmOpen(true)}
-                    >
-                      <ArrowLeftRight className="h-4 w-4 mr-1" />
-                      {saveMutation.isPending ? "Saving…" : "Save Transfer"}
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            </>
-          )}
-        </TabsContent>
-
-        <TabsContent value="list" className="space-y-4">
-          <Card className="p-4 flex flex-wrap gap-3 items-end">
-            <div className="space-y-1">
-              <div className="text-xs text-muted-foreground">Show</div>
-              <Select value={direction} onValueChange={(v) => setDirection(v as "all" | "out" | "in")}>
-                <SelectTrigger className="w-40">
+        <InsightsPanel
+          className="flex-1 min-h-0"
+          title="Transfers"
+          subtitle={isLoading ? "Loading…" : `${shown.length} shown`}
+          toolbar={
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-[12rem] flex-1 sm:max-w-xs">
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <Input
+                  placeholder="Search transfer no, shop, notes…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="h-9 pl-8 text-sm border-slate-200 bg-white no-uppercase"
+                />
+              </div>
+              <Select value={datePreset} onValueChange={(v) => setDatePreset(v as TransferDatePreset)}>
+                <SelectTrigger className="h-9 w-[150px] text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All transfers</SelectItem>
-                  <SelectItem value="out">Transfer Out</SelectItem>
-                  <SelectItem value="in">Transfer In</SelectItem>
+                  {DATE_PRESETS.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {datePreset === "custom" && (
+                <>
+                  <Input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="h-9 w-[150px] text-sm" />
+                  <Input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="h-9 w-[150px] text-sm" />
+                </>
+              )}
+              <Select value={status} onValueChange={(v) => setStatus(v as TransferStatusFilter)}>
+                <SelectTrigger className="h-9 w-[180px] text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_FILTERS.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={direction} onValueChange={(v) => setDirection(v as TransferDirectionFilter)}>
+                <SelectTrigger className="h-9 w-[140px] text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Sent &amp; received</SelectItem>
+                  <SelectItem value="out">Sent (out)</SelectItem>
+                  <SelectItem value="in">Received (in)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1">
-              <div className="text-xs text-muted-foreground">From</div>
-              <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-40" />
+          }
+        >
+          {isLoading ? (
+            <ListTableSkeleton rows={8} columns={9} className="py-2" />
+          ) : isError ? (
+            <div className="text-center py-10 text-sm text-muted-foreground">
+              Could not load transfers. If Stock Transfer is new for this shop, run the stock transfer SQL once, then reload.
             </div>
-            <div className="space-y-1">
-              <div className="text-xs text-muted-foreground">To</div>
-              <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-40" />
+          ) : shown.length === 0 ? (
+            <div className="text-center py-10">
+              <ArrowLeftRight className="h-10 w-10 mx-auto text-slate-300 mb-3" />
+              <h3 className="text-sm font-bold text-slate-800 mb-1">No transfers</h3>
+              <p className="text-xs text-muted-foreground">Change the date or status filter, or send a new transfer.</p>
             </div>
-          </Card>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Card className="p-3">
-              <div className="text-xs text-muted-foreground">Transfer Out</div>
-              <div className="text-lg font-bold text-orange-600">
-                {listTotals.outQty} pcs · {money(listTotals.outValue)}
-              </div>
-            </Card>
-            <Card className="p-3">
-              <div className="text-xs text-muted-foreground">Transfer In</div>
-              <div className="text-lg font-bold text-green-600">
-                {listTotals.inQty} pcs · {money(listTotals.inValue)}
-              </div>
-            </Card>
-          </div>
-
-          <div className="border rounded-md overflow-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-8" />
-                  <TableHead>Transfer No</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Other shop</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right">Value</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
+          ) : (
+            <Table className="w-full min-w-[1050px]">
+              <InsightsTableHeader>
+                <InsightsStaticTh label="" className="w-10" />
+                <InsightsStaticTh label="Transfer No" />
+                <InsightsStaticTh label="Date" />
+                <InsightsStaticTh label="Type" />
+                <InsightsStaticTh label="From shop" />
+                <InsightsStaticTh label="To shop" />
+                <InsightsStaticTh label="Qty" className="text-right" />
+                <InsightsStaticTh label="Value" className="text-right" />
+                <InsightsStaticTh label="Status" />
+                <InsightsStaticTh label="Actions" className="text-right" />
+              </InsightsTableHeader>
               <TableBody>
-                {transfersLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading…</TableCell>
-                  </TableRow>
-                ) : transfers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No transfers in this period</TableCell>
-                  </TableRow>
-                ) : (
-                  transfers.flatMap((t) => {
-                    const isOut = t.from_organization_id === orgId;
-                    const open = expanded === t.id;
-                    const row = (
-                      <TableRow key={t.id} className={t.cancelled_at ? "opacity-60" : ""}>
-                        <TableCell>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setExpanded(open ? null : t.id)}>
+                {shown.map((t) => {
+                  const incoming = t.to_organization_id === orgId;
+                  const st = transferStatus(t);
+                  const tag = transferTag(st, incoming);
+                  const open = expanded === t.id;
+                  return (
+                    <Fragment key={t.id}>
+                      <TableRow
+                        className={cn(
+                          INSIGHTS_BODY_ROW,
+                          (st === "cancelled" || st === "rejected") && "opacity-60",
+                          st === "pending" && incoming && "bg-amber-50 even:bg-amber-50",
+                        )}
+                      >
+                        <TableCell className={INSIGHTS_BODY_CELL}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setExpanded(open ? null : t.id)}
+                            title="Show items"
+                          >
                             {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           </Button>
                         </TableCell>
-                        <TableCell className="font-mono">{t.transfer_number}</TableCell>
-                        <TableCell>{format(new Date(t.transfer_date), "dd MMM yyyy, hh:mm a")}</TableCell>
-                        <TableCell>
-                          {t.cancelled_at ? (
-                            <Badge variant="outline">Cancelled</Badge>
-                          ) : isOut ? (
-                            <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">Out</Badge>
-                          ) : (
-                            <Badge className="bg-green-100 text-green-700 hover:bg-green-100">In</Badge>
-                          )}
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "font-mono font-bold text-blue-700 whitespace-nowrap")}>
+                          {t.transfer_number}
                         </TableCell>
-                        <TableCell>{shopName(isOut ? t.to_organization_id : t.from_organization_id)}</TableCell>
-                        <TableCell className="text-right">{t.total_qty}</TableCell>
-                        <TableCell className="text-right">{money(t.total_value)}</TableCell>
-                        <TableCell className="text-right whitespace-nowrap">
-                          <Button variant="ghost" size="sm" onClick={() => void printTransfer(t.id)}>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "whitespace-nowrap")}>
+                          <div className="font-semibold">{format(new Date(t.transfer_date), "dd MMM yyyy")}</div>
+                          <div className="text-xs text-muted-foreground">{format(new Date(t.transfer_date), "hh:mm a")}</div>
+                        </TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL}>
+                          <span
+                            className={cn(
+                              "inline-block rounded px-2 py-0.5 text-xs font-bold",
+                              incoming ? "bg-emerald-50 text-emerald-700" : "bg-orange-50 text-orange-700",
+                            )}
+                          >
+                            {incoming ? "IN" : "OUT"}
+                          </span>
+                        </TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "font-semibold")}>{shopName(t.from_organization_id)}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "font-semibold")}>{shopName(t.to_organization_id)}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-bold")}>{t.total_qty}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{money(t.total_value)}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL}>
+                          <span
+                            className={cn(
+                              "inline-block rounded-full border px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide",
+                              TAG_CLASS[tag.tone],
+                            )}
+                          >
+                            {tag.label}
+                          </span>
+                        </TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "text-right whitespace-nowrap")}>
+                          {st === "pending" && incoming && canReceive && (
+                            <>
+                              <Button
+                                size="sm"
+                                className="h-8 bg-emerald-600 hover:bg-emerald-700 mr-1"
+                                onClick={() => setAcceptTarget(t)}
+                              >
+                                <Check className="h-4 w-4 mr-1" />
+                                Accept
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-red-700 border-red-200 hover:bg-red-50 mr-1"
+                                onClick={() => setRejectTarget(t)}
+                              >
+                                <X className="h-4 w-4 mr-1" />
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                          {st === "accepted" && incoming && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 mr-1"
+                              onClick={() => void printLabels(t)}
+                              disabled={labelsLoading === t.id}
+                              title="Print barcode labels with this shop's name and label design"
+                            >
+                              {labelsLoading === t.id ? (
+                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                              ) : (
+                                <Barcode className="h-4 w-4 mr-1" />
+                              )}
+                              Barcode
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8"
+                            title="Print transfer note"
+                            onClick={() => void printStockTransferNote(t.id, shopName)}
+                          >
                             <Printer className="h-4 w-4" />
                           </Button>
-                          {isAdmin && !t.cancelled_at && (
-                            <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setCancelTarget(t)}>
+                          {isAdmin && !incoming && (st === "pending" || st === "accepted") && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 text-destructive"
+                              title="Cancel transfer"
+                              onClick={() => setCancelTarget(t)}
+                            >
                               <Ban className="h-4 w-4" />
                             </Button>
                           )}
                         </TableCell>
                       </TableRow>
-                    );
-                    if (!open) return [row];
-                    return [
-                      row,
-                      <TableRow key={`${t.id}-items`} className="bg-muted/40">
-                        <TableCell />
-                        <TableCell colSpan={7}>
-                          <div className="space-y-1 text-sm">
-                            {expandedItems.map((i) => (
-                              <div key={i.id} className="flex justify-between gap-3">
-                                <span>
-                                  {i.product_name}{" "}
-                                  <span className="text-muted-foreground">
-                                    {[i.size, i.color].filter(Boolean).join(" / ")} · {i.barcode || "-"}
-                                  </span>
-                                  {i.created_in_destination && (
-                                    <Badge variant="outline" className="ml-2 text-[10px]">new item created</Badge>
-                                  )}
-                                </span>
-                                <span className="whitespace-nowrap">
-                                  {i.qty} × {money(i.unit_cost)} = {money(i.line_value)}
-                                </span>
+                      {open && (
+                        <TableRow className="bg-slate-50 hover:bg-slate-50">
+                          <TableCell />
+                          <TableCell colSpan={9} className="py-2 pr-4">
+                            {itemsLoading ? (
+                              <div className="text-sm text-muted-foreground">Loading items…</div>
+                            ) : (
+                              <div className="space-y-1">
+                                {expandedItems.map((i) => (
+                                  <div key={i.id} className="flex justify-between gap-3 text-[15px]">
+                                    <span>
+                                      <span className="font-bold">{i.product_name}</span>{" "}
+                                      <span className="text-muted-foreground text-sm">
+                                        {[i.size, i.color].filter(Boolean).join(" / ")} · {i.barcode || "-"}
+                                      </span>
+                                      {i.created_in_destination && (
+                                        <span className="ml-2 rounded border px-1.5 text-[10px] font-semibold text-slate-600">
+                                          new item created
+                                        </span>
+                                      )}
+                                    </span>
+                                    <span className="whitespace-nowrap tabular-nums">
+                                      {i.qty} × {money(i.unit_cost)} = {money(i.line_value)}
+                                    </span>
+                                  </div>
+                                ))}
+                                {t.notes && <div className="text-sm text-muted-foreground">Notes: {t.notes}</div>}
+                                {t.reject_reason && (
+                                  <div className="text-sm text-red-700">Reject reason: {t.reject_reason}</div>
+                                )}
                               </div>
-                            ))}
-                            {t.notes && <div className="text-muted-foreground">Notes: {t.notes}</div>}
-                          </div>
-                        </TableCell>
-                      </TableRow>,
-                    ];
-                  })
-                )}
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </Fragment>
+                  );
+                })}
               </TableBody>
             </Table>
-          </div>
-        </TabsContent>
-      </Tabs>
+          )}
+        </InsightsPanel>
+      </div>
 
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+      <AlertDialog open={!!acceptTarget} onOpenChange={(o) => !o && setAcceptTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Send {totals.qty} pcs to {shopName(toOrgId)}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Accept transfer {acceptTarget?.transfer_number} ({acceptTarget?.total_qty} pcs)?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Stock will be reduced here and added in {shopName(toOrgId)} right away. Items that shop does not have yet
-              will be created there with the same barcode.
+              The stock is added to {currentOrganization?.name}. Items this shop does not have yet are created with the
+              same barcode. Check the goods against the transfer note before accepting.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Back</AlertDialogCancel>
             <AlertDialogAction
-              disabled={saveMutation.isPending}
+              disabled={acceptMutation.isPending}
               onClick={(e) => {
                 e.preventDefault();
-                saveMutation.mutate();
+                if (acceptTarget) acceptMutation.mutate(acceptTarget.id);
               }}
             >
-              Send stock
+              {acceptMutation.isPending ? "Accepting…" : "Accept stock"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!rejectTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setRejectTarget(null);
+            setRejectReason("");
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject transfer {rejectTarget?.transfer_number}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Nothing is added here, and the stock goes back to {rejectTarget ? shopName(rejectTarget.from_organization_id) : "the sending shop"}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Textarea
+            placeholder="Reason (optional)"
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            rows={2}
+            className="no-uppercase"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Back</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={rejectMutation.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                if (rejectTarget) rejectMutation.mutate({ id: rejectTarget.id, reason: rejectReason });
+              }}
+            >
+              Reject transfer
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -654,7 +678,9 @@ const StockTransfer = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel transfer {cancelTarget?.transfer_number}?</AlertDialogTitle>
             <AlertDialogDescription>
-              The stock goes back to the sending shop. This only works while the receiving shop still has those pieces.
+              {cancelTarget && transferStatus(cancelTarget) === "pending"
+                ? "The other shop has not accepted it yet. The stock comes back to this shop."
+                : "The stock goes back to this shop. This only works while the receiving shop still has those pieces."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

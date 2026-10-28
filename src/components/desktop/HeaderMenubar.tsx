@@ -93,12 +93,12 @@ export function HeaderMenubar({
     can("purchase_bill") ||
     can("purchase_dashboard") ||
     can("purchase_return") ||
-    can("purchase_order_dashboard");
+    can("purchase_order_dashboard") ||
+    can("stock_transfer");
 
   const showTools =
     can("barcode_printing") ||
     can("stock_adjustment") ||
-    can("stock_transfer") ||
     can("stock_settlement") ||
     can("bulk_product_update") ||
     can("tally_export") ||
@@ -367,6 +367,11 @@ export function HeaderMenubar({
                 Purchase Returns
               </MenubarItem>
             )}
+            {can("stock_transfer") && (
+              <MenubarItem onClick={() => orgNavigate("/stock-transfer")}>
+                Stock Transfer
+              </MenubarItem>
+            )}
           </MenubarContent>
         </MenubarMenu>
       )}
@@ -471,11 +476,6 @@ export function HeaderMenubar({
                 onClick={() => orgNavigate("/stock-adjustment")}
               >
                 Stock Adjustment
-              </MenubarItem>
-            )}
-            {can("stock_transfer") && (
-              <MenubarItem onClick={() => orgNavigate("/stock-transfer")}>
-                Stock Transfer
               </MenubarItem>
             )}
             {can("stock_settlement") && (
