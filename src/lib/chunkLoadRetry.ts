@@ -639,10 +639,23 @@ export async function importWithRetry<T>(
   throw lastError;
 }
 
+/**
+ * Download a route chunk the user just opened. React only calls a lazy() loader
+ * when the route renders, i.e. the user is on that page. Outlet pages (Settings >
+ * Organization, Stock Transfer, …) are not tab-cache panes, so without this the
+ * post-login idle warm (purchase-entry, products, settings, …) kept downloading
+ * beside the page the user was waiting for — and right after a publish every one
+ * of those chunks is cold.
+ */
+export function loadRouteChunk<T>(importFn: () => Promise<T>): Promise<T> {
+  const endPriorityLoad = beginUserPriorityLoad();
+  return importWithRetry(importFn).finally(endPriorityLoad);
+}
+
 export function lazyWithRetry(
   importFn: () => Promise<{ default: ComponentType<unknown> }>,
 ): LazyExoticComponent<ComponentType<unknown>> {
-  return lazy(() => importWithRetry(importFn));
+  return lazy(() => loadRouteChunk(importFn));
 }
 
 /** Defer post-login prefetch so the first screen the user opens wins bandwidth. */

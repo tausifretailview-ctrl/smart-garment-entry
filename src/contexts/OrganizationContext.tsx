@@ -216,7 +216,9 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       // Step 2: Query memberships
       const { data: memberships, error: membershipError } = await queryMemberships(user.id);
       clearTimeout(timeoutId);
-      if (didTimeout) return;
+      // A slow answer that lands after the cached fallback still wins below: the
+      // fallback seeds role "user" with no settings / features, and discarding the
+      // real rows left the shop on that cut-down shell until the next reload.
       if (membershipError) throw membershipError;
 
       let orgs = memberships
@@ -301,9 +303,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       console.error("Error fetching organizations:", error);
       setFetchError(true);
     } finally {
-      if (!didTimeout) {
-        setLoading(false);
-      }
+      setLoading(false);
       fetchingRef.current = false;
     }
   }, [user]);

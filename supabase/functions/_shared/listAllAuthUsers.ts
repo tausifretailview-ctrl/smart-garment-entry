@@ -25,3 +25,36 @@ export async function accumulateAuthUserPages<T>(
     page += 1;
   }
 }
+
+/**
+ * Above this many users, one paged listUsers() read is cheaper than one
+ * getUserById() call per user.
+ */
+export const MAX_USERS_BY_ID = 200;
+
+/** Parallel getUserById() calls in flight at once. */
+export const USERS_BY_ID_CONCURRENCY = 10;
+
+/**
+ * Look up only the given auth users (a shop's own members) instead of paging the
+ * whole platform. Ids whose lookup returns null (deleted auth user) are skipped.
+ * Order follows `ids`.
+ */
+export async function fetchAuthUsersById<T>(
+  ids: string[],
+  fetchOne: (id: string) => Promise<T | null>,
+  concurrency: number = USERS_BY_ID_CONCURRENCY,
+): Promise<T[]> {
+  const results: (T | null)[] = new Array(ids.length).fill(null);
+  let next = 0;
+  const worker = async () => {
+    while (next < ids.length) {
+      const i = next++;
+      results[i] = await fetchOne(ids[i]);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(Math.max(concurrency, 1), ids.length) }, worker),
+  );
+  return results.filter((u): u is T => u !== null);
+}
