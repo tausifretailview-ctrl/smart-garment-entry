@@ -20,6 +20,8 @@ interface ControlResponse {
   qr?: string | null;
   pairingCode?: string | null;
   connectedNumber?: string | null;
+  /** Other shops where this same phone number is linked too. */
+  sharedWith?: string[];
   error?: string;
 }
 
@@ -46,6 +48,7 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
+  const [sharedWith, setSharedWith] = useState<string[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const call = useCallback(
@@ -64,6 +67,7 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
     setQr(res.qr ?? null);
     setPairingCode(res.pairingCode ?? null);
     setNumber(res.connectedNumber ?? null);
+    setSharedWith(res.sharedWith ?? []);
   }, []);
 
   /**
@@ -209,6 +213,17 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
         </p>
       )}
       {error && <p className="text-sm text-destructive">Connection error: {error}</p>}
+      {connected && sharedWith.length > 0 && (
+        <Alert>
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>This number is also linked in {sharedWith.join(", ")}</AlertTitle>
+          <AlertDescription className="text-xs">
+            Both shops send from the same WhatsApp number, so they share its daily limit and ban risk, customer
+            replies reach both shops, and it uses two of the phone's 4 linked devices. Use a separate number per
+            shop if you can.
+          </AlertDescription>
+        </Alert>
+      )}
       {!connected && !qr && lastStatus && status !== "connecting" && (
         <p className="text-xs text-muted-foreground">Last known status: {lastStatus}</p>
       )}

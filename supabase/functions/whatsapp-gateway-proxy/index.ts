@@ -226,7 +226,24 @@ async function handleControl(
     }
     await supabaseAdmin.from("whatsapp_api_settings").update(update).eq("organization_id", organizationId);
   }
-  return json({ success: true, ...result.data });
+  // The same phone linked in another shop too: allowed by WhatsApp (separate linked devices), but both
+  // shops then share one number's daily limit, ban risk and customer replies, so the page says so.
+  let sharedWith: string[] = [];
+  const linkedNumber = String(result.data.connectedNumber ?? "").replace(/\D/g, "");
+  if (status === "connected" && linkedNumber) {
+    const { data: others } = await supabaseAdmin
+      .from("whatsapp_api_settings")
+      .select("organization_id")
+      .eq("send_provider", "builtin")
+      .eq("builtin_connected_number", linkedNumber)
+      .neq("organization_id", organizationId);
+    const ids = ((others ?? []) as { organization_id: string }[]).map((o) => o.organization_id);
+    if (ids.length) {
+      const { data: orgs } = await supabaseAdmin.from("organizations").select("name").in("id", ids);
+      sharedWith = ((orgs ?? []) as { name: string }[]).map((o) => o.name);
+    }
+  }
+  return json({ success: true, ...result.data, sharedWith });
 }
 
 async function callerId(supabaseAdmin: SupabaseClient, req: Request): Promise<string | null> {
