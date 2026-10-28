@@ -156,7 +156,6 @@ import {
 import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import { assertCustomerPaymentWithinOutstandingCap } from "@/utils/invoiceOverpaymentGuard";
-import { CustomerAccountSummaryStrip } from "@/components/CustomerAccountSummaryStrip";
 import {
   fetchInvoiceDashboardPage,
   fetchInvoiceDashboardStats,
@@ -5216,14 +5215,6 @@ export default function SalesInvoiceDashboard() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              {selectedInvoiceForPayment?.customer_id && currentOrganization?.id && (
-                <CustomerAccountSummaryStrip
-                  organizationId={currentOrganization.id}
-                  customerId={selectedInvoiceForPayment.customer_id}
-                  customerName={selectedInvoiceForPayment.customer_name}
-                  compact
-                />
-              )}
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <span className="text-muted-foreground">Customer:</span>
                 <span className="font-medium">{selectedInvoiceForPayment?.customer_name?.toUpperCase()}</span>
