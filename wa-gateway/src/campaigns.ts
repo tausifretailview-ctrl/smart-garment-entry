@@ -486,6 +486,11 @@ export class CampaignRunner {
       let note: string | null = null;
       if (!this.sessions.isConnected(sessionId)) note = this.sessions.offlineNote(sessionId);
       else if (this.sessions.remainingToday(sessionId) <= 0) note = this.sessions.capNote(sessionId);
+      else {
+        // WhatsApp's own reach-out limit / new-chat quota: sending on through it is what gets a number removed.
+        await this.sessions.refreshLimits(sessionId);
+        note = this.sessions.limitNote(sessionId);
+      }
       if (note) {
         if (note !== waitingNote) this.report(job, note);
         waitingNote = note;
