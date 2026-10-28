@@ -79,6 +79,15 @@ interface Session {
   newLink: boolean;
   contactSavesToday: number;
   contactDay: string;
+  /**
+   * WhatsApp's own limits on messaging people who never chatted with this number: a "reach-out
+   * timelock" (no new chats until a time; on a companion it is often followed by a 401 logout) and the
+   * new-chat quota. Reported by WhatsApp itself; campaigns wait while either is hit.
+   */
+  reachoutUntil: number | null;
+  reachoutType: string | null;
+  chatCap: { total: number | null; used: number | null; status: string | null } | null;
+  limitsCheckedAt: number;
 }
 
 /** Plain words for WhatsApp's close codes (Baileys DisconnectReason). */
@@ -366,6 +375,64 @@ export class SessionManager {
     return isUserSession(id) && day !== null && day < BULK_WARMUP_CAPS.length;
   }
 
+  private onReachout(orgId: string, s: Session, lock: { isActive?: boolean; timeEnforcementEnds?: Date; enforcementType?: string }) {
+    const until = lock.isActive ? (lock.timeEnforcementEnds?.getTime() ?? Date.now() + 60_000) : null;
+    if (until === s.reachoutUntil) return;
+    s.reachoutUntil = until;
+    s.reachoutType = lock.isActive ? (lock.enforcementType ?? null) : null;
+    // warn, not info: Railway runs at LOG_LEVEL=warn and this is the line that explains a sudden logout.
+    if (until) {
+      logger.warn(
+        { orgId, number: s.number, until: new Date(until).toISOString(), type: s.reachoutType },
+        "WhatsApp reach-out limit set: this number may not message new people until then",
+      );
+    } else {
+      logger.warn({ orgId, number: s.number }, "WhatsApp reach-out limit lifted");
+    }
+  }
+
+  private onChatCap(orgId: string, s: Session, info: { total_quota?: number; used_quota?: number; capping_status?: string }) {
+    s.chatCap = { total: info.total_quota ?? null, used: info.used_quota ?? null, status: info.capping_status ?? null };
+    logger.warn({ orgId, number: s.number, ...s.chatCap }, "WhatsApp new-chat limit update");
+  }
+
+  /**
+   * Asks WhatsApp (as WhatsApp Web does) whether this number is under a reach-out limit and how much of
+   * its new-chat quota is used. At most every 10 minutes; failures are only logged.
+   */
+  async refreshLimits(id: string): Promise<void> {
+    const s = this.sessions.get(id);
+    if (!s?.sock || s.status !== "connected" || Date.now() - s.limitsCheckedAt < 10 * 60 * 1000) return;
+    s.limitsCheckedAt = Date.now();
+    const sock = s.sock;
+    try {
+      this.onReachout(id, s, await sock.fetchAccountReachoutTimelock());
+    } catch (e) {
+      logger.warn({ orgId: id, err: e instanceof Error ? e.message : String(e) }, "reach-out limit check failed");
+    }
+    try {
+      const cap = (await sock.fetchNewChatMessageCap()) as { total_quota?: number; used_quota?: number; capping_status?: string } | null;
+      if (cap) this.onChatCap(id, s, cap);
+    } catch (e) {
+      logger.warn({ orgId: id, err: e instanceof Error ? e.message : String(e) }, "new-chat limit check failed");
+    }
+  }
+
+  /** Why WhatsApp itself will not take messages to new people from this number right now, or null. */
+  limitNote(id: string): string | null {
+    const s = this.sessions.get(id);
+    if (!s) return null;
+    if (s.reachoutUntil && s.reachoutUntil > Date.now()) {
+      const at = new Date(s.reachoutUntil).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
+      return `WhatsApp has stopped this number messaging new people until ${at} (too many messages to people who never chatted with it). Sending waits till then; do not unlink or relink meanwhile.`;
+    }
+    const cap = s.chatCap;
+    if (cap && (cap.status === "CAPPED" || (cap.total !== null && cap.used !== null && cap.total > 0 && cap.used >= cap.total))) {
+      return `WhatsApp's new-chat limit for this number is used up${cap.total ? ` (${cap.used}/${cap.total})` : ""}. Sending continues when WhatsApp allows more.`;
+    }
+    return null;
+  }
+
   /** Daily-cap note for a campaign: plain words for a warm-up cap. */
   capNote(id: string): string {
     if (!this.inWarmup(id)) return "Daily limit reached; continues tomorrow";
@@ -395,6 +462,7 @@ export class SessionManager {
         lastClose: null,
         groupAddsToday: 0, groupDay: today(), lastGroupAddAt: 0, groupQueue: Promise.resolve(), groupPending: 0,
         newLink: false, contactSavesToday: 0, contactDay: today(),
+        reachoutUntil: null, reachoutType: null, chatCap: null, limitsCheckedAt: 0,
       };
       this.sessions.set(orgId, s);
     }
@@ -518,7 +586,9 @@ export class SessionManager {
           else this.queueBillReceipt(orgId, key.id, status);
         }
       });
+      sock.ev.on("message-capping.update", (info) => this.onChatCap(orgId, s, info));
       sock.ev.on("connection.update", async (update) => {
+        if (update.reachoutTimeLock) this.onReachout(orgId, s, update.reachoutTimeLock);
         const { connection, lastDisconnect, qr } = update;
         if (qr) {
           s.qr = await QRCode.toDataURL(qr, { margin: 1, width: 320 });
