@@ -17,6 +17,8 @@ export interface StockSummaryVariant {
   purchase_return_qty: number;
   sales_qty: number;
   sale_return_qty: number;
+  /** Sent to the owner's other shop (only filled when Settings > Stock Transfer is on). */
+  transfer_out_qty?: number;
   sale_price: number;
   pur_price: number | null;
 }

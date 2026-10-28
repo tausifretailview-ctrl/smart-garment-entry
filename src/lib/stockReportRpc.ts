@@ -55,6 +55,8 @@ export interface StockReportRpcRow {
   purchase_return_qty: number | null;
   sale_return_qty: number | null;
   total_rows: number | null;
+  /** Added in the browser (withStockTransferQty), not by get_stock_report. */
+  transfer_out_qty?: number;
 }
 
 export function getPurchaseBillFromSourceRow(row: PurchaseSourceRow) {

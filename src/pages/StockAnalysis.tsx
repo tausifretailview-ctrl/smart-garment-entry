@@ -11,6 +11,7 @@ import { useDcVisibility } from "@/hooks/useDcVisibility";
 import { dcViewKey, filterVariantsForDcView } from "@/utils/dcView";
 import { StockAnalysisSearch, StockAnalysisLoadingSkeleton } from "@/components/StockAnalysisSearch";
 import { movementLabelKey } from "@/utils/stockSettlementMovement";
+import { fetchTransferInByVariantId, type TransferInInfo } from "@/lib/stockTransferStockReport";
 
 interface StockItem {
   id: string;
@@ -170,6 +171,9 @@ export default function StockAnalysis() {
           .eq("organization_id", currentOrganization.id)
           .in("variant_id", variantIds);
 
+        // Stock received from the owner's other shop: counts in Opening, that shop is the supplier.
+        const transferIn = await fetchTransferInByVariantId(currentOrganization.id, variantIds);
+
         const variantSuppliers = (batchData || []).reduce((acc: any, batch: any) => {
           if (!acc[batch.variant_id] && batch.purchase_bills?.supplier_name) {
             acc[batch.variant_id] = {
@@ -223,7 +227,11 @@ export default function StockAnalysis() {
 
         const formattedData = filteredVariants.map((item: any) => {
           const movements = variantMovements[item.id] || { purchase: 0, purchaseReturn: 0, sales: 0, saleReturn: 0 };
-          const supplierInfo = variantSuppliers[item.id] || { supplier_name: '', supplier_invoice_no: '' };
+          const received: TransferInInfo | undefined = transferIn.get(item.id);
+          const supplierInfo = variantSuppliers[item.id] || {
+            supplier_name: received?.supplier_name || '',
+            supplier_invoice_no: received?.supplier_invoice_no || '',
+          };
           const netSalesQty = Math.max(0, movements.sales);
           
           return {
@@ -233,7 +241,7 @@ export default function StockAnalysis() {
             color: item.color || item.products?.color || "",
             size: item.size,
             stock_qty: item.stock_qty,
-            opening_qty: item.opening_qty || 0,
+            opening_qty: (item.opening_qty || 0) + (received?.qty ?? 0),
             purchase_qty: Math.max(0, movements.purchase),
             purchase_return_qty: Math.max(0, movements.purchaseReturn),
             sales_qty: netSalesQty,

@@ -66,6 +66,10 @@ interface MovementRecord {
   brand: string;
 }
 
+/** Stock In / Stock Out by movement type (a cancelled transfer moves the stock back). */
+const STOCK_IN_TYPES = new Set(["purchase", "sale_return", "transfer_in", "transfer_out_cancel"]);
+const STOCK_OUT_TYPES = new Set(["sale", "purchase_return", "transfer_out", "transfer_in_cancel"]);
+
 const columns: ColumnDef<MovementRecord, any>[] = [
   {
     id: "date",
@@ -127,6 +131,8 @@ const columns: ColumnDef<MovementRecord, any>[] = [
         purchase_delete: { label: "Bill Deleted",     className: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
         transfer_in:     { label: "Transfer In",      className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
         transfer_out:    { label: "Transfer Out",     className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+        transfer_out_cancel: { label: "Transfer Back",   className: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
+        transfer_in_cancel:  { label: "Transfer Cancelled", className: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
       };
       const config = typeConfig[type] || { label: type, className: "bg-slate-100 text-slate-600" };
       return (
@@ -146,7 +152,7 @@ const columns: ColumnDef<MovementRecord, any>[] = [
   {
     id: "credit",
     accessorFn: (row) =>
-      row.movement_type === "purchase" || row.movement_type === "sale_return" || row.movement_type === "transfer_in" ||
+      STOCK_IN_TYPES.has(row.movement_type) ||
       (row.movement_type === "reconciliation" && row.quantity > 0)
         ? Math.abs(row.quantity)
         : null,
@@ -161,7 +167,7 @@ const columns: ColumnDef<MovementRecord, any>[] = [
   {
     id: "debit",
     accessorFn: (row) =>
-      row.movement_type === "sale" || row.movement_type === "purchase_return" || row.movement_type === "transfer_out" ||
+      STOCK_OUT_TYPES.has(row.movement_type) ||
       (row.movement_type === "reconciliation" && row.quantity < 0)
         ? Math.abs(row.quantity)
         : null,
@@ -455,8 +461,8 @@ const ProductTrackingReport = () => {
         const rows = data || [];
         for (const row of rows as Array<{ movement_type: string; quantity: number }>) {
           const qty = Math.abs(Number(row.quantity) || 0);
-          if (row.movement_type === "purchase" || row.movement_type === "sale_return" || row.movement_type === "transfer_in") inQty += qty;
-          else if (row.movement_type === "sale" || row.movement_type === "purchase_return" || row.movement_type === "transfer_out") outQty += qty;
+          if (STOCK_IN_TYPES.has(row.movement_type)) inQty += qty;
+          else if (STOCK_OUT_TYPES.has(row.movement_type)) outQty += qty;
           else if (row.movement_type === "reconciliation") {
             if (Number(row.quantity) > 0) inQty += qty;
             else outQty += qty;

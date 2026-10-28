@@ -30,7 +30,9 @@ import type jsPDFType from "jspdf";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { useProductFieldSettings, type ProductFieldKey } from "@/hooks/useSettings";
+import { useProductFieldSettings, useSettings, type ProductFieldKey } from "@/hooks/useSettings";
+import { fetchTransferInByVariantId, withStockTransferQty } from "@/lib/stockTransferStockReport";
+import { isStockTransferEnabled } from "@/utils/stockTransfer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -141,6 +143,7 @@ function toVariant(row: StockReportRpcRow): StockSummaryVariant {
     purchase_return_qty: Number(row.purchase_return_qty ?? 0),
     sales_qty: Number(row.sales_qty ?? 0),
     sale_return_qty: Number(row.sale_return_qty ?? 0),
+    transfer_out_qty: Number(row.transfer_out_qty ?? 0),
     sale_price: Number(row.sale_price ?? 0),
     pur_price: row.pur_price != null ? Number(row.pur_price) : null,
   };
@@ -167,13 +170,23 @@ async function fetchSupplierRecord(
       });
     }
   }
+  // No purchase bill here: stock came from the owner's other shop, so that shop is the supplier.
+  const missing = ids.filter((id) => !out[id]?.supplier_name);
+  if (missing.length > 0) {
+    const transferIn = await fetchTransferInByVariantId(orgId, missing);
+    transferIn.forEach((t, id) => {
+      out[id] = { supplier_name: t.supplier_name, supplier_invoice_no: t.supplier_invoice_no };
+    });
+  }
   return out;
 }
 
+/** Same rows as Stock Report: stock received from the other shop counts in Opening Qty. */
 async function fetchStockReportRows(
   filters: StockReportRpcFilterInput,
   limit: number,
   offset: number,
+  transferOut: boolean,
 ): Promise<StockReportRpcRow[]> {
   const { data, error } = await rpcClient.rpc("get_stock_report", {
     ...buildStockReportRpcFilters(filters),
@@ -181,7 +194,7 @@ async function fetchStockReportRows(
     p_offset: offset,
   });
   if (error) throw error;
-  return (data || []) as unknown as StockReportRpcRow[];
+  return withStockTransferQty(filters.orgId, (data || []) as unknown as StockReportRpcRow[], { transferOut });
 }
 
 const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
@@ -279,6 +292,11 @@ export default function StockSummary() {
   const showCategory = isOn("category");
   const showStyle = isOn("style");
   const showColor = isOn("color");
+  const { data: orgSettings } = useSettings();
+  /** Settings > Sale Settings "Stock Transfer": adds the Transfer Out column. */
+  const showTransferOut = isStockTransferEnabled(
+    (orgSettings as { sale_settings?: unknown } | undefined)?.sale_settings,
+  );
   const [view, setView] = useState<ViewMode>("variants");
   // Columns this user has hidden, per view; remembered per organisation on this device.
   const [hiddenCols, setHiddenCols] = useState<HiddenColumns>(() => loadHiddenColumns(orgId));
@@ -289,7 +307,13 @@ export default function StockSummary() {
     setHiddenCols(next);
     saveHiddenColumns(orgId, next);
   };
-  const fieldOn: Record<string, boolean> = { brand: showBrand, category: showCategory, style: showStyle, color: showColor };
+  const fieldOn: Record<string, boolean> = {
+    brand: showBrand,
+    category: showCategory,
+    style: showStyle,
+    color: showColor,
+    transferOut: showTransferOut,
+  };
   /** Variant-list column visible: product field enabled for the shop and not hidden by the user. */
   const vc = (key: string) => (fieldOn[key] ?? true) && !hiddenCols.variants.includes(key);
   /** Article-view column visible. */
@@ -308,6 +332,7 @@ export default function StockSummary() {
     purReturn: "Pur Return",
     sales: "Sales",
     saleReturn: "Sale Return",
+    transferOut: "Transfer Out",
     purPrice: "Pur Price",
     stockValue: "Stock Value",
     salePrice: "Sale Price",
@@ -487,10 +512,15 @@ export default function StockSummary() {
     isFetching: variantsFetching,
     error: variantsError,
   } = useQuery({
-    queryKey: ["stock-summary-variants", filterInput, variantPage, variantPageSize],
+    queryKey: ["stock-summary-variants", filterInput, variantPage, variantPageSize, showTransferOut],
     queryFn: async () => {
       if (!filterInput || !orgId) return { rows: [] as SummaryRow[], total: 0 };
-      const rows = await fetchStockReportRows(filterInput, variantPageSize, (variantPage - 1) * variantPageSize);
+      const rows = await fetchStockReportRows(
+        filterInput,
+        variantPageSize,
+        (variantPage - 1) * variantPageSize,
+        showTransferOut,
+      );
       const suppliers = await fetchSupplierRecord(orgId, rows.map((r) => r.variant_id));
       return {
         total: Number(rows[0]?.total_rows ?? 0),
@@ -515,7 +545,7 @@ export default function StockSummary() {
     queryKey: ["stock-summary-articles", filterInput],
     queryFn: async () => {
       if (!filterInput) return { rows: [] as StockSummaryVariant[], total: 0 };
-      const rows = await fetchStockReportRows(filterInput, ARTICLE_FETCH_LIMIT, 0);
+      const rows = await fetchStockReportRows(filterInput, ARTICLE_FETCH_LIMIT, 0, false);
       return { total: Number(rows[0]?.total_rows ?? 0), rows: rows.map(toVariant) };
     },
     enabled: !!filterInput && view === "articles" && !globalLoading && !catalogTooBig,
@@ -570,8 +600,9 @@ export default function StockSummary() {
   const variantTotal = variantPageData?.total ?? 0;
   const variantPageCount = Math.max(1, Math.ceil(variantTotal / variantPageSize));
   const variantPageTotals = useMemo(() => {
-    const t = { opening: 0, purchase: 0, purReturn: 0, sales: 0, saleReturn: 0, stock: 0, stockValue: 0, saleValue: 0 };
+    const t = { opening: 0, purchase: 0, purReturn: 0, sales: 0, saleReturn: 0, transferOut: 0, stock: 0, stockValue: 0, saleValue: 0 };
     for (const r of variantRows) {
+      t.transferOut += r.transfer_out_qty ?? 0;
       t.opening += r.opening_qty;
       t.purchase += r.purchase_qty;
       t.purReturn += r.purchase_return_qty;
@@ -648,7 +679,7 @@ export default function StockSummary() {
     pdfCell?: (v: StockSummaryVariant, s: SupplierInfo) => PdfCell;
     pdfTotal?: (t: VariantTotals, count: number) => string;
   };
-  type VariantTotals = { opening: number; purchase: number; purReturn: number; sales: number; saleReturn: number; stock: number; stockValue: number };
+  type VariantTotals = { opening: number; purchase: number; purReturn: number; sales: number; saleReturn: number; transferOut: number; stock: number; stockValue: number };
   const num = (n: number) => Math.round(n).toLocaleString("en-IN");
   const variantSpecs = (): VariantSpec[] =>
     (
@@ -667,6 +698,7 @@ export default function StockSummary() {
         { key: "purReturn", label: "Pur Return", excel: (v) => v.purchase_return_qty, pdf: { weight: 4.5, align: "right", head: [124, 45, 18], tint: [255, 247, 237], text: [194, 65, 12] }, pdfCell: (v) => (v.purchase_return_qty > 0 ? `-${v.purchase_return_qty}` : "0"), pdfTotal: (t) => `-${num(t.purReturn)}` },
         { key: "sales", label: "Sales Qty", excel: (v) => v.sales_qty, pdf: { weight: 4.5, align: "right", head: [127, 29, 29], tint: [254, 242, 242], text: [185, 28, 28] }, pdfCell: (v) => (v.sales_qty > 0 ? `-${v.sales_qty}` : "0"), pdfTotal: (t) => `-${num(t.sales)}` },
         { key: "saleReturn", label: "Sale Return", excel: (v) => v.sale_return_qty, pdf: { weight: 4.5, align: "right", head: [6, 78, 59], tint: [236, 253, 245], text: [4, 120, 87] }, pdfCell: (v) => (v.sale_return_qty > 0 ? `+${v.sale_return_qty}` : "0"), pdfTotal: (t) => `+${num(t.saleReturn)}` },
+        { key: "transferOut", label: "Transfer Out", excel: (v) => v.transfer_out_qty ?? 0, pdf: { weight: 4.5, align: "right", head: [7, 89, 133], tint: [240, 249, 255], text: [3, 105, 161] }, pdfCell: (v) => ((v.transfer_out_qty ?? 0) > 0 ? `-${v.transfer_out_qty}` : "0"), pdfTotal: (t) => `-${num(t.transferOut)}` },
         { key: null, label: "Current Stock", excel: (v) => v.stock_qty, pdf: { weight: 4.5, align: "right", head: [109, 40, 217], tint: [245, 243, 255], text: [76, 29, 149], bold: true }, pdfTotal: (t) => num(t.stock) },
         { key: "purPrice", label: "Pur Price", excel: (v) => v.pur_price || 0, pdf: { weight: 5, align: "right" }, pdfCell: (v) => (v.pur_price ? num(v.pur_price) : "-") },
         { key: "stockValue", label: "Stock Value", excel: (v) => Math.round((v.pur_price || 0) * v.stock_qty), pdf: { weight: 6.5, align: "right", text: [67, 56, 202] }, pdfCell: (v) => (v.pur_price ? num(v.pur_price * v.stock_qty) : "-"), pdfTotal: (t) => num(t.stockValue) },
@@ -739,7 +771,7 @@ export default function StockSummary() {
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header, ...body]), "Article Summary");
         XLSX.writeFile(wb, `Stock_Summary_Articles_${stamp}.xlsx`);
       } else {
-        const rpcRows = await fetchStockReportRows(filterInput, ARTICLE_FETCH_LIMIT, 0);
+        const rpcRows = await fetchStockReportRows(filterInput, ARTICLE_FETCH_LIMIT, 0, showTransferOut);
         const specs = variantSpecs();
         const needSuppliers = vc("supplier") || vc("invoice");
         const suppliers = needSuppliers ? await fetchSupplierRecord(orgId, rpcRows.map((r) => r.variant_id)) : {};
@@ -797,12 +829,12 @@ export default function StockSummary() {
         const doc = buildStockSummaryPdf(JsPdf, { ...base, title: "Stock Summary · Article & cut size", columns, rows, totalRow });
         doc.save(`Stock_Summary_Articles_${stamp}.pdf`);
       } else {
-        const rpcRows = await fetchStockReportRows(filterInput, ARTICLE_FETCH_LIMIT, 0);
+        const rpcRows = await fetchStockReportRows(filterInput, ARTICLE_FETCH_LIMIT, 0, showTransferOut);
         const specs = variantSpecs();
         const needSuppliers = vc("supplier") || vc("invoice");
         const suppliers = needSuppliers ? await fetchSupplierRecord(orgId, rpcRows.map((r) => r.variant_id)) : {};
         const columns: PdfColumn[] = [srCol, ...specs.map((c) => ({ header: c.label, ...c.pdf }))];
-        const t: VariantTotals = { opening: 0, purchase: 0, purReturn: 0, sales: 0, saleReturn: 0, stock: 0, stockValue: 0 };
+        const t: VariantTotals = { opening: 0, purchase: 0, purReturn: 0, sales: 0, saleReturn: 0, transferOut: 0, stock: 0, stockValue: 0 };
         const rows: PdfCell[][] = rpcRows.map((r, i) => {
           const v = toVariant(r);
           t.opening += v.opening_qty;
@@ -810,6 +842,7 @@ export default function StockSummary() {
           t.purReturn += v.purchase_return_qty;
           t.sales += v.sales_qty;
           t.saleReturn += v.sale_return_qty;
+          t.transferOut += v.transfer_out_qty ?? 0;
           t.stock += v.stock_qty;
           t.stockValue += (v.pur_price || 0) * v.stock_qty;
           const s = suppliers[v.id];
@@ -1416,6 +1449,7 @@ export default function StockSummary() {
                     {vc("purReturn") && <th className={cn(TH, "text-right bg-orange-900")}>Pur Return</th>}
                     {vc("sales") && <th className={cn(TH, "text-right bg-red-900")}>Sales</th>}
                     {vc("saleReturn") && <th className={cn(TH, "text-right bg-emerald-900")}>Sale Return</th>}
+                    {vc("transferOut") && <th className={cn(TH, "text-right bg-sky-900")}>Transfer Out</th>}
                     <th className={cn(TH, "text-right bg-violet-700")}>Current Stock</th>
                     {vc("purPrice") && <th className={cn(TH, "text-right")}>Pur Price</th>}
                     {vc("stockValue") && <th className={cn(TH, "text-right")}>Stock Value</th>}
@@ -1426,14 +1460,14 @@ export default function StockSummary() {
                   {variantsFetching && variantRows.length === 0 ? (
                     Array.from({ length: 10 }, (_, i) => (
                       <tr key={i}>
-                        <td colSpan={19} className="px-3 py-2">
+                        <td colSpan={20} className="px-3 py-2">
                           <Skeleton className="h-6 w-full" />
                         </td>
                       </tr>
                     ))
                   ) : variantRows.length === 0 ? (
                     <tr>
-                      <td colSpan={19} className="py-12 text-center text-slate-500">
+                      <td colSpan={20} className="py-12 text-center text-slate-500">
                         No stock matches these filters
                       </td>
                     </tr>
@@ -1459,6 +1493,7 @@ export default function StockSummary() {
                         {vc("purReturn") && <td className={cn(TD, "text-right bg-orange-50/70 text-orange-700 border-b border-slate-100")}>{r.purchase_return_qty > 0 ? `-${r.purchase_return_qty}` : "0"}</td>}
                         {vc("sales") && <td className={cn(TD, "text-right bg-red-50/70 text-red-700 border-b border-slate-100")}>{r.sales_qty > 0 ? `-${r.sales_qty}` : "0"}</td>}
                         {vc("saleReturn") && <td className={cn(TD, "text-right bg-emerald-50/70 text-emerald-700 border-b border-slate-100")}>{r.sale_return_qty > 0 ? `+${r.sale_return_qty}` : "0"}</td>}
+                        {vc("transferOut") && <td className={cn(TD, "text-right bg-sky-50/70 text-sky-700 border-b border-slate-100")}>{(r.transfer_out_qty ?? 0) > 0 ? `-${r.transfer_out_qty}` : "0"}</td>}
                         <td className={cn(TD, "text-right text-base font-bold bg-violet-50 text-violet-900 border-b border-slate-100")}>
                           {r.stock_qty}
                           {r.uom && r.uom !== "NOS" && r.uom !== "PCS" ? ` ${r.uom}` : ""}
@@ -1488,6 +1523,7 @@ export default function StockSummary() {
                       {vc("purReturn") && <td className="px-3 py-2 text-right bg-orange-200">-{qty(variantPageTotals.purReturn)}</td>}
                       {vc("sales") && <td className="px-3 py-2 text-right bg-red-200">-{qty(variantPageTotals.sales)}</td>}
                       {vc("saleReturn") && <td className="px-3 py-2 text-right bg-emerald-200">+{qty(variantPageTotals.saleReturn)}</td>}
+                      {vc("transferOut") && <td className="px-3 py-2 text-right bg-sky-200">-{qty(variantPageTotals.transferOut)}</td>}
                       <td className="px-3 py-2 text-right bg-violet-300">{qty(variantPageTotals.stock)}</td>
                       {vc("purPrice") && <td className="px-3 py-2 text-right">—</td>}
                       {vc("stockValue") && <td className="px-3 py-2 text-right bg-amber-200">{inr(variantPageTotals.stockValue)}</td>}

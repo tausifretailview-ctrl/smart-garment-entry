@@ -596,6 +596,12 @@ export default function AccountingReports() {
         { Particulars: "Opening Stock", Amount: profitLoss.openingStock },
         { Particulars: "Add: Purchases (Excl. GST)", Amount: profitLoss.purchases },
         { Particulars: "Less: Purchase Returns", Amount: -profitLoss.purchaseReturns },
+        ...(profitLoss.transfersIn
+          ? [{ Particulars: "Add: Stock Transfer In", Amount: profitLoss.transfersIn }]
+          : []),
+        ...(profitLoss.transfersOut
+          ? [{ Particulars: "Less: Stock Transfer Out", Amount: -profitLoss.transfersOut }]
+          : []),
         { Particulars: "Less: Closing Stock", Amount: -profitLoss.closingStock },
         { Particulars: "TOTAL COGS", Amount: profitLoss.cogs },
         { Particulars: "", Amount: "" },
@@ -1752,6 +1758,18 @@ export default function AccountingReports() {
                         <span>Less: Purchase Returns</span>
                         <span className="text-right font-mono text-destructive">({formatCurrency(profitLoss.purchaseReturns)})</span>
                       </div>
+                      {profitLoss.transfersIn > 0 && (
+                        <div className="flex justify-between">
+                          <span>Add: Stock Transfer In</span>
+                          <span className="text-right font-mono">{formatCurrency(profitLoss.transfersIn)}</span>
+                        </div>
+                      )}
+                      {profitLoss.transfersOut > 0 && (
+                        <div className="flex justify-between text-muted-foreground print:text-gray-600">
+                          <span>Less: Stock Transfer Out</span>
+                          <span className="text-right font-mono text-destructive">({formatCurrency(profitLoss.transfersOut)})</span>
+                        </div>
+                      )}
                       <div className="flex justify-between text-muted-foreground print:text-gray-600">
                         <span>Less: Closing Stock</span>
                         <span className="text-right font-mono text-destructive">
