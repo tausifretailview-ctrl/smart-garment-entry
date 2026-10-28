@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, Table
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, Plus, TrendingDown, Printer, Check, ChevronsUpDown, Pencil, Trash2, ChevronLeft, ChevronRight, Coins, Send, Link2, Zap, Wallet, RefreshCw, ChevronDown } from "lucide-react";
-import { Filter } from "lucide-react";
+import { Filter, Layers } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -51,6 +51,21 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileListCard } from "@/components/mobile/MobileListCard";
 import { AdaptiveCustomerPicker } from "@/components/mobile/AdaptiveCustomerPicker";
 import { AdaptivePaymentMethodPicker } from "@/components/mobile/AdaptivePaymentMethodPicker";
+import { DEFAULT_RECEIPT_PAYMENT_METHODS } from "@/components/mobile/MobilePaymentMethodPickerSheet";
+import { MixReceiptInputs } from "@/components/MixReceiptInputs";
+import {
+  EMPTY_MIX_RECEIPT_AMOUNTS,
+  MIX_RECEIPT_METHOD,
+  allocateMixLegsToLines,
+  applyMixAmountEdit,
+  formatMixReceiptLabel,
+  mixBankProbeMethod,
+  mixVoucherSuffix,
+  validateMixReceipt,
+  type MixReceiptAmounts,
+  type MixReceiptLeg,
+  type MixReceiptMethod,
+} from "@/utils/mixReceiptSplit";
 import { ReceivingBankAccountPicker } from "@/components/accounts/ReceivingBankAccountPicker";
 import { useOrganizationBankAccounts } from "@/hooks/useOrganizationBankAccounts";
 import {
@@ -202,6 +217,12 @@ function resolvePaymentBreakdown(
   return { settlement, discount, cash, discountPercent: pct };
 }
 
+/** Receipt modes for this tab: the usual list plus Mix (split across Cash / UPI / Card / Bank). */
+const RECEIPT_METHODS_WITH_MIX = [
+  ...DEFAULT_RECEIPT_PAYMENT_METHODS,
+  { value: MIX_RECEIPT_METHOD, label: "Mix (Cash + UPI …)", icon: Layers, accentClass: "bg-rose-600 hover:bg-rose-700 text-white" },
+];
+
 async function rollbackCustomerReceiptVouchers(
   organizationId: string,
   created: Array<{ id: string }>,
@@ -261,6 +282,8 @@ export function CustomerPaymentTab({
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [mixAmounts, setMixAmounts] = useState<MixReceiptAmounts>(EMPTY_MIX_RECEIPT_AMOUNTS);
+  const [mixTouched, setMixTouched] = useState<Set<MixReceiptMethod>>(new Set());
   const [selectedBankAccountId, setSelectedBankAccountId] = useState<string | null>(null);
   const [chequeNumber, setChequeNumber] = useState("");
   const [chequeDate, setChequeDate] = useState<Date | undefined>(undefined);
@@ -679,6 +702,8 @@ export function CustomerPaymentTab({
     setDescription("");
     setAmount("");
     setPaymentMethod("cash");
+    setMixAmounts(EMPTY_MIX_RECEIPT_AMOUNTS);
+    setMixTouched(new Set());
     setSelectedBankAccountId(null);
     setChequeNumber("");
     setChequeDate(undefined);
@@ -870,8 +895,9 @@ export function CustomerPaymentTab({
       const includesOpeningBalance = selectedInvoiceIds.includes(OPENING_BALANCE_ID);
       const invoicesToProcess = selectedInvoiceIds.filter(id => id !== OPENING_BALANCE_ID);
       if (!referenceId) throw new Error("Please select a customer to record payment");
+      const isMix = paymentMethod === MIX_RECEIPT_METHOD;
       const bankValidation = validateReceivingBankForSave(
-        paymentMethod,
+        isMix ? mixBankProbeMethod(mixAmounts) : paymentMethod,
         bankAccounts,
         selectedBankAccountId,
       );
@@ -892,6 +918,12 @@ export function CustomerPaymentTab({
         discountAmount,
       );
       const settlementTotal = roundToRupee(paymentAmount + discountValue);
+      let mixLegs: MixReceiptLeg[] = [];
+      if (isMix) {
+        const mixCheck = validateMixReceipt(mixAmounts, paymentAmount);
+        if (!mixCheck.ok) throw new Error("message" in mixCheck ? mixCheck.message : "Invalid mix split");
+        mixLegs = mixCheck.legs;
+      }
 
       // Fresh outstanding cap — blocks stale-cache overpayments before any voucher write.
       await assertCustomerPaymentWithinOutstandingCap(supabase, {
@@ -989,7 +1021,8 @@ export function CustomerPaymentTab({
           paymentMethod === 'bank_transfer' ||
           paymentMethod === 'upi' ||
           paymentMethod === 'card' ||
-          paymentMethod === 'online') &&
+          paymentMethod === 'online' ||
+          paymentMethod === MIX_RECEIPT_METHOD) &&
         transactionId
       ) {
         paymentDetails = ` | Transaction ID: ${transactionId}`;
@@ -1006,96 +1039,71 @@ export function CustomerPaymentTab({
 
       const discountSuffix = discountValue > 0 ? ` | Discount: ₹${discountValue.toFixed(2)}${discountReason ? ` (${discountReason})` : ''}` : '';
 
-      let createdVouchers: any[] = [];
-      if (!isOpeningBalancePayment && processedInvoices.length > 0) {
-        // Optional Opening Balance leg, when mixed with invoices
-        if (includesOpeningBalance && openingBalanceApplied > 0) {
-          const obVoucherNumber = `${voucherNumber}-OB`;
-          const obDiscSuffix =
-            openingBalanceDiscount > 0
-              ? ` | Discount: ₹${openingBalanceDiscount.toFixed(2)}${discountReason ? ` (${discountReason})` : ""}`
-              : "";
-          const obCreated = await createReceiptVoucher(supabase, {
-            organizationId,
-            referenceId: referenceId!,
-            referenceType: "customer",
-            clientRequestId: receiptRequestId(receiptSubmissionId, "ob"),
-            voucherNumber: obVoucherNumber,
-            voucherDate: format(voucherDate, "yyyy-MM-dd"),
-            amount: openingBalanceCash,
-            discountAmount: openingBalanceDiscount,
-            discountReason: openingBalanceDiscount > 0 ? discountReason || null : null,
-            paymentMethod,
-            receivingBankAccountId,
-            description: applyBankToDescription(`Opening Balance Payment${paymentDetails}${obDiscSuffix}`),
-          });
-          const obDesc = applyBankToDescription(`Opening Balance Payment${paymentDetails}${obDiscSuffix}`);
-          const obVoucher = {
-            id: obCreated.id,
-            voucher_number: obCreated.voucher_number,
-            total_amount: openingBalanceCash,
-            discount_amount: openingBalanceDiscount,
-            voucher_date: format(voucherDate, "yyyy-MM-dd"),
-            description: obDesc,
-          };
-          createdVouchers.push(obVoucher);
-          if (
-            postLedger &&
-            obVoucher?.id &&
-            (paymentMethod || "").toLowerCase() !== "advance_adjustment"
-          ) {
-            try {
-              await recordCustomerReceiptJournalEntry(
-                obVoucher.id,
-                organizationId,
-                Number(obVoucher.total_amount || 0) + Number(obVoucher.discount_amount || 0),
-                Number(obVoucher.discount_amount || 0),
-                paymentMethod,
-                obVoucher.voucher_date as string,
-                String(obVoucher.description || finalDescription),
-                supabase
-              );
-            } catch (glErr) {
-              await rollbackCustomerReceiptVouchers(organizationId, createdVouchers, supabase);
-              throw glErr;
-            }
-          }
-        }
-        for (let i = 0; i < processedInvoices.length; i++) {
-          const processed = processedInvoices[i];
-          const invoiceVoucherNumber = processedInvoices.length > 1 ? `${voucherNumber}-${i + 1}` : voucherNumber;
-          const invoiceDescription = `Payment for ${processed.invoice.sale_number}${paymentDetails}`;
-          const invoiceDiscountSuffix =
-            processed.discountApplied > 0
-              ? ` | Discount: ₹${processed.discountApplied.toFixed(2)}${discountReason ? ` (${discountReason})` : ""}`
-              : "";
+      const createdVouchers: any[] = [];
+      const voucherDateYmd = format(voucherDate, "yyyy-MM-dd");
+
+      type ReceiptLine = {
+        referenceId: string;
+        referenceType?: "sale" | "customer";
+        clientPart: string;
+        voucherNumber: string;
+        cash: number;
+        discount: number;
+        discountReason: string | null;
+        /** Saved on the voucher (with receiving bank). */
+        description: string;
+        /** Journal narration (legacy: without the bank line on the single path). */
+        journalDescription: string;
+      };
+
+      /**
+       * One settlement line (OB / invoice / single) → one voucher, or one voucher
+       * per mode for Mix (RCP/…/5-1, RCP/…/5-1B …). Discount sits on the first.
+       */
+      const writeReceiptLine = async (
+        line: ReceiptLine,
+        legs: { method: string; amount: number }[],
+      ) => {
+        for (let k = 0; k < legs.length; k++) {
+          const leg = legs[k];
+          if (k > 0 && leg.amount <= 0) continue;
+          const legDiscount = k === 0 ? line.discount : 0;
+          const legNumber =
+            k === 0
+              ? line.voucherNumber
+              : `${line.voucherNumber}${line.voucherNumber === voucherNumber ? "-" : ""}${mixVoucherSuffix(k)}`;
           const created = await createReceiptVoucher(supabase, {
             organizationId,
-            referenceId: processed.invoice.id,
-            clientRequestId: receiptRequestId(receiptSubmissionId, processed.invoice.id),
-            voucherNumber: invoiceVoucherNumber,
-            voucherDate: format(voucherDate, "yyyy-MM-dd"),
-            amount: processed.cashApplied,
-            discountAmount: processed.discountApplied,
-            discountReason: processed.discountApplied > 0 ? discountReason || null : null,
-            paymentMethod,
-            receivingBankAccountId,
-            description: applyBankToDescription(invoiceDescription + invoiceDiscountSuffix),
+            referenceId: line.referenceId,
+            referenceType: line.referenceType,
+            clientRequestId: receiptRequestId(
+              receiptSubmissionId,
+              isMix ? `${line.clientPart}:${leg.method}` : line.clientPart,
+            ),
+            voucherNumber: legNumber,
+            voucherDate: voucherDateYmd,
+            amount: leg.amount,
+            discountAmount: legDiscount,
+            discountReason: legDiscount > 0 ? line.discountReason : null,
+            paymentMethod: leg.method,
+            receivingBankAccountId: paymentMethodNeedsReceivingBank(leg.method)
+              ? receivingBankAccountId
+              : null,
+            description: line.description,
           });
-          const invDesc = applyBankToDescription(invoiceDescription + invoiceDiscountSuffix);
           const voucher = {
             id: created.id,
             voucher_number: created.voucher_number,
-            total_amount: processed.cashApplied,
-            discount_amount: processed.discountApplied,
-            voucher_date: format(voucherDate, "yyyy-MM-dd"),
-            description: invDesc,
+            total_amount: leg.amount,
+            discount_amount: legDiscount,
+            voucher_date: voucherDateYmd,
+            description: line.journalDescription,
           };
           createdVouchers.push(voucher);
           if (
             postLedger &&
             voucher?.id &&
-            (paymentMethod || "").toLowerCase() !== "advance_adjustment"
+            (leg.method || "").toLowerCase() !== "advance_adjustment"
           ) {
             try {
               await recordCustomerReceiptJournalEntry(
@@ -1103,9 +1111,9 @@ export function CustomerPaymentTab({
                 organizationId,
                 Number(voucher.total_amount || 0) + Number(voucher.discount_amount || 0),
                 Number(voucher.discount_amount || 0),
-                paymentMethod,
+                leg.method,
                 voucher.voucher_date as string,
-                String(voucher.description || invoiceDescription + invoiceDiscountSuffix),
+                String(voucher.description || finalDescription),
                 supabase
               );
             } catch (glErr) {
@@ -1114,59 +1122,75 @@ export function CustomerPaymentTab({
             }
           }
         }
+      };
+
+      const lines: ReceiptLine[] = [];
+      if (!isOpeningBalancePayment && processedInvoices.length > 0) {
+        // Optional Opening Balance leg, when mixed with invoices
+        if (includesOpeningBalance && openingBalanceApplied > 0) {
+          const obDiscSuffix =
+            openingBalanceDiscount > 0
+              ? ` | Discount: ₹${openingBalanceDiscount.toFixed(2)}${discountReason ? ` (${discountReason})` : ""}`
+              : "";
+          const obDesc = applyBankToDescription(`Opening Balance Payment${paymentDetails}${obDiscSuffix}`);
+          lines.push({
+            referenceId: referenceId!,
+            referenceType: "customer",
+            clientPart: "ob",
+            voucherNumber: `${voucherNumber}-OB`,
+            cash: openingBalanceCash,
+            discount: openingBalanceDiscount,
+            discountReason: discountReason || null,
+            description: obDesc,
+            journalDescription: obDesc,
+          });
+        }
+        for (let i = 0; i < processedInvoices.length; i++) {
+          const processed = processedInvoices[i];
+          const invoiceDescription = `Payment for ${processed.invoice.sale_number}${paymentDetails}`;
+          const invoiceDiscountSuffix =
+            processed.discountApplied > 0
+              ? ` | Discount: ₹${processed.discountApplied.toFixed(2)}${discountReason ? ` (${discountReason})` : ""}`
+              : "";
+          const invDesc = applyBankToDescription(invoiceDescription + invoiceDiscountSuffix);
+          lines.push({
+            referenceId: processed.invoice.id,
+            clientPart: processed.invoice.id,
+            voucherNumber: processedInvoices.length > 1 ? `${voucherNumber}-${i + 1}` : (voucherNumber as string),
+            cash: processed.cashApplied,
+            discount: processed.discountApplied,
+            discountReason: discountReason || null,
+            description: invDesc,
+            journalDescription: invDesc,
+          });
+        }
       } else {
         // total_amount = cash/collected only; discount_amount = CD/waiver. Settlement = sum (matches multi-invoice rows).
-        const created = await createReceiptVoucher(supabase, {
-          organizationId,
+        lines.push({
           referenceId: isOpeningBalancePayment
             ? referenceId!
             : processedInvoices[0]?.invoice.id || referenceId!,
           referenceType: isOpeningBalancePayment ? "customer" : "sale",
-          clientRequestId: receiptRequestId(receiptSubmissionId, "single"),
+          clientPart: "single",
           voucherNumber: voucherNumber as string,
-          voucherDate: format(voucherDate, "yyyy-MM-dd"),
-          amount: paymentAmount,
-          discountAmount: discountValue,
+          cash: paymentAmount,
+          discount: discountValue,
           discountReason: discountReason || null,
-          paymentMethod,
-          receivingBankAccountId,
           description: applyBankToDescription(finalDescription + discountSuffix),
+          journalDescription: finalDescription + discountSuffix,
         });
-        const voucher = {
-          id: created.id,
-          voucher_number: created.voucher_number,
-          total_amount: paymentAmount,
-          discount_amount: discountValue,
-          voucher_date: format(voucherDate, "yyyy-MM-dd"),
-          description: finalDescription + discountSuffix,
-        };
-        createdVouchers.push(voucher);
-        if (
-          postLedger &&
-          voucher?.id &&
-          (paymentMethod || "").toLowerCase() !== "advance_adjustment"
-        ) {
-          try {
-            await recordCustomerReceiptJournalEntry(
-              voucher.id,
-              organizationId,
-              Number(voucher.total_amount || 0) + Number(voucher.discount_amount || 0),
-              Number(voucher.discount_amount || 0),
-              paymentMethod,
-              voucher.voucher_date as string,
-              String(voucher.description || finalDescription + discountSuffix),
-              supabase
-            );
-          } catch (glErr) {
-            await rollbackCustomerReceiptVouchers(organizationId, createdVouchers, supabase);
-            throw glErr;
-          }
-        }
+      }
+
+      // Mix: spread the Cash / UPI / Card / Bank amounts over the lines in order.
+      const lineLegs = isMix
+        ? allocateMixLegsToLines(mixLegs, lines.map((l) => l.cash))
+        : lines.map((l) => [{ method: paymentMethod, amount: l.cash }]);
+      for (let li = 0; li < lines.length; li++) {
+        await writeReceiptLine(lines[li], lineLegs[li]);
       }
 
       // Sync paid_amount from vouchers only — do not add allocatedAmount on top (double-counts cash/UPI).
       if (processedInvoices.length > 0) {
-        const voucherDateYmd = format(voucherDate, "yyyy-MM-dd");
         const invoicesToSync = processedInvoices.filter(
           (processed) => Number(processed.amountApplied || 0) > 0,
         );
@@ -1194,7 +1218,7 @@ export function CustomerPaymentTab({
         voucherNumber,
         processedInvoices,
         isOpeningBalancePayment,
-        paymentMethod,
+        paymentMethod: isMix ? formatMixReceiptLabel(mixLegs) : paymentMethod,
         paidAmount: paymentAmount,
         discountAmount: discountValue,
         discountReason,
@@ -1231,7 +1255,7 @@ export function CustomerPaymentTab({
           invoiceDate: format(voucherDate, 'yyyy-MM-dd'), invoiceAmount: customerBalance || 0,
           paidAmount: totalPaid, discountAmount: discountValue, discountReason: data.discountReason || '',
           previousBalance: customerBalance || 0, currentBalance: (customerBalance || 0) - totalSettled,
-          paymentMethod, multipleInvoices: [],
+          paymentMethod: data.paymentMethod, multipleInvoices: [],
         });
       } else if (data.processedInvoices.length > 0) {
         const first = data.processedInvoices[0].invoice;
@@ -1257,7 +1281,7 @@ export function CustomerPaymentTab({
             syncedCurrentBalance > 0
               ? syncedCurrentBalance
               : Math.max(0, previousBalance - totalSettledReceipt),
-          paymentMethod, multipleInvoices: data.processedInvoices,
+          paymentMethod: data.paymentMethod, multipleInvoices: data.processedInvoices,
         });
       }
       resetForm();
@@ -1445,6 +1469,15 @@ export function CustomerPaymentTab({
     () => resolvePaymentBreakdown(amount, discountPercent, discountAmount),
     [amount, discountPercent, discountAmount],
   );
+
+  // Until the user splits it, a Mix receipt follows the amount (all in Cash).
+  useEffect(() => {
+    if (paymentMethod !== MIX_RECEIPT_METHOD || mixTouched.size > 0) return;
+    const cash = paymentBreakdown.cash > 0 ? String(paymentBreakdown.cash) : "";
+    setMixAmounts((prev) =>
+      prev.cash === cash ? prev : { ...EMPTY_MIX_RECEIPT_AMOUNTS, cash },
+    );
+  }, [paymentMethod, mixTouched, paymentBreakdown.cash]);
 
   const invoiceGridMaxHeight = useMemo(
     () =>
@@ -1804,9 +1837,16 @@ export function CustomerPaymentTab({
               <AdaptivePaymentMethodPicker
                 label={compact ? <span className="text-xs">Payment Method</span> : <span className="text-sm font-medium">Payment Method</span>}
                 value={paymentMethod}
+                methods={RECEIPT_METHODS_WITH_MIX}
                 onChange={(value) => {
                   setPaymentMethod(value);
-                  if (!paymentMethodNeedsReceivingBank(value)) {
+                  if (value === MIX_RECEIPT_METHOD) {
+                    setMixAmounts({
+                      ...EMPTY_MIX_RECEIPT_AMOUNTS,
+                      cash: paymentBreakdown.cash > 0 ? String(paymentBreakdown.cash) : "",
+                    });
+                    setMixTouched(new Set());
+                  } else if (!paymentMethodNeedsReceivingBank(value)) {
                     setSelectedBankAccountId(null);
                   }
                   setChequeNumber("");
@@ -1844,9 +1884,22 @@ export function CustomerPaymentTab({
               </div>
 
               <div className={cn("md:col-span-2 space-y-2", compact && "space-y-1.5")}>
+              {paymentMethod === MIX_RECEIPT_METHOD && (
+                <MixReceiptInputs
+                  amounts={mixAmounts}
+                  target={paymentBreakdown.cash}
+                  inputClassName={compact ? "h-8" : "h-9"}
+                  onEdit={(method, raw) => {
+                    setMixAmounts((prev) =>
+                      applyMixAmountEdit(prev, mixTouched, method, raw, paymentBreakdown.cash),
+                    );
+                    setMixTouched((prev) => new Set(prev).add(method));
+                  }}
+                />
+              )}
               <ReceivingBankAccountPicker
                 organizationId={organizationId}
-                paymentMethod={paymentMethod}
+                paymentMethod={paymentMethod === MIX_RECEIPT_METHOD ? mixBankProbeMethod(mixAmounts) : paymentMethod}
                 value={selectedBankAccountId}
                 onChange={setSelectedBankAccountId}
               />
@@ -1875,6 +1928,7 @@ export function CustomerPaymentTab({
               )}
 
               {(paymentMethod === 'upi' ||
+                paymentMethod === MIX_RECEIPT_METHOD ||
                 paymentMethod === 'other' ||
                 paymentMethod === 'bank_transfer' ||
                 paymentMethod === 'card' ||
