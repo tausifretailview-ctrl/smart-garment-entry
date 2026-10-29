@@ -455,7 +455,7 @@ const GSTAnalysis = () => {
               </p>
             </div>
           </div>
-          <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => query.refetch()} disabled={query.isFetching || !validRange}>
+          <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => { void query.refetch(); }} disabled={query.isFetching || !validRange}>
             <RefreshCw className={cn("h-4 w-4", query.isFetching && "animate-spin")} />
             Refresh
           </Button>
