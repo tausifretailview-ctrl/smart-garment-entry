@@ -23,13 +23,10 @@ describe("screens use the one balance breakdown", () => {
     expect(src).toContain("balance.net - cashEntered - liveTotals.discount");
   });
 
-  it("Payments tab, POS Dashboard and Sale Dashboard payment dialogs show the strip", () => {
-    for (const p of [
-      "src/components/accounts/CustomerPaymentTab.tsx",
-      "src/pages/POSDashboard.tsx",
-      "src/pages/SalesInvoiceDashboard.tsx",
-    ]) {
-      expect(read(p), p).toContain("<CustomerAccountSummaryStrip");
+  it("Payments tab shows the strip; dashboard Record Payment dialogs dropped it (#1447)", () => {
+    expect(read("src/components/accounts/CustomerPaymentTab.tsx")).toContain("<CustomerAccountSummaryStrip");
+    for (const p of ["src/pages/POSDashboard.tsx", "src/pages/SalesInvoiceDashboard.tsx"]) {
+      expect(read(p), p).not.toContain("<CustomerAccountSummaryStrip");
     }
   });
 
