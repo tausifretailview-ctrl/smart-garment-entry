@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ownerAlertTapPath } from "./ownerAlertTap";
+import { chatTapUserId, ownerAlertTapPath } from "./ownerAlertTap";
 
 const SALE = "3f2b6c1e-8a4d-4b7e-9c11-0d2e5f6a7b8c";
 
@@ -25,5 +25,17 @@ describe("ownerAlertTapPath", () => {
     expect(ownerAlertTapPath({ route: "https://evil.example" })).toBeNull();
     expect(ownerAlertTapPath({ route: "//evil.example" })).toBeNull();
     expect(ownerAlertTapPath({ route: "/pos-dashboard", sale_id: "x" })).toBe("/owner-alert/report");
+  });
+});
+
+describe("chatTapUserId", () => {
+  it("returns the sender for an in-shop chat push", () => {
+    expect(chatTapUserId({ kind: "team_chat", chat_user_id: SALE, route: "/" })).toBe(SALE);
+  });
+
+  it("ignores other alerts and bad ids", () => {
+    expect(chatTapUserId({ route: "/customer-reviews" })).toBeNull();
+    expect(chatTapUserId({ kind: "team_chat", chat_user_id: "x" })).toBeNull();
+    expect(chatTapUserId(undefined)).toBeNull();
   });
 });

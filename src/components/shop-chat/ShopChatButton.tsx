@@ -1,11 +1,11 @@
 import { MessagesSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { openShopChat, useShopChatThreads, useSiblingShopsForChat } from "@/hooks/useShopChat";
+import { openShopChat, useShopChatThreads, useSiblingShopsForChat, useTeamChatMembers } from "@/hooks/useShopChat";
 
 /**
  * Opens the shop chat panel (right side) with an unread badge.
- * Hidden unless the shop has a linked sibling shop, or the login is admin of another shop
- * (so it can turn chat on).
+ * Hidden unless the shop has another login to chat with, a linked sibling shop, or the
+ * login is admin of another shop (so it can turn chat on).
  */
 export function ShopChatButton({
   className,
@@ -20,9 +20,11 @@ export function ShopChatButton({
 }) {
   const { data: threads = [] } = useShopChatThreads();
   const { data: siblings = [] } = useSiblingShopsForChat();
-  if (threads.length === 0 && siblings.length === 0) return null;
+  const { data: members = [] } = useTeamChatMembers();
+  if (threads.length === 0 && siblings.length === 0 && members.length === 0) return null;
 
-  const unread = threads.reduce((sum, t) => sum + (t.unread || 0), 0);
+  const unread =
+    threads.reduce((sum, t) => sum + (t.unread || 0), 0) + members.reduce((sum, m) => sum + (m.unread || 0), 0);
 
   return (
     <button
@@ -30,7 +32,7 @@ export function ShopChatButton({
       onClick={() => openShopChat()}
       className={cn("relative flex items-center justify-center gap-1.5 touch-manipulation", className)}
       aria-label={unread > 0 ? `Shop chat, ${unread} unread` : "Shop chat"}
-      title="Chat with your other shops"
+      title="Shop chat"
     >
       <MessagesSquare className={iconClassName} />
       {label && <span className="hidden sm:inline">{label}</span>}
