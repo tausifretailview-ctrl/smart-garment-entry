@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +43,13 @@ import {
   isMtr,
   lotDetailKey,
   lotsKey,
+  MFG_CARD,
+  MFG_CARD_TITLE,
+  MFG_HEAD_ROW,
+  MFG_ROW,
+  MFG_TABLE,
+  MFG_TH,
+  MFG_THEAD,
   mtr,
   openJobCardsKey,
   pcs,
@@ -298,16 +306,16 @@ function CuttingSection({
   const overPct = perPiece > 0 && actualPerPiece > 0 ? ((actualPerPiece - perPiece) / perPiece) * 100 : 0;
 
   return (
-    <Card>
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-lg flex items-center gap-2"><Scissors className="h-5 w-5" /> Cutting</CardTitle>
-        <CardDescription>
+    <Card className={MFG_CARD}>
+      <CardHeader className="space-y-1 border-b border-slate-100 px-4 py-3">
+        <CardTitle className={MFG_CARD_TITLE}><Scissors className="h-5 w-5" /> Cutting</CardTitle>
+        <CardDescription className="text-xs">
           {isOpen
             ? "Issue fabric rolls, then enter pieces cut per size and leftover metres, and save."
             : `Saved${lot.cut_at ? ` on ${new Date(lot.cut_at).toLocaleDateString("en-IN")}` : ""}${lot.cutting_worker_name ? ` · cut by ${lot.cutting_worker_name}` : ""}${num(lot.cutting_rate) ? ` · ${inr(lot.cutting_rate)} / pc` : ""}`}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 p-4">
         {perPiece > 0 && (
           <p className="text-sm text-muted-foreground">
             Design card: {mtr(perPiece)} per piece → about <b>{mtr(perPiece * plannedTotal)}</b> for {pcs(plannedTotal)} pcs.
@@ -345,20 +353,20 @@ function CuttingSection({
 
         {activeRolls.length > 0 && (
           <div className="overflow-x-auto border rounded-md">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Roll</TableHead>
-                  <TableHead>Barcode</TableHead>
-                  <TableHead className="text-right">Issued</TableHead>
-                  <TableHead className="text-right">Leftover</TableHead>
-                  {!isOpen && <TableHead>Leftover went to</TableHead>}
-                  {isOpen && <TableHead />}
+            <Table className={MFG_TABLE}>
+              <TableHeader className={MFG_THEAD}>
+                <TableRow className={MFG_HEAD_ROW}>
+                  <TableHead className={MFG_TH}>Roll</TableHead>
+                  <TableHead className={MFG_TH}>Barcode</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>Issued</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>Leftover</TableHead>
+                  {!isOpen && <TableHead className={MFG_TH}>Leftover went to</TableHead>}
+                  {isOpen && <TableHead className={MFG_TH} />}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {activeRolls.map((r) => (
-                  <TableRow key={r.id}>
+                  <TableRow key={r.id} className={MFG_ROW}>
                     <TableCell>{rollLabel(r)}</TableCell>
                     <TableCell className="font-mono text-xs">{r.variant?.barcode || "—"}</TableCell>
                     <TableCell className="text-right tabular-nums">{mtr(r.issued_meters)}</TableCell>
@@ -794,14 +802,14 @@ function FinishSection({
   });
 
   return (
-    <Card>
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-lg flex items-center gap-2"><PackageCheck className="h-5 w-5" /> Product ready</CardTitle>
-        <CardDescription>
+    <Card className={MFG_CARD}>
+      <CardHeader className="space-y-1 border-b border-slate-100 px-4 py-3">
+        <CardTitle className={MFG_CARD_TITLE}><PackageCheck className="h-5 w-5" /> Product ready</CardTitle>
+        <CardDescription className="text-xs">
           Good pieces from the last stage go into stock with the lot's cost as purchase price. Print barcodes from Barcode Printing.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 p-4">
         <div className="rounded-md border bg-muted/40 p-3 grid grid-cols-2 sm:grid-cols-7 gap-2 text-sm">
           <div><div className="text-xs text-muted-foreground">Fabric ({mtr(cost.fabric_meters)})</div><div className="tabular-nums">{inr(cost.fabric)}</div></div>
           <div><div className="text-xs text-muted-foreground">Trims</div><div className="tabular-nums">{inr(cost.trims)}</div></div>
@@ -960,12 +968,12 @@ export function LotDetail({
       )}
 
       {lot.status !== "open" && lot.status !== "cancelled" && lot.stage_ids.length > 0 && (
-        <Card>
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-lg flex items-center gap-2"><Send className="h-5 w-5" /> Stages</CardTitle>
-            <CardDescription>Send pieces to a worker, then receive good, rejected and wasted pieces back.</CardDescription>
+        <Card className={MFG_CARD}>
+          <CardHeader className="space-y-1 border-b border-slate-100 px-4 py-3">
+            <CardTitle className={MFG_CARD_TITLE}><Send className="h-5 w-5" /> Stages</CardTitle>
+            <CardDescription className="text-xs">Send pieces to a worker, then receive good, rejected and wasted pieces back.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 p-4">
             {flow.stages.map((f, i) => {
               const stage = stageById.get(f.stage_id);
               const own = cards.filter((c) => c.stage_id === f.stage_id);
@@ -990,17 +998,17 @@ export function LotDetail({
                   </div>
                   {own.length > 0 && (
                     <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Worker</TableHead>
-                            <TableHead>Sent on</TableHead>
-                            <TableHead className="text-right">Sent</TableHead>
-                            <TableHead className="text-right">Good</TableHead>
-                            <TableHead className="text-right">Rej / Waste</TableHead>
-                            <TableHead className="text-right">Pending</TableHead>
-                            <TableHead className="text-right">Rate</TableHead>
-                            <TableHead />
+                      <Table className={MFG_TABLE}>
+                        <TableHeader className={MFG_THEAD}>
+                          <TableRow className={MFG_HEAD_ROW}>
+                            <TableHead className={MFG_TH}>Worker</TableHead>
+                            <TableHead className={MFG_TH}>Sent on</TableHead>
+                            <TableHead className={cn(MFG_TH, "text-right")}>Sent</TableHead>
+                            <TableHead className={cn(MFG_TH, "text-right")}>Good</TableHead>
+                            <TableHead className={cn(MFG_TH, "text-right")}>Rej / Waste</TableHead>
+                            <TableHead className={cn(MFG_TH, "text-right")}>Pending</TableHead>
+                            <TableHead className={cn(MFG_TH, "text-right")}>Rate</TableHead>
+                            <TableHead className={MFG_TH} />
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1009,7 +1017,7 @@ export function LotDetail({
                             const bad = c.receipts.reduce((s, r) => s + num(r.rejected_qty) + num(r.wasted_qty), 0);
                             const rem = jobCardRemaining(c);
                             return (
-                              <TableRow key={c.id}>
+                              <TableRow key={c.id} className={MFG_ROW}>
                                 <TableCell>
                                   {c.worker_name}
                                   <span className="text-xs text-muted-foreground"> · {c.worker_type === "employee" ? "Staff" : "Job worker"}</span>
@@ -1050,7 +1058,7 @@ export function LotDetail({
       )}
 
       {lot.status === "finished" && (
-        <Card>
+        <Card className={MFG_CARD}>
           <CardContent className="py-4 text-sm grid grid-cols-2 sm:grid-cols-4 gap-2">
             <div><div className="text-xs text-muted-foreground">Ready pieces in stock</div><b className="tabular-nums">{pcs(finishedTotal)}</b></div>
             <div><div className="text-xs text-muted-foreground">Lost on the way</div><b className="tabular-nums">{pcs(Math.max(cutTotal - finishedTotal, 0))}</b></div>

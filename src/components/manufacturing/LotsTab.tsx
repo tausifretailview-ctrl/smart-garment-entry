@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,13 @@ import {
   errMsg,
   isMtr,
   lotsKey,
+  MFG_CARD,
+  MFG_CARD_TITLE,
+  MFG_HEAD_ROW,
+  MFG_ROW,
+  MFG_TABLE,
+  MFG_TH,
+  MFG_THEAD,
   pcs,
   useMfgDesigns,
   useMfgLots,
@@ -193,16 +201,16 @@ function NewLotDialog({
               <div className="overflow-x-auto border rounded-md">
                 <table className="text-sm">
                   <thead>
-                    <tr className="bg-muted/50">
-                      <th className="px-2 py-1.5 text-left font-medium">Colour \ Size</th>
+                    <tr className="bg-slate-800 text-white text-xs font-bold uppercase tracking-wide">
+                      <th className="px-2 py-2 text-left">Colour \ Size</th>
                       {grid.sizes.map((s) => (
-                        <th key={s} className="px-2 py-1.5 font-medium text-center min-w-[72px]">{s}</th>
+                        <th key={s} className="px-2 py-2 text-center min-w-[72px]">{s}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {grid.colors.map((c) => (
-                      <tr key={c} className="border-t">
+                      <tr key={c} className="border-t border-slate-100 even:bg-slate-50/80">
                         <td className="px-2 py-1 font-medium whitespace-nowrap">{c}</td>
                         {grid.sizes.map((s) => {
                           const v = grid.byKey.get(`${c}|${s}`);
@@ -305,11 +313,11 @@ export function LotsTab({
     l.sizes.reduce((s, x) => s + (Number(x[k]) || 0), 0);
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 space-y-0">
+    <Card className={MFG_CARD}>
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 space-y-0 border-b border-slate-100 px-4 py-3">
         <div className="space-y-1">
-          <CardTitle className="text-lg">Production lots</CardTitle>
-          <CardDescription>One lot = one batch of a design, from fabric issue to ready pieces in stock.</CardDescription>
+          <CardTitle className={MFG_CARD_TITLE}>Production lots</CardTitle>
+          <CardDescription className="text-xs">One lot = one batch of a design, from fabric issue to ready pieces in stock.</CardDescription>
         </div>
         <div className="flex flex-wrap gap-2">
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
@@ -326,7 +334,7 @@ export function LotsTab({
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-4">
         {isLoading ? (
           <p className="text-sm text-muted-foreground py-6 text-center">Loading lots…</p>
         ) : filtered.length === 0 ? (
@@ -335,22 +343,22 @@ export function LotsTab({
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Lot</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Design</TableHead>
-                  <TableHead className="text-right">Planned</TableHead>
-                  <TableHead className="text-right">Cut</TableHead>
-                  <TableHead className="text-right">In stock</TableHead>
-                  <TableHead>Status</TableHead>
+            <Table className={MFG_TABLE}>
+              <TableHeader className={MFG_THEAD}>
+                <TableRow className={MFG_HEAD_ROW}>
+                  <TableHead className={MFG_TH}>Lot</TableHead>
+                  <TableHead className={MFG_TH}>Date</TableHead>
+                  <TableHead className={MFG_TH}>Product</TableHead>
+                  <TableHead className={MFG_TH}>Design</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>Planned</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>Cut</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>In stock</TableHead>
+                  <TableHead className={MFG_TH}>Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.map((l) => (
-                  <TableRow key={l.id} className="cursor-pointer" onClick={() => onSelectLot(l.id)}>
+                  <TableRow key={l.id} className={cn(MFG_ROW, "cursor-pointer")} onClick={() => onSelectLot(l.id)}>
                     <TableCell className="font-medium text-blue-700">{l.lot_no}</TableCell>
                     <TableCell className="whitespace-nowrap">{new Date(l.lot_date).toLocaleDateString("en-IN")}</TableCell>
                     <TableCell>{l.product?.product_name || "—"}</TableCell>

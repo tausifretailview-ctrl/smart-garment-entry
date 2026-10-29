@@ -141,6 +141,16 @@ export const pcs = (n: number) => `${(Number(n) || 0).toLocaleString("en-IN", { 
 export const isMtr = (p: MfgProduct | undefined) => (p?.uom || "").toUpperCase() === "MTR";
 export const errMsg = (e: unknown) => (e as { message?: string })?.message || "Please try again";
 
+// Look shared with Customer Balances / Insights: dark table header, zebra rows, compact cards.
+export const MFG_CARD = "rounded-lg border border-slate-200 bg-white shadow-sm";
+export const MFG_CARD_TITLE = "text-base font-bold text-slate-800 leading-tight flex items-center gap-2";
+export const MFG_TABLE = "[&_td]:px-3 [&_td]:py-2.5 [&_td]:text-sm";
+export const MFG_THEAD = "sticky top-0 z-10 [&_tr]:border-none";
+export const MFG_HEAD_ROW = "bg-slate-800 hover:bg-slate-800 border-none";
+export const MFG_TH =
+  "h-10 text-xs font-bold uppercase tracking-wide text-white bg-slate-800 px-3 py-2.5 border-none shadow-none whitespace-nowrap";
+export const MFG_ROW = "h-11 border-b border-slate-100 hover:bg-sky-50/70 even:bg-slate-50/80";
+
 export const stagesKey = (orgId?: string) => ["mfg-stages", orgId];
 export const designsKey = (orgId?: string) => ["mfg-designs", orgId];
 export const fabricStockKey = (orgId?: string) => ["mfg-fabric-stock", orgId];
