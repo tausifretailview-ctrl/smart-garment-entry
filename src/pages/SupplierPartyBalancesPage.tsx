@@ -351,7 +351,7 @@ export default function SupplierPartyBalancesPage() {
               <p className="text-sm text-muted-foreground mt-0.5">Supplier ledger</p>
             </div>
           </div>
-          <div className="supplier-party-balances-ledger-panel flex-1 min-h-0 flex flex-col overflow-hidden w-full">
+          <div className="supplier-party-balances-ledger-panel flex-1 min-h-0 flex flex-col overflow-y-auto overflow-x-hidden w-full [&>*]:shrink-0">
             {ledgerProfileLoading ? (
               <ListPageSkeleton
                 rows={6}
