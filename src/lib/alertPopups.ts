@@ -1,5 +1,5 @@
 /**
- * Small business-alert popups (low stock, dues, dead stock, today's sales).
+ * Small business-alert popups (low stock, dues, dead stock, today's sales, GST due).
  * Pure helpers: per-device on/off switches and the "when was it last shown" log,
  * both in localStorage per org + user.
  */
@@ -9,9 +9,11 @@ export type AlertPopupKind =
   | "customer_dues"
   | "supplier_dues"
   | "dead_stock"
-  | "today_sold";
+  | "today_sold"
+  | "gst_due";
 
 export const ALERT_POPUP_KINDS: readonly AlertPopupKind[] = [
+  "gst_due",
   "low_stock",
   "customer_dues",
   "supplier_dues",
@@ -20,6 +22,7 @@ export const ALERT_POPUP_KINDS: readonly AlertPopupKind[] = [
 ];
 
 export const ALERT_POPUP_LABELS: Record<AlertPopupKind, string> = {
+  gst_due: "GST return due",
   low_stock: "Low stock",
   customer_dues: "Customer payments due",
   supplier_dues: "Supplier payments due",
@@ -38,6 +41,7 @@ export type AlertPopupPrefs = Record<AlertPopupKind, boolean>;
 export type AlertPopupLog = Partial<Record<AlertPopupKind, number>>;
 
 export const DEFAULT_ALERT_POPUP_PREFS: AlertPopupPrefs = {
+  gst_due: true,
   low_stock: true,
   customer_dues: true,
   supplier_dues: true,

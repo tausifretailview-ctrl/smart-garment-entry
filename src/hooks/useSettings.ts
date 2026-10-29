@@ -21,22 +21,27 @@ import {
  *   const barcode = useBillBarcodeSettings();           // bill_barcode_settings
  */
 
+export const orgSettingsQueryKey = (orgId: string | undefined) => ['org-settings', orgId] as const;
+
+/** The whole settings row; shared by useSettings and non-hook callers that want the same cache entry. */
+export async function fetchOrgSettingsRow(orgId: string | undefined) {
+  if (!orgId) return null;
+  const { data, error } = await supabase
+    .from('settings')
+    .select('*')
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 export function useSettings() {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
 
   return useQuery({
-    queryKey: ['org-settings', orgId],
-    queryFn: async () => {
-      if (!orgId) return null;
-      const { data, error } = await supabase
-        .from('settings')
-        .select('*')
-        .eq('organization_id', orgId)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
+    queryKey: orgSettingsQueryKey(orgId),
+    queryFn: () => fetchOrgSettingsRow(orgId),
     staleTime: STALE_SETTINGS,
     refetchOnWindowFocus: false,
     enabled: !!orgId,

@@ -40,6 +40,8 @@ const BACK_MAP: Record<string, string> = {
   "hourly-sales-analysis":    "/",
   "gst-reports":              "/",
   "gst-analysis":             "/",
+  "gst-readiness":            "/",
+  "gst-filing":               "/",
   "gst-register":             "/",
   "einvoice-report":          "sales-invoice-dashboard",
   "tally-export":             "/",

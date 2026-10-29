@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Archive, ArrowRight, BellOff, IndianRupee, ShoppingBag, Truck, X } from "lucide-react";
+import { AlertTriangle, Archive, ArrowRight, BellOff, IndianRupee, Landmark, ShoppingBag, Truck, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useWindowTabs } from "@/contexts/WindowTabsContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { fetchOrgSettingsRow, orgSettingsQueryKey } from "@/hooks/useSettings";
+import { nextReminder, reminderText, resolveGstFilings, todayIst } from "@/utils/gstFiling";
+import { resolveGstFilingPrefs } from "@/utils/gstReadiness";
 import {
   fetchLowStockAlerts,
   fetchSlowMovingStock,
@@ -66,6 +69,13 @@ const KIND_STYLE: Record<
   AlertPopupKind,
   { icon: typeof AlertTriangle; label: string; header: string; accent: string; button: string }
 > = {
+  gst_due: {
+    icon: Landmark,
+    label: "GST return",
+    header: "from-indigo-500 via-blue-600 to-blue-700",
+    accent: "bg-blue-600",
+    button: "from-indigo-500 to-blue-700 hover:from-indigo-600 hover:to-blue-800",
+  },
   low_stock: {
     icon: AlertTriangle,
     label: "Stock alert",
@@ -121,6 +131,23 @@ async function buildAlert(
   canOpenItemWiseSales: boolean,
 ): Promise<AlertPopup | null> {
   switch (kind) {
+    case "gst_due": {
+      // Only once the shop has chosen its filing scheme (GST Readiness); see nextReminder.
+      const settings = (await queryClient.fetchQuery({
+        queryKey: orgSettingsQueryKey(orgId),
+        queryFn: () => fetchOrgSettingsRow(orgId),
+        staleTime: REUSE_FRESH_MS,
+      })) as { gst_number?: string | null; report_settings?: unknown } | null;
+      const rem = nextReminder({
+        scheme: resolveGstFilingPrefs(settings).scheme,
+        shopStateCode: String(settings?.gst_number || "").trim().slice(0, 2),
+        filings: resolveGstFilings(settings),
+        todayYmd: todayIst(),
+      });
+      if (!rem) return null;
+      const text = reminderText(rem);
+      return { kind, title: text.title, body: text.body, path: "/gst-filing" };
+    }
     case "low_stock": {
       const rows = await queryClient.fetchQuery({
         queryKey: lowStockAlertsQueryKey(orgId, DEFAULT_ACTIVITY_LOW_STOCK_THRESHOLD),
@@ -225,6 +252,7 @@ export function AlertPopupHost() {
   const userId = user?.id;
 
   const allowed: Record<AlertPopupKind, boolean> = {
+    gst_due: hasMenuAccess("gst_reports"),
     low_stock: hasMenuAccess("stock_report") || hasMenuAccess("product_dashboard"),
     customer_dues: hasMenuAccess("sales_invoice_dashboard") || hasMenuAccess("payments_dashboard"),
     supplier_dues: hasMenuAccess("purchase_dashboard") || hasMenuAccess("supplier_party_balances"),

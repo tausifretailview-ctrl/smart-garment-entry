@@ -4,6 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
+import { orgSettingsQueryKey } from "@/hooks/useSettings";
+import { filedPeriodForDate, filedPeriodLockMessage, resolveGstFilings } from "@/utils/gstFiling";
+import { resolveGstFilingPrefs } from "@/utils/gstReadiness";
 import { useProductProtection } from "@/hooks/useProductProtection";
 import { logError } from "@/lib/errorLogger";
 import { deleteLedgerEntries, ensureCustomerLedgerAfterSaleRestore } from "@/lib/customerLedger";
@@ -115,6 +118,23 @@ export function useSoftDelete() {
         }
 
         case "sales": {
+          // A bill dated in a GST period already marked filed (GST Filing page) stays as filed.
+          const gstSettings = queryClient.getQueryData<{ report_settings?: unknown } | null>(
+            orgSettingsQueryKey(currentOrganization?.id),
+          );
+          const gstFilings = resolveGstFilings(gstSettings);
+          if (Object.keys(gstFilings).length > 0) {
+            const { data: dated } = await supabase
+              .from("sales")
+              .select("sale_number, sale_date, payment_status")
+              .eq("id", id)
+              .maybeSingle();
+            const filedLock =
+              String(dated?.payment_status || "").toLowerCase() === "hold"
+                ? null
+                : filedPeriodForDate(gstFilings, resolveGstFilingPrefs(gstSettings).scheme, dated?.sale_date);
+            if (filedLock) throw new Error(filedPeriodLockMessage(dated?.sale_number, filedLock));
+          }
           // A bill that has a live sale return adjusted on it must have that return
           // deleted first; deleting the bill underneath it strands the return's credit.
           const linkedReturns = await findLiveReturnsLinkedToSale(supabase, id);
