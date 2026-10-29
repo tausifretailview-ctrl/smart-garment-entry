@@ -38,6 +38,7 @@ const getCurrentPageName = (path: string): string => {
     'delivery-challan-entry': 'Delivery Challan',
     'settings': 'Settings',
     'gst-reports': 'GST Reports',
+    'gst-analysis': 'GST Analysis',
     'item-wise-sales': 'Item Wise Sales',
   };
   const segment = path.split('/').filter(Boolean).pop() || '';

@@ -29,6 +29,7 @@ import {
   Activity,
   Home,
   Gift,
+  Calculator,
   type LucideIcon,
 } from "lucide-react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -369,6 +370,14 @@ const ALL_REPORTS: ReportItem[] = [
     label: "GST Reports",
     path: "/gst-reports",
     desc: "GST summaries and returns",
+    tab: "gst",
+    permission: "gst_reports",
+  },
+  {
+    icon: Calculator,
+    label: "GST Analysis",
+    path: "/gst-analysis",
+    desc: "GST to pay this month after purchase ITC",
     tab: "gst",
     permission: "gst_reports",
   },

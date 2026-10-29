@@ -78,6 +78,7 @@ export const PAGE_TITLE_CONFIG: Record<string, { label: string; icon: string }> 
   "expense-salary-report": { label: "Expense & Salary", icon: "Wallet" },
   "gst-register": { label: "GST Register", icon: "FileSpreadsheet" },
   "gst-reports": { label: "GST Reports", icon: "FileSpreadsheet" },
+  "gst-analysis": { label: "GST Analysis", icon: "FileSpreadsheet" },
   "tally-export": { label: "Tally Export", icon: "FileSpreadsheet" },
   "payments-dashboard": { label: "Payments", icon: "Wallet" },
   "accounts-payments": { label: "Payments", icon: "Wallet" },
