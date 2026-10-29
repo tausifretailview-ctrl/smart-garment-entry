@@ -4371,6 +4371,809 @@ export type Database = {
         }
         Relationships: []
       }
+      mfg_design_materials: {
+        Row: {
+          created_at: string
+          design_id: string
+          id: string
+          material_product_id: string
+          material_type: string
+          organization_id: string
+          qty_per_piece: number
+          sort_order: number
+          wastage_percent: number
+        }
+        Insert: {
+          created_at?: string
+          design_id: string
+          id?: string
+          material_product_id: string
+          material_type?: string
+          organization_id: string
+          qty_per_piece: number
+          sort_order?: number
+          wastage_percent?: number
+        }
+        Update: {
+          created_at?: string
+          design_id?: string
+          id?: string
+          material_product_id?: string
+          material_type?: string
+          organization_id?: string
+          qty_per_piece?: number
+          sort_order?: number
+          wastage_percent?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mfg_design_materials_design_id_fkey"
+            columns: ["design_id"]
+            isOneToOne: false
+            referencedRelation: "mfg_designs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_design_materials_material_product_id_fkey"
+            columns: ["material_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_design_materials_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_design_materials_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      mfg_design_stage_rates: {
+        Row: {
+          design_id: string
+          id: string
+          organization_id: string
+          rate: number
+          stage_id: string
+        }
+        Insert: {
+          design_id: string
+          id?: string
+          organization_id: string
+          rate?: number
+          stage_id: string
+        }
+        Update: {
+          design_id?: string
+          id?: string
+          organization_id?: string
+          rate?: number
+          stage_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mfg_design_stage_rates_design_id_fkey"
+            columns: ["design_id"]
+            isOneToOne: false
+            referencedRelation: "mfg_designs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_design_stage_rates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_design_stage_rates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "mfg_design_stage_rates_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "mfg_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mfg_designs: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          design_name: string | null
+          design_no: string
+          finished_product_id: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          overhead_per_piece: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          design_name?: string | null
+          design_no: string
+          finished_product_id?: string | null
+          id?: string
+          notes?: string | null
+          organization_id: string
+          overhead_per_piece?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          design_name?: string | null
+          design_no?: string
+          finished_product_id?: string | null
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          overhead_per_piece?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mfg_designs_finished_product_id_fkey"
+            columns: ["finished_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_designs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_designs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      mfg_fabric_ledger: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          entry_date: string
+          entry_type: string
+          id: string
+          lot_id: string | null
+          meters: number
+          organization_id: string
+          reason: string | null
+          signed_meters: number | null
+          variant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          entry_date?: string
+          entry_type: string
+          id?: string
+          lot_id?: string | null
+          meters: number
+          organization_id: string
+          reason?: string | null
+          signed_meters?: number | null
+          variant_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          entry_date?: string
+          entry_type?: string
+          id?: string
+          lot_id?: string | null
+          meters?: number
+          organization_id?: string
+          reason?: string | null
+          signed_meters?: number | null
+          variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mfg_fabric_ledger_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_fabric_ledger_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "mfg_fabric_ledger_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mfg_job_cards: {
+        Row: {
+          closed_short_qty: number
+          created_at: string
+          created_by: string | null
+          due_date: string | null
+          employee_id: string | null
+          id: string
+          lot_id: string
+          notes: string | null
+          organization_id: string
+          rate: number
+          sent_date: string
+          sent_qty: number
+          stage_id: string
+          status: string
+          supplier_id: string | null
+          updated_at: string
+          worker_name: string
+          worker_type: string
+        }
+        Insert: {
+          closed_short_qty?: number
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          employee_id?: string | null
+          id?: string
+          lot_id: string
+          notes?: string | null
+          organization_id: string
+          rate?: number
+          sent_date?: string
+          sent_qty: number
+          stage_id: string
+          status?: string
+          supplier_id?: string | null
+          updated_at?: string
+          worker_name: string
+          worker_type: string
+        }
+        Update: {
+          closed_short_qty?: number
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          employee_id?: string | null
+          id?: string
+          lot_id?: string
+          notes?: string | null
+          organization_id?: string
+          rate?: number
+          sent_date?: string
+          sent_qty?: number
+          stage_id?: string
+          status?: string
+          supplier_id?: string | null
+          updated_at?: string
+          worker_name?: string
+          worker_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mfg_job_cards_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_job_cards_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "mfg_lots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_job_cards_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_job_cards_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "mfg_job_cards_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "mfg_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_job_cards_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mfg_job_receipts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          good_qty: number
+          id: string
+          job_card_id: string
+          lot_id: string
+          organization_id: string
+          reason: string | null
+          received_date: string
+          rejected_qty: number
+          wasted_qty: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          good_qty?: number
+          id?: string
+          job_card_id: string
+          lot_id: string
+          organization_id: string
+          reason?: string | null
+          received_date?: string
+          rejected_qty?: number
+          wasted_qty?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          good_qty?: number
+          id?: string
+          job_card_id?: string
+          lot_id?: string
+          organization_id?: string
+          reason?: string | null
+          received_date?: string
+          rejected_qty?: number
+          wasted_qty?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mfg_job_receipts_job_card_id_fkey"
+            columns: ["job_card_id"]
+            isOneToOne: false
+            referencedRelation: "mfg_job_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_job_receipts_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "mfg_lots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_job_receipts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_job_receipts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      mfg_lot_finishes: {
+        Row: {
+          cost_per_piece: number
+          created_at: string
+          created_by: string | null
+          id: string
+          lot_id: string
+          organization_id: string
+          qty: number
+          variant_id: string
+        }
+        Insert: {
+          cost_per_piece?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lot_id: string
+          organization_id: string
+          qty: number
+          variant_id: string
+        }
+        Update: {
+          cost_per_piece?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lot_id?: string
+          organization_id?: string
+          qty?: number
+          variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mfg_lot_finishes_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "mfg_lots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_lot_finishes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_lot_finishes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "mfg_lot_finishes_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mfg_lot_rolls: {
+        Row: {
+          cancelled_at: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          issued_meters: number
+          leftover_action: string | null
+          leftover_meters: number
+          lot_id: string
+          organization_id: string
+          pur_price: number
+          variant_id: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          issued_meters: number
+          leftover_action?: string | null
+          leftover_meters?: number
+          lot_id: string
+          organization_id: string
+          pur_price?: number
+          variant_id: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          issued_meters?: number
+          leftover_action?: string | null
+          leftover_meters?: number
+          lot_id?: string
+          organization_id?: string
+          pur_price?: number
+          variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mfg_lot_rolls_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "mfg_lots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_lot_rolls_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_lot_rolls_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "mfg_lot_rolls_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mfg_lot_sizes: {
+        Row: {
+          cut_qty: number
+          finished_qty: number
+          id: string
+          lot_id: string
+          organization_id: string
+          planned_qty: number
+          sort_order: number
+          variant_id: string
+        }
+        Insert: {
+          cut_qty?: number
+          finished_qty?: number
+          id?: string
+          lot_id: string
+          organization_id: string
+          planned_qty?: number
+          sort_order?: number
+          variant_id: string
+        }
+        Update: {
+          cut_qty?: number
+          finished_qty?: number
+          id?: string
+          lot_id?: string
+          organization_id?: string
+          planned_qty?: number
+          sort_order?: number
+          variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mfg_lot_sizes_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "mfg_lots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_lot_sizes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_lot_sizes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "mfg_lot_sizes_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mfg_lots: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          cut_at: string | null
+          cutting_employee_id: string | null
+          cutting_rate: number
+          cutting_supplier_id: string | null
+          cutting_worker_name: string | null
+          cutting_worker_type: string | null
+          design_id: string | null
+          end_bits_action: string
+          finished_at: string | null
+          finished_product_id: string
+          id: string
+          lot_date: string
+          lot_no: string
+          notes: string | null
+          organization_id: string
+          sale_order_id: string | null
+          stage_ids: string[]
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          cut_at?: string | null
+          cutting_employee_id?: string | null
+          cutting_rate?: number
+          cutting_supplier_id?: string | null
+          cutting_worker_name?: string | null
+          cutting_worker_type?: string | null
+          design_id?: string | null
+          end_bits_action?: string
+          finished_at?: string | null
+          finished_product_id: string
+          id?: string
+          lot_date?: string
+          lot_no: string
+          notes?: string | null
+          organization_id: string
+          sale_order_id?: string | null
+          stage_ids?: string[]
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          cut_at?: string | null
+          cutting_employee_id?: string | null
+          cutting_rate?: number
+          cutting_supplier_id?: string | null
+          cutting_worker_name?: string | null
+          cutting_worker_type?: string | null
+          design_id?: string | null
+          end_bits_action?: string
+          finished_at?: string | null
+          finished_product_id?: string
+          id?: string
+          lot_date?: string
+          lot_no?: string
+          notes?: string | null
+          organization_id?: string
+          sale_order_id?: string | null
+          stage_ids?: string[]
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mfg_lots_cutting_employee_id_fkey"
+            columns: ["cutting_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_lots_cutting_supplier_id_fkey"
+            columns: ["cutting_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_lots_design_id_fkey"
+            columns: ["design_id"]
+            isOneToOne: false
+            referencedRelation: "mfg_designs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_lots_finished_product_id_fkey"
+            columns: ["finished_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_lots_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_lots_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "mfg_lots_sale_order_id_fkey"
+            columns: ["sale_order_id"]
+            isOneToOne: false
+            referencedRelation: "sale_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mfg_stages: {
+        Row: {
+          active: boolean
+          allowed_days: number | null
+          allowed_wastage_percent: number | null
+          created_at: string
+          default_rate: number
+          id: string
+          is_cutting: boolean
+          name: string
+          notes: string | null
+          organization_id: string
+          sequence: number
+          updated_at: string
+          work_type: string
+        }
+        Insert: {
+          active?: boolean
+          allowed_days?: number | null
+          allowed_wastage_percent?: number | null
+          created_at?: string
+          default_rate?: number
+          id?: string
+          is_cutting?: boolean
+          name: string
+          notes?: string | null
+          organization_id: string
+          sequence?: number
+          updated_at?: string
+          work_type?: string
+        }
+        Update: {
+          active?: boolean
+          allowed_days?: number | null
+          allowed_wastage_percent?: number | null
+          created_at?: string
+          default_rate?: number
+          id?: string
+          is_cutting?: boolean
+          name?: string
+          notes?: string | null
+          organization_id?: string
+          sequence?: number
+          updated_at?: string
+          work_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mfg_stages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mfg_stages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       organization_bank_accounts: {
         Row: {
           account_holder: string | null
@@ -8674,7 +9477,7 @@ export type Database = {
           product_name: string | null
           qty: number
           size: string | null
-          to_variant_id: string
+          to_variant_id: string | null
           transfer_id: string
           unit_cost: number
         }
@@ -8689,7 +9492,7 @@ export type Database = {
           product_name?: string | null
           qty: number
           size?: string | null
-          to_variant_id: string
+          to_variant_id?: string | null
           transfer_id: string
           unit_cost?: number
         }
@@ -8704,7 +9507,7 @@ export type Database = {
           product_name?: string | null
           qty?: number
           size?: string | null
-          to_variant_id?: string
+          to_variant_id?: string | null
           transfer_id?: string
           unit_cost?: number
         }
@@ -8734,6 +9537,8 @@ export type Database = {
       }
       stock_transfers: {
         Row: {
+          accepted_at: string | null
+          accepted_by: string | null
           cancelled_at: string | null
           cancelled_by: string | null
           created_at: string
@@ -8741,6 +9546,10 @@ export type Database = {
           from_organization_id: string
           id: string
           notes: string | null
+          reject_reason: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          status: string
           to_organization_id: string
           total_qty: number
           total_value: number
@@ -8748,6 +9557,8 @@ export type Database = {
           transfer_number: string
         }
         Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
           created_at?: string
@@ -8755,6 +9566,10 @@ export type Database = {
           from_organization_id: string
           id?: string
           notes?: string | null
+          reject_reason?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          status?: string
           to_organization_id: string
           total_qty?: number
           total_value?: number
@@ -8762,6 +9577,8 @@ export type Database = {
           transfer_number: string
         }
         Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
           created_at?: string
@@ -8769,6 +9586,10 @@ export type Database = {
           from_organization_id?: string
           id?: string
           notes?: string | null
+          reject_reason?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          status?: string
           to_organization_id?: string
           total_qty?: number
           total_value?: number
@@ -9464,6 +10285,64 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_dashboard_counts"
             referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      team_chat_messages: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          organization_id: string
+          read_at: string | null
+          recipient_user_id: string
+          reply_to_id: string | null
+          sender_name: string | null
+          sender_user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          organization_id: string
+          read_at?: string | null
+          recipient_user_id: string
+          reply_to_id?: string | null
+          sender_name?: string | null
+          sender_user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          organization_id?: string
+          read_at?: string | null
+          recipient_user_id?: string
+          reply_to_id?: string | null
+          sender_name?: string | null
+          sender_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_chat_messages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_chat_messages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "team_chat_messages_reply_to_id_fkey"
+            columns: ["reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "team_chat_messages"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -11433,6 +12312,26 @@ export type Database = {
         Args: { p_description: string; p_payment_method: string }
         Returns: boolean
       }
+      _mfg_is_roll_size: { Args: { p_size: string }; Returns: boolean }
+      _mfg_move_variant_stock: {
+        Args: {
+          p_lot_id: string
+          p_lot_no: string
+          p_note: string
+          p_organization_id: string
+          p_qty: number
+          p_variant_id: string
+        }
+        Returns: undefined
+      }
+      _mfg_stage_output: {
+        Args: { p_lot_id: string; p_pos: number }
+        Returns: number
+      }
+      _mfg_variant_meters_used: {
+        Args: { p_variant_id: string }
+        Returns: number
+      }
       _next_supplier_invoice_in_series: {
         Args: { p_organization_id: string }
         Returns: string
@@ -11505,9 +12404,17 @@ export type Database = {
         Args: { p_reference_id: string; p_variant_id: string }
         Returns: boolean
       }
+      _stock_transfer_can_receive: {
+        Args: { p_org_id: string; p_uid: string }
+        Returns: boolean
+      }
       _stock_transfer_net_for_variant: {
         Args: { p_variant_id: string }
         Returns: number
+      }
+      _stock_transfer_return_to_sender: {
+        Args: { p_note: string; p_transfer_id: string }
+        Returns: undefined
       }
       _supplier_invoice_serial_parts: {
         Args: { inv: string }
@@ -11529,6 +12436,7 @@ export type Database = {
           variant_id: string
         }[]
       }
+      accept_stock_transfer: { Args: { p_transfer_id: string }; Returns: Json }
       adjust_invoice_balance: {
         Args: {
           p_adjusted_by?: string
@@ -12278,6 +13186,24 @@ export type Database = {
           variant_id: string
         }[]
       }
+      get_mfg_fabric_stock: {
+        Args: { p_organization_id: string }
+        Returns: {
+          barcode: string
+          color: string
+          is_roll: boolean
+          meters_left: number
+          meters_purchased_in_stock: number
+          meters_used: number
+          product_id: string
+          product_name: string
+          pur_price: number
+          roll_meters: number
+          rolls_in_stock: number
+          stock_value: number
+          variant_id: string
+        }[]
+      }
       get_net_profit_aggregates: {
         Args: { p_from_date: string; p_org_id: string; p_to_date: string }
         Returns: Json
@@ -12791,6 +13717,13 @@ export type Database = {
         Args: { p_hide_dc?: boolean; p_organization_id: string }
         Returns: Json
       }
+      get_stock_transfer_shop_names: {
+        Args: { p_organization_id: string }
+        Returns: {
+          id: string
+          name: string
+        }[]
+      }
       get_stock_value: { Args: { p_org_id: string }; Returns: number }
       get_supplier_party_balances: {
         Args: { p_organization_id: string }
@@ -12816,6 +13749,18 @@ export type Database = {
           total_purchased: number
           units_purchased: number
           units_sold: number
+        }[]
+      }
+      get_team_chat_members: {
+        Args: { p_organization_id: string }
+        Returns: {
+          last_at: string
+          last_body: string
+          last_from_me: boolean
+          name: string
+          role: string
+          unread: number
+          user_id: string
         }[]
       }
       get_trial_balance_aggregates: {
@@ -12939,6 +13884,10 @@ export type Database = {
         Returns: number
       }
       mark_stale_backups: { Args: never; Returns: number }
+      mark_team_chat_read: {
+        Args: { p_organization_id: string; p_other_user_id: string }
+        Returns: number
+      }
       merge_products: {
         Args: { p_source_product_id: string; p_target_product_id: string }
         Returns: Json
@@ -12955,6 +13904,52 @@ export type Database = {
           p_target_product_id: string
         }
         Returns: Json
+      }
+      mfg_cancel_fabric_issue: {
+        Args: { p_lot_roll_id: string }
+        Returns: undefined
+      }
+      mfg_cancel_lot: { Args: { p_lot_id: string }; Returns: undefined }
+      mfg_create_lot: {
+        Args: {
+          p_design_id: string
+          p_end_bits_action: string
+          p_finished_product_id: string
+          p_lot_date: string
+          p_notes: string
+          p_organization_id: string
+          p_sale_order_id: string
+          p_sizes: Json
+          p_stage_ids: string[]
+        }
+        Returns: string
+      }
+      mfg_finish_lot: {
+        Args: {
+          p_close: boolean
+          p_cost_per_piece: number
+          p_items: Json
+          p_lot_id: string
+        }
+        Returns: undefined
+      }
+      mfg_issue_fabric: {
+        Args: { p_lot_id: string; p_meters: number; p_variant_id: string }
+        Returns: string
+      }
+      mfg_save_cutting: {
+        Args: {
+          p_cut: Json
+          p_employee_id: string
+          p_end_bits_action: string
+          p_leftovers: Json
+          p_lot_id: string
+          p_rate: number
+          p_supplier_id: string
+          p_worker_name: string
+          p_worker_type: string
+        }
+        Returns: undefined
       }
       net_sold_qty_for_variant: {
         Args: { p_variant_id: string }
@@ -13154,6 +14149,10 @@ export type Database = {
       refresh_bulk_whatsapp_counts: {
         Args: { p_campaign_id: string }
         Returns: undefined
+      }
+      reject_stock_transfer: {
+        Args: { p_reason?: string; p_transfer_id: string }
+        Returns: Json
       }
       release_sale_credit: { Args: { p_sale_id: string }; Returns: Json }
       repair_customer_floating_adjustments: {
@@ -13357,6 +14356,31 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "shop_chat_messages"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      send_team_chat_message: {
+        Args: {
+          p_body: string
+          p_organization_id: string
+          p_recipient_user_id: string
+          p_reply_to_id?: string
+        }
+        Returns: {
+          body: string
+          created_at: string
+          id: string
+          organization_id: string
+          read_at: string | null
+          recipient_user_id: string
+          reply_to_id: string | null
+          sender_name: string | null
+          sender_user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "team_chat_messages"
           isOneToOne: true
           isSetofReturn: false
         }
