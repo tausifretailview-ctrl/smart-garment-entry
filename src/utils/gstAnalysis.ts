@@ -253,28 +253,28 @@ export function computeGstSetOff(liabilityIn: GstHeads, creditIn: GstHeads): Gst
   const usedSgst = emptyHeads();
 
   let igstCredit = credit.igst;
-  const use = (amount: number, head: keyof GstHeads, used: GstHeads) => {
+  const apply = (amount: number, head: keyof GstHeads, used: GstHeads) => {
     const x = Math.min(amount, left[head]);
     left[head] -= x;
     used[head] += x;
     return x;
   };
 
-  igstCredit -= use(igstCredit, "igst", usedIgst);
+  igstCredit -= apply(igstCredit, "igst", usedIgst);
   // Where own CGST / SGST credit is short, IGST credit fills the gap first.
-  igstCredit -= use(Math.min(igstCredit, Math.max(0, left.cgst - credit.cgst)), "cgst", usedIgst);
-  igstCredit -= use(Math.min(igstCredit, Math.max(0, left.sgst - credit.sgst)), "sgst", usedIgst);
+  igstCredit -= apply(Math.min(igstCredit, Math.max(0, left.cgst - credit.cgst)), "cgst", usedIgst);
+  igstCredit -= apply(Math.min(igstCredit, Math.max(0, left.sgst - credit.sgst)), "sgst", usedIgst);
   // Rule 88A: IGST credit must be used up before CGST / SGST credit is touched.
-  igstCredit -= use(igstCredit, "cgst", usedIgst);
-  igstCredit -= use(igstCredit, "sgst", usedIgst);
+  igstCredit -= apply(igstCredit, "cgst", usedIgst);
+  igstCredit -= apply(igstCredit, "sgst", usedIgst);
 
   let cgstCredit = credit.cgst;
-  cgstCredit -= use(cgstCredit, "cgst", usedCgst);
-  cgstCredit -= use(cgstCredit, "igst", usedCgst);
+  cgstCredit -= apply(cgstCredit, "cgst", usedCgst);
+  cgstCredit -= apply(cgstCredit, "igst", usedCgst);
 
   let sgstCredit = credit.sgst;
-  sgstCredit -= use(sgstCredit, "sgst", usedSgst);
-  sgstCredit -= use(sgstCredit, "igst", usedSgst);
+  sgstCredit -= apply(sgstCredit, "sgst", usedSgst);
+  sgstCredit -= apply(sgstCredit, "igst", usedSgst);
 
   return {
     liability,
