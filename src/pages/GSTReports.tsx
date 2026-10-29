@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, subMonths } from "date-fns";
@@ -16,6 +16,8 @@ import {
   ArrowLeft,
   Search,
   ShieldCheck,
+  Upload,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,7 +49,19 @@ import { fetchAllSaleItems, fetchProductsByIds, fetchSaleReturnItemsWithDcFlag }
 import { isHeldOrCancelledSale, isParkedHoldNumberSale } from "@/utils/posHoldBill";
 import { allDcDocumentIds, saleReturnAmountsWithoutDc, withoutDcLines } from "@/utils/gstDcExclusion";
 import { buildGstr1Json, type Gstr1Bill, type Gstr1Build, type Gstr1Input, type Gstr1Issue } from "@/utils/gstr1Json";
-import { resolveGstFilingPrefs } from "@/utils/gstReadiness";
+import { resolveGstFilingPrefs, type GstFilingScheme } from "@/utils/gstReadiness";
+import { useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
+import { orgSettingsQueryKey } from "@/hooks/useSettings";
+import {
+  parsePortalErrorReport,
+  periodForDate,
+  resolveGstFilings,
+  withGstFilingRecord,
+  type GstFilings,
+  type PortalErrorReport,
+} from "@/utils/gstFiling";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -247,6 +261,16 @@ const GSTReports = () => {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  // GST Filing opens a period directly: /gst-reports?from=YYYY-MM-DD&to=YYYY-MM-DD
+  const urlPeriod = useMemo(() => {
+    const from = searchParams.get("from") || "";
+    const to = searchParams.get("to") || "";
+    const ymd = /^\d{4}-\d{2}-\d{2}$/;
+    return ymd.test(from) && ymd.test(to) && from <= to ? { from, to } : null;
+  }, [searchParams]);
   const today = new Date();
 
   const handleBack = () => {
@@ -257,9 +281,9 @@ const GSTReports = () => {
     orgNavigate("/reports");
   };
 
-  const [fromDate, setFromDate] = useState(format(startOfMonth(today), "yyyy-MM-dd"));
-  const [toDate, setToDate] = useState(format(endOfMonth(today), "yyyy-MM-dd"));
-  const [periodType, setPeriodType] = useState<PeriodType>("this-month");
+  const [fromDate, setFromDate] = useState(urlPeriod?.from || format(startOfMonth(today), "yyyy-MM-dd"));
+  const [toDate, setToDate] = useState(urlPeriod?.to || format(endOfMonth(today), "yyyy-MM-dd"));
+  const [periodType, setPeriodType] = useState<PeriodType>(urlPeriod ? "custom" : "this-month");
   const [activeReport, setActiveReport] = useState<ReportType>("gstr1");
   const [isLoading, setIsLoading] = useState(false);
   const [gstr1Data, setGstr1Data] = useState<GSTR1Data | null>(null);
@@ -274,12 +298,20 @@ const GSTReports = () => {
   const [gstr1Check, setGstr1Check] = useState<Gstr1Build | null>(null);
   const [gstr1CheckOpen, setGstr1CheckOpen] = useState(false);
   const [skipB2cHsn, setSkipB2cHsn] = useState(false);
+  /** Filed marks and scheme from settings (GST Filing page), for the "mark as filed" step. */
+  const [gstFilings, setGstFilings] = useState<GstFilings>({});
+  const [filingScheme, setFilingScheme] = useState<GstFilingScheme | null>(null);
+  const [markArn, setMarkArn] = useState("");
+  const [markingFiled, setMarkingFiled] = useState(false);
+  const [portalErrors, setPortalErrors] = useState<PortalErrorReport | null>(null);
+  const errorFileRef = useRef<HTMLInputElement>(null);
 
   const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.gstReports,
     currentOrganization?.id,
     useMemo(() => ({ fromDate, toDate, periodType, activeReport }), [fromDate, toDate, periodType, activeReport]),
     (saved) => {
+      if (urlPeriod) return; // a period opened from GST Filing wins over the remembered filter
       restoreDashboardFilters(saved, {
         strings: [
           ["fromDate", setFromDate],
@@ -375,6 +407,8 @@ const GSTReports = () => {
     });
     // GST Readiness preference: under ₹5 crore, HSN is optional on retail lines of the GSTR-1 file.
     setSkipB2cHsn(resolveGstFilingPrefs(settings).turnoverUnder5Cr);
+    setFilingScheme(resolveGstFilingPrefs(settings).scheme);
+    setGstFilings(resolveGstFilings(settings));
 
     return settings;
   };
@@ -671,6 +705,7 @@ const GSTReports = () => {
       // Source for the GSTR-1 file: GST bills and credit notes with their lines, plus every number issued.
       const returnProductIds = Array.from(returnLinesByReturn.values()).flat().map((l: any) => String(l.product_id || ""));
       const returnUnits = await fetchProductUnits(returnProductIds.filter((id) => !productUnits.has(id)));
+      setPortalErrors(null);
       setGstr1Source({
         shopGstin: businessGSTIN,
         fromYmd: fromDate,
@@ -970,6 +1005,77 @@ const GSTReports = () => {
     URL.revokeObjectURL(url);
     setGstr1CheckOpen(false);
     toast({ title: "GSTR-1 file downloaded", description: `Upload ${a.download} on the GST portal: Returns → GSTR-1 → Prepare Offline.` });
+  };
+
+  const gstr1FiledRecord = gstr1Check?.fp ? gstFilings.GSTR1?.[gstr1Check.fp] : undefined;
+  // Marking needs the generated range to be exactly one filing period of the shop's scheme
+  // (a QRMP shop must generate the whole quarter, not one month of it).
+  const gstr1MarkablePeriod = gstr1Source && gstr1Check?.fp ? periodForDate(gstr1Source.fromYmd, filingScheme) : null;
+  const gstr1CanMark =
+    !!gstr1MarkablePeriod &&
+    gstr1MarkablePeriod.fp === gstr1Check?.fp &&
+    gstr1MarkablePeriod.fromYmd === gstr1Source?.fromYmd &&
+    gstr1MarkablePeriod.toYmd === gstr1Source?.toYmd;
+
+  /** Record on the shop's settings that this period's GSTR-1 was filed on the portal; locks its bills. */
+  const markGstr1Filed = async () => {
+    const fp = gstr1Check?.fp;
+    if (!fp || !currentOrganization?.id || !gstr1CanMark) return;
+    setMarkingFiled(true);
+    try {
+      // Re-read the row first so a save from another tab or page is not overwritten.
+      const { data: fresh, error: readError } = await supabase
+        .from("settings")
+        .select("report_settings")
+        .eq("organization_id", currentOrganization.id)
+        .maybeSingle();
+      if (readError) throw readError;
+      const next = withGstFilingRecord(fresh?.report_settings, "GSTR1", fp, {
+        filedAt: new Date().toISOString(),
+        filedBy: user?.email || "",
+        arn: markArn.trim().toUpperCase() || undefined,
+        totals: {
+          taxable: gstr1Check?.summary.taxable ?? 0,
+          tax: gstr1Check?.summary.tax ?? 0,
+          bills: gstr1Source?.bills.length ?? 0,
+        },
+      });
+      const { error: writeError } = await supabase
+        .from("settings")
+        .update({ report_settings: next as any })
+        .eq("organization_id", currentOrganization.id);
+      if (writeError) throw writeError;
+      setGstFilings(resolveGstFilings({ report_settings: next }));
+      setMarkArn("");
+      void queryClient.invalidateQueries({ queryKey: orgSettingsQueryKey(currentOrganization.id) });
+      toast({
+        title: `GSTR-1 for ${filingPeriodLabel(fp)} marked as filed`,
+        description: "Bills of this period are now locked against edits and deletes. Undo from the GST Filing page if needed.",
+      });
+    } catch (error) {
+      toast({ title: "Could not save", description: errorText(error), variant: "destructive" });
+    } finally {
+      setMarkingFiled(false);
+    }
+  };
+
+  /** Read the error report the portal gives after "Processed with Error" and list the failed rows. */
+  const importPortalErrors = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const parsed = parsePortalErrorReport(JSON.parse(await file.text()));
+      setPortalErrors(parsed);
+      if (parsed.errors.length === 0) {
+        toast({ title: "No error rows in this file", description: "If the portal still shows errors, generate and download the error report again." });
+      }
+    } catch {
+      toast({
+        title: "Not a portal error report",
+        description: "Choose the JSON file downloaded from the GST portal (Prepare Offline → Generate error report).",
+        variant: "destructive",
+      });
+    }
+    if (errorFileRef.current) errorFileRef.current.value = "";
   };
 
   const exportToExcel = async (data: any[], fileName: string, sheetName: string) => {
@@ -1816,7 +1922,104 @@ const GSTReports = () => {
                   <li>Wait for “Processed”. If it says “Processed with Errors”, download the error report and tell us what it says.</li>
                   <li>Open <b>Prepare Online</b>, check the totals against this screen, then Generate Summary → Submit.</li>
                   <li><b>File with EVC</b>: enter the OTP sent to the owner's registered mobile and email.</li>
+                  <li>Come back here and press <b>Mark as filed</b>, so Ezzy ERP locks the period and the reminder stops.</li>
                 </ol>
+              </div>
+
+              <div className="rounded-md border border-slate-200 px-3 py-2 space-y-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <p className="font-semibold text-slate-700">Portal said “Processed with Errors”?</p>
+                  <input
+                    ref={errorFileRef}
+                    type="file"
+                    accept=".json,application/json"
+                    className="hidden"
+                    onChange={(e) => void importPortalErrors(e.target.files?.[0])}
+                  />
+                  <Button type="button" variant="outline" size="sm" className="h-8 gap-1" onClick={() => errorFileRef.current?.click()}>
+                    <Upload className="h-3.5 w-3.5" />
+                    Import error report
+                  </Button>
+                </div>
+                {portalErrors &&
+                  (portalErrors.errors.length > 0 ? (
+                    <div className="max-h-48 overflow-y-auto rounded border border-red-200">
+                      <table className="w-full text-xs">
+                        <thead className="bg-red-50 text-red-800">
+                          <tr>
+                            <th className="text-left px-2 py-1">Table</th>
+                            <th className="text-left px-2 py-1">Bill / row</th>
+                            <th className="text-left px-2 py-1">Error</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {portalErrors.errors.map((e, i) => (
+                            <tr key={i} className="border-t border-red-100 align-top">
+                              <td className="px-2 py-1 whitespace-nowrap">{e.table}</td>
+                              <td className="px-2 py-1 font-mono">{e.ref || "—"}</td>
+                              <td className="px-2 py-1">
+                                {e.code && <span className="font-mono text-red-700 mr-1">{e.code}</span>}
+                                {e.message}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-emerald-700">No error rows in that file.</p>
+                  ))}
+                <p className="text-xs text-slate-500">
+                  On the portal: Prepare Offline → <b>Generate error report</b> → download. Import it here to see which bills
+                  failed, fix them in Ezzy ERP, then Generate and upload again.
+                </p>
+              </div>
+
+              <div className={cn("rounded-md border px-3 py-2", gstr1FiledRecord ? "border-emerald-200 bg-emerald-50" : "border-slate-200")}>
+                {gstr1FiledRecord ? (
+                  <p className="text-emerald-800">
+                    <b>Filed</b> on {format(new Date(gstr1FiledRecord.filedAt), "d MMM yyyy")}
+                    {gstr1FiledRecord.filedBy ? ` by ${gstr1FiledRecord.filedBy}` : ""}
+                    {gstr1FiledRecord.arn ? ` · ARN ${gstr1FiledRecord.arn}` : ""}. Bills of this period are locked; undo it on{" "}
+                    <button type="button" className="underline font-semibold" onClick={() => orgNavigate("/gst-filing")}>
+                      GST Filing
+                    </button>
+                    .
+                  </p>
+                ) : gstr1CanMark ? (
+                  <>
+                    <p className="font-semibold text-slate-700 mb-1">After filing on the portal</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input
+                        value={markArn}
+                        onChange={(e) => setMarkArn(e.target.value.toUpperCase())}
+                        placeholder="ARN from the portal (optional)"
+                        className="h-8 w-60 font-mono text-xs"
+                        maxLength={20}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
+                        onClick={() => void markGstr1Filed()}
+                        disabled={markingFiled}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                        Mark {gstr1Check.fp ? filingPeriodLabel(gstr1Check.fp) : "period"} as filed
+                      </Button>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Locks the bills of this period against edits and deletes, so the filed return and Ezzy ERP stay the same.
+                      The due-date reminder for this return stops.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xs text-slate-500">
+                    {filingScheme === "qrmp" || filingScheme === "composition"
+                      ? "This shop files quarterly: generate the whole quarter (for example Oct–Dec) to mark it filed."
+                      : "Generate exactly one month to mark it filed here, or use the GST Filing page."}
+                  </p>
+                )}
               </div>
             </div>
           )}

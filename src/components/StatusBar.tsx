@@ -40,6 +40,7 @@ const getCurrentPageName = (path: string): string => {
     'gst-reports': 'GST Reports',
     'gst-analysis': 'GST Analysis',
     'gst-readiness': 'GST Readiness',
+    'gst-filing': 'GST Filing',
     'item-wise-sales': 'Item Wise Sales',
   };
   const segment = path.split('/').filter(Boolean).pop() || '';

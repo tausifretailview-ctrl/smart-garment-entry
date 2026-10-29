@@ -176,6 +176,9 @@ const GSTReadiness = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => orgNavigate("/gst-filing")}>
+              GST Filing
+            </Button>
             <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => orgNavigate("/gst-reports")}>
               GST Reports
             </Button>

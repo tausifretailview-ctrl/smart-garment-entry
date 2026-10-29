@@ -24,6 +24,8 @@ import {
 import { posWhatsAppReceiptFigures } from "@/utils/trendzoThermalPayment";
 import { useShopName } from "@/hooks/useShopName";
 import { useSettings } from "@/hooks/useSettings";
+import { filedPeriodForDate, filedPeriodLockMessage, resolveGstFilings } from "@/utils/gstFiling";
+import { resolveGstFilingPrefs } from "@/utils/gstReadiness";
 import { generateAndUploadInvoicePDF, InvoicePdfData, generateInvoicePdfBase64 } from "@/utils/invoicePdfUploader";
 import { uploadWappConnectInvoicePdfFromBase64 } from "@/utils/wappConnectPdfUrl";
 import { deleteJournalEntryByReference, postSaleJournalInBackground } from "@/utils/accounting/journalService";
@@ -2143,6 +2145,27 @@ export const useSaveSale = () => {
         .single();
       const existingPaidAmount = existingSale?.paid_amount || 0;
       const priorStatus = existingSale?.payment_status;
+
+      // A bill dated in a GST period already marked filed (GST Filing page) stays as filed.
+      // Held carts were never part of a return, so completing one is fine.
+      if (String(priorStatus || '').toLowerCase() !== 'hold') {
+        const gstSettings = orgSettings as { report_settings?: unknown } | null | undefined;
+        const filedLock = filedPeriodForDate(
+          resolveGstFilings(gstSettings),
+          resolveGstFilingPrefs(gstSettings).scheme,
+          (existingSale as { sale_date?: string | null } | null)?.sale_date,
+        );
+        if (filedLock) {
+          toast({
+            title: 'Bill is in a filed GST period',
+            description: filedPeriodLockMessage((existingSale as { sale_number?: string | null } | null)?.sale_number, filedLock),
+            variant: 'destructive',
+          });
+          setIsSaving(false);
+          savingLockRef.current = false;
+          return null;
+        }
+      }
 
       // Safety guard: surface destructive edits to an existing bill.
       // Catches the "accidentally Modified the wrong invoice" case where one user

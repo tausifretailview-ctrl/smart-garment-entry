@@ -971,6 +971,16 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
+                        {(isAdminPermissions || hasMenuAccess("gst_reports")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/gst-filing")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
+                              <NavLink to="/gst-filing" className="flex items-center gap-2 group">
+                                <FileSpreadsheet className="h-4 w-4 sidebar-icon text-primary" />
+                                <span className="text-sidebar-foreground font-semibold group-hover:text-primary">GST Filing</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
                         {(isAdminPermissions || hasMenuAccess("gst_register")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/gst-register")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">

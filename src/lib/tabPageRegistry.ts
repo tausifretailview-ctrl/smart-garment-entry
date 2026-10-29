@@ -206,6 +206,11 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
     layout: "layout",
     roles: ["admin", "manager"],
   },
+  "gst-filing": {
+    loader: () => import("@/pages/GSTFiling"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
   "purchase-orders": {
     loader: () => import("@/pages/PurchaseOrderDashboard"),
     layout: "layout",
