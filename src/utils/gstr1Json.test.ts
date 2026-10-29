@@ -241,7 +241,7 @@ describe("buildGstr1Json", () => {
           bill({ id: "1", number: "INV/26-27/9", posStateCode: "24", billValue: 300000, taxType: "exclusive", lines: [
             { hsn: "6204", rate: 5, qty: 100, value: 285714.29, productName: "Saree" },
           ] }),
-          bill({ id: "2", number: "POS/26-27/1", billValue: 105 }),
+          bill({ id: "2", number: "POS/26-27/1", billValue: 105, lines: [{ hsn: "6109", rate: 5, qty: 1, value: 105, productName: "T-Shirt" }] }),
         ],
         notes: [bill({ id: "r", number: "SR/26-27/1", billValue: 210, lines: [{ hsn: "6109", rate: 5, qty: 2, value: 210, productName: "T-Shirt" }] })],
       }),
