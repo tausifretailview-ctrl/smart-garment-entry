@@ -6,6 +6,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllSaleItems } from "@/utils/fetchAllRows";
+import { isHeldOrCancelledSale } from "@/utils/posHoldBill";
 import { allDcDocumentIds, isMissingDcColumnError, saleReturnAmountsWithoutDc, withoutDcLines } from "@/utils/gstDcExclusion";
 import {
   normalizeGstTaxType,
@@ -96,12 +97,12 @@ export async function loadGstAnalysis(orgId: string, fromYmd: string, toYmd: str
       : resolveSaleDefaultTaxType(saleSettings);
   };
 
-  const [salesRows, saleReturnRows, purchaseRows, purchaseReturnRows, dcPurchaseCount, dcPurchaseReturnCount] =
+  const [allSalesRows, saleReturnRows, purchaseRows, purchaseReturnRows, dcPurchaseCount, dcPurchaseReturnCount] =
     await Promise.all([
       allPages<any>((from, to) =>
         db
           .from("sales")
-          .select("id, sale_number, sale_date, sale_type, customer_name, net_amount, tax_type, customers(gst_number)")
+          .select("id, sale_number, sale_date, sale_type, customer_name, net_amount, tax_type, payment_status, payment_method, is_cancelled, customers(gst_number)")
           .eq("organization_id", orgId)
           .is("deleted_at", null)
           .eq("is_cancelled", false)
@@ -171,7 +172,8 @@ export async function loadGstAnalysis(orgId: string, fromYmd: string, toYmd: str
         .then((r: { count: number | null }) => r.count || 0),
     ]);
 
-  // ── Sales ──
+  // ── Sales ── (held carts and cancelled bills are not sales)
+  const salesRows = allSalesRows.filter((s) => !isHeldOrCancelledSale(s));
   const allSaleItems = salesRows.length ? await fetchAllSaleItems(salesRows.map((s) => String(s.id))) : [];
   const allDcSales = allDcDocumentIds(allSaleItems, "sale_id");
   const saleItemsBySale = groupBy(withoutDcLines(allSaleItems), (i: any) => String(i.sale_id));
