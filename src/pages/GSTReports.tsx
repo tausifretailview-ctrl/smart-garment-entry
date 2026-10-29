@@ -1020,6 +1020,14 @@ const GSTReports = () => {
                 GSTIN: {businessInfo.gstin}
               </Badge>
             )}
+            <Button
+              variant="outline"
+              className="h-9 gap-2 shrink-0"
+              onClick={() => orgNavigate("/gst-analysis")}
+            >
+              <BarChart3 className="h-4 w-4" />
+              GST Analysis
+            </Button>
             {activeReport !== "register" && (
               <Button
                 onClick={handleGenerateReport}
