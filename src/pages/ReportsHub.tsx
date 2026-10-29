@@ -382,6 +382,14 @@ const ALL_REPORTS: ReportItem[] = [
     permission: "gst_reports",
   },
   {
+    icon: ShieldCheck,
+    label: "GST Readiness",
+    path: "/gst-readiness",
+    desc: "HSN, GSTINs and filing scheme: ready to file yourself?",
+    tab: "gst",
+    permission: "gst_reports",
+  },
+  {
     icon: FileText,
     label: "GST Register",
     path: "/gst-register",

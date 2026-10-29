@@ -268,6 +268,7 @@ export const POST_LOGIN_IDLE_PREFETCH_TAB_PATHS = [
   "cn-sr-adjustment-register",
   "gst-reports",
   "gst-analysis",
+  "gst-readiness",
   "gst-register",
   "tally-export",
   "price-history",

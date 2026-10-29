@@ -123,6 +123,7 @@ const PriceHistoryReport = lazyWithRetry(() => import("./pages/PriceHistoryRepor
 const GSTSalePurchaseRegister = lazyWithRetry(() => import("./pages/GSTSalePurchaseRegister"));
 const GSTReports = lazyWithRetry(() => import("./pages/GSTReports"));
 const GSTAnalysis = lazyWithRetry(() => import("./pages/GSTAnalysis"));
+const GSTReadiness = lazyWithRetry(() => import("./pages/GSTReadiness"));
 const TallyExport = lazyWithRetry(() => import("./pages/TallyExport"));
 const SalesAnalyticsDashboard = lazyWithRetry(() => import("./pages/SalesAnalyticsDashboard"));
 const AccountingReports = lazyWithRetry(() => import("./pages/AccountingReports"));
@@ -1440,6 +1441,18 @@ const App = () => {
                       <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                         <Layout>
                           <GSTAnalysis />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="gst-readiness"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <GSTReadiness />
                         </Layout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>

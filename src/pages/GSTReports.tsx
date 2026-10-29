@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   Search,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +47,7 @@ import { fetchAllSaleItems, fetchProductsByIds, fetchSaleReturnItemsWithDcFlag }
 import { isHeldOrCancelledSale, isParkedHoldNumberSale } from "@/utils/posHoldBill";
 import { allDcDocumentIds, saleReturnAmountsWithoutDc, withoutDcLines } from "@/utils/gstDcExclusion";
 import { buildGstr1Json, type Gstr1Bill, type Gstr1Build, type Gstr1Input, type Gstr1Issue } from "@/utils/gstr1Json";
+import { resolveGstFilingPrefs } from "@/utils/gstReadiness";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -363,15 +365,17 @@ const GSTReports = () => {
     
     const { data: settings } = await supabase
       .from("settings")
-      .select("business_name, gst_number, sale_settings")
+      .select("business_name, gst_number, sale_settings, report_settings")
       .eq("organization_id", currentOrganization.id)
       .maybeSingle();
-    
+
     setBusinessInfo({
       name: settings?.business_name || currentOrganization.name || "Business",
       gstin: settings?.gst_number || ""
     });
-    
+    // GST Readiness preference: under ₹5 crore, HSN is optional on retail lines of the GSTR-1 file.
+    setSkipB2cHsn(resolveGstFilingPrefs(settings).turnoverUnder5Cr);
+
     return settings;
   };
 
@@ -1166,6 +1170,14 @@ const GSTReports = () => {
             >
               <BarChart3 className="h-4 w-4" />
               GST Analysis
+            </Button>
+            <Button
+              variant="outline"
+              className="h-9 gap-2 shrink-0"
+              onClick={() => orgNavigate("/gst-readiness")}
+            >
+              <ShieldCheck className="h-4 w-4" />
+              GST Readiness
             </Button>
             {activeReport !== "register" && (
               <Button
