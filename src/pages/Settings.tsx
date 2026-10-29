@@ -5,8 +5,10 @@ import { createSettingsPanel } from "@/components/settings/lazySettingsPanel";
 import { prefetchTabPage, shouldAllowSpeculativeChunkPrefetch } from "@/lib/tabPageRegistry";
 import { logError } from "@/lib/errorLogger";
 import { UOM_OPTIONS } from "@/constants/uom";
+import { useManufacturerERPAvailable } from "@/hooks/useManufacturerERP";
+import { DEFAULT_MANUFACTURER_ERP, type ManufacturerERPConfig } from "@/utils/manufacturing";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, BarChart2 } from "lucide-react";
+import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, BarChart2, Factory } from "lucide-react";
 import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { SaleInvoiceFormatBackupDialog } from "@/components/settings/SaleInvoiceFormatBackupDialog";
 import { InvoiceTemplateSelectItems } from "@/components/settings/InvoiceTemplateSelectItems";
@@ -178,6 +180,8 @@ interface ProductSettings {
   sku_format?: string;
   default_size_group?: string;
   mobile_erp?: MobileERPConfig;
+  /** Manufacturer ERP (fabric roll → stages → ready piece). Shown only when Platform Admin enabled the feature. */
+  manufacturer_erp?: ManufacturerERPConfig;
   /** Show the EMI / financer button in POS without Mobile ERP mode. */
   pos_emi_option?: boolean;
   /** When false, the POS skips the qty/price dialog for service products and
@@ -502,6 +506,7 @@ export default function Settings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization, organizations } = useOrganization();
+  const manufacturerErpAvailable = useManufacturerERPAvailable();
   const { data: cachedSettings } = useSettings();
   const settingsHydratedRef = useRef(false);
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(["company"]));
@@ -2042,6 +2047,95 @@ export default function Settings() {
                 )}
               </CardContent>
             </Card>
+
+            {manufacturerErpAvailable && (() => {
+              const mfg = settings.product_settings?.manufacturer_erp;
+              const setMfg = (patch: Partial<ManufacturerERPConfig>) =>
+                setSettings({
+                  ...settings,
+                  product_settings: {
+                    ...settings.product_settings,
+                    manufacturer_erp: { ...mfg, ...patch },
+                  },
+                });
+              return (
+                <Card className="mt-3 h-fit settings-panel-card">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Factory className="h-5 w-5" />
+                      Manufacturer ERP
+                    </CardTitle>
+                    <CardDescription>
+                      Make your own garments: buy fabric in metres, send it through Cutting, Polishing, Colouring and the other stages, and see wastage and the cost of each piece.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+                      <div>
+                        <Label className="text-base font-semibold">Enable Manufacturer ERP</Label>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Adds the Manufacturing menu: stages, design cards and fabric stock in metres
+                        </p>
+                      </div>
+                      <Switch
+                        checked={mfg?.enabled || false}
+                        onCheckedChange={(checked) => setMfg({ enabled: checked })}
+                      />
+                    </div>
+
+                    {mfg?.enabled && (
+                      <div className="space-y-3 pl-4 border-l-2 border-primary/30">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label htmlFor="mfg_allowed_wastage">Allowed fabric wastage %</Label>
+                            <Input
+                              id="mfg_allowed_wastage"
+                              type="number"
+                              min={0}
+                              max={100}
+                              step="0.5"
+                              value={mfg?.allowed_wastage_percent ?? DEFAULT_MANUFACTURER_ERP.allowed_wastage_percent}
+                              onChange={(e) => {
+                                const v = parseFloat(e.target.value);
+                                setMfg({ allowed_wastage_percent: Number.isFinite(v) ? Math.min(Math.max(v, 0), 100) : 0 });
+                              }}
+                            />
+                            <p className="text-xs text-muted-foreground">Fabric used above the design card by more than this is flagged</p>
+                          </div>
+                          <div className="space-y-1">
+                            <Label>When fabric issued is above allowed</Label>
+                            <Select
+                              value={mfg?.over_issue_action ?? DEFAULT_MANUFACTURER_ERP.over_issue_action}
+                              onValueChange={(v) => setMfg({ over_issue_action: v as ManufacturerERPConfig["over_issue_action"] })}
+                            >
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="warn">Warn only</SelectItem>
+                                <SelectItem value="block">Block, owner must approve</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label>Leftover fabric after cutting</Label>
+                            <Select
+                              value={mfg?.end_bits_default ?? DEFAULT_MANUFACTURER_ERP.end_bits_default}
+                              onValueChange={(v) => setMfg({ end_bits_default: v as ManufacturerERPConfig["end_bits_default"] })}
+                            >
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="wastage">Count as wastage</SelectItem>
+                                <SelectItem value="stock">Put back in stock</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">This is the default. It can be changed for each lot.</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })()}
             
             <LazySettingsPanel>
               <LazySizeGroupManagement />

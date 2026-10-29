@@ -26,6 +26,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { prefetchCriticalEntryChunks, prefetchTabPage } from "@/lib/tabPageRegistry";
 import { useSettings } from "@/hooks/useSettings";
+import { useManufacturerERP } from "@/hooks/useManufacturerERP";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { isBulkWhatsAppEnabled } from "@/utils/whatsappFeatureSwitches";
 
 export type HeaderMenubarProps = {
@@ -61,6 +63,9 @@ export function HeaderMenubar({
   className,
 }: HeaderMenubarProps) {
   const { data: orgSettings } = useSettings();
+  const { organizationRole } = useOrganization();
+  const showManufacturing =
+    useManufacturerERP().enabled && (organizationRole === "admin" || organizationRole === "manager");
   const bulkWhatsAppOn = isBulkWhatsAppEnabled((orgSettings as { sale_settings?: unknown } | null)?.sale_settings);
   const showFile =
     can("pos_sales") ||
@@ -370,6 +375,11 @@ export function HeaderMenubar({
             {can("stock_transfer") && (
               <MenubarItem onClick={() => orgNavigate("/stock-transfer")}>
                 Stock Transfer
+              </MenubarItem>
+            )}
+            {showManufacturing && (
+              <MenubarItem onClick={() => orgNavigate("/manufacturing")}>
+                Manufacturing
               </MenubarItem>
             )}
           </MenubarContent>

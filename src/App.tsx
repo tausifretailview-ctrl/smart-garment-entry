@@ -66,6 +66,7 @@ const BarcodePrinting = lazyWithRetry(() => import("./pages/BarcodePrinting"));
 const StockReport = lazyWithRetry(() => import("./pages/StockReport"));
 const StockSummary = lazyWithRetry(() => import("./pages/StockSummary"));
 const Settings = lazyWithRetry(() => import("./pages/Settings"));
+const Manufacturing = lazyWithRetry(() => import("./pages/Manufacturing"));
 const Profile = lazyWithRetry(() => import("./pages/Profile"));
 const POSSales = lazyWithRetry(() => import("./pages/POSSales"));
 const PosDeliveryChallan = lazyWithRetry(() => import("./pages/PosDeliveryChallan"));
@@ -820,6 +821,18 @@ const App = () => {
                   }
                 />
 
+                <Route
+                  path="manufacturing"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <Manufacturing />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="settings"
                   element={

@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-10-28",
-  "count": 897,
-  "fileCount": 915,
+  "generatedAt": "2026-10-29",
+  "count": 898,
+  "fileCount": 916,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -900,7 +900,8 @@
     "20270310120000",
     "20270311120000",
     "20270312120000",
-    "20270313120000"
+    "20270313120000",
+    "20270314120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1817,7 +1818,8 @@
     "20270310120000_whatsapp_builtin_status_at.sql",
     "20270311120000_sibling_shop_chat.sql",
     "20270312120000_audit_product_changes_changed_fields.sql",
-    "20270313120000_stock_transfer_accept_flow.sql"
+    "20270313120000_stock_transfer_accept_flow.sql",
+    "20270314120000_manufacturer_erp_phase1.sql"
   ],
   "duplicateVersions": [
     {

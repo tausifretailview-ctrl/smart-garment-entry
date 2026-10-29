@@ -79,6 +79,8 @@ const AVAILABLE_FEATURES = [
   "custom_branding",
   "api_access",
   "bulk_operations",
+  // Manufacturer ERP (fabric roll → stages → ready piece): DEMO first, then shops on request.
+  "manufacturer_erp",
 ];
 
 // Audit Log Section Component
