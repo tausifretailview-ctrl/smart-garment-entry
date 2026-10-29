@@ -43,8 +43,8 @@ import {
   type SaleSettingsTaxDefaults,
 } from "@/utils/gstRegisterUtils";
 import { fetchAllSaleItems, fetchProductsByIds, fetchSaleReturnItemsWithDcFlag } from "@/utils/fetchAllRows";
+import { isHeldOrCancelledSale, isParkedHoldNumberSale } from "@/utils/posHoldBill";
 import { allDcDocumentIds, saleReturnAmountsWithoutDc, withoutDcLines } from "@/utils/gstDcExclusion";
-import { isParkedHoldNumberSale } from "@/utils/posHoldBill";
 import { buildGstr1Json, type Gstr1Bill, type Gstr1Build, type Gstr1Input, type Gstr1Issue } from "@/utils/gstr1Json";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -393,12 +393,12 @@ const GSTReports = () => {
       toDateObj.setHours(23, 59, 59, 999);
 
       // Fetch all sales for the period (paged: a busy month has more than 1000 bills)
-      const salesData = await fetchAllPages<any>((from, to) =>
+      const salesFetched = await fetchAllPages<any>((from, to) =>
         supabase
           .from("sales")
           .select(`
             id, sale_number, sale_date, sale_type, customer_name, net_amount, gross_amount, discount_amount, tax_type,
-            customer_id, customers(gst_number, address)
+            payment_status, payment_method, is_cancelled, customer_id, customers(gst_number, address)
           `)
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
@@ -410,6 +410,8 @@ const GSTReports = () => {
           .order("id", { ascending: true })
           .range(from, to),
       );
+      // Held carts (Hold/ bills) and cancelled bills are not supplies.
+      const salesData = salesFetched.filter((s) => !isHeldOrCancelledSale(s));
 
       // Every document issued in the period, cancelled ones included, for Table 13 of the GSTR-1 file.
       const periodDocuments = await fetchAllPages<any>((from, to) =>

@@ -120,8 +120,97 @@ export default function OwnerNotifications() {
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 pt-2 pb-[calc(4.75rem+env(safe-area-inset-bottom,0px))] dark:bg-background sm:px-3 lg:pb-2">
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
+        {/* Phone toolbar: title + small actions, dates on one row, scrollable tabs */}
+        <div className="shrink-0 space-y-2 md:hidden">
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="flex min-w-0 items-center gap-1.5 text-lg font-bold leading-none tracking-tight text-teal-700 dark:text-teal-400">
+              <BellRing className="h-4 w-4 shrink-0" />
+              Notifications
+            </h1>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                disabled={counts.unread === 0}
+                onClick={() => markRead(items.filter(isUnread).map((i) => i.id))}
+                className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold text-teal-700 touch-manipulation active:bg-teal-50 disabled:text-slate-400 dark:text-teal-400 dark:active:bg-muted dark:disabled:text-muted-foreground"
+              >
+                <CheckCheck className="h-4 w-4" />
+                Mark all read
+              </button>
+              <button
+                type="button"
+                onClick={() => void refetch()}
+                aria-label="Refresh notifications"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-600 touch-manipulation active:bg-slate-100 dark:text-muted-foreground dark:active:bg-muted"
+              >
+                <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {(
+              [
+                { id: "notif-from-m", label: "From", value: fromDay, max: toDay || today, set: (v: string) => setRange(v, toDay) },
+                { id: "notif-to-m", label: "To", value: toDay, max: today, set: (v: string) => setRange(fromDay, v) },
+              ] as const
+            ).map((d) => (
+              <label
+                key={d.id}
+                htmlFor={d.id}
+                className="flex h-9 min-w-0 items-center gap-1.5 rounded-md border border-slate-200 bg-white pl-2 dark:border-border dark:bg-card"
+              >
+                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">{d.label}</span>
+                <input
+                  id={d.id}
+                  type="date"
+                  value={d.value}
+                  max={d.max}
+                  onChange={(e) => d.set(e.target.value)}
+                  className="h-full min-w-0 flex-1 bg-transparent pr-1 text-[13px] tabular-nums text-foreground outline-none"
+                />
+              </label>
+            ))}
+          </div>
+
+          <div
+            role="tablist"
+            className="-mx-2 flex gap-1 overflow-x-auto border-b border-slate-200 px-2 [scrollbar-width:none] dark:border-border [&::-webkit-scrollbar]:hidden"
+          >
+            {FILTERS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                role="tab"
+                aria-selected={filter === f.id}
+                onClick={() => setFilter(f.id)}
+                className={cn(
+                  "-mb-px inline-flex h-9 shrink-0 items-center gap-1 whitespace-nowrap border-b-2 px-2.5 text-[13px] font-semibold touch-manipulation",
+                  filter === f.id
+                    ? "border-teal-600 text-teal-700 dark:border-teal-400 dark:text-teal-400"
+                    : "border-transparent text-slate-500 dark:text-muted-foreground",
+                )}
+              >
+                {f.label}
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 text-[11px] font-bold leading-4 tabular-nums",
+                    filter === f.id
+                      ? "bg-teal-600 text-white dark:bg-teal-500"
+                      : f.id === "unread" && counts.unread > 0
+                        ? "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400"
+                        : "bg-slate-100 text-slate-500 dark:bg-muted",
+                  )}
+                >
+                  {canSee && !isLoading ? counts[f.id] : "–"}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Toolbar */}
-        <div className="flex shrink-0 flex-wrap items-end justify-between gap-2">
+        <div className="hidden shrink-0 flex-wrap items-end justify-between gap-2 md:flex">
           <div className="min-w-0">
             <h1 className="flex items-center gap-2 text-xl font-bold leading-none tracking-tight text-teal-700 dark:text-teal-400">
               <BellRing className="h-5 w-5 shrink-0" />
@@ -181,7 +270,7 @@ export default function OwnerNotifications() {
         </div>
 
         {/* Filter tabs with counts */}
-        <div className="flex shrink-0 flex-wrap gap-1">
+        <div className="hidden shrink-0 flex-wrap gap-1 md:flex">
           {FILTERS.map((f) => (
             <button
               key={f.id}
@@ -300,11 +389,11 @@ export default function OwnerNotifications() {
                       type="button"
                       onClick={() => open(item)}
                       className={cn(
-                        "flex w-full items-start gap-3 px-3 py-3.5 text-left touch-manipulation active:bg-muted",
+                        "flex w-full items-start gap-2.5 px-3 py-3 text-left touch-manipulation active:bg-muted",
                         unread && "bg-blue-50/50 dark:bg-blue-950/20",
                       )}
                     >
-                      <span className="mt-0.5 w-7 shrink-0 text-right text-sm font-bold tabular-nums text-slate-400">{idx + 1}</span>
+                      <span className="mt-0.5 w-6 shrink-0 text-right text-xs font-bold tabular-nums text-slate-400">{idx + 1}</span>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <KindBadge kind={item.kind} />
@@ -312,7 +401,7 @@ export default function OwnerNotifications() {
                             {dateOf(item.createdAt)} · {timeOf(item.createdAt)}
                           </span>
                         </div>
-                        <p className={cn("mt-1.5 text-base leading-snug text-foreground", unread ? "font-bold" : "font-medium")}>
+                        <p className={cn("mt-1 text-[15px] leading-snug text-foreground", unread ? "font-bold" : "font-medium")}>
                           {item.title}
                         </p>
                         {item.body ? (

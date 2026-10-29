@@ -31,6 +31,7 @@ import {
   fetchPurchaseReturnItemsByIds,
 } from "@/utils/fetchAllRows";
 import { isAllDcDocument, withoutDcLines } from "@/utils/gstDcExclusion";
+import { isHeldOrCancelledSale } from "@/utils/posHoldBill";
 import { InsightsKpiCard } from "@/components/business-insights/insightsLayout";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 
@@ -205,12 +206,12 @@ const GSTSalePurchaseRegister = () => {
       };
 
       // ===== Fetch Invoice Sales Data (sale_type = 'invoice') =====
-      const { data: salesData } = await supabase
+      const { data: invoiceSalesRows } = await supabase
         .from("sales")
         .select(`
           id, sale_number, sale_date, customer_name, net_amount, tax_type,
           gross_amount, discount_amount, flat_discount_amount,
-          customer_id, customers(gst_number)
+          payment_status, payment_method, is_cancelled, customer_id, customers(gst_number)
         `)
         .eq("organization_id", currentOrganization.id)
         .eq("sale_type", "invoice")
@@ -221,12 +222,12 @@ const GSTSalePurchaseRegister = () => {
         .order("sale_date", { ascending: true });
 
       // ===== Fetch POS Sales Data (sale_type = 'pos') =====
-      const { data: posSalesData } = await supabase
+      const { data: posSalesRows } = await supabase
         .from("sales")
         .select(`
           id, sale_number, sale_date, customer_name, net_amount, tax_type,
           gross_amount, discount_amount, flat_discount_amount,
-          customer_id, customers(gst_number)
+          payment_status, payment_method, is_cancelled, customer_id, customers(gst_number)
         `)
         .eq("organization_id", currentOrganization.id)
         .eq("sale_type", "pos")
@@ -235,6 +236,10 @@ const GSTSalePurchaseRegister = () => {
         .gte("sale_date", fromDateObj.toISOString())
         .lte("sale_date", toDateObj.toISOString())
         .order("sale_date", { ascending: true });
+
+      // Held carts (Hold/ bills) and cancelled bills are not supplies.
+      const salesData = (invoiceSalesRows || []).filter((s) => !isHeldOrCancelledSale(s));
+      const posSalesData = (posSalesRows || []).filter((s) => !isHeldOrCancelledSale(s));
 
       // Fetch sale items for GST breakup (invoice sales)
       const saleIds = salesData?.map(s => s.id) || [];

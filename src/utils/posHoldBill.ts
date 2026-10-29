@@ -44,3 +44,18 @@ export function isParkedHoldNumberSale(sale: {
   if (method == null || String(method).trim() === "") return true;
   return String(method).trim().toLowerCase() === "pay_later";
 }
+
+/**
+ * Held carts (F7 Hold, parked Hold/ bills) and cancelled bills are not supplies:
+ * the GST reports leave them out. Deleted bills are filtered by `deleted_at` in the query.
+ */
+export function isHeldOrCancelledSale(sale: {
+  sale_number?: string | null;
+  payment_method?: string | null;
+  payment_status?: string | null;
+  is_cancelled?: boolean | null;
+}): boolean {
+  const status = String(sale.payment_status || "").toLowerCase();
+  if (sale.is_cancelled === true || status === "cancelled" || status === "hold") return true;
+  return isParkedHoldNumberSale(sale);
+}
