@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,13 @@ import { CloseShortDialog, ReceiveDialog } from "./LotDetail";
 import {
   errMsg,
   lotsKey,
+  MFG_CARD,
+  MFG_CARD_TITLE,
+  MFG_HEAD_ROW,
+  MFG_ROW,
+  MFG_TABLE,
+  MFG_TH,
+  MFG_THEAD,
   openJobCardsKey,
   pcs,
   useMfgStages,
@@ -86,16 +94,16 @@ export function PendingWorkTab({ orgId, onOpenLot }: { orgId: string; onOpenLot:
 
   return (
     <div className="space-y-3">
-      <Card>
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-lg flex items-center gap-2"><Clock className="h-5 w-5" /> Pending with workers</CardTitle>
-          <CardDescription>
+      <Card className={MFG_CARD}>
+        <CardHeader className="space-y-1 border-b border-slate-100 px-4 py-3">
+          <CardTitle className={MFG_CARD_TITLE}><Clock className="h-5 w-5" /> Pending with workers</CardTitle>
+          <CardDescription className="text-xs">
             {pcs(totalPending)} pieces are out with staff and job workers
             {totalLate > 0 ? `, ${pcs(totalLate)} of them late.` : "."} A card is late after its due date, or after the stage's allowed days.
           </CardDescription>
         </CardHeader>
         {byWorker.length > 0 && (
-          <CardContent className="flex flex-wrap gap-2">
+          <CardContent className="flex flex-wrap gap-2 p-4">
             {byWorker.map((w) => (
               <Badge key={w.key} variant={w.late > 0 ? "destructive" : "outline"} className="tabular-nums">
                 {w.name}: {pcs(w.pending)}{w.late > 0 ? ` (${pcs(w.late)} late)` : ""}
@@ -123,22 +131,22 @@ export function PendingWorkTab({ orgId, onOpenLot }: { orgId: string; onOpenLot:
         </p>
       ) : (
         <div className="overflow-x-auto border rounded-md">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Worker</TableHead>
-                <TableHead>Lot</TableHead>
-                <TableHead>Stage</TableHead>
-                <TableHead>Sent on</TableHead>
-                <TableHead>Due</TableHead>
-                <TableHead className="text-right">Days out</TableHead>
-                <TableHead className="text-right">Pending pcs</TableHead>
-                <TableHead />
+          <Table className={MFG_TABLE}>
+            <TableHeader className={MFG_THEAD}>
+              <TableRow className={MFG_HEAD_ROW}>
+                <TableHead className={MFG_TH}>Worker</TableHead>
+                <TableHead className={MFG_TH}>Lot</TableHead>
+                <TableHead className={MFG_TH}>Stage</TableHead>
+                <TableHead className={MFG_TH}>Sent on</TableHead>
+                <TableHead className={MFG_TH}>Due</TableHead>
+                <TableHead className={cn(MFG_TH, "text-right")}>Days out</TableHead>
+                <TableHead className={cn(MFG_TH, "text-right")}>Pending pcs</TableHead>
+                <TableHead className={MFG_TH} />
               </TableRow>
             </TableHeader>
             <TableBody>
               {shown.map((r) => (
-                <TableRow key={r.card.id} className={r.late ? "bg-red-50/60" : undefined}>
+                <TableRow key={r.card.id} className={cn(MFG_ROW, r.late && "bg-red-50/60 even:bg-red-50/60")}>
                   <TableCell>
                     {r.card.worker_name}
                     <span className="text-xs text-muted-foreground"> · {r.card.worker_type === "employee" ? "Staff" : "Job worker"}</span>

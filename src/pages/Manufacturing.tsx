@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useManufacturerERP } from "@/hooks/useManufacturerERP";
-import { BackToDashboard } from "@/components/BackToDashboard";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,10 +17,11 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowDown, ArrowUp, Factory, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Factory, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   computeDesignStandardCost,
   DEFAULT_MFG_STAGES,
+  jobCardRemaining,
   MFG_WORK_TYPE_LABEL,
   piecesFromMeters,
   type MfgWorkType,
@@ -29,12 +31,22 @@ import {
   designsKey,
   inr,
   isMtr,
+  MFG_CARD,
+  MFG_CARD_TITLE,
+  MFG_HEAD_ROW,
+  MFG_ROW,
+  MFG_TABLE,
+  MFG_TH,
+  MFG_THEAD,
   mtr,
+  pcs,
   stagesKey,
   useFabricStock,
   useMfgDesigns,
+  useMfgLots,
   useMfgProducts,
   useMfgStages,
+  useOpenJobCards,
   type MfgDesign,
   type MfgStage,
 } from "@/components/manufacturing/mfgData";
@@ -184,11 +196,11 @@ function StagesTab({ orgId }: { orgId: string }) {
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 space-y-0">
+    <Card className={MFG_CARD}>
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 space-y-0 border-b border-slate-100 px-4 py-3">
         <div className="space-y-1">
-          <CardTitle className="text-lg">Process stages</CardTitle>
-          <CardDescription>
+          <CardTitle className={MFG_CARD_TITLE}>Process stages</CardTitle>
+          <CardDescription className="text-xs">
             The steps every lot goes through, in order. Product ready is the last step and is added automatically.
           </CardDescription>
         </div>
@@ -203,7 +215,7 @@ function StagesTab({ orgId }: { orgId: string }) {
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-4">
         {isLoading ? (
           <p className="text-sm text-muted-foreground py-6 text-center">Loading stages…</p>
         ) : stages.length === 0 ? (
@@ -215,22 +227,22 @@ function StagesTab({ orgId }: { orgId: string }) {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12">#</TableHead>
-                  <TableHead>Stage</TableHead>
-                  <TableHead>Done by</TableHead>
-                  <TableHead className="text-right">Rate / pc</TableHead>
-                  <TableHead className="text-right">Allowed days</TableHead>
-                  <TableHead className="text-right">Allowed wastage</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+            <Table className={MFG_TABLE}>
+              <TableHeader className={MFG_THEAD}>
+                <TableRow className={MFG_HEAD_ROW}>
+                  <TableHead className={cn(MFG_TH, "w-12")}>#</TableHead>
+                  <TableHead className={MFG_TH}>Stage</TableHead>
+                  <TableHead className={MFG_TH}>Done by</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>Rate / pc</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>Allowed days</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>Allowed wastage</TableHead>
+                  <TableHead className={MFG_TH}>Status</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {stages.map((s, i) => (
-                  <TableRow key={s.id} className={s.active ? "" : "opacity-60"}>
+                  <TableRow key={s.id} className={cn(MFG_ROW, s.active ? "" : "opacity-60")}>
                     <TableCell className="tabular-nums">{i + 1}</TableCell>
                     <TableCell className="font-medium">
                       {s.name}
@@ -539,11 +551,11 @@ function DesignsTab({ orgId, allowedWastage }: { orgId: string; allowedWastage: 
   );
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 space-y-0">
+    <Card className={MFG_CARD}>
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 space-y-0 border-b border-slate-100 px-4 py-3">
         <div className="space-y-1">
-          <CardTitle className="text-lg">Design cards</CardTitle>
-          <CardDescription>
+          <CardTitle className={MFG_CARD_TITLE}>Design cards</CardTitle>
+          <CardDescription className="text-xs">
             What one piece needs: fabric metres, buttons and trims, and the rate paid at each stage. Every lot is checked against this.
           </CardDescription>
         </div>
@@ -551,7 +563,7 @@ function DesignsTab({ orgId, allowedWastage }: { orgId: string; allowedWastage: 
           <Plus className="h-4 w-4 mr-1" /> New design card
         </Button>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-4">
         {activeStages.length === 0 && (
           <p className="text-sm text-amber-700 mb-3">Add your stages first, in the Stages tab.</p>
         )}
@@ -561,26 +573,26 @@ function DesignsTab({ orgId, allowedWastage }: { orgId: string; allowedWastage: 
           <p className="text-sm text-muted-foreground py-8 text-center">No design cards yet.</p>
         ) : (
           <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Design</TableHead>
-                  <TableHead>Finished product</TableHead>
-                  <TableHead className="text-right">Fabric / pc</TableHead>
-                  <TableHead className="text-right">Fabric ₹</TableHead>
-                  <TableHead className="text-right">Trims ₹</TableHead>
-                  <TableHead className="text-right">Labour ₹</TableHead>
-                  <TableHead className="text-right">Cost / pc</TableHead>
-                  <TableHead className="text-right">Can make now</TableHead>
-                  <TableHead />
+            <Table className={MFG_TABLE}>
+              <TableHeader className={MFG_THEAD}>
+                <TableRow className={MFG_HEAD_ROW}>
+                  <TableHead className={MFG_TH}>Design</TableHead>
+                  <TableHead className={MFG_TH}>Finished product</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>Fabric / pc</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>Fabric ₹</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>Trims ₹</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>Labour ₹</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>Cost / pc</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>Can make now</TableHead>
+                  <TableHead className={MFG_TH} />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {designs.map((d) => {
                   const c = designCost(d);
-                  const pcs = piecesPossible(d);
+                  const canMake = piecesPossible(d);
                   return (
-                    <TableRow key={d.id} className={d.active ? "" : "opacity-60"}>
+                    <TableRow key={d.id} className={cn(MFG_ROW, d.active ? "" : "opacity-60")}>
                       <TableCell className="font-medium">
                         {d.design_no}
                         {d.design_name && <div className="text-xs text-muted-foreground">{d.design_name}</div>}
@@ -591,7 +603,7 @@ function DesignsTab({ orgId, allowedWastage }: { orgId: string; allowedWastage: 
                       <TableCell className="text-right tabular-nums">{inr(c.trims)}</TableCell>
                       <TableCell className="text-right tabular-nums">{inr(c.labour)}</TableCell>
                       <TableCell className="text-right tabular-nums font-semibold">{inr(c.total)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{pcs == null ? "—" : `${pcs} pcs`}</TableCell>
+                      <TableCell className="text-right tabular-nums">{canMake == null ? "—" : `${canMake} pcs`}</TableCell>
                       <TableCell className="text-right">
                         <Button size="icon" variant="ghost" aria-label="Edit design card" onClick={() => openEdit(d)}>
                           <Pencil className="h-4 w-4" />
@@ -767,18 +779,18 @@ function FabricStockTab({ orgId }: { orgId: string }) {
   );
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 space-y-0">
+    <Card className={MFG_CARD}>
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 space-y-0 border-b border-slate-100 px-4 py-3">
         <div className="space-y-1">
-          <CardTitle className="text-lg">Fabric stock in metres</CardTitle>
-          <CardDescription>
+          <CardTitle className={MFG_CARD_TITLE}>Fabric stock in metres</CardTitle>
+          <CardDescription className="text-xs">
             Every roll bought in MTR, with metres left after fabric issued to production.
           </CardDescription>
         </div>
         <Input className="w-full sm:w-64" placeholder="Search fabric, colour, barcode" value={search}
           onChange={(e) => setSearch(e.target.value)} aria-label="Search fabric stock" />
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 p-4">
         <div className="flex flex-wrap gap-2 text-sm">
           <Badge variant="secondary" className="tabular-nums">{totals.rolls} rolls</Badge>
           <Badge variant="secondary" className="tabular-nums">{mtr(totals.meters)} left</Badge>
@@ -796,23 +808,23 @@ function FabricStockTab({ orgId }: { orgId: string }) {
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Fabric</TableHead>
-                  <TableHead>Colour</TableHead>
-                  <TableHead>Barcode</TableHead>
-                  <TableHead className="text-right">Roll length</TableHead>
-                  <TableHead className="text-right">Bought (in stock)</TableHead>
-                  <TableHead className="text-right">Used</TableHead>
-                  <TableHead className="text-right">Left</TableHead>
-                  <TableHead className="text-right">Rate / m</TableHead>
-                  <TableHead className="text-right">Value</TableHead>
+            <Table className={MFG_TABLE}>
+              <TableHeader className={MFG_THEAD}>
+                <TableRow className={MFG_HEAD_ROW}>
+                  <TableHead className={MFG_TH}>Fabric</TableHead>
+                  <TableHead className={MFG_TH}>Colour</TableHead>
+                  <TableHead className={MFG_TH}>Barcode</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>Roll length</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>Bought (in stock)</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>Used</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>Left</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>Rate / m</TableHead>
+                  <TableHead className={cn(MFG_TH, "text-right")}>Value</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.map((r) => (
-                  <TableRow key={r.variant_id}>
+                  <TableRow key={r.variant_id} className={MFG_ROW}>
                     <TableCell className="font-medium">{r.product_name}</TableCell>
                     <TableCell>{r.color || "—"}</TableCell>
                     <TableCell className="font-mono text-xs">{r.barcode || "—"}</TableCell>
@@ -839,8 +851,80 @@ function FabricStockTab({ orgId }: { orgId: string }) {
 
 // ─────────────────────────────── Page ───────────────────────────────
 
+const KPI_CARD = "rounded-lg bg-gradient-to-br px-3 py-2 min-w-0 shadow-sm";
+const KPI_LABEL = "text-xs font-medium text-white/80 leading-none";
+const KPI_VALUE = "text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate";
+const KPI_SUB = "text-[10px] text-white/70 mt-0.5 truncate";
+
+/** Coloured totals strip, same look as Customer Balances. */
+function ManufacturingKpis({ orgId }: { orgId: string }) {
+  const { data: lots = [] } = useMfgLots(orgId);
+  const { data: cards = [] } = useOpenJobCards(orgId);
+  const { data: fabric = [] } = useFabricStock(orgId);
+
+  const k = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const month = today.slice(0, 7);
+    let cutting = 0, inProcess = 0, finishedLots = 0, finishedPcs = 0;
+    for (const l of lots) {
+      if (l.status === "open") cutting += 1;
+      else if (l.status === "cut") inProcess += 1;
+      else if (l.status === "finished" && (l.finished_at || "").slice(0, 7) === month) {
+        finishedLots += 1;
+        finishedPcs += l.sizes.reduce((s, x) => s + (Number(x.finished_qty) || 0), 0);
+      }
+    }
+    let withWorkers = 0, late = 0;
+    for (const c of cards) {
+      if (c.lot?.status !== "cut") continue;
+      const left = jobCardRemaining(c);
+      withWorkers += left;
+      if (c.due_date && c.due_date < today) late += left;
+    }
+    const meters = fabric.reduce((s, f) => s + (Number(f.meters_left) || 0), 0);
+    const value = fabric.reduce((s, f) => s + (Number(f.stock_value) || 0), 0);
+    return { cutting, inProcess, finishedLots, finishedPcs, withWorkers, late, meters, value };
+  }, [lots, cards, fabric]);
+
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 w-full shrink-0">
+      <div className={cn(KPI_CARD, "from-blue-500 to-blue-600")}>
+        <p className={KPI_LABEL}>Lots running</p>
+        <p className={KPI_VALUE}>{pcs(k.cutting + k.inProcess)}</p>
+        <p className={KPI_SUB}>{pcs(k.cutting)} cutting pending · {pcs(k.inProcess)} in process</p>
+      </div>
+      <div className={cn(KPI_CARD, k.late > 0 ? "from-red-500 to-red-600" : "from-amber-500 to-amber-600")}>
+        <p className={KPI_LABEL}>Pieces with workers</p>
+        <p className={KPI_VALUE}>{pcs(k.withWorkers)} pcs</p>
+        <p className={KPI_SUB}>{k.late > 0 ? `${pcs(k.late)} pcs late` : "Nothing late"}</p>
+      </div>
+      <div className={cn(KPI_CARD, "from-emerald-500 to-emerald-600")}>
+        <p className={KPI_LABEL}>Fabric in stock</p>
+        <p className={KPI_VALUE}>{mtr(k.meters)}</p>
+        <p className={KPI_SUB}>Worth {inr(k.value)}</p>
+      </div>
+      <div className={cn(KPI_CARD, "from-violet-500 to-violet-600")}>
+        <p className={KPI_LABEL}>Lots finished this month</p>
+        <p className={KPI_VALUE}>{pcs(k.finishedLots)}</p>
+        <p className={KPI_SUB}>{pcs(k.finishedPcs)} ready pieces into stock</p>
+      </div>
+    </div>
+  );
+}
+
+const TAB_ITEMS = [
+  { id: "lots", label: "Lots" },
+  { id: "pending", label: "Pending with workers" },
+  { id: "stages", label: "Stages" },
+  { id: "designs", label: "Design cards" },
+  { id: "fabric", label: "Fabric stock (MTR)" },
+] as const;
+
+const TAB_PANEL = "flex-1 min-h-0 overflow-y-auto mt-0 tab-scroll-stable data-[state=inactive]:hidden";
+
 const Manufacturing = () => {
   const { currentOrganization } = useOrganization();
+  const { orgNavigate } = useOrgNavigation();
   const mfg = useManufacturerERP();
   const [tab, setTab] = useState("lots");
   const [lotId, setLotId] = useState<string | null>(null);
@@ -851,53 +935,69 @@ const Manufacturing = () => {
   };
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto bg-slate-50 px-2 py-2 sm:px-3">
-      <div className="flex w-full min-w-0 flex-col gap-3">
-        <div className="space-y-1">
-          <div className="[&_button]:mb-0">
-            <BackToDashboard />
+    <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <Button variant="outline" size="sm" className="h-9 px-3 text-sm shrink-0" onClick={() => orgNavigate("/")}>
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Dashboard
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+                <Factory className="h-5 w-5 shrink-0" />
+                Manufacturing
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1 truncate">
+                Production lots · cutting · staff and job workers · ready pieces into stock
+              </p>
+            </div>
           </div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold leading-none tracking-tight text-blue-700">
-            <Factory className="h-6 w-6" /> Manufacturing
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Make production lots, cut fabric, send pieces to staff and job workers, and put ready pieces into stock.
-          </p>
         </div>
 
         {!mfg.enabled || !orgId ? (
-          <Card>
+          <Card className={MFG_CARD}>
             <CardContent className="py-10 text-center space-y-2">
               <p className="font-medium">Manufacturer ERP is off for this shop</p>
               <p className="text-sm text-muted-foreground">Turn it on in Settings &gt; Product &gt; Manufacturer ERP.</p>
             </CardContent>
           </Card>
         ) : (
-          <Tabs value={tab} onValueChange={setTab}>
-            <TabsList className="h-auto flex-wrap justify-start">
-              <TabsTrigger value="lots">Lots</TabsTrigger>
-              <TabsTrigger value="pending">Pending with workers</TabsTrigger>
-              <TabsTrigger value="stages">Stages</TabsTrigger>
-              <TabsTrigger value="designs">Design cards</TabsTrigger>
-              <TabsTrigger value="fabric">Fabric stock (MTR)</TabsTrigger>
-            </TabsList>
-            <TabsContent value="lots" className="mt-3">
-              <LotsTab orgId={orgId} endBitsDefault={mfg.end_bits_default} allowedWastage={mfg.allowed_wastage_percent}
-                selectedLotId={lotId} onSelectLot={setLotId} />
-            </TabsContent>
-            <TabsContent value="pending" className="mt-3">
-              <PendingWorkTab orgId={orgId} onOpenLot={openLot} />
-            </TabsContent>
-            <TabsContent value="stages" className="mt-3">
-              <StagesTab orgId={orgId} />
-            </TabsContent>
-            <TabsContent value="designs" className="mt-3">
-              <DesignsTab orgId={orgId} allowedWastage={mfg.allowed_wastage_percent} />
-            </TabsContent>
-            <TabsContent value="fabric" className="mt-3">
-              <FabricStockTab orgId={orgId} />
-            </TabsContent>
-          </Tabs>
+          <>
+            <ManufacturingKpis orgId={orgId} />
+            <Tabs value={tab} onValueChange={setTab} className="flex flex-col flex-1 min-h-0 gap-2">
+              <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0 shrink-0">
+                {TAB_ITEMS.map(({ id, label }) => (
+                  <TabsTrigger
+                    key={id}
+                    value={id}
+                    className={cn(
+                      "h-9 px-4 text-sm font-semibold rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm",
+                      "data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:border-slate-700",
+                    )}
+                  >
+                    {label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              <TabsContent value="lots" className={TAB_PANEL}>
+                <LotsTab orgId={orgId} endBitsDefault={mfg.end_bits_default} allowedWastage={mfg.allowed_wastage_percent}
+                  selectedLotId={lotId} onSelectLot={setLotId} />
+              </TabsContent>
+              <TabsContent value="pending" className={TAB_PANEL}>
+                <PendingWorkTab orgId={orgId} onOpenLot={openLot} />
+              </TabsContent>
+              <TabsContent value="stages" className={TAB_PANEL}>
+                <StagesTab orgId={orgId} />
+              </TabsContent>
+              <TabsContent value="designs" className={TAB_PANEL}>
+                <DesignsTab orgId={orgId} allowedWastage={mfg.allowed_wastage_percent} />
+              </TabsContent>
+              <TabsContent value="fabric" className={TAB_PANEL}>
+                <FabricStockTab orgId={orgId} />
+              </TabsContent>
+            </Tabs>
+          </>
         )}
       </div>
     </div>
