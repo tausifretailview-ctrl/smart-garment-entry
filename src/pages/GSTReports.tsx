@@ -14,6 +14,7 @@ import {
   Package,
   AlertTriangle,
   ArrowLeft,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -112,11 +113,35 @@ async function saleReturnsWithoutDc<
   return out;
 }
 
+/** PostgREST returns at most 1000 rows per request. */
+const SALES_PAGE_SIZE = 1000;
+
+/** Every page of a range-able query; throws on the first error instead of returning nothing. */
+async function fetchAllPages<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += SALES_PAGE_SIZE) {
+    const { data, error } = await page(from, from + SALES_PAGE_SIZE - 1);
+    if (error) throw error;
+    const batch = data ?? [];
+    rows.push(...batch);
+    if (batch.length < SALES_PAGE_SIZE) return rows;
+  }
+}
+
+function errorText(error: unknown): string {
+  const e = error as { message?: string; details?: string } | null;
+  return String(e?.message || e?.details || error || "Unknown error");
+}
+
 type PeriodType = "custom" | "this-month" | "last-month" | "this-quarter" | "last-quarter" | "this-fy" | "last-fy";
-type ReportType = "gstr1" | "gstr2" | "gstr3b" | "hsn-summary" | "register";
+type ReportType = "gstr1" | "b2b" | "gstr2" | "gstr3b" | "hsn-summary" | "register";
 
 interface GSTR1Data {
   b2b: any[];
+  /** Bills whose customer has a GSTIN that is not 15 characters — reported as B2C. */
+  b2bInvalidGstin: { invoiceNo: string; partyName: string; gstin: string }[];
   b2cs: any[];
   cdnr: any[];
   cdnur: any[];
@@ -196,6 +221,9 @@ const GSTReports = () => {
   const [gstr1Data, setGstr1Data] = useState<GSTR1Data | null>(null);
   const [gstr3bData, setGstr3bData] = useState<GSTR3BSummary | null>(null);
   const [hsnData, setHsnData] = useState<HSNSummary[]>([]);
+  const [hsnGenerated, setHsnGenerated] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [b2bSearch, setB2bSearch] = useState("");
   const [businessInfo, setBusinessInfo] = useState<{ name: string; gstin: string }>({ name: "", gstin: "" });
   const [isDownloadingGstr1Json, setIsDownloadingGstr1Json] = useState(false);
 
@@ -318,20 +346,24 @@ const GSTReports = () => {
       const toDateObj = new Date(toDate);
       toDateObj.setHours(23, 59, 59, 999);
 
-      // Fetch all sales for the period
-      const { data: salesData } = await supabase
-        .from("sales")
-        .select(`
-          id, sale_number, sale_date, sale_type, customer_name, net_amount, gross_amount, discount_amount, tax_type,
-          customer_id, customers(gst_number, address)
-        `)
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .eq("is_cancelled", false)
-        .gt("net_amount", 0)
-        .gte("sale_date", fromDateObj.toISOString())
-        .lte("sale_date", toDateObj.toISOString())
-        .order("sale_date", { ascending: true });
+      // Fetch all sales for the period (paged: a busy month has more than 1000 bills)
+      const salesData = await fetchAllPages<any>((from, to) =>
+        supabase
+          .from("sales")
+          .select(`
+            id, sale_number, sale_date, sale_type, customer_name, net_amount, gross_amount, discount_amount, tax_type,
+            customer_id, customers(gst_number, address)
+          `)
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .eq("is_cancelled", false)
+          .gt("net_amount", 0)
+          .gte("sale_date", fromDateObj.toISOString())
+          .lte("sale_date", toDateObj.toISOString())
+          .order("sale_date", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to),
+      );
 
       const saleIds = salesData?.map(s => s.id) || [];
       const allSaleItems = saleIds.length > 0 ? await fetchAllSaleItems(saleIds) : [];
@@ -355,6 +387,7 @@ const GSTReports = () => {
 
       // B2B - Sales to registered dealers
       const b2b: any[] = [];
+      const b2bInvalidGstin: GSTR1Data["b2bInvalidGstin"] = [];
       // FIX G2: B2CS aggregated by rate (not per-invoice)
       const b2csMap = new Map<string, { rate: number; taxableValue: number; cgst: number; sgst: number; igst: number }>();
       // HSN Summary
@@ -366,9 +399,12 @@ const GSTReports = () => {
       let totalSGST = 0;
 
       gstSales.forEach(sale => {
-        const customerGSTIN = (sale.customers as any)?.gst_number || "";
+        const customerGSTIN = String((sale.customers as any)?.gst_number || "").trim().toUpperCase();
         const items = saleItemsMap.get(String(sale.id)) || [];
-        const isB2B = customerGSTIN && customerGSTIN.length === 15;
+        const isB2B = customerGSTIN.length === 15;
+        if (customerGSTIN && !isB2B) {
+          b2bInvalidGstin.push({ invoiceNo: sale.sale_number, partyName: sale.customer_name, gstin: customerGSTIN });
+        }
         // FIX G1: Inter-state detection
         const interState = isInterState(businessGSTIN, customerGSTIN);
         const taxType = resolveReportTaxType(
@@ -471,16 +507,20 @@ const GSTReports = () => {
       }));
 
       // Fetch credit notes / sale returns for CDNR
-      const { data: saleReturns } = await supabase
-        .from("sale_returns")
-        .select(`
-          id, return_number, return_date, customer_name, net_amount, gst_amount,
-          customer_id, customers(gst_number), original_sale_number
-        `)
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .gte("return_date", fromDate)
-        .lte("return_date", toDate);
+      const saleReturns = await fetchAllPages<any>((from, to) =>
+        supabase
+          .from("sale_returns")
+          .select(`
+            id, return_number, return_date, customer_name, net_amount, gst_amount,
+            customer_id, customers(gst_number), original_sale_number
+          `)
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .gte("return_date", fromDate)
+          .lte("return_date", toDate)
+          .order("id", { ascending: true })
+          .range(from, to),
+      );
 
       const gstSaleReturns = await saleReturnsWithoutDc(saleReturns || []);
 
@@ -519,6 +559,7 @@ const GSTReports = () => {
       const hsnRows = Array.from(hsnMap.values());
       setGstr1Data({
         b2b,
+        b2bInvalidGstin,
         b2cs,
         cdnr,
         cdnur,
@@ -534,11 +575,18 @@ const GSTReports = () => {
       });
       // Keep HSN Summary tab in sync with the same exclusive-aware totals
       setHsnData(hsnRows.sort((a, b) => b.totalValue - a.totalValue));
+      setHsnGenerated(true);
 
-      toast({ title: "Success", description: "GSTR-1 data generated successfully" });
+      toast({
+        title: "Success",
+        description: gstSales.length > 0
+          ? `GSTR-1 generated from ${gstSales.length} GST bill(s)`
+          : "No GST sale bills found in this period",
+      });
     } catch (error) {
       console.error("Error generating GSTR-1:", error);
-      toast({ title: "Error", description: "Failed to generate GSTR-1", variant: "destructive" });
+      setReportError(errorText(error));
+      toast({ title: "Error", description: `Failed to generate GSTR-1: ${errorText(error)}`, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -662,7 +710,8 @@ const GSTReports = () => {
       toast({ title: "Success", description: "GSTR-3B summary generated" });
     } catch (error) {
       console.error("Error generating GSTR-3B:", error);
-      toast({ title: "Error", description: "Failed to generate GSTR-3B", variant: "destructive" });
+      setReportError(errorText(error));
+      toast({ title: "Error", description: `Failed to generate GSTR-3B: ${errorText(error)}`, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -680,15 +729,19 @@ const GSTReports = () => {
       const toDateObj = new Date(toDate);
       toDateObj.setHours(23, 59, 59, 999);
 
-      const { data: salesData } = await supabase
-        .from("sales")
-        .select("id, tax_type, sale_type")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .eq("is_cancelled", false)
-        .gt("net_amount", 0)
-        .gte("sale_date", fromDateObj.toISOString())
-        .lte("sale_date", toDateObj.toISOString());
+      const salesData = await fetchAllPages<any>((from, to) =>
+        supabase
+          .from("sales")
+          .select("id, tax_type, sale_type")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .eq("is_cancelled", false)
+          .gt("net_amount", 0)
+          .gte("sale_date", fromDateObj.toISOString())
+          .lte("sale_date", toDateObj.toISOString())
+          .order("id", { ascending: true })
+          .range(from, to),
+      );
 
       const saleIds = salesData?.map(s => s.id) || [];
       const taxTypeBySale = new Map(
@@ -734,10 +787,12 @@ const GSTReports = () => {
       });
 
       setHsnData(Array.from(hsnMap.values()).sort((a, b) => b.totalValue - a.totalValue));
+      setHsnGenerated(true);
       toast({ title: "Success", description: "HSN Summary generated" });
     } catch (error) {
       console.error("Error generating HSN Summary:", error);
-      toast({ title: "Error", description: "Failed to generate HSN Summary", variant: "destructive" });
+      setReportError(errorText(error));
+      toast({ title: "Error", description: `Failed to generate HSN Summary: ${errorText(error)}`, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -843,8 +898,10 @@ const GSTReports = () => {
   };
 
   const handleGenerateReport = () => {
+    setReportError(null);
     switch (activeReport) {
       case "gstr1":
+      case "b2b":
         void generateGSTR1();
         break;
       case "gstr3b":
@@ -868,6 +925,7 @@ const GSTReports = () => {
 
   const reportTabs: { id: ReportType; title: string; icon: typeof ArrowUpRight }[] = [
     { id: "gstr1", title: "GSTR-1", icon: ArrowUpRight },
+    { id: "b2b", title: "B2B Sales", icon: Building2 },
     { id: "gstr3b", title: "GSTR-3B", icon: BarChart3 },
     { id: "hsn-summary", title: "HSN Summary", icon: Package },
     { id: "register", title: "GST Register", icon: BookOpen },
@@ -876,10 +934,59 @@ const GSTReports = () => {
   const reportTabTriggerClass =
     "rounded-none border-b-2 border-transparent px-3 py-2 text-xs sm:text-sm font-semibold shrink-0 data-[state=active]:border-teal-600 data-[state=active]:bg-white data-[state=active]:text-teal-700 flex items-center gap-1.5";
 
+  const b2bRows = useMemo(() => {
+    const rows = gstr1Data?.b2b || [];
+    const q = b2bSearch.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) =>
+      [r.invoiceNo, r.partyName, r.gstin].some((v) => String(v || "").toLowerCase().includes(q)),
+    );
+  }, [gstr1Data, b2bSearch]);
+
+  const b2bTotals = useMemo(
+    () =>
+      b2bRows.reduce(
+        (t, r) => ({
+          taxable: t.taxable + (Number(r.taxableValue) || 0),
+          cgst: t.cgst + (Number(r.cgst) || 0),
+          sgst: t.sgst + (Number(r.sgst) || 0),
+          igst: t.igst + (Number(r.igst) || 0),
+          total: t.total + (Number(r.invoiceValue) || 0),
+        }),
+        { taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0 },
+      ),
+    [b2bRows],
+  );
+
+  const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+
+  const exportB2BSales = async () => {
+    await exportToExcel(
+      b2bRows.map((r) => ({
+        "Bill No": r.invoiceNo,
+        Date: r.invoiceDate,
+        "Customer Name": r.partyName,
+        GSTIN: r.gstin,
+        "Taxable Value": round2(r.taxableValue),
+        CGST: round2(r.cgst),
+        SGST: round2(r.sgst),
+        IGST: round2(r.igst),
+        Total: round2(r.invoiceValue),
+      })),
+      "B2B_Sales",
+      "B2B Sales",
+    );
+  };
+
   const showEmptyState =
-    (activeReport === "gstr1" && !gstr1Data) ||
+    ((activeReport === "gstr1" || activeReport === "b2b") && !gstr1Data) ||
     (activeReport === "gstr3b" && !gstr3bData) ||
     (activeReport === "hsn-summary" && hsnData.length === 0);
+  const emptyStateTitle = reportError
+    ? "Report could not be generated"
+    : activeReport === "hsn-summary" && hsnGenerated
+      ? "No GST sales in this period"
+      : "No Data Generated";
 
   return (
     <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
@@ -1008,7 +1115,7 @@ const GSTReports = () => {
               />
               <FileSpreadsheet className="h-3.5 w-3.5 shrink-0 text-teal-700" />
               <span className="leading-snug">
-                GSTR-1 · GSTR-3B · HSN Summary · GST Register
+                GSTR-1 · B2B Sales · GSTR-3B · HSN Summary · GST Register
               </span>
             </div>
           </div>
@@ -1024,7 +1131,10 @@ const GSTReports = () => {
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setActiveReport(tab.id)}
+                  onClick={() => {
+                    setActiveReport(tab.id);
+                    setReportError(null);
+                  }}
                   className={cn(
                     reportTabTriggerClass,
                     "text-slate-700 hover:bg-white hover:text-teal-700 hover:border-teal-400",
@@ -1191,6 +1301,112 @@ const GSTReports = () => {
           </div>
         )}
 
+        {/* B2B Sales */}
+        {activeReport === "b2b" && gstr1Data && (
+          <div className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm space-y-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h2 className="text-base font-bold text-teal-700">B2B Sales — Business to Business</h2>
+                <p className="text-sm text-muted-foreground">
+                  Bills to customers with a 15-character GSTIN, {format(new Date(fromDate), "dd MMM yyyy")} to{" "}
+                  {format(new Date(toDate), "dd MMM yyyy")}
+                </p>
+              </div>
+              <div className="flex gap-1.5 flex-wrap items-center">
+                <div className="relative">
+                  <Search className="h-3.5 w-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    value={b2bSearch}
+                    onChange={(e) => setB2bSearch(e.target.value)}
+                    placeholder="Bill no, customer, GSTIN"
+                    className="h-8 w-56 pl-7 text-sm border-slate-200"
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 border-slate-200"
+                  onClick={() => void exportB2BSales()}
+                  disabled={b2bRows.length === 0}
+                >
+                  <Download className="h-3.5 w-3.5 mr-1" />
+                  Export Excel
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+              <InsightsKpiCard label="B2B Bills" value={b2bRows.length} valueFormat="int" tone="neutral" />
+              <InsightsKpiCard label="Taxable Value" value={b2bTotals.taxable} valueFormat="inr" tone="neutral" />
+              <InsightsKpiCard label="CGST + SGST" value={b2bTotals.cgst + b2bTotals.sgst} valueFormat="inr" tone="attention" />
+              <InsightsKpiCard label="IGST" value={b2bTotals.igst} valueFormat="inr" tone="attention" />
+              <InsightsKpiCard label="Bill Total" value={b2bTotals.total} valueFormat="inr" tone="positive" />
+            </div>
+
+            {gstr1Data.b2bInvalidGstin.length > 0 && (
+              <Alert className="border-amber-200 bg-amber-50 text-amber-900">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>{gstr1Data.b2bInvalidGstin.length} bill(s) have an incomplete customer GSTIN</AlertTitle>
+                <AlertDescription className="text-xs">
+                  These are counted as B2C because the GSTIN is not 15 characters. Fix the GSTIN in Customer Master:{" "}
+                  {gstr1Data.b2bInvalidGstin
+                    .slice(0, 10)
+                    .map((r) => `${r.invoiceNo} (${r.partyName || "-"}: ${r.gstin})`)
+                    .join(", ")}
+                  {gstr1Data.b2bInvalidGstin.length > 10 ? ` and ${gstr1Data.b2bInvalidGstin.length - 10} more` : ""}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {b2bRows.length === 0 ? (
+              <div className="rounded-md border border-slate-200 px-4 py-10 text-center text-sm text-muted-foreground">
+                {b2bSearch.trim()
+                  ? "No B2B bills match your search."
+                  : "No B2B bills in this period. A bill is B2B when its customer has a GSTIN in Customer Master."}
+              </div>
+            ) : (
+              <ScrollArea className="h-[420px] rounded-md border border-slate-200">
+                <Table>
+                  <InsightsTableHeader>
+                    <InsightsStaticTh label="Bill No" />
+                    <InsightsStaticTh label="Date" />
+                    <InsightsStaticTh label="Customer Name" />
+                    <InsightsStaticTh label="GSTIN" />
+                    <InsightsStaticTh label="Taxable" className="text-right" />
+                    <InsightsStaticTh label="CGST" className="text-right" />
+                    <InsightsStaticTh label="SGST" className="text-right" />
+                    <InsightsStaticTh label="IGST" className="text-right" />
+                    <InsightsStaticTh label="Total" className="text-right" />
+                  </InsightsTableHeader>
+                  <TableBody>
+                    {b2bRows.map((row, idx) => (
+                      <TableRow key={`${row.invoiceNo}-${idx}`} className={INSIGHTS_BODY_ROW}>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "font-medium")}>{row.invoiceNo}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL}>{row.invoiceDate}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL}>{row.partyName}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "font-mono text-xs")}>{row.gstin}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.taxableValue)}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.cgst)}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.sgst)}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.igst)}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-medium")}>{formatCurrency(row.invoiceValue)}</TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow className={cn(INSIGHTS_BODY_ROW, "font-bold bg-slate-100/80")}>
+                      <TableCell className={INSIGHTS_BODY_CELL} colSpan={4}>Total</TableCell>
+                      <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(b2bTotals.taxable)}</TableCell>
+                      <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(b2bTotals.cgst)}</TableCell>
+                      <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(b2bTotals.sgst)}</TableCell>
+                      <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(b2bTotals.igst)}</TableCell>
+                      <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(b2bTotals.total)}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            )}
+          </div>
+        )}
+
         {/* GSTR-3B */}
         {activeReport === "gstr3b" && gstr3bData && (
           <div className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm space-y-4">
@@ -1351,10 +1567,15 @@ const GSTReports = () => {
         {showEmptyState && (
           <div className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-12 shadow-sm text-center">
             <FileText className="h-12 w-12 mx-auto text-slate-300 mb-3" />
-            <h3 className="text-base font-semibold text-slate-700 mb-1">No Data Generated</h3>
-            <p className="text-sm text-muted-foreground">
-              Select a period and click Generate Report to view {activeReport.toUpperCase()} data
-            </p>
+            <h3 className="text-base font-semibold text-slate-700 mb-1">{emptyStateTitle}</h3>
+            {reportError ? (
+              <p className="text-sm text-red-600 max-w-xl mx-auto break-words">{reportError}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Select a period and click Generate Report to view{" "}
+                {activeReport === "b2b" ? "B2B sales" : activeReport.toUpperCase()} data
+              </p>
+            )}
           </div>
         )}
       </div>

@@ -893,7 +893,8 @@ export async function fetchAllVariants(organizationId: string) {
  * Handles large datasets by batching sale IDs and paginating results.
  */
 export async function fetchAllSaleItems(saleIds: string[]) {
-  const batchSize = 500; // Smaller batch for .in() queries
+  // 500 UUIDs in one .in() GET is ~20 KB of URL — over the gateway limit, so the request fails.
+  const batchSize = 200;
 
   async function fetchBatch(batchIds: string[]) {
     const rows: any[] = [];
@@ -1058,7 +1059,7 @@ export async function fetchSaleReturnItemsByIds(
   if (returnIds.length === 0) return [];
   
   const allRows: any[] = [];
-  const batchSize = 500;
+  const batchSize = 200; // URL length (UUID .in() list)
 
   for (let i = 0; i < returnIds.length; i += batchSize) {
     const batchIds = returnIds.slice(i, i + batchSize);
