@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-10-29",
-  "count": 899,
-  "fileCount": 917,
+  "count": 900,
+  "fileCount": 918,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -902,7 +902,8 @@
     "20270312120000",
     "20270313120000",
     "20270314120000",
-    "20270315120000"
+    "20270315120000",
+    "20270316120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1821,7 +1822,8 @@
     "20270312120000_audit_product_changes_changed_fields.sql",
     "20270313120000_stock_transfer_accept_flow.sql",
     "20270314120000_manufacturer_erp_phase1.sql",
-    "20270315120000_manufacturer_erp_phase2.sql"
+    "20270315120000_manufacturer_erp_phase2.sql",
+    "20270316120000_team_chat.sql"
   ],
   "duplicateVersions": [
     {

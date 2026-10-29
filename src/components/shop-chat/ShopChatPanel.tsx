@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
@@ -6,10 +6,13 @@ import { ArrowLeft, CornerUpLeft, Loader2, MessagesSquare, Send, Store, X } from
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import {
   closeShopChat,
+  notifyTeamChatRecipient,
   selectShopChat,
+  selectTeamChat,
   shopChatDb,
   shopChatMessagesKey,
   shopChatThreadsKey,
@@ -17,7 +20,13 @@ import {
   useShopOnlineCount,
   useShopChatThreads,
   useSiblingShopsForChat,
+  useTeamChatMembers,
+  useTeamUserOnline,
+  teamChatMembersKey,
+  teamChatMessagesKey,
   type ShopChatMessage,
+  type TeamChatMember,
+  type TeamChatMessage,
 } from "@/hooks/useShopChat";
 
 function timeLabel(iso: string | null) {
@@ -34,17 +43,33 @@ function dayLabel(d: Date) {
   return format(d, "dd MMM yyyy");
 }
 
+
+function roleLabel(role: string) {
+  if (role === "admin") return "Admin";
+  if (role === "manager") return "Manager";
+  return "Staff";
+}
+
+function initials(name: string) {
+  const parts = name.trim().split(/[\s._-]+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
+}
+
 export default function ShopChatPanel() {
   const { currentOrganization, organizationRole } = useOrganization();
   const orgId = currentOrganization?.id;
-  const { otherOrgId } = useShopChatPanel();
+  const { otherOrgId, otherUserId } = useShopChatPanel();
   const { data: threads = [], isLoading } = useShopChatThreads();
+  const { data: members = [], isLoading: membersLoading } = useTeamChatMembers();
   const { data: siblings = [] } = useSiblingShopsForChat();
 
   const unlinked = siblings.filter((s) => !threads.some((t) => t.organization_id === s.id));
-  // With a single linked shop (and nothing to turn on), skip the list and open the chat with the typing box.
-  const onlyShop = threads.length === 1 && unlinked.length === 0 ? threads[0] : null;
-  const active = threads.find((t) => t.organization_id === otherOrgId) ?? onlyShop;
+  // With a single linked shop (and nothing else to pick), skip the list and open the chat with the typing box.
+  const onlyShop = threads.length === 1 && unlinked.length === 0 && members.length === 0 ? threads[0] : null;
+  const activeMember = otherUserId ? members.find((m) => m.user_id === otherUserId) ?? null : null;
+  const active = activeMember ? null : threads.find((t) => t.organization_id === otherOrgId) ?? onlyShop;
+  // Opened from a phone notification before the people list loaded.
+  const waitingForMember = !!otherUserId && !activeMember && membersLoading;
 
   return (
     <aside
@@ -57,8 +82,10 @@ export default function ShopChatPanel() {
       role="complementary"
       aria-label="Shop chat"
     >
-      {active && orgId ? (
-        <Conversation
+      {activeMember && orgId ? (
+        <TeamConversation orgId={orgId} member={activeMember} />
+      ) : active && orgId ? (
+        <ShopConversation
           orgId={orgId}
           otherOrgId={active.organization_id}
           otherName={active.name}
@@ -84,17 +111,24 @@ export default function ShopChatPanel() {
             </Button>
           </header>
           <div className="min-h-0 flex-1 overflow-y-auto">
-            {isLoading ? (
+            {isLoading || membersLoading || waitingForMember ? (
               <div className="flex justify-center p-6">
                 <Loader2 className="h-5 w-5 animate-spin text-slate-600 dark:text-slate-300" />
               </div>
             ) : (
               <>
-                {threads.length > 0 && (
+                {(members.length > 0 || threads.length > 0) && (
                   <p className="border-b bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 dark:bg-slate-900 dark:text-slate-300">
-                    Tap a shop to open the chat and type a message
+                    Tap a name to open the chat and type a message
                   </p>
                 )}
+
+                {members.length > 0 && <SectionLabel>In this shop</SectionLabel>}
+                {members.map((m) => (
+                  <MemberRow key={m.user_id} member={m} />
+                ))}
+
+                {threads.length > 0 && <SectionLabel>Other shops</SectionLabel>}
                 {threads.map((t) => (
                   <button
                     key={t.organization_id}
@@ -103,28 +137,20 @@ export default function ShopChatPanel() {
                     className="flex w-full items-center gap-3 border-b px-3 py-3 text-left hover:bg-muted/60"
                   >
                     <ShopListAvatar orgId={t.organization_id} />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-baseline gap-2">
-                        <span className="truncate text-sm font-bold text-slate-900 dark:text-slate-50">{t.name}</span>
-                        <span className="ml-auto shrink-0 text-xs text-slate-600 dark:text-slate-300">{timeLabel(t.last_at)}</span>
-                      </span>
-                      <span className="flex items-center gap-2">
-                        <span className={cn("truncate text-xs", t.unread > 0 ? "font-semibold text-slate-900 dark:text-slate-50" : "text-slate-600 dark:text-slate-300")}>
-                          {t.last_body ? `${t.last_from_me ? "You: " : ""}${t.last_body}` : "No messages yet"}
-                        </span>
-                        {t.unread > 0 && (
-                          <span className="ml-auto flex h-5 min-w-[20px] shrink-0 items-center justify-center rounded-full bg-emerald-600 px-1.5 text-xs font-bold text-white">
-                            {t.unread > 99 ? "99+" : t.unread}
-                          </span>
-                        )}
-                      </span>
-                    </span>
+                    <ListText
+                      title={t.name}
+                      at={t.last_at}
+                      body={t.last_body}
+                      fromMe={t.last_from_me}
+                      unread={t.unread}
+                    />
                   </button>
                 ))}
 
-                {threads.length === 0 && unlinked.length === 0 && (
+                {threads.length === 0 && unlinked.length === 0 && members.length === 0 && (
                   <p className="p-6 text-center text-sm text-slate-600 dark:text-slate-300">
-                    No shop is linked for chat yet. Ask your admin to turn on chat with your other shop.
+                    No one to chat with yet. Add users to this shop in Settings → Users, or ask your admin to turn on chat
+                    with your other shop.
                   </p>
                 )}
 
@@ -135,6 +161,75 @@ export default function ShopChatPanel() {
         </>
       )}
     </aside>
+  );
+}
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <p className="border-b px-3 pb-1 pt-2.5 text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-300">
+      {children}
+    </p>
+  );
+}
+
+function ListText({
+  title,
+  tag,
+  at,
+  body,
+  fromMe,
+  unread,
+}: {
+  title: string;
+  tag?: string;
+  at: string | null;
+  body: string | null;
+  fromMe: boolean | null;
+  unread: number;
+}) {
+  return (
+    <span className="min-w-0 flex-1">
+      <span className="flex items-baseline gap-2">
+        <span className="truncate text-sm font-bold text-slate-900 dark:text-slate-50">{title}</span>
+        {tag && (
+          <span className="shrink-0 rounded bg-slate-100 px-1.5 text-[10px] font-semibold uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            {tag}
+          </span>
+        )}
+        <span className="ml-auto shrink-0 text-xs text-slate-600 dark:text-slate-300">{timeLabel(at)}</span>
+      </span>
+      <span className="flex items-center gap-2">
+        <span className={cn("truncate text-xs", unread > 0 ? "font-semibold text-slate-900 dark:text-slate-50" : "text-slate-600 dark:text-slate-300")}>
+          {body ? `${fromMe ? "You: " : ""}${body}` : "No messages yet"}
+        </span>
+        {unread > 0 && (
+          <span className="ml-auto flex h-5 min-w-[20px] shrink-0 items-center justify-center rounded-full bg-emerald-600 px-1.5 text-xs font-bold text-white">
+            {unread > 99 ? "99+" : unread}
+          </span>
+        )}
+      </span>
+    </span>
+  );
+}
+
+function MemberRow({ member: m }: { member: TeamChatMember }) {
+  const online = useTeamUserOnline(m.user_id);
+  return (
+    <button
+      type="button"
+      onClick={() => selectTeamChat(m.user_id)}
+      className="flex w-full items-center gap-3 border-b px-3 py-3 text-left hover:bg-muted/60"
+    >
+      <PersonAvatar name={m.name} online={online} />
+      <ListText
+        title={m.name}
+        tag={roleLabel(m.role)}
+        at={m.last_at}
+        body={m.last_body}
+        fromMe={m.last_from_me}
+        unread={m.unread}
+      />
+    </button>
   );
 }
 
@@ -185,7 +280,23 @@ function LinkShops({ orgId, shops }: { orgId: string; shops: { id: string; name:
   );
 }
 
-function Conversation({
+/** One message as the conversation view shows it (shop chat and in-shop chat alike). */
+type ChatLine = {
+  id: string;
+  sender_name: string | null;
+  body: string;
+  reply_to_id: string | null;
+  created_at: string;
+  read_at: string | null;
+  mine: boolean;
+};
+
+const SHOP_MSG_COLUMNS =
+  "id, from_organization_id, to_organization_id, sender_user_id, sender_name, body, reply_to_id, created_at, read_at";
+const TEAM_MSG_COLUMNS =
+  "id, organization_id, sender_user_id, recipient_user_id, sender_name, body, reply_to_id, created_at, read_at";
+
+function ShopConversation({
   orgId,
   otherOrgId,
   otherName,
@@ -200,76 +311,7 @@ function Conversation({
 }) {
   const online = useShopOnlineCount(otherOrgId);
   const queryClient = useQueryClient();
-  const [draft, setDraft] = useState("");
-  const [replyTo, setReplyTo] = useState<ShopChatMessage | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  const { data: messages = [], isLoading } = useQuery({
-    queryKey: shopChatMessagesKey(orgId, otherOrgId),
-    staleTime: 30_000,
-    // No keepPreviousData here: switching shop must not show the last shop's messages under the new name.
-    placeholderData: undefined,
-    queryFn: async (): Promise<ShopChatMessage[]> => {
-      const { data, error } = await shopChatDb
-        .from("shop_chat_messages")
-        .select("id, from_organization_id, to_organization_id, sender_user_id, sender_name, body, reply_to_id, created_at, read_at")
-        .or(
-          `and(from_organization_id.eq.${orgId},to_organization_id.eq.${otherOrgId}),and(from_organization_id.eq.${otherOrgId},to_organization_id.eq.${orgId})`,
-        )
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return ((data || []) as ShopChatMessage[]).reverse();
-    },
-  });
-
-  const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
-  const unreadIncoming = messages.some((m) => m.to_organization_id === orgId && !m.read_at);
-
-  // Opening the conversation (or a new message arriving while open) marks it read.
-  useEffect(() => {
-    if (!unreadIncoming) return;
-    void shopChatDb
-      .rpc("mark_shop_chat_read", { p_organization_id: orgId, p_other_organization_id: otherOrgId })
-      .then(() => {
-        void queryClient.invalidateQueries({ queryKey: shopChatThreadsKey(orgId) });
-        void queryClient.invalidateQueries({ queryKey: shopChatMessagesKey(orgId, otherOrgId) });
-      });
-  }, [unreadIncoming, orgId, otherOrgId, queryClient]);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages.length]);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, [otherOrgId, replyTo]);
-
-  const send = useMutation({
-    mutationFn: async (body: string) => {
-      const { data, error } = await shopChatDb.rpc("send_shop_chat_message", {
-        p_from_organization_id: orgId,
-        p_to_organization_id: otherOrgId,
-        p_body: body,
-        p_reply_to_id: replyTo?.id ?? null,
-      });
-      if (error) throw error;
-      return data as ShopChatMessage;
-    },
-    onSuccess: (row) => {
-      setDraft("");
-      setReplyTo(null);
-      if (row?.id) {
-        queryClient.setQueryData<ShopChatMessage[]>(shopChatMessagesKey(orgId, otherOrgId), (old = []) =>
-          old.some((m) => m.id === row.id) ? old : [...old, row],
-        );
-      }
-      void queryClient.invalidateQueries({ queryKey: shopChatThreadsKey(orgId) });
-    },
-    onError: (e: any) => toast.error(e?.message || "Message not sent"),
-  });
+  const toLine = (m: ShopChatMessage): ChatLine => ({ ...m, mine: m.from_organization_id === orgId });
 
   const unlink = useMutation({
     mutationFn: async () => {
@@ -287,36 +329,43 @@ function Conversation({
     onError: (e: any) => toast.error(e?.message || "Could not turn off chat"),
   });
 
-  const submit = () => {
-    const body = draft.trim();
-    if (!body || send.isPending) return;
-    send.mutate(body);
-  };
-
-  let lastDay = "";
-
   return (
-    <>
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-primary px-2 text-primary-foreground">
-        {showBack && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/15"
-            onClick={() => selectShopChat(null)}
-            aria-label="All shops"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        )}
-        <ShopAvatar online={online > 0} onPrimary />
-        <div className="min-w-0 flex-1 pl-0.5">
-          <p className="truncate text-sm font-bold leading-tight">{otherName}</p>
-          <p className="text-xs font-medium leading-tight text-white">
-            {online > 0 ? (online > 1 ? `Online · ${online} users` : "Online") : "Offline"}
-          </p>
-        </div>
-        {canUnlink && (
+    <Conversation
+      conversationKey={otherOrgId}
+      title={otherName}
+      status={online > 0 ? (online > 1 ? `Online · ${online} users` : "Online") : "Offline"}
+      avatar={<ShopAvatar online={online > 0} onPrimary />}
+      onBack={showBack ? () => selectShopChat(null) : undefined}
+      backLabel="All chats"
+      listKey={shopChatThreadsKey(orgId)}
+      messagesKey={shopChatMessagesKey(orgId, otherOrgId)}
+      fetchMessages={async () => {
+        const { data, error } = await shopChatDb
+          .from("shop_chat_messages")
+          .select(SHOP_MSG_COLUMNS)
+          .or(
+            `and(from_organization_id.eq.${orgId},to_organization_id.eq.${otherOrgId}),and(from_organization_id.eq.${otherOrgId},to_organization_id.eq.${orgId})`,
+          )
+          .order("created_at", { ascending: false })
+          .limit(200);
+        if (error) throw error;
+        return ((data || []) as ShopChatMessage[]).reverse().map(toLine);
+      }}
+      markRead={() =>
+        shopChatDb.rpc("mark_shop_chat_read", { p_organization_id: orgId, p_other_organization_id: otherOrgId })
+      }
+      sendMessage={async (body, replyToId) => {
+        const { data, error } = await shopChatDb.rpc("send_shop_chat_message", {
+          p_from_organization_id: orgId,
+          p_to_organization_id: otherOrgId,
+          p_body: body,
+          p_reply_to_id: replyToId,
+        });
+        if (error) throw error;
+        return data ? toLine(data as ShopChatMessage) : null;
+      }}
+      headerExtra={
+        canUnlink && (
           <Button
             variant="ghost"
             size="sm"
@@ -330,7 +379,169 @@ function Conversation({
           >
             Turn off
           </Button>
+        )
+      }
+    />
+  );
+}
+
+function TeamConversation({ orgId, member }: { orgId: string; member: TeamChatMember }) {
+  const { user } = useAuth();
+  const userId = user?.id;
+  const online = useTeamUserOnline(member.user_id);
+  const otherId = member.user_id;
+  const toLine = (m: TeamChatMessage): ChatLine => ({ ...m, mine: m.sender_user_id === userId });
+
+  return (
+    <Conversation
+      conversationKey={otherId}
+      title={member.name}
+      status={`${roleLabel(member.role)} · ${online ? "Online" : "Offline"}`}
+      avatar={<PersonAvatar name={member.name} online={online} onPrimary />}
+      onBack={() => selectTeamChat(null)}
+      backLabel="All chats"
+      listKey={teamChatMembersKey(orgId)}
+      messagesKey={teamChatMessagesKey(orgId, otherId)}
+      fetchMessages={async () => {
+        const { data, error } = await shopChatDb
+          .from("team_chat_messages")
+          .select(TEAM_MSG_COLUMNS)
+          .eq("organization_id", orgId)
+          .or(
+            `and(sender_user_id.eq.${userId},recipient_user_id.eq.${otherId}),and(sender_user_id.eq.${otherId},recipient_user_id.eq.${userId})`,
+          )
+          .order("created_at", { ascending: false })
+          .limit(200);
+        if (error) throw error;
+        return ((data || []) as TeamChatMessage[]).reverse().map(toLine);
+      }}
+      markRead={() => shopChatDb.rpc("mark_team_chat_read", { p_organization_id: orgId, p_other_user_id: otherId })}
+      sendMessage={async (body, replyToId) => {
+        const { data, error } = await shopChatDb.rpc("send_team_chat_message", {
+          p_organization_id: orgId,
+          p_recipient_user_id: otherId,
+          p_body: body,
+          p_reply_to_id: replyToId,
+        });
+        if (error) throw error;
+        const row = data as TeamChatMessage | null;
+        // Rings the owner's phone when they are out of the shop (Android app with alerts on).
+        if (row?.id) notifyTeamChatRecipient(orgId, row);
+        return row ? toLine(row) : null;
+      }}
+    />
+  );
+}
+
+function Conversation({
+  conversationKey,
+  title,
+  status,
+  avatar,
+  onBack,
+  backLabel,
+  headerExtra,
+  listKey,
+  messagesKey,
+  fetchMessages,
+  markRead,
+  sendMessage,
+}: {
+  conversationKey: string;
+  title: string;
+  status: string;
+  avatar: ReactNode;
+  onBack?: () => void;
+  backLabel: string;
+  headerExtra?: ReactNode;
+  listKey: readonly unknown[];
+  messagesKey: readonly unknown[];
+  fetchMessages: () => Promise<ChatLine[]>;
+  markRead: () => PromiseLike<unknown>;
+  sendMessage: (body: string, replyToId: string | null) => Promise<ChatLine | null>;
+}) {
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState("");
+  const [replyTo, setReplyTo] = useState<ChatLine | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const { data: messages = [], isLoading } = useQuery({
+    queryKey: messagesKey,
+    staleTime: 30_000,
+    // No keepPreviousData here: switching chat must not show the last chat's messages under the new name.
+    placeholderData: undefined,
+    queryFn: fetchMessages,
+  });
+
+  const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
+  const unreadIncoming = messages.some((m) => !m.mine && !m.read_at);
+
+  // Opening the conversation (or a new message arriving while open) marks it read.
+  const markReadRef = useRef(markRead);
+  markReadRef.current = markRead;
+  useEffect(() => {
+    if (!unreadIncoming) return;
+    void Promise.resolve(markReadRef.current()).then(() => {
+      void queryClient.invalidateQueries({ queryKey: listKey });
+      void queryClient.invalidateQueries({ queryKey: messagesKey });
+    });
+    // listKey / messagesKey change with conversationKey.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unreadIncoming, conversationKey, queryClient]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages.length]);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, [conversationKey, replyTo]);
+
+  const send = useMutation({
+    mutationFn: (body: string) => sendMessage(body, replyTo?.id ?? null),
+    onSuccess: (row) => {
+      setDraft("");
+      setReplyTo(null);
+      if (row?.id) {
+        queryClient.setQueryData<ChatLine[]>(messagesKey, (old = []) =>
+          old.some((m) => m.id === row.id) ? old : [...old, row],
+        );
+      }
+      void queryClient.invalidateQueries({ queryKey: listKey });
+    },
+    onError: (e: any) => toast.error(e?.message || "Message not sent"),
+  });
+
+  const submit = () => {
+    const body = draft.trim();
+    if (!body || send.isPending) return;
+    send.mutate(body);
+  };
+
+  let lastDay = "";
+
+  return (
+    <>
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-primary px-2 text-primary-foreground">
+        {onBack && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/15"
+            onClick={onBack}
+            aria-label={backLabel}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
         )}
+        {avatar}
+        <div className="min-w-0 flex-1 pl-0.5">
+          <p className="truncate text-sm font-bold leading-tight">{title}</p>
+          <p className="truncate text-xs font-medium leading-tight text-white">{status}</p>
+        </div>
+        {headerExtra}
         <Button
           variant="ghost"
           size="icon"
@@ -349,10 +560,10 @@ function Conversation({
           </div>
         )}
         {!isLoading && messages.length === 0 && (
-          <p className="p-6 text-center text-sm text-slate-600 dark:text-slate-300">Say hello to {otherName}.</p>
+          <p className="p-6 text-center text-sm text-slate-600 dark:text-slate-300">Say hello to {title}.</p>
         )}
         {messages.map((m) => {
-          const mine = m.from_organization_id === orgId;
+          const mine = m.mine;
           const d = new Date(m.created_at);
           const day = dayLabel(d);
           const showDay = day !== lastDay;
@@ -419,7 +630,7 @@ function Conversation({
             value={draft}
             maxLength={2000}
             rows={1}
-            placeholder={`Message ${otherName}`}
+            placeholder={`Message ${title}`}
             className="max-h-32 min-h-[44px] flex-1 resize-none border-slate-300 bg-white text-[15px] no-uppercase normal-case text-slate-900 placeholder:normal-case placeholder:text-slate-500 dark:bg-slate-800 dark:text-slate-50"
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
@@ -480,4 +691,23 @@ function ShopAvatar({ online, onPrimary = false }: { online: boolean; onPrimary?
 function ShopListAvatar({ orgId }: { orgId: string }) {
   const online = useShopOnlineCount(orgId);
   return <ShopAvatar online={online > 0} />;
+}
+
+function PersonAvatar({ name, online, onPrimary = false }: { name: string; online: boolean; onPrimary?: boolean }) {
+  return (
+    <span
+      className={cn(
+        "relative flex shrink-0 items-center justify-center rounded-full font-bold",
+        onPrimary ? "h-8 w-8 bg-primary-foreground/15 text-xs" : "h-10 w-10 bg-emerald-600/10 text-sm text-emerald-700 dark:text-emerald-300",
+      )}
+    >
+      {initials(name)}
+      {online && (
+        <span
+          className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-green-500"
+          aria-label="Online"
+        />
+      )}
+    </span>
+  );
 }

@@ -512,7 +512,7 @@ const GSTReports = () => {
           .from("sale_returns")
           .select(`
             id, return_number, return_date, customer_name, net_amount, gst_amount,
-            customer_id, customers(gst_number), original_sale_number
+            customer_id, original_sale_number
           `)
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
@@ -522,7 +522,29 @@ const GSTReports = () => {
           .range(from, to),
       );
 
-      const gstSaleReturns = await saleReturnsWithoutDc(saleReturns || []);
+      // sale_returns has no foreign key to customers, so a customers(...) embed fails: look GSTINs up by id.
+      const returnCustomerIds = Array.from(
+        new Set(saleReturns.map((r) => r.customer_id).filter(Boolean).map(String)),
+      );
+      const gstinByCustomer = new Map<string, string>();
+      for (let i = 0; i < returnCustomerIds.length; i += 200) {
+        const { data: custRows, error: custError } = await supabase
+          .from("customers")
+          .select("id, gst_number")
+          .eq("organization_id", currentOrganization.id)
+          .in("id", returnCustomerIds.slice(i, i + 200));
+        if (custError) throw custError;
+        (custRows || []).forEach((c) => {
+          const gstin = String(c.gst_number || "").trim().toUpperCase();
+          if (gstin) gstinByCustomer.set(String(c.id), gstin);
+        });
+      }
+      const saleReturnsWithGstin = saleReturns.map((r) => ({
+        ...r,
+        customers: { gst_number: gstinByCustomer.get(String(r.customer_id)) || "" },
+      }));
+
+      const gstSaleReturns = await saleReturnsWithoutDc(saleReturnsWithGstin);
 
       const cdnr = gstSaleReturns
         .filter(ret => (ret.customers as any)?.gst_number)

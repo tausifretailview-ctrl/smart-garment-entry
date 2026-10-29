@@ -8,7 +8,7 @@ import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { ownerAlertTapPath } from "@/lib/ownerAlertTap";
+import { chatTapUserId, ownerAlertTapPath } from "@/lib/ownerAlertTap";
 
 /**
  * owner_* tables come from migration 20261231170000, applied by hand. Lovable regenerates
@@ -213,10 +213,18 @@ export async function refreshOwnerAlertsToken(organizationId: string, userId: st
   }
 }
 
-/** Tapping an alert opens its screen (see ownerAlertTapPath). */
-export async function listenForOwnerAlertTaps(onTap: (path: string) => void): Promise<() => void> {
+/** Tapping an alert opens its screen (see ownerAlertTapPath); a chat message opens that chat. */
+export async function listenForOwnerAlertTaps(
+  onTap: (path: string) => void,
+  onChatTap?: (userId: string) => void,
+): Promise<() => void> {
   if (!isOwnerPushSupported()) return () => undefined;
   const handle = await Push.addListener("pushNotificationActionPerformed", (action) => {
+    const chatUserId = chatTapUserId(action.notification?.data);
+    if (chatUserId && onChatTap) {
+      onChatTap(chatUserId);
+      return;
+    }
     const path = ownerAlertTapPath(action.notification?.data);
     if (path) onTap(path);
   });
