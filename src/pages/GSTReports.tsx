@@ -42,8 +42,19 @@ import {
   type GstTaxType,
   type SaleSettingsTaxDefaults,
 } from "@/utils/gstRegisterUtils";
-import { fetchAllSaleItems, fetchSaleReturnItemsWithDcFlag } from "@/utils/fetchAllRows";
+import { fetchAllSaleItems, fetchProductsByIds, fetchSaleReturnItemsWithDcFlag } from "@/utils/fetchAllRows";
 import { allDcDocumentIds, saleReturnAmountsWithoutDc, withoutDcLines } from "@/utils/gstDcExclusion";
+import { isParkedHoldNumberSale } from "@/utils/posHoldBill";
+import { buildGstr1Json, type Gstr1Bill, type Gstr1Build, type Gstr1Input, type Gstr1Issue } from "@/utils/gstr1Json";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   InsightsKpiCard,
   InsightsTableHeader,
@@ -89,16 +100,19 @@ function resolveReportTaxType(
   return resolveSaleDefaultTaxType(saleSettings);
 }
 
-/** Sale returns with DC (No GST) lines taken out; returns of only DC lines are dropped. */
-async function saleReturnsWithoutDc<
+/**
+ * Sale returns with DC (No GST) lines taken out; returns of only DC lines are dropped.
+ * Also hands back each kept return's non-DC lines (the GSTR-1 file needs them rate- and HSN-wise).
+ */
+async function saleReturnsWithoutDcAndLines<
   T extends { id: string; net_amount: number | null; gst_amount: number | null },
->(returns: T[]): Promise<T[]> {
-  if (returns.length === 0) return returns;
+>(returns: T[]): Promise<{ returns: T[]; linesByReturn: Map<string, any[]> }> {
+  const linesByReturn = new Map<string, any[]>();
+  if (returns.length === 0) return { returns, linesByReturn };
   const lines = await fetchSaleReturnItemsWithDcFlag(
     returns.map((r) => r.id),
-    "return_id, gst_percent, line_total",
+    "return_id, gst_percent, line_total, hsn_code, quantity, product_id, product_name",
   );
-  const linesByReturn = new Map<string, any[]>();
   lines.forEach((l: any) => {
     const key = String(l.return_id);
     const list = linesByReturn.get(key) || [];
@@ -107,10 +121,38 @@ async function saleReturnsWithoutDc<
   });
   const out: T[] = [];
   returns.forEach((r) => {
-    const amounts = saleReturnAmountsWithoutDc(r, linesByReturn.get(String(r.id)));
-    if (amounts) out.push({ ...r, ...amounts });
+    const key = String(r.id);
+    const amounts = saleReturnAmountsWithoutDc(r, linesByReturn.get(key));
+    if (amounts) {
+      out.push({ ...r, ...amounts });
+      linesByReturn.set(key, withoutDcLines(linesByReturn.get(key)));
+    } else {
+      linesByReturn.delete(key);
+    }
   });
-  return out;
+  return { returns: out, linesByReturn };
+}
+
+async function saleReturnsWithoutDc<
+  T extends { id: string; net_amount: number | null; gst_amount: number | null },
+>(returns: T[]): Promise<T[]> {
+  return (await saleReturnsWithoutDcAndLines(returns)).returns;
+}
+
+/** Products' units in batches of 200 ids (a longer `.in()` list is over the gateway URL limit). */
+async function fetchProductUnits(productIds: string[]): Promise<Map<string, string>> {
+  const ids = Array.from(new Set(productIds.filter(Boolean)));
+  const units = new Map<string, string>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const rows = await fetchProductsByIds(ids.slice(i, i + 200), "id, uom");
+    rows.forEach((p: any) => units.set(String(p.id), String(p.uom || "")));
+  }
+  return units;
+}
+
+/** Held carts (F7 Hold) are not documents issued; cancelled bills are, and count as cancelled. */
+function isHeldCart(sale: { sale_number?: string | null; payment_status?: string | null; payment_method?: string | null }): boolean {
+  return String(sale.payment_status || "").toLowerCase() === "hold" || isParkedHoldNumberSale(sale);
 }
 
 /** PostgREST returns at most 1000 rows per request. */
@@ -225,7 +267,11 @@ const GSTReports = () => {
   const [reportError, setReportError] = useState<string | null>(null);
   const [b2bSearch, setB2bSearch] = useState("");
   const [businessInfo, setBusinessInfo] = useState<{ name: string; gstin: string }>({ name: "", gstin: "" });
-  const [isDownloadingGstr1Json, setIsDownloadingGstr1Json] = useState(false);
+  /** What the GSTR-1 file is built from: the bills of the last Generate, with their period. */
+  const [gstr1Source, setGstr1Source] = useState<Omit<Gstr1Input, "skipB2cHsn"> | null>(null);
+  const [gstr1Check, setGstr1Check] = useState<Gstr1Build | null>(null);
+  const [gstr1CheckOpen, setGstr1CheckOpen] = useState(false);
+  const [skipB2cHsn, setSkipB2cHsn] = useState(false);
 
   const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.gstReports,
@@ -365,18 +411,35 @@ const GSTReports = () => {
           .range(from, to),
       );
 
+      // Every document issued in the period, cancelled ones included, for Table 13 of the GSTR-1 file.
+      const periodDocuments = await fetchAllPages<any>((from, to) =>
+        supabase
+          .from("sales")
+          .select("sale_number, is_cancelled, payment_status, payment_method")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .gte("sale_date", fromDateObj.toISOString())
+          .lte("sale_date", toDateObj.toISOString())
+          .order("id", { ascending: true })
+          .range(from, to),
+      );
+
       const saleIds = salesData?.map(s => s.id) || [];
       const allSaleItems = saleIds.length > 0 ? await fetchAllSaleItems(saleIds) : [];
       // DC (No GST) lines stay out; a bill of only DC lines is left out entirely.
       const allDcSaleIds = allDcDocumentIds(allSaleItems, "sale_id");
       const gstSales = (salesData || []).filter((s) => !allDcSaleIds.has(String(s.id)));
       const saleItems = withoutDcLines(allSaleItems);
+      /** Bills in the shape the GSTR-1 file builder wants (filled in the loop below). */
+      const sourceBills: Gstr1Bill[] = [];
       // Mixed bills: the invoice value comes from the GST lines, not the bill net (which has the DC part).
       const salesWithDcLine = new Set(
         allSaleItems.filter((i: any) => i.is_dc_item === true).map((i: any) => String(i.sale_id)),
       );
 
       // Group items by sale
+      const productUnits = await fetchProductUnits(saleItems.map((i: any) => String(i.product_id || "")));
+
       const saleItemsMap = new Map<string, typeof saleItems>();
       saleItems?.forEach(item => {
         const sid = String(item.sale_id);
@@ -417,7 +480,8 @@ const GSTReports = () => {
         let saleTaxableFromLines = 0;
         items.forEach(item => {
           const rate = item.gst_percent || 0;
-          const lineTotal = item.line_total || 0;
+          // Bill (flat) discount comes off the line before the GST split — same rule as GST Analysis.
+          const lineTotal = (item.line_total || 0) - (item.discount_share || 0);
           const { taxable: taxableValue, gst: gstAmount } = lineTaxableAndGst(lineTotal, rate, taxType);
 
           saleGstAmount += gstAmount;
@@ -459,6 +523,25 @@ const GSTReports = () => {
         });
 
         const taxableValue = saleTaxableFromLines;
+        const invoiceValue = salesWithDcLine.has(String(sale.id))
+          ? Math.round((saleTaxableFromLines + saleGstAmount) * 100) / 100
+          : Number(sale.net_amount) || 0;
+        sourceBills.push({
+          id: String(sale.id),
+          number: String(sale.sale_number || ""),
+          date: String(sale.sale_date || ""),
+          gstin: customerGSTIN,
+          billValue: invoiceValue,
+          taxType,
+          lines: items.map((item) => ({
+            hsn: item.hsn_code,
+            rate: item.gst_percent,
+            qty: item.quantity,
+            value: (item.line_total || 0) - (item.discount_share || 0),
+            uom: productUnits.get(String(item.product_id)),
+            productName: item.product_name,
+          })),
+        });
 
         if (isB2B) {
           b2b.push({
@@ -466,9 +549,7 @@ const GSTReports = () => {
             partyName: sale.customer_name,
             invoiceNo: sale.sale_number,
             invoiceDate: format(new Date(sale.sale_date), "dd-MM-yyyy"),
-            invoiceValue: salesWithDcLine.has(String(sale.id))
-              ? Math.round((saleTaxableFromLines + saleGstAmount) * 100) / 100
-              : sale.net_amount,
+            invoiceValue,
             taxableValue: taxableValue,
             gstRate: items[0]?.gst_percent || 0,
             cgst: interState ? 0 : saleGstAmount / 2,
@@ -479,7 +560,7 @@ const GSTReports = () => {
           // FIX G2: Aggregate B2CS by rate
           items.forEach(item => {
             const rate = item.gst_percent || 0;
-            const lineTotal = item.line_total || 0;
+            const lineTotal = (item.line_total || 0) - (item.discount_share || 0);
             const { taxable, gst } = lineTaxableAndGst(lineTotal, rate, taxType);
             const key = `${rate}`;
             const existing = b2csMap.get(key) || { rate, taxableValue: 0, cgst: 0, sgst: 0, igst: 0 };
@@ -544,7 +625,8 @@ const GSTReports = () => {
         customers: { gst_number: gstinByCustomer.get(String(r.customer_id)) || "" },
       }));
 
-      const gstSaleReturns = await saleReturnsWithoutDc(saleReturnsWithGstin);
+      const { returns: gstSaleReturns, linesByReturn: returnLinesByReturn } =
+        await saleReturnsWithoutDcAndLines(saleReturnsWithGstin);
 
       const cdnr = gstSaleReturns
         .filter(ret => (ret.customers as any)?.gst_number)
@@ -579,6 +661,44 @@ const GSTReports = () => {
         }));
 
       const hsnRows = Array.from(hsnMap.values());
+
+      // Source for the GSTR-1 file: GST bills and credit notes with their lines, plus every number issued.
+      const returnProductIds = Array.from(returnLinesByReturn.values()).flat().map((l: any) => String(l.product_id || ""));
+      const returnUnits = await fetchProductUnits(returnProductIds.filter((id) => !productUnits.has(id)));
+      setGstr1Source({
+        shopGstin: businessGSTIN,
+        fromYmd: fromDate,
+        toYmd: toDate,
+        bills: sourceBills,
+        notes: gstSaleReturns.map((ret) => ({
+          id: String(ret.id),
+          number: String(ret.return_number || ""),
+          date: String(ret.return_date || ""),
+          gstin: String((ret.customers as any)?.gst_number || ""),
+          billValue: Number(ret.net_amount) || 0,
+          // Return lines are saved tax-inclusive, whichever way the original bill was priced.
+          taxType: "inclusive" as const,
+          lines: (returnLinesByReturn.get(String(ret.id)) || []).map((l: any) => ({
+            hsn: l.hsn_code,
+            rate: l.gst_percent,
+            qty: l.quantity,
+            value: l.line_total,
+            uom: productUnits.get(String(l.product_id)) ?? returnUnits.get(String(l.product_id)),
+            productName: l.product_name,
+          })),
+        })),
+        documents: {
+          invoices: periodDocuments
+            .filter((d) => !isHeldCart(d))
+            .map((d) => ({
+              number: String(d.sale_number || ""),
+              cancelled: d.is_cancelled === true || String(d.payment_status || "").toLowerCase() === "cancelled",
+            })),
+          creditNotes: saleReturns.map((r) => ({ number: String(r.return_number || ""), cancelled: false })),
+        },
+      });
+      setGstr1Check(null);
+
       setGstr1Data({
         b2b,
         b2bInvalidGstin,
@@ -783,7 +903,7 @@ const GSTReports = () => {
       saleItems?.forEach(item => {
         const hsnCode = item.hsn_code || "00000000";
         const rate = item.gst_percent || 0;
-        const lineTotal = item.line_total || 0;
+        const lineTotal = (item.line_total || 0) - (item.discount_share || 0);
         const taxType = taxTypeBySale.get(String(item.sale_id)) || "inclusive";
         const { taxable: taxableValue, gst: gstAmount } = lineTaxableAndGst(lineTotal, rate, taxType);
 
@@ -820,35 +940,30 @@ const GSTReports = () => {
     }
   };
 
-  const downloadGstr1Json = async () => {
-    if (!currentOrganization?.id) return;
-    setIsDownloadingGstr1Json(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("generate-gstr1", {
-        body: {
-          organization_id: currentOrganization.id,
-          from_date: fromDate,
-          to_date: toDate,
-        },
-      });
-      if (error) throw error;
-
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `GSTR1_${fromDate}_${toDate}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      toast({ title: "Downloaded", description: "GSTR-1 JSON file downloaded" });
-    } catch (err: any) {
-      console.error("GSTR-1 JSON download error:", err);
-      toast({ title: "Error", description: "Failed to download GSTR-1 JSON", variant: "destructive" });
-    } finally {
-      setIsDownloadingGstr1Json(false);
+  /** Check the generated bills against the portal's rules and open the result; the file downloads from there. */
+  const checkGstr1Json = (skipRetailHsn = skipB2cHsn) => {
+    if (!gstr1Source) {
+      toast({ title: "Generate first", description: "Click Generate Report, then download the GSTR-1 file." });
+      return;
     }
+    setGstr1Check(buildGstr1Json({ ...gstr1Source, skipB2cHsn: skipRetailHsn }));
+    setGstr1CheckOpen(true);
+  };
+
+  const downloadGstr1Json = () => {
+    const json = gstr1Check?.json;
+    if (!json) return;
+    const blob = new Blob([JSON.stringify(json)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `GSTR1_${json.gstin}_${json.fp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    setGstr1CheckOpen(false);
+    toast({ title: "GSTR-1 file downloaded", description: `Upload ${a.download} on the GST portal: Returns → GSTR-1 → Prepare Offline.` });
   };
 
   const exportToExcel = async (data: any[], fileName: string, sheetName: string) => {
@@ -1193,11 +1308,11 @@ const GSTReports = () => {
                 <Button
                   size="sm"
                   className="h-8 bg-blue-600 hover:bg-blue-700 text-white"
-                  onClick={downloadGstr1Json}
-                  disabled={isDownloadingGstr1Json}
+                  onClick={() => checkGstr1Json()}
+                  disabled={!gstr1Source}
                 >
                   <FileText className="h-3.5 w-3.5 mr-1" />
-                  {isDownloadingGstr1Json ? "Generating…" : "GSTR-1 JSON"}
+                  GSTR-1 JSON
                 </Button>
                 <Button variant="outline" size="sm" className="h-8 border-slate-200" onClick={exportGSTR1ToExcel}>
                   <Download className="h-3.5 w-3.5 mr-1" />
@@ -1609,8 +1724,130 @@ const GSTReports = () => {
           </div>
         )}
       </div>
+
+      <Dialog open={gstr1CheckOpen} onOpenChange={setGstr1CheckOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              GSTR-1 file check{gstr1Check?.fp ? ` — ${filingPeriodLabel(gstr1Check.fp)}` : ""}
+            </DialogTitle>
+            <DialogDescription>
+              The file is checked against the GST portal's rules before you download it. Fix the red items in
+              Ezzy ERP, then click Generate Report again.
+            </DialogDescription>
+          </DialogHeader>
+
+          {gstr1Check && (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  ["B2B bills", gstr1Check.summary.b2bInvoices],
+                  ["B2CL bills", gstr1Check.summary.b2clInvoices],
+                  ["B2CS rows", gstr1Check.summary.b2csRows],
+                  ["Credit notes", gstr1Check.summary.cdnrNotes + gstr1Check.summary.cdnurNotes],
+                  ["HSN rows", gstr1Check.summary.hsnRows],
+                  ["Bill series", gstr1Check.summary.docSeries],
+                  ["Taxable", formatCurrency(gstr1Check.summary.taxable)],
+                  ["Tax", formatCurrency(gstr1Check.summary.tax)],
+                ].map(([label, value]) => (
+                  <div key={String(label)} className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-500">{label}</div>
+                    <div className="font-semibold tabular-nums text-slate-800">{value}</div>
+                  </div>
+                ))}
+              </div>
+
+              {gstr1Check.errors.length > 0 && (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2">
+                  <p className="font-semibold text-red-700 mb-1">Fix before filing</p>
+                  {renderGstr1Issues(gstr1Check.errors, "text-red-800")}
+                </div>
+              )}
+              {gstr1Check.warnings.length > 0 && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                  <p className="font-semibold text-amber-800 mb-1">Please check</p>
+                  {renderGstr1Issues(gstr1Check.warnings, "text-amber-900")}
+                </div>
+              )}
+              {gstr1Check.errors.length === 0 && gstr1Check.warnings.length === 0 && (
+                <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800">
+                  No problems found. Download the file and upload it on the portal.
+                </div>
+              )}
+
+              <label className="flex items-start gap-2 rounded-md border border-slate-200 px-3 py-2 cursor-pointer">
+                <Checkbox
+                  id="gstr1-skip-b2c-hsn"
+                  checked={skipB2cHsn}
+                  onCheckedChange={(v) => {
+                    const next = v === true;
+                    setSkipB2cHsn(next);
+                    checkGstr1Json(next);
+                  }}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-medium">Turnover under ₹5 crore: HSN not needed on retail (B2C) lines.</span>
+                  <span className="block text-xs text-slate-500">
+                    Retail lines without HSN are then left out of the HSN summary instead of blocking the file. HSN
+                    stays compulsory on bills to GST-registered buyers.
+                  </span>
+                </span>
+              </label>
+
+              <div className="rounded-md border border-slate-200 px-3 py-2">
+                <p className="font-semibold text-slate-700 mb-1">Next, on gst.gov.in</p>
+                <ol className="list-decimal pl-5 space-y-0.5 text-slate-700">
+                  <li>Log in → Returns Dashboard → pick the period → GSTR-1 → <b>Prepare Offline</b> → Upload the file.</li>
+                  <li>Wait for “Processed”. If it says “Processed with Errors”, download the error report and tell us what it says.</li>
+                  <li>Open <b>Prepare Online</b>, check the totals against this screen, then Generate Summary → Submit.</li>
+                  <li><b>File with EVC</b>: enter the OTP sent to the owner's registered mobile and email.</li>
+                </ol>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setGstr1CheckOpen(false)}>Close</Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={downloadGstr1Json}
+              disabled={!gstr1Check?.json}
+            >
+              <Download className="h-4 w-4 mr-1" />
+              Download JSON
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
+
+/** "102026" → "Oct 2026". */
+function filingPeriodLabel(fp: string): string {
+  const month = Number(fp.slice(0, 2));
+  const year = Number(fp.slice(2));
+  if (!month || !year) return fp;
+  return format(new Date(year, month - 1, 1), "MMM yyyy");
+}
+
+function renderGstr1Issues(issues: Gstr1Issue[], tone: string) {
+  return (
+    <ul className={cn("list-disc pl-5 space-y-1", tone)}>
+      {issues.map((issue, i) => (
+        <li key={`${issue.code}-${i}`}>
+          {issue.message}
+          {issue.refs && issue.refs.length > 0 && (
+            <span className="block text-xs opacity-80 break-words">
+              {issue.refs.join(", ")}
+              {issue.refs.length >= 25 ? ", …" : ""}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export default GSTReports;
