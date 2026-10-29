@@ -115,7 +115,7 @@ export async function loadGstAnalysis(orgId: string, fromYmd: string, toYmd: str
       allPages<any>((from, to) =>
         db
           .from("sale_returns")
-          .select("id, return_number, original_sale_number, return_date, customer_name, net_amount, gst_amount, linked_sale_id, customers(gst_number)")
+          .select("id, return_number, original_sale_number, return_date, customer_id, customer_name, net_amount, gst_amount, linked_sale_id")
           .eq("organization_id", orgId)
           .is("deleted_at", null)
           .gte("return_date", fromYmd)
@@ -220,6 +220,18 @@ export async function loadGstAnalysis(orgId: string, fromYmd: string, toYmd: str
         return out;
       })()
     : [];
+  // sale_returns has no foreign key to customers, so a customers(...) embed fails: look GSTINs up by id.
+  const returnCustomerIds = [...new Set(saleReturnRows.map((r) => r.customer_id).filter(Boolean).map(String))];
+  const gstinByCustomer = new Map<string, string>();
+  for (let i = 0; i < returnCustomerIds.length; i += ID_BATCH) {
+    const { data, error } = await db
+      .from("customers")
+      .select("id, gst_number")
+      .eq("organization_id", orgId)
+      .in("id", returnCustomerIds.slice(i, i + ID_BATCH));
+    if (error) throw error;
+    for (const c of data || []) gstinByCustomer.set(String(c.id), String(c.gst_number || ""));
+  }
   const linkedTaxType = new Map(linkedSales.map((s) => [String(s.id), saleTaxType(s.tax_type, s.sale_type)]));
   const linesByReturn = groupBy(returnLines, (l: any) => String(l.return_id));
   let dcSaleReturns = 0;
@@ -239,7 +251,7 @@ export async function loadGstAnalysis(orgId: string, fromYmd: string, toYmd: str
           date: String(r.return_date || "").slice(0, 10),
           number: r.return_number || r.original_sale_number || "",
           party: r.customer_name || "",
-          gstin: r.customers?.gst_number || "",
+          gstin: gstinByCustomer.get(String(r.customer_id)) || "",
           billValue: amounts.net_amount,
           headerGst: amounts.gst_amount,
         },
