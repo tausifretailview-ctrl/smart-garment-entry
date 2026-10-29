@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useManufacturerERP } from "@/hooks/useManufacturerERP";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -25,114 +24,22 @@ import {
   piecesFromMeters,
   type MfgWorkType,
 } from "@/utils/manufacturing";
-
-// New mfg_* tables are not in the generated Supabase types yet.
-const db = supabase as any;
-
-interface MfgStage {
-  id: string;
-  name: string;
-  sequence: number;
-  work_type: MfgWorkType;
-  default_rate: number;
-  allowed_days: number | null;
-  allowed_wastage_percent: number | null;
-  notes: string | null;
-  active: boolean;
-}
-
-interface MfgProduct {
-  id: string;
-  product_name: string;
-  uom: string;
-  default_pur_price: number | null;
-}
-
-interface MfgDesignMaterial {
-  material_product_id: string;
-  material_type: "fabric" | "trim";
-  qty_per_piece: number;
-  wastage_percent: number;
-}
-
-interface MfgDesign {
-  id: string;
-  design_no: string;
-  design_name: string | null;
-  finished_product_id: string | null;
-  overhead_per_piece: number;
-  notes: string | null;
-  active: boolean;
-  materials: MfgDesignMaterial[];
-  stage_rates: { stage_id: string; rate: number }[];
-}
-
-interface FabricStockRow {
-  variant_id: string;
-  product_id: string;
-  product_name: string;
-  color: string | null;
-  barcode: string | null;
-  is_roll: boolean;
-  roll_meters: number | null;
-  rolls_in_stock: number | null;
-  meters_purchased_in_stock: number;
-  meters_used: number;
-  meters_left: number;
-  pur_price: number;
-  stock_value: number;
-}
-
-const inr = (n: number) =>
-  `₹${(Number(n) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const mtr = (n: number) => `${(Number(n) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })} m`;
-const isMtr = (p: MfgProduct | undefined) => (p?.uom || "").toUpperCase() === "MTR";
-
-const stagesKey = (orgId?: string) => ["mfg-stages", orgId];
-const designsKey = (orgId?: string) => ["mfg-designs", orgId];
-
-function useMfgStages(orgId?: string) {
-  return useQuery({
-    queryKey: stagesKey(orgId),
-    enabled: !!orgId,
-    queryFn: async (): Promise<MfgStage[]> => {
-      const { data, error } = await db
-        .from("mfg_stages")
-        .select("id, name, sequence, work_type, default_rate, allowed_days, allowed_wastage_percent, notes, active")
-        .eq("organization_id", orgId)
-        .order("sequence", { ascending: true })
-        .order("created_at", { ascending: true });
-      if (error) throw error;
-      return (data || []) as MfgStage[];
-    },
-  });
-}
-
-/** Products for the design card pickers (fabric = MTR products, trims and finished goods = the rest). */
-function useMfgProducts(orgId?: string, enabled = true) {
-  return useQuery({
-    queryKey: ["mfg-products", orgId],
-    enabled: !!orgId && enabled,
-    staleTime: 5 * 60_000,
-    queryFn: async (): Promise<MfgProduct[]> => {
-      const pageSize = 1000;
-      const all: MfgProduct[] = [];
-      for (let page = 0; page < 10; page++) {
-        const { data, error } = await supabase
-          .from("products")
-          .select("id, product_name, uom, default_pur_price")
-          .eq("organization_id", orgId as string)
-          .is("deleted_at", null)
-          .order("product_name", { ascending: true })
-          .range(page * pageSize, page * pageSize + pageSize - 1);
-        if (error) throw error;
-        all.push(...((data || []) as MfgProduct[]));
-        if (!data || data.length < pageSize) break;
-      }
-      return all;
-    },
-  });
-}
+import {
+  db,
+  designsKey,
+  inr,
+  isMtr,
+  mtr,
+  stagesKey,
+  useFabricStock,
+  useMfgDesigns,
+  useMfgProducts,
+  useMfgStages,
+  type MfgDesign,
+  type MfgStage,
+} from "@/components/manufacturing/mfgData";
+import { LotsTab } from "@/components/manufacturing/LotsTab";
+import { PendingWorkTab } from "@/components/manufacturing/PendingWorkTab";
 
 // ─────────────────────────────── Stages ───────────────────────────────
 
@@ -144,6 +51,7 @@ const emptyStageForm = {
   allowed_wastage_percent: "",
   notes: "",
   active: true,
+  is_cutting: false,
 };
 
 function StagesTab({ orgId }: { orgId: string }) {
@@ -166,6 +74,7 @@ function StagesTab({ orgId }: { orgId: string }) {
         organization_id: orgId,
         name: s.name,
         work_type: s.work_type,
+        is_cutting: s.name === "Cutting",
         sequence: (seq += 10),
       }));
       if (rows.length === 0) return;
@@ -192,6 +101,7 @@ function StagesTab({ orgId }: { orgId: string }) {
         allowed_wastage_percent: toNum(form.allowed_wastage_percent),
         notes: form.notes.trim() || null,
         active: form.active,
+        is_cutting: form.is_cutting,
       };
       if (editing) {
         const { error } = await db.from("mfg_stages").update(row).eq("id", editing.id);
@@ -268,6 +178,7 @@ function StagesTab({ orgId }: { orgId: string }) {
       allowed_wastage_percent: s.allowed_wastage_percent != null ? String(s.allowed_wastage_percent) : "",
       notes: s.notes || "",
       active: s.active,
+      is_cutting: !!s.is_cutting,
     });
     setDialogOpen(true);
   };
@@ -323,6 +234,7 @@ function StagesTab({ orgId }: { orgId: string }) {
                     <TableCell className="tabular-nums">{i + 1}</TableCell>
                     <TableCell className="font-medium">
                       {s.name}
+                      {s.is_cutting && <Badge variant="outline" className="ml-2">Cutting step</Badge>}
                       {s.notes && <div className="text-xs text-muted-foreground">{s.notes}</div>}
                     </TableCell>
                     <TableCell>{MFG_WORK_TYPE_LABEL[s.work_type] || s.work_type}</TableCell>
@@ -404,6 +316,13 @@ function StagesTab({ orgId }: { orgId: string }) {
               <Textarea id="mfg_stage_notes" rows={2} value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             </div>
+            <div className="flex items-center justify-between border rounded-md p-3 gap-3">
+              <div>
+                <Label htmlFor="mfg_stage_cutting">This is the cutting step</Label>
+                <p className="text-xs text-muted-foreground">Fabric is issued and pieces are counted on the lot's Cutting screen</p>
+              </div>
+              <Switch id="mfg_stage_cutting" checked={form.is_cutting} onCheckedChange={(v) => setForm({ ...form, is_cutting: v })} />
+            </div>
             <div className="flex items-center justify-between border rounded-md p-3">
               <Label htmlFor="mfg_stage_active">Stage is in use</Label>
               <Switch id="mfg_stage_active" checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} />
@@ -442,26 +361,7 @@ function DesignsTab({ orgId, allowedWastage }: { orgId: string; allowedWastage: 
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   const [form, setForm] = useState<DesignForm | null>(null);
 
-  const { data: designs = [], isLoading } = useQuery({
-    queryKey: designsKey(orgId),
-    queryFn: async (): Promise<MfgDesign[]> => {
-      const { data, error } = await db
-        .from("mfg_designs")
-        .select(
-          "id, design_no, design_name, finished_product_id, overhead_per_piece, notes, active, " +
-            "materials:mfg_design_materials(material_product_id, material_type, qty_per_piece, wastage_percent, sort_order), " +
-            "stage_rates:mfg_design_stage_rates(stage_id, rate)",
-        )
-        .eq("organization_id", orgId)
-        .order("design_no", { ascending: true });
-      if (error) throw error;
-      return ((data || []) as MfgDesign[]).map((d) => ({
-        ...d,
-        materials: [...(d.materials || [])].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
-        stage_rates: d.stage_rates || [],
-      }));
-    },
-  });
+  const { data: designs = [], isLoading } = useMfgDesigns(orgId);
 
   const { data: fabricStock = [] } = useFabricStock(orgId);
   const metersByProduct = useMemo(() => {
@@ -845,18 +745,6 @@ function DesignsTab({ orgId, allowedWastage }: { orgId: string; allowedWastage: 
 
 // ───────────────────────────── Fabric stock ─────────────────────────────
 
-function useFabricStock(orgId: string) {
-  return useQuery({
-    queryKey: ["mfg-fabric-stock", orgId],
-    staleTime: 60_000,
-    queryFn: async (): Promise<FabricStockRow[]> => {
-      const { data, error } = await db.rpc("get_mfg_fabric_stock", { p_organization_id: orgId });
-      if (error) throw error;
-      return (data || []) as FabricStockRow[];
-    },
-  });
-}
-
 function FabricStockTab({ orgId }: { orgId: string }) {
   const { data: rows = [], isLoading, error } = useFabricStock(orgId);
   const [search, setSearch] = useState("");
@@ -954,8 +842,13 @@ function FabricStockTab({ orgId }: { orgId: string }) {
 const Manufacturing = () => {
   const { currentOrganization } = useOrganization();
   const mfg = useManufacturerERP();
-  const [tab, setTab] = useState("stages");
+  const [tab, setTab] = useState("lots");
+  const [lotId, setLotId] = useState<string | null>(null);
   const orgId = currentOrganization?.id;
+  const openLot = (id: string) => {
+    setLotId(id);
+    setTab("lots");
+  };
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto bg-slate-50 px-2 py-2 sm:px-3">
@@ -968,7 +861,7 @@ const Manufacturing = () => {
             <Factory className="h-6 w-6" /> Manufacturing
           </h1>
           <p className="text-sm text-muted-foreground">
-            Set up your process stages and design cards, and see fabric stock in metres.
+            Make production lots, cut fabric, send pieces to staff and job workers, and put ready pieces into stock.
           </p>
         </div>
 
@@ -981,11 +874,20 @@ const Manufacturing = () => {
           </Card>
         ) : (
           <Tabs value={tab} onValueChange={setTab}>
-            <TabsList>
+            <TabsList className="h-auto flex-wrap justify-start">
+              <TabsTrigger value="lots">Lots</TabsTrigger>
+              <TabsTrigger value="pending">Pending with workers</TabsTrigger>
               <TabsTrigger value="stages">Stages</TabsTrigger>
               <TabsTrigger value="designs">Design cards</TabsTrigger>
               <TabsTrigger value="fabric">Fabric stock (MTR)</TabsTrigger>
             </TabsList>
+            <TabsContent value="lots" className="mt-3">
+              <LotsTab orgId={orgId} endBitsDefault={mfg.end_bits_default} allowedWastage={mfg.allowed_wastage_percent}
+                selectedLotId={lotId} onSelectLot={setLotId} />
+            </TabsContent>
+            <TabsContent value="pending" className="mt-3">
+              <PendingWorkTab orgId={orgId} onOpenLot={openLot} />
+            </TabsContent>
             <TabsContent value="stages" className="mt-3">
               <StagesTab orgId={orgId} />
             </TabsContent>
