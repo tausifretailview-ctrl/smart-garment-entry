@@ -30,6 +30,7 @@ import {
 //   { type: "scheduled" }              pg_cron every 15 min (one-time ticket) → cashier / low stock / day-end / new reviews
 //   { type: "invoice", organizationId, saleId }   app, after a bill is saved (logged-in member)
 //   { type: "test", organizationId }               Settings → "Send test alert" (logged-in member)
+//   { type: "chat", organizationId, messageId }    app, after sending an in-shop chat message (sender only)
 // verify_jwt = false (config.toml); every path authenticates itself.
 
 const corsHeaders = {
@@ -263,6 +264,50 @@ async function sendNewReviews(db: Db, sa: ServiceAccount, org: string, now: Date
   }
 }
 
+/**
+ * In-shop chat: push the recipient's phones (their own owner_push_devices rows) for a message
+ * the caller just sent. Not written to owner_push_log, so the Notifications page stays for
+ * business alerts; the chat panel has its own unread badge.
+ */
+async function sendChatPush(db: Db, sa: ServiceAccount, organizationId: string, senderId: string, messageId: string) {
+  const { data: m } = await db
+    .from("team_chat_messages")
+    .select("id, sender_user_id, recipient_user_id, sender_name, body, created_at")
+    .eq("id", messageId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  // Only the sender may ask, and only for a fresh message (no replaying old ones).
+  if (!m || m.sender_user_id !== senderId) return { sent: 0, failed: 0, skipped: "not_found" };
+  if (Date.now() - new Date(m.created_at).getTime() > 5 * 60_000) return { sent: 0, failed: 0, skipped: "old" };
+
+  const { data: devices } = await db
+    .from("owner_push_devices")
+    .select("id, fcm_token")
+    .eq("organization_id", organizationId)
+    .eq("user_id", m.recipient_user_id)
+    .eq("status", "active");
+  const text = String(m.body ?? "");
+  const msg = {
+    title: `💬 ${m.sender_name || "Shop chat"}`,
+    body: text.length > 180 ? `${text.slice(0, 180)}…` : text,
+  };
+  const data = { route: "/", chat_user_id: String(m.sender_user_id), kind: "team_chat" };
+  let sent = 0;
+  let failed = 0;
+  for (const d of devices ?? []) {
+    const r = await sendFcmAndroidNotification(sa, d.fcm_token, msg, data);
+    if (r.ok) {
+      sent++;
+    } else {
+      failed++;
+      if (r.unregistered) {
+        await db.from("owner_push_devices").update({ status: "inactive", inactive_reason: r.error.slice(0, 120) }).eq("id", d.id);
+      }
+    }
+  }
+  return { sent, failed };
+}
+
 async function runScheduled(db: Db, sa: ServiceAccount, now: Date) {
   const { data: rows } = await db.from("owner_alert_settings").select("*").eq("enabled", true);
   const out: Record<string, unknown>[] = [];
@@ -321,6 +366,12 @@ Deno.serve(async (req) => {
     if (!UUID.test(organizationId)) return json(400, { error: "Invalid organizationId" });
     const userId = await memberUserId(req, db, organizationId);
     if (!userId) return json(403, { error: "Forbidden" });
+
+    if (type === "chat") {
+      const messageId = String(body?.messageId ?? "");
+      if (!UUID.test(messageId)) return json(400, { error: "Invalid messageId" });
+      return json(200, { ok: true, ...(await sendChatPush(db, sa, organizationId, userId, messageId)) });
+    }
 
     const { data: settings } = await db.from("owner_alert_settings").select("*").eq("organization_id", organizationId).maybeSingle();
 

@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { openTeamChat } from "@/hooks/useShopChat";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,7 +28,7 @@ const PROMPT_DELAY_MS = 4_000;
 
 /**
  * Android app only: keep this phone's owner-alert token fresh, open the right
- * screen when an alert is tapped, and ask an admin once whether to turn alerts on.
+ * screen (or shop chat) when an alert is tapped, and ask an admin once whether to turn alerts on.
  * Renders nothing on web / Electron.
  */
 export function OwnerPushBridge() {
@@ -59,7 +60,8 @@ export function OwnerPushBridge() {
     if (!isOwnerPushSupported()) return;
     let cleanup: (() => void) | null = null;
     let cancelled = false;
-    void listenForOwnerAlertTaps(setTappedPath).then((fn) => {
+    // A chat message opens that chat in the panel (state is kept until the shop has loaded).
+    void listenForOwnerAlertTaps(setTappedPath, openTeamChat).then((fn) => {
       if (cancelled) fn();
       else cleanup = fn;
     });

@@ -42,6 +42,7 @@ import { useSupplierOrgBalanceWindow } from "@/hooks/useSupplierOrgBalanceWindow
 import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
 import { useMobileUiTheme } from "@/hooks/useMobileUiTheme";
 import { OwnerNotificationsButton } from "@/components/OwnerNotificationsButton";
+import { ShopChatButton } from "@/components/shop-chat/ShopChatButton";
 import { ShellHeader, ShellButton, StatCell, SectionHead, ListRow } from "@/components/mobile/premium";
 
 /* ─── helpers ─── */
@@ -526,6 +527,10 @@ export const OwnerDashboard = () => {
           kicker={`${currentOrganization?.name ?? ""} · ${format(new Date(), "EEE, d MMM")}`}
           action={
             <div className="flex shrink-0 items-center gap-2">
+              <ShopChatButton
+                className="h-[36px] w-[36px] border-2 border-[var(--ez-shell-line)] text-[var(--ez-shell-text)] active:bg-[#1c1f25]"
+                badgeClassName="-top-1.5 -right-1.5"
+              />
               <OwnerNotificationsButton
                 className="h-[36px] w-[36px] border-2 border-[var(--ez-shell-line)] text-[var(--ez-shell-text)] active:bg-[#1c1f25]"
                 badgeClassName="-top-1.5 -right-1.5"
@@ -749,6 +754,10 @@ export const OwnerDashboard = () => {
           </div>
           <div className="flex flex-col items-end gap-0.5">
             <div className="flex items-center gap-2">
+            <ShopChatButton
+              className="w-8 h-8 rounded-full bg-white/10 text-white/80 active:scale-90 transition-all"
+              badgeClassName="-top-1 -right-1"
+            />
             <OwnerNotificationsButton
               className="w-8 h-8 rounded-full bg-white/10 text-white/80 active:scale-90 transition-all"
               badgeClassName="-top-1 -right-1"
