@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { syncDailyTallyBankDeposit } from "@/utils/accounting/bankStatement";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { localDayBounds } from "@/lib/localDayBounds";
 import DailyTallyReport from "@/components/DailyTallyReport";
@@ -288,10 +289,23 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
         created_by: user?.id || null,
         denomination_data: { denomCounts, coinsBulk } as any,
       };
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("daily_tally_snapshot")
-        .upsert(payload as any, { onConflict: "organization_id,tally_date" });
+        .upsert(payload as any, { onConflict: "organization_id,tally_date" })
+        .select("id")
+        .single();
       if (error) throw error;
+      // "Deposit to bank" also goes to the Bank Statement (Contra in the default bank).
+      try {
+        await syncDailyTallyBankDeposit({
+          organizationId: orgId!,
+          snapshotId: (data as { id: string }).id,
+          tallyDate: dateStr,
+          amount: depositToBank,
+        });
+      } catch (e) {
+        toast.warning(`Tally saved, but the bank deposit was not posted: ${(e as Error).message}`);
+      }
     },
     onSuccess: () => {
       toast.success("Daily tally snapshot saved");

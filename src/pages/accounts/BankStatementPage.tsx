@@ -4,6 +4,8 @@ import { format, startOfMonth } from "date-fns";
 import {
   ArrowDownToLine,
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   Landmark,
   Loader2,
   RefreshCw,
@@ -49,6 +51,7 @@ import {
 } from "@/utils/accounting/bankStatement";
 
 const ALL_BANKS = "all";
+const PAGE_SIZE = 100;
 
 const inr = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtAmt = (n: number) => inr.format(n);
@@ -117,6 +120,13 @@ export default function BankStatementPage() {
     [rows, search, direction],
   );
   const movementCount = rows.filter((r) => !r.isOpening).length;
+
+  const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [orgId, bankIdParam, fromDate, toDate, search, direction]);
+  const pageCount = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pageRows = filteredRows.slice(pageStart, pageStart + PAGE_SIZE);
 
   // Cash deposit / withdrawal dialog
   const [entryOpen, setEntryOpen] = useState(false);
@@ -402,7 +412,7 @@ export default function BankStatementPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredRows.map((row, index) => {
+                  {pageRows.map((row, index) => {
                     if (row.isOpening) {
                       return (
                         <TableRow key={row.key} className="h-10 bg-slate-50 hover:bg-slate-50">
@@ -420,7 +430,7 @@ export default function BankStatementPage() {
                         </TableRow>
                       );
                     }
-                    const sr = filteredRows[0]?.isOpening ? index : index + 1;
+                    const sr = pageStart + (filteredRows[0]?.isOpening ? index : index + 1);
                     const typeLabel = bankReferenceTypeLabel(row.referenceType, row.debit);
                     const mode = bankPaymentMethodLabel(row.paymentMethod);
                     return (
@@ -457,7 +467,7 @@ export default function BankStatementPage() {
                           <span className="text-xs text-muted-foreground">{drCr(row.balance)}</span>
                         </TableCell>
                         <TableCell className="py-2 text-center">
-                          {row.referenceType === "Contra" && row.referenceId && (
+                          {row.referenceType === "Contra" && row.referenceId && !/daily tally/i.test(row.description) && (
                             <Button
                               type="button"
                               variant="ghost"
@@ -482,6 +492,40 @@ export default function BankStatementPage() {
                   )}
                 </TableBody>
               </Table>
+            </div>
+          )}
+          {pageCount > 1 && (
+            <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-slate-100 bg-white shrink-0">
+              <span className="text-sm text-muted-foreground tabular-nums">
+                Rows {(pageStart + 1).toLocaleString("en-IN")}–
+                {Math.min(pageStart + PAGE_SIZE, filteredRows.length).toLocaleString("en-IN")} of{" "}
+                {filteredRows.length.toLocaleString("en-IN")}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage(currentPage - 1)}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Previous
+                </Button>
+                <span className="text-sm font-medium tabular-nums">
+                  Page {currentPage} of {pageCount}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  disabled={currentPage >= pageCount}
+                  onClick={() => setPage(currentPage + 1)}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
             </div>
           )}
         </Card>

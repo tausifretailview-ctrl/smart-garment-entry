@@ -39,6 +39,7 @@ import {
 } from "@/utils/cashierSaleModeAmounts";
 import { createSameDaySaleReceiptOverlapTracker } from "@/utils/posCashierCashIn";
 import { toast } from "sonner";
+import { syncDailyTallyBankDeposit } from "@/utils/accounting/bankStatement";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
@@ -479,10 +480,23 @@ const DailyTally = () => {
       };
 
       // Upsert
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("daily_tally_snapshot")
-        .upsert(payload, { onConflict: "organization_id,tally_date" });
+        .upsert(payload, { onConflict: "organization_id,tally_date" })
+        .select("id")
+        .single();
       if (error) throw error;
+      // "Deposit to bank" also goes to the Bank Statement (Contra in the default bank).
+      try {
+        await syncDailyTallyBankDeposit({
+          organizationId: orgId!,
+          snapshotId: (data as { id: string }).id,
+          tallyDate: dateStr,
+          amount: depositToBank,
+        });
+      } catch (e) {
+        toast.warning(`Tally saved, but the bank deposit was not posted: ${(e as Error).message}`);
+      }
     },
     onSuccess: () => {
       toast.success("Daily tally snapshot saved");
