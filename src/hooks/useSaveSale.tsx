@@ -41,6 +41,7 @@ import {
   preSaveInvariants,
   warnSettlementPathMismatch,
 } from "@/utils/saleSettlement";
+import { planPosUpdateCredit } from "@/utils/posUpdateCreditPlan";
 import { newPosCreditIdempotencyKey } from "@/utils/applyPosCredit";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import { posTenderDueAfterAdvance } from "@/utils/posApplyAdvance";
@@ -2210,25 +2211,29 @@ export const useSaveSale = () => {
         // never block save on guard errors
       }
 
-      // Reducing or removing S/R releases this sale's credit voucher first.
-      // The note keeps whatever other bills still hold. A lower amount is applied again below.
+      // Reducing, removing or moving S/R to another customer releases this sale's credit
+      // voucher first. The note keeps whatever other bills still hold. A new amount is
+      // applied again below. Unchanged credit stays on the bill and is not consumed again.
       // Compare against the credit notes actually used on this bill too: if the row's
       // sale_return_adjust drifted to 0 while a CN voucher is still live, clearing S/R
       // must still release it (POS/26-27/396 kept a used CN with S/R 0 and full UPI).
-      const liveCnCredit = saleData.customerId
+      const previousCustomerId = (existingSale as { customer_id?: string | null } | null)?.customer_id ?? null;
+      const liveCnCredit = saleData.customerId || previousCustomerId
         ? await fetchLiveCreditNoteAdjustTotal(supabase, saleId)
         : 0;
-      const oldSRA = Math.max(Number(existingSale?.sale_return_adjust || 0), liveCnCredit);
-      const nextCredit = roundMoney(
-        (saleData.saleReturnAdjust || 0) + (saleData.creditApplied || 0),
-      );
-      let releasedCredit = false;
-      if (oldSRA > 0.01 && Math.abs(nextCredit - oldSRA) > 0.01) {
+      const creditPlan = planPosUpdateCredit({
+        customerId: saleData.customerId,
+        previousCustomerId,
+        storedSaleReturnAdjust: Number(existingSale?.sale_return_adjust || 0),
+        liveCreditNoteAdjust: liveCnCredit,
+        saleReturnAdjust: saleData.saleReturnAdjust || 0,
+        creditApplied: saleData.creditApplied || 0,
+      });
+      if (creditPlan.release) {
         const { error: releaseError } = await (supabase as unknown as {
           rpc: (fn: string, args: Record<string, unknown>) => Promise<{ error: { message?: string } | null }>;
         }).rpc("release_sale_credit", { p_sale_id: saleId });
         if (releaseError) throw releaseError;
-        releasedCredit = true;
       }
 
       const {
@@ -2316,11 +2321,7 @@ export const useSaveSale = () => {
           flat_discount_percent: saleData.flatDiscountPercent,
           flat_discount_amount: saleData.flatDiscountAmount,
           // Unchanged credit stays on the bill, whether it came in as S/R or as CN credit.
-          sale_return_adjust: releasedCredit
-            ? 0
-            : oldSRA > 0.01
-              ? oldSRA
-              : saleData.saleReturnAdjust,
+          sale_return_adjust: creditPlan.headerSaleReturnAdjust,
           round_off: saleData.roundOff,
           net_amount: saleData.netAmount,
           payment_method: finalPaymentMethod,
@@ -2392,27 +2393,20 @@ export const useSaveSale = () => {
         }
       }
 
-      if (releasedCredit && nextCredit > 0.01 && saleData.customerId) {
-        await applyPosBillCredit({
-          customerId: saleData.customerId,
-          saleId: sale.id,
-          netAmount: saleData.netAmount,
-          paidAmount: paidAmt,
-          saleReturnAdjust: saleData.saleReturnAdjust || 0,
-          creditApplied: saleData.creditApplied || 0,
-          consumeSrAmount: 0,
-          idempotencyKey: runtimeOptions?.creditIdempotencyKey,
-        });
-      } else {
-        const srConsumeAmountUpdate = Math.max(saleData.saleReturnAdjust || 0, consumeSrAmount || 0);
-        if (srConsumeAmountUpdate > 0 && saleData.customerId) {
-          await consumeSaleReturnAdjustments({
+      // Same as a new bill: credit is awaited, and a failure comes back to the
+      // cashier (bill saved, still pending) with a retry instead of a lost save.
+      const creditResult = creditPlan.applyCredit
+        ? await applyPosBillCredit({
             customerId: saleData.customerId,
             saleId: sale.id,
-            adjustmentAmount: srConsumeAmountUpdate,
-          });
-        }
-      }
+            netAmount: saleData.netAmount,
+            paidAmount: paidAmt,
+            saleReturnAdjust: saleData.saleReturnAdjust || 0,
+            creditApplied: saleData.creditApplied || 0,
+            consumeSrAmount: creditPlan.passExchangeExcess ? consumeSrAmount || 0 : 0,
+            idempotencyKey: runtimeOptions?.creditIdempotencyKey,
+          })
+        : { creditApplyError: null, creditIdempotencyKey: null, creditApplyAmount: 0 };
 
       try {
         const recomputed = await applyRecomputedSalePaymentState(
@@ -2440,7 +2434,7 @@ export const useSaveSale = () => {
         saleSnapshot: toPosDashboardSaleSeed(sale as Record<string, unknown>, totalQty),
       });
 
-      return sale;
+      return { ...sale, ...creditResult };
     } catch (error: any) {
       console.error('Error updating sale:', error);
       toast({
