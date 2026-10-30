@@ -7,7 +7,7 @@ import {
 } from "@/utils/accounting/accountingTypes";
 import { mergeJournalLines } from "@/utils/accounting/journalLineUtils";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
-import { isOnOrAfterReturnCreditCutover } from "@/utils/accounting/saleJournalMath";
+import { isOnOrAfterReturnCreditCutover, splitMixCounterTender } from "@/utils/accounting/saleJournalMath";
 import { seedDefaultAccounts, type SeededAccount } from "@/utils/accounting/seedDefaultAccounts";
 import {
   buildPurchaseJournalV2,
@@ -90,6 +90,12 @@ function isUniqueViolation(err: unknown): boolean {
   return e?.code === "23505";
 }
 
+/** journal_entries.bank_account_id not added yet (bank statement SQL not run). */
+function isMissingBankAccountColumn(err: unknown): boolean {
+  const e = err as { code?: string; message?: string };
+  return (e?.code === "42703" || e?.code === "PGRST204") && /bank_account_id/i.test(e?.message || "");
+}
+
 /**
  * Single entry point for chart postings: balance check, idempotency by (org, reference_type, reference_id),
  * insert header + lines (rolls back header if line insert fails).
@@ -165,18 +171,30 @@ export async function postJournalEntry(params: PostJournalEntryInput): Promise<P
     return { status: "already_exists", journalEntryId: liveOriginalId };
   }
 
-  const { data: entry, error: entryErr } = await client
+  const header: Record<string, unknown> = {
+    organization_id: organizationId,
+    date,
+    reference_type: referenceType,
+    reference_id: referenceId,
+    description: desc,
+    total_amount: totalDebit,
+  };
+  if (params.bankAccountId) header.bank_account_id = params.bankAccountId;
+
+  let { data: entry, error: entryErr } = await client
     .from("journal_entries")
-    .insert({
-      organization_id: organizationId,
-      date,
-      reference_type: referenceType,
-      reference_id: referenceId,
-      description: desc,
-      total_amount: totalDebit,
-    })
+    .insert(header)
     .select("id")
     .single();
+  if (entryErr && params.bankAccountId && isMissingBankAccountColumn(entryErr)) {
+    // Before the bank statement SQL: post without the bank tag (statement falls back to the default bank).
+    delete header.bank_account_id;
+    ({ data: entry, error: entryErr } = await client
+      .from("journal_entries")
+      .insert(header)
+      .select("id")
+      .single());
+  }
 
   if (entryErr) {
     if (isUniqueViolation(entryErr)) {
@@ -893,10 +911,11 @@ export async function recordSaleJournalEntry(
   let netAmount = legacyMode ? Number(arg3) : 0;
   let paidAmount = legacyMode ? Number(arg4 ?? 0) : 0;
   let paymentMethod = legacyMode ? String(arg5 ?? "") : "";
+  let cashAmount = 0;
   if (!legacyMode) {
     const { data: sale, error } = await client
       .from("sales")
-      .select("net_amount, paid_amount, payment_method")
+      .select("net_amount, paid_amount, payment_method, cash_amount")
       .eq("id", saleId)
       .maybeSingle();
     if (error) throw error;
@@ -904,6 +923,7 @@ export async function recordSaleJournalEntry(
     netAmount = Number(sale.net_amount ?? 0);
     paidAmount = Number(sale.paid_amount ?? 0);
     paymentMethod = String(sale.payment_method ?? "");
+    cashAmount = Number(sale.cash_amount ?? 0);
   }
 
   const net = round2(netAmount);
@@ -921,7 +941,12 @@ export async function recordSaleJournalEntry(
   const lines: PostJournalLineInput[] = [
     { accountId: salesRevenue.id, debitAmount: 0, creditAmount: net },
   ];
-  if (paid > 0) lines.push({ accountId: receiptAccount.id, debitAmount: paid, creditAmount: 0 });
+  const tender = splitMixCounterTender({ paymentMethod, counterPaid: paid, cashAmount });
+  if (tender.cash > 0) {
+    const cashInHand = resolveCashOrBankLedgerAccount(systemAccounts, "cash");
+    lines.push({ accountId: cashInHand.id, debitAmount: tender.cash, creditAmount: 0 });
+  }
+  if (tender.other > 0) lines.push({ accountId: receiptAccount.id, debitAmount: tender.other, creditAmount: 0 });
   if (receivable > 0) lines.push({ accountId: arAccount.id, debitAmount: receivable, creditAmount: 0 });
 
   const journalDate =

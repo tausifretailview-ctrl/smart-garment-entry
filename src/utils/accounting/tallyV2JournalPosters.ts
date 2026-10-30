@@ -23,6 +23,7 @@ import {
   computeSaleRevenueBreakdown,
   counterTenderInSaleJournal,
   isOnOrAfterReturnCreditCutover,
+  splitMixCounterTender,
 } from "@/utils/accounting/saleJournalMath";
 import {
   fetchPurchaseReturnStockAmount,
@@ -204,7 +205,7 @@ export async function buildSaleJournalV2(
   const { data: sale, error: saleErr } = await client
     .from("sales")
     .select(
-      "id, net_amount, paid_amount, payment_method, sale_date, gross_amount, discount_amount, flat_discount_amount, other_charges, points_redeemed_amount, round_off, customer_id, customer_name, sale_return_adjust, credit_applied, tax_type, sale_type, created_at"
+      "id, net_amount, paid_amount, payment_method, cash_amount, sale_date, gross_amount, discount_amount, flat_discount_amount, other_charges, points_redeemed_amount, round_off, customer_id, customer_name, sale_return_adjust, credit_applied, tax_type, sale_type, created_at"
     )
     .eq("id", saleId)
     .eq("organization_id", organizationId)
@@ -267,7 +268,17 @@ export async function buildSaleJournalV2(
   const lines: PostJournalLineInput[] = [];
   const receiptAccount = resolveCashOrBankLedgerAccount(systemAccounts, sale.payment_method);
 
-  if (paid > 0) pushLine(lines, receiptAccount.id, paid, 0, party);
+  // Mix bill: the cash part goes to Cash in Hand, only UPI / card etc. to Bank.
+  const tender = splitMixCounterTender({
+    paymentMethod: sale.payment_method,
+    counterPaid: paid,
+    cashAmount: (sale as { cash_amount?: number | null }).cash_amount,
+  });
+  if (tender.cash > 0) {
+    const cashInHand = resolveCashOrBankLedgerAccount(systemAccounts, "cash");
+    pushLine(lines, cashInHand.id, tender.cash, 0, party);
+  }
+  if (tender.other > 0) pushLine(lines, receiptAccount.id, tender.other, 0, party);
   if (receivable > 0) pushLine(lines, arAccount.id, receivable, 0, party);
 
   // S/R adjust settles part of this bill with return credit. The return's own journal

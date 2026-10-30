@@ -38,6 +38,8 @@ export type PostJournalEntryInput = {
   referenceId: string;
   description: string;
   lines: PostJournalLineInput[];
+  /** organization_bank_accounts.id for a bank-side entry (e.g. cash deposit); tags the Bank Statement. */
+  bankAccountId?: string | null;
   client?: any;
 };
 
