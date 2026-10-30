@@ -35,7 +35,7 @@ import { isGiftVoucherEnabled } from "@/utils/whatsappFeatureSwitches";
 import { useSearchParams } from "react-router-dom";
 import { createAdvanceRefund } from "@/utils/advanceRefundService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
-import { deleteJournalEntryByReference } from "@/utils/accounting/journalService";
+import { deleteJournalEntryByReference, repostCustomerAdvanceReceiptJournal } from "@/utils/accounting/journalService";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
@@ -436,6 +436,15 @@ export default function AdvanceBookingDashboard() {
          .update(updateData)
          .eq("id", advanceId);
        if (error) throw error;
+       // The receipt journal still holds the old amount / mode until it is re-posted.
+       try {
+         await repostCustomerAdvanceReceiptJournal(advanceId, orgId!, supabase);
+       } catch (glErr) {
+         console.error("Advance edit: ledger re-post failed", glErr);
+         toast.warning(
+           `Advance saved, but the ledger was not updated: ${glErr instanceof Error ? glErr.message : "unknown error"}`,
+         );
+       }
      },
      onSuccess: () => {
        queryClient.invalidateQueries({ queryKey: ["advance-dashboard"] });

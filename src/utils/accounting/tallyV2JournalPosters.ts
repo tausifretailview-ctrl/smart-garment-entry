@@ -4,11 +4,7 @@ import { isCreditNoteAdjustmentReceipt } from "@/utils/customerReceiptDeletePlan
 import type { Database } from "@/integrations/supabase/types";
 import type { PostJournalLineInput } from "@/utils/accounting/accountingTypes";
 import type { JournalReferenceType } from "@/utils/accounting/accountingTypes";
-import {
-  aggregateInclusiveLines,
-  breakdownFromGrossAndGst,
-  breakdownPurchaseHeaderGst,
-} from "@/utils/accounting/gstBreakdown";
+import { breakdownFromGrossAndGst, breakdownPurchaseHeaderGst } from "@/utils/accounting/gstBreakdown";
 import {
   appendInputGstCredits,
   appendInputGstDebits,
@@ -23,6 +19,8 @@ import {
   computeSaleRevenueBreakdown,
   counterTenderInSaleJournal,
   isOnOrAfterReturnCreditCutover,
+  saleOrphanHeaderDiscount,
+  saleReturnGstBreakdown,
   splitMixCounterTender,
 } from "@/utils/accounting/saleJournalMath";
 import {
@@ -120,19 +118,6 @@ function resolveEntryDate(rowDate: string | null | undefined, entryDate?: string
   return new Date().toISOString().slice(0, 10);
 }
 
-/** Line-level discount already embedded in line_total (do not also post full header discount_amount). */
-function sumLineDiscountFromSaleItems(
-  items: Array<{ unit_price?: number | null; quantity?: number | null; line_total?: number | null }>
-): number {
-  return round2(
-    items.reduce((sum, item) => {
-      const base = round2(Number(item.unit_price ?? 0) * Number(item.quantity ?? 0));
-      const lineTotal = round2(Number(item.line_total ?? 0));
-      return sum + round2(Math.max(0, base - lineTotal));
-    }, 0)
-  );
-}
-
 /**
  * Money already settled against this sale by vouchers that carry their own journal
  * (customer receipts, advance applications), read as the Receivable credit of those journals
@@ -219,7 +204,7 @@ export async function buildSaleJournalV2(
 
   const { data: items, error: itemsErr } = await client
     .from("sale_items")
-    .select("line_total, gst_percent, unit_price, quantity")
+    .select("line_total, gst_percent, unit_price, mrp, quantity")
     .eq("sale_id", saleId)
     .is("deleted_at", null);
   if (itemsErr) throw itemsErr;
@@ -309,9 +294,12 @@ export async function buildSaleJournalV2(
     pushLine(lines, salesRevenue.id, 0, otherCharges, party);
   }
 
-  const lineDiscountInLines = sumLineDiscountFromSaleItems(items ?? []);
-  const headerDiscount = round2(Number(sale.discount_amount ?? 0));
-  const orphanHeaderDiscount = round2(Math.max(0, headerDiscount - lineDiscountInLines));
+  const orphanHeaderDiscount = saleOrphanHeaderDiscount(
+    items ?? [],
+    sale.discount_amount,
+    sale.flat_discount_amount,
+    { taxType: sale.tax_type, saleType: (sale as { sale_type?: string | null }).sale_type },
+  );
   const flatDiscountDr = revenue ? revenue.flatDiscountTaxable : Number(sale.flat_discount_amount ?? 0);
   const tradeDiscountDr = round2(
     flatDiscountDr + Number(sale.points_redeemed_amount ?? 0) + orphanHeaderDiscount
@@ -346,12 +334,13 @@ export async function buildPurchaseJournalV2(
   organizationId: string,
   client: SupabaseClient<Database>,
   entryDate?: string,
-  paymentMethodOverride?: string | null
+  /** Ignored: the bill is booked to Creditors; payments post their own journals. */
+  _paymentMethodOverride?: string | null
 ): Promise<BuiltJournal | null> {
   const { data: bill, error: billErr } = await client
     .from("purchase_bills")
     .select(
-      "id, net_amount, paid_amount, bill_date, gross_amount, discount_amount, gst_amount, other_charges, round_off, supplier_id, supplier_name"
+      "id, net_amount, bill_date, gross_amount, discount_amount, gst_amount, other_charges, round_off, supplier_id, supplier_name"
     )
     .eq("id", purchaseId)
     .eq("organization_id", organizationId)
@@ -360,8 +349,6 @@ export async function buildPurchaseJournalV2(
   if (!bill) throw new Error(`Purchase bill not found: ${purchaseId}`);
 
   const net = round2(Number(bill.net_amount ?? 0));
-  const paid = round2(Math.max(0, Math.min(Number(bill.paid_amount ?? 0), net)));
-  const payable = round2(Math.max(0, net - paid));
   if (net <= 0) return null;
 
   const inventoryDebit = round2(
@@ -375,19 +362,15 @@ export async function buildPurchaseJournalV2(
   if (!stock || !apAccount) throw new Error("Missing Tally v2 chart accounts (1300/2000)");
 
   const party = supplierParty(bill);
-  const pm =
-    paymentMethodOverride != null && String(paymentMethodOverride).trim() !== ""
-      ? paymentMethodOverride
-      : paid > 0
-        ? "cash"
-        : "pay_later";
-  const paymentAccount = resolveCashOrBankLedgerAccount(systemAccounts, pm);
 
+  // The whole bill goes to the supplier (Creditors). purchase_bills.paid_amount is the sum of
+  // supplier payment vouchers and credit notes adjusted on the bill; each of those carries its
+  // own journal (Dr Creditors), so crediting Cash for it here counted every payment twice
+  // whenever a paid bill was edited, retried, restored or backfilled.
   const lines: PostJournalLineInput[] = [];
   if (inventoryDebit > 0) pushLine(lines, stock.id, inventoryDebit, 0, party);
   appendInputGstDebits(lines, systemAccounts, gst, party);
-  if (paid > 0) pushLine(lines, paymentAccount.id, 0, paid, party);
-  if (payable > 0) pushLine(lines, apAccount.id, 0, payable, party);
+  pushLine(lines, apAccount.id, 0, net, party);
 
   const billRoundOff = round2(Number(bill.round_off ?? 0));
   if (Math.abs(billRoundOff) >= 0.01) {
@@ -440,7 +423,7 @@ export async function buildSaleReturnJournalV2(
 
   const gst =
     items && items.length > 0
-      ? aggregateInclusiveLines(items)
+      ? saleReturnGstBreakdown({ netAmount: net, headerGst: Number(sr.gst_amount ?? 0), items })
       : breakdownFromGrossAndGst(Number(sr.gross_amount ?? net), Number(sr.gst_amount ?? 0));
 
   const systemAccounts = await seedDefaultAccounts(organizationId, client);

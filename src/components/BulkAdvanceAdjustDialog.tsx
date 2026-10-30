@@ -8,6 +8,10 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { Loader2, IndianRupee, CheckCircle2 } from "lucide-react";
 import { consumeAdvanceFIFO } from "@/utils/saleSettlement";
+import {
+  isAccountingEngineOnForOrg,
+  postAdvanceApplicationJournalsForVouchers,
+} from "@/utils/accounting/journalService";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { invalidateMoneyViewsAfterMutation } from "@/utils/moneyViewFreshnessInvalidation";
@@ -215,12 +219,24 @@ export function BulkAdvanceAdjustDialog({
 
       const advYmd = format(new Date(), "yyyy-MM-dd");
       let appliedTargets = 0;
+      // Advance applied: DR Customer Advances, CR Receivable, as the other advance screens post.
+      const postLedger = await isAccountingEngineOnForOrg(organizationId, supabase);
+      let ledgerFailed = false;
+      const postApplication = async (vouchers: string[], description: string) => {
+        if (!postLedger) return;
+        try {
+          await postAdvanceApplicationJournalsForVouchers(vouchers, organizationId, advYmd, description, supabase);
+        } catch (glErr) {
+          console.error("Bulk advance adjust: ledger post failed", glErr);
+          ledgerFailed = true;
+        }
+      };
 
       for (const inv of invoices) {
         if (inv.allocate <= 0) continue;
 
         if (inv.isOpeningBalance) {
-          await consumeAdvanceFIFO(supabase, {
+          const ob = await consumeAdvanceFIFO(supabase, {
             customerId,
             organizationId,
             targetOpeningBalance: true,
@@ -228,11 +244,12 @@ export function BulkAdvanceAdjustDialog({
             voucherDate: advYmd,
             createdBy: userId ?? null,
           });
+          await postApplication(ob.vouchers, "Adjusted from advance balance for opening balance");
           appliedTargets += 1;
           continue;
         }
 
-        await consumeAdvanceFIFO(supabase, {
+        const applied = await consumeAdvanceFIFO(supabase, {
           customerId,
           organizationId,
           saleId: inv.id,
@@ -240,6 +257,7 @@ export function BulkAdvanceAdjustDialog({
           voucherDate: advYmd,
           createdBy: userId ?? null,
         });
+        await postApplication(applied.vouchers, `Adjusted from advance balance for invoice ${inv.sale_number}`);
 
         await applyRecomputedSalePaymentState(inv.id, organizationId, supabase);
 
@@ -266,6 +284,9 @@ export function BulkAdvanceAdjustDialog({
       toast.success(
         `₹${totalAllocated.toLocaleString("en-IN")} advance adjusted across ${appliedTargets} target(s)`,
       );
+      if (ledgerFailed) {
+        toast.warning("Advance adjusted, but some entries did not reach the ledger. Use Accounts re-post to fix.");
+      }
       onOpenChange(false);
       onComplete();
     } catch (err: any) {

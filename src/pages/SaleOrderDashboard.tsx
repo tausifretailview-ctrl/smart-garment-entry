@@ -83,6 +83,8 @@ import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { onWheelScrollContainer } from "@/lib/scrollWheel";
 import { resolveSaleBillFormatFromSaleSettings } from "@/utils/invoicePrintFormat";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { postSaleJournalInBackground } from "@/utils/accounting/journalService";
 
 interface ConversionItem {
   id: string;
@@ -668,6 +670,8 @@ export default function SaleOrderDashboard() {
           gross_amount: grossAmount,
           discount_amount: discountAmount,
           net_amount: netAmount,
+          // Exclusive orders add GST into line_total (calculateLineTotal), as a Sales Invoice does.
+          tax_type: selectedOrder.tax_type === "exclusive" ? "exclusive" : "inclusive",
           payment_method: 'pay_later',
           payment_status: 'pending',
           notes: `Converted from Sale Order ${selectedOrder.order_number}`,
@@ -706,6 +710,18 @@ export default function SaleOrderDashboard() {
 
       const { error: itemsError } = await supabase.from('sale_items').insert(validItems);
       if (itemsError) throw itemsError;
+
+      if (isAccountingEngineEnabled(settings as { accounting_engine_enabled?: boolean } | null)) {
+        postSaleJournalInBackground(
+          sale.id,
+          currentOrganization!.id,
+          Number(sale.net_amount ?? netAmount),
+          0,
+          'pay_later',
+          sale.sale_date,
+          supabase,
+        );
+      }
 
       // Update sale order items fulfilled/pending qty
       for (const item of itemsToConvert) {

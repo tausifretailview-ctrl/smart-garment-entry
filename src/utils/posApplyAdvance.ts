@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { recordCustomerAdvanceApplicationJournalEntry } from "@/utils/accounting/journalService";
+import { postAdvanceApplicationJournalsForVouchers } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { fetchCustomerOpeningBalanceRemaining } from "@/utils/customerOpeningBalanceRemaining";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
@@ -142,14 +142,14 @@ export async function applyExistingAdvanceToSale(
       .eq("organization_id", params.organizationId)
       .maybeSingle();
     if (isAccountingEngineEnabled(acctRow as { accounting_engine_enabled?: boolean | null } | null)) {
-      const lastVoucherId = vouchers[vouchers.length - 1];
       const journalDesc = params.saleNumber
         ? `Adjusted from advance balance for invoice ${params.saleNumber}`
         : `Adjusted from advance balance for invoice`;
-      await recordCustomerAdvanceApplicationJournalEntry(
-        lastVoucherId,
+      // One journal per FIFO voucher (each for its own amount). A single journal for the total on
+      // the last voucher was reversed in full when only that voucher was released or deleted.
+      await postAdvanceApplicationJournalsForVouchers(
+        vouchers,
         params.organizationId,
-        consumed,
         params.voucherDate,
         journalDesc,
         params.client,

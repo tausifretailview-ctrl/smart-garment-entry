@@ -3,6 +3,11 @@ import { createPortal } from "react-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  deleteJournalEntryByReference,
+  isAccountingEngineOnForOrg,
+  recordSupplierPaymentJournalEntry,
+} from "@/utils/accounting/journalService";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1521,12 +1526,33 @@ const PurchaseBillDashboard = () => {
           reference_id: selectedBillForPayment.id,
           description: paymentDescription,
           total_amount: amount,
+          payment_method: paymentMethod,
           created_by: user?.id ?? null,
         })
         .select("id")
         .single();
 
       if (voucherError) throw voucherError;
+
+      // Ledger: Dr Creditors, Cr Cash/Bank (same as Accounts > Supplier Payment).
+      if (voucherRow?.id && (await isAccountingEngineOnForOrg(currentOrganization.id, supabase))) {
+        try {
+          await recordSupplierPaymentJournalEntry(
+            voucherRow.id,
+            currentOrganization.id,
+            amount,
+            0,
+            paymentMethod,
+            paymentDate,
+            paymentDescription,
+            supabase,
+          );
+        } catch (glErr) {
+          await deleteJournalEntryByReference(currentOrganization.id, "SupplierPayment", voucherRow.id, supabase);
+          await supabase.from("voucher_entries").delete().eq("id", voucherRow.id);
+          throw glErr;
+        }
+      }
 
       // The bill is marked paid only after the payment voucher exists; if that update
       // fails the voucher is removed so the bill and its payments stay in step.
@@ -1539,7 +1565,10 @@ const PurchaseBillDashboard = () => {
         .eq("id", selectedBillForPayment.id);
 
       if (updateError) {
-        if (voucherRow?.id) await supabase.from("voucher_entries").delete().eq("id", voucherRow.id);
+        if (voucherRow?.id) {
+          await deleteJournalEntryByReference(currentOrganization.id, "SupplierPayment", voucherRow.id, supabase);
+          await supabase.from("voucher_entries").delete().eq("id", voucherRow.id);
+        }
         throw updateError;
       }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { postSupplierRefundReceiptJournal } from "@/utils/accounting/journalService";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -283,7 +284,8 @@ export function AdjustCreditNoteDialog({
         const newVoucherNumber = await allocateSupplierVoucherNumber(supabase, "receipt", today);
 
         // Create receipt voucher
-        const { error: receiptError } = await supabase
+        const refundDescription = `Refund received for Credit Note: ${creditNoteNumber}`;
+        const { data: refundVoucher, error: receiptError } = await supabase
           .from("voucher_entries")
           .insert({
             organization_id: currentOrganization?.id,
@@ -292,13 +294,29 @@ export function AdjustCreditNoteDialog({
             voucher_date: today,
             reference_type: "supplier",
             reference_id: supplierId,
-            description: `Refund received for Credit Note: ${creditNoteNumber}`,
+            description: refundDescription,
             total_amount: creditAmount,
             payment_method: refundMode,
             created_by: user?.id ?? null,
-          });
+          })
+          .select("id")
+          .single();
 
         if (receiptError) throw receiptError;
+
+        // Ledger: the purchase return left the supplier owing us (Dr Creditors); the money
+        // received clears it: Dr Cash/Bank, Cr Creditors.
+        if (currentOrganization?.id) {
+          await postSupplierRefundReceiptJournal({
+            organizationId: currentOrganization.id,
+            voucherId: refundVoucher?.id ?? "",
+            amount: creditAmount,
+            paymentMethod: refundMode,
+            date: today,
+            description: refundDescription,
+            client: supabase,
+          });
+        }
 
         // Update the purchase return credit status using purchaseReturnId
         const { error: returnError } = await supabase

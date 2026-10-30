@@ -1,4 +1,4 @@
-import { splitGstTotal, type GstBreakdown } from "@/utils/accounting/gstBreakdown";
+import { aggregateInclusiveLines, splitGstTotal, type GstBreakdown } from "@/utils/accounting/gstBreakdown";
 
 const round2 = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
 
@@ -123,4 +123,72 @@ export function splitMixCounterTender(params: {
   if (pm !== "multiple") return { cash: 0, other: paid };
   const cash = round2(Math.min(paid, Math.max(0, Number(params.cashAmount || 0))));
   return { cash, other: round2(paid - cash) };
+}
+
+export type SaleDiscountLine = {
+  unit_price?: number | null;
+  mrp?: number | null;
+  quantity?: number | null;
+  line_total?: number | null;
+  gst_percent?: number | null;
+};
+
+/**
+ * Header `discount_amount` that is not already inside the line totals or the flat discount.
+ *
+ * Line totals are net of every line-level discount. POS saves the header discount against
+ * MRP (percent + amount + "selling rate below MRP"), Sales Invoice against the selling rate,
+ * and POS Delivery Challan stores the flat discount there. Measuring the line discounts
+ * against the higher of MRP and rate, and taking the flat discount off the header, leaves
+ * only a discount that no other line of the journal carries. Booking more than that debited
+ * Trade Discount twice and pushed the same amount into Round Off.
+ */
+export function saleOrphanHeaderDiscount(
+  items: SaleDiscountLine[],
+  headerDiscount: number | null | undefined,
+  flatDiscount: number | null | undefined,
+  opts: { taxType?: string | null; saleType?: string | null } = {},
+): number {
+  // GST-exclusive bills other than POS add GST into line_total while the rate is pre-tax
+  // (same rule as computeSaleRevenueBreakdown), so compare the rate with the pre-tax line.
+  const taxType = String(opts.taxType || "inclusive").toLowerCase();
+  const lineTotalHasGstOnTop = taxType === "exclusive" && String(opts.saleType || "").toLowerCase() !== "pos";
+  const inLines = items.reduce((sum, item) => {
+    const qty = Number(item.quantity ?? 0);
+    const rate = Math.max(Number(item.unit_price ?? 0), Number(item.mrp ?? 0));
+    const gstRate = Math.max(0, Number(item.gst_percent ?? 0));
+    const lineTotal = Number(item.line_total ?? 0) / (lineTotalHasGstOnTop ? 1 + gstRate / 100 : 1);
+    return sum + Math.max(0, round2(rate * qty) - round2(lineTotal));
+  }, 0);
+  return round2(
+    Math.max(0, Number(headerDiscount ?? 0) - round2(inLines) - Math.max(0, Number(flatDiscount ?? 0))),
+  );
+}
+
+export type SaleReturnGstInput = {
+  netAmount: number;
+  headerGst: number;
+  items: Array<{ line_total?: number | null; gst_percent?: number | null }>;
+};
+
+/**
+ * Taxable value and GST of a sale return.
+ *
+ * GST-exclusive returns save line totals before tax and GST on the header
+ * (net = Σ line_total + gst_amount). Backing GST out of those pre-tax lines as if they were
+ * tax-inclusive under-reversed output GST. When the header shows that shape, use its GST;
+ * otherwise the lines are tax-inclusive and GST is extracted from each line.
+ */
+export function saleReturnGstBreakdown(input: SaleReturnGstInput): GstBreakdown {
+  const net = round2(input.netAmount);
+  const headerGst = round2(Math.max(0, Number(input.headerGst || 0)));
+  const lineSum = round2(input.items.reduce((s, i) => s + Number(i.line_total ?? 0), 0));
+  const linesArePreTax =
+    input.items.length > 0 && headerGst > 0.005 && headerGst < net && Math.abs(lineSum + headerGst - net) <= 1;
+  if (linesArePreTax) {
+    return { taxableAmount: round2(net - headerGst), totalGst: headerGst, ...splitGstTotal(headerGst) };
+  }
+  return aggregateInclusiveLines(
+    input.items.map((i) => ({ line_total: Number(i.line_total ?? 0), gst_percent: i.gst_percent })),
+  );
 }

@@ -28,7 +28,11 @@ import { filedPeriodForDate, filedPeriodLockMessage, resolveGstFilings } from "@
 import { resolveGstFilingPrefs } from "@/utils/gstReadiness";
 import { generateAndUploadInvoicePDF, InvoicePdfData, generateInvoicePdfBase64 } from "@/utils/invoicePdfUploader";
 import { uploadWappConnectInvoicePdfFromBase64 } from "@/utils/wappConnectPdfUrl";
-import { deleteJournalEntryByReference, postSaleJournalInBackground } from "@/utils/accounting/journalService";
+import {
+  deleteJournalEntryByReference,
+  postCustomerRefundVoucherJournal,
+  postSaleJournalInBackground,
+} from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import {
   applyCreditNoteFifoToSale,
@@ -513,22 +517,37 @@ export const useSaveSale = () => {
       } as any);
       if (numberError) throw numberError;
 
-      const { error } = await supabase.from('voucher_entries').insert({
-        organization_id: currentOrganization.id,
-        voucher_number: voucherNumber as string,
-        voucher_type: 'payment',
-        voucher_date: params.txnDate,
-        reference_type: 'customer',
-        reference_id: params.customerId,
-        description,
-        total_amount: amount,
-        payment_method: method,
-        ...(requestId ? { client_request_id: requestId } : {}),
-      } as any);
+      const { data: inserted, error } = await supabase
+        .from('voucher_entries')
+        .insert({
+          organization_id: currentOrganization.id,
+          voucher_number: voucherNumber as string,
+          voucher_type: 'payment',
+          voucher_date: params.txnDate,
+          reference_type: 'customer',
+          reference_id: params.customerId,
+          description,
+          total_amount: amount,
+          payment_method: method,
+          ...(requestId ? { client_request_id: requestId } : {}),
+        } as any)
+        .select('id')
+        .single();
       // An active voucher with this key already exists for the bill (a retry of the same
       // save): the refund is already on the books, so do not write it twice.
       if (error && (error as { code?: string }).code === "23505" && requestId) return;
       if (error) throw error;
+      // Ledger: the return credited the customer; the cash paid back (or the credit written off
+      // as round off) uses that credit up: Dr Debtors, Cr Cash/Bank (or Round Off).
+      await postCustomerRefundVoucherJournal({
+        organizationId: currentOrganization.id,
+        voucherId: (inserted as { id?: string } | null)?.id ?? "",
+        amount,
+        paymentMethod: method,
+        date: params.txnDate,
+        description,
+        client: supabase,
+      });
     };
 
     await writePaymentVoucher(
@@ -2818,9 +2837,13 @@ export const useSaveSale = () => {
       if (saleError) throw saleError;
 
       if (accountingEngineOn) {
-        void deleteJournalEntryByReference(currentOrganization.id, "Sale", sale.id, supabase).catch(
-          (err) => console.error("Delete journal before resume failed:", err),
-        );
+        // Wait for the delete: the post skips a sale that still has a journal, and a delete that
+        // lands after it removed the new journal and left the bill out of the books.
+        try {
+          await deleteJournalEntryByReference(currentOrganization.id, "Sale", sale.id, supabase);
+        } catch (err) {
+          console.error("Delete journal before resume failed:", err);
+        }
         postSaleJournalInBackground(
           sale.id,
           currentOrganization.id,
