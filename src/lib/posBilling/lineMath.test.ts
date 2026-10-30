@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyPosGarmentGstForBill, applyPosGarmentGstToItem } from "./lineMath";
+import { applyPosGarmentGstForBill, applyPosGarmentGstToItem, posLineDiscountRupees } from "./lineMath";
 import type { PosCartItem } from "./types";
 
 function baseItem(overrides: Partial<PosCartItem>): PosCartItem {
@@ -117,5 +117,19 @@ describe("applyPosGarmentGstForBill — bill discount and exclusive basis", () =
   it("is off when the org rule is off", () => {
     const items = [line({})];
     expect(applyPosGarmentGstForBill(items, { garment_gst_rule_enabled: false }, { flatDiscountAmount: 450, taxType: "inclusive" })).toBe(items);
+  });
+});
+
+describe("posLineDiscountRupees — phone POS line Disc ₹ (matches desktop grid)", () => {
+  it("is Disc % of MRP × qty", () => {
+    expect(posLineDiscountRupees(baseItem({ mrp: 130, quantity: 2, discountPercent: 10 }))).toBe(26);
+  });
+
+  it("uses the typed ₹ when set (scheme lines)", () => {
+    expect(posLineDiscountRupees(baseItem({ mrp: 500, quantity: 1, discountPercent: 0, discountAmount: 40 }))).toBe(40);
+  });
+
+  it("is 0 with no discount", () => {
+    expect(posLineDiscountRupees(baseItem({ mrp: 130, quantity: 1 }))).toBe(0);
   });
 });

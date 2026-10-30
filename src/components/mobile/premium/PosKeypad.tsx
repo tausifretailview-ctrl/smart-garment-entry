@@ -12,7 +12,8 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
-export type KeypadMode = "qty" | "price" | "disc";
+/** "disc" = line discount %, "discAmt" = line discount ₹ (POS only). */
+export type KeypadMode = "qty" | "price" | "disc" | "discAmt";
 
 const KEYS = ["1", "2", "3", "back", "4", "5", "6", "clear", "7", "8", "9", "00", ".", "0", "plus1", "ok"] as const;
 
@@ -21,6 +22,7 @@ export function PosKeypad({
   qty,
   price,
   discPercent,
+  discAmount,
   mode,
   onModeChange,
   onCommit,
@@ -34,6 +36,8 @@ export function PosKeypad({
   qty: number;
   price: number;
   discPercent?: number;
+  /** current line discount in ₹ — when set (with showDiscount) a "Disc ₹" field is shown */
+  discAmount?: number;
   mode: KeypadMode;
   onModeChange: (m: KeypadMode) => void;
   /** value is a number; commit on every keystroke so the total tracks live */
@@ -46,7 +50,14 @@ export function PosKeypad({
 }) {
   const [buffer, setBuffer] = useState("");
 
-  const fieldLabel = mode === "qty" ? "quantity" : mode === "price" ? "unit price" : "line discount";
+  const fieldLabel =
+    mode === "qty"
+      ? "quantity"
+      : mode === "price"
+        ? "unit price"
+        : mode === "discAmt"
+          ? "line discount ₹"
+          : "line discount %";
 
   const pick = (m: KeypadMode) => {
     setBuffer("");
@@ -73,6 +84,7 @@ export function PosKeypad({
     if (!Number.isFinite(value)) return;
     if (mode === "qty") onCommit("qty", next === "" ? 1 : Math.max(value, 0));
     else if (mode === "price") onCommit("price", value);
+    else if (mode === "discAmt") onCommit("discAmt", value);
     else onCommit("disc", Math.min(value, 90));
   };
 
@@ -80,6 +92,9 @@ export function PosKeypad({
     { key: "qty", label: "Qty", value: String(qty) },
     { key: "price", label: "Price", value: formatMoney(price) },
     ...(showDiscount ? [{ key: "disc" as KeypadMode, label: "Disc %", value: `${discPercent ?? 0}%` }] : []),
+    ...(showDiscount && discAmount !== undefined
+      ? [{ key: "discAmt" as KeypadMode, label: "Disc ₹", value: formatMoney(discAmount) }]
+      : []),
   ];
 
   return (
@@ -100,19 +115,27 @@ export function PosKeypad({
         </div>
       </div>
 
-      <div className={cn("grid border-b border-[var(--ez-rule-thin)]", showDiscount ? "grid-cols-3" : "grid-cols-2")}>
+      <div
+        className={cn(
+          "grid border-b border-[var(--ez-rule-thin)]",
+          modes.length === 4 ? "grid-cols-4" : modes.length === 3 ? "grid-cols-3" : "grid-cols-2",
+        )}
+      >
         {modes.map((m) => (
           <button
             key={m.key}
             type="button"
             onClick={() => pick(m.key)}
             className={cn(
-              "border-r border-[var(--ez-rule-thin)] px-3 py-2.5 text-left last:border-r-0",
+              "min-w-0 border-r border-[var(--ez-rule-thin)] py-2.5 text-left last:border-r-0",
+              modes.length === 4 ? "px-2" : "px-3",
               mode === m.key ? "bg-[var(--ez-accent)] text-white" : "bg-[var(--ez-surface)] text-[var(--ez-ink)]",
             )}
           >
             <p className="text-[9px] font-bold uppercase leading-none tracking-[0.12em]">{m.label}</p>
-            <p className="num mt-1 text-[15px] font-extrabold leading-none">{m.value}</p>
+            <p className={cn("num mt-1 truncate font-extrabold leading-none", modes.length === 4 ? "text-[13px]" : "text-[15px]")}>
+              {m.value}
+            </p>
           </button>
         ))}
       </div>

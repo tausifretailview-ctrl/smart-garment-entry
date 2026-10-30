@@ -65,7 +65,10 @@ import {
 } from "@/utils/mobilePosWhatsAppMessage";
 import { cn } from "@/lib/utils";
 import { adjustQtyByStep, minQtyForUom } from "@/utils/qtyInput";
-import type { PosCartItem } from "@/lib/posBilling";
+import { posLineDiscountRupees, type PosCartItem } from "@/lib/posBilling";
+import { mobileNumberError } from "@/utils/mobileNumberValidation";
+import { shouldClearPosSalesmanAfterSave, shouldCreatePosCommissionOnSave } from "@/utils/posSalesmanRetain";
+import { recordPosSalesmanCommission } from "@/utils/posSalesmanCommission";
 import { PosSchemeAppliedTag } from "@/components/pos/PosSchemeAppliedTag";
 import { useMobileUiTheme } from "@/hooks/useMobileUiTheme";
 import { ShellHeader, ShellButton, SearchBar, SectionHead } from "@/components/mobile/premium";
@@ -118,6 +121,25 @@ type SearchHit = {
 
 const WALK_IN_CUSTOMER_NAME = "Walk in Customer";
 
+/** Per-device choice: Fast picks (top sellers grid) is hidden unless the cashier turns it on. */
+const FAST_PICKS_STORAGE_KEY = "ezzy.mobilePos.showFastPicks";
+
+function readShowFastPicks(): boolean {
+  try {
+    return window.localStorage.getItem(FAST_PICKS_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeShowFastPicks(on: boolean) {
+  try {
+    window.localStorage.setItem(FAST_PICKS_STORAGE_KEY, on ? "1" : "0");
+  } catch {
+    /* storage blocked — the toggle still works for this visit */
+  }
+}
+
 type SaveSuccess = {
   saleNumber: string;
   saleId: string;
@@ -142,6 +164,7 @@ export default function MobilePosBilling() {
 
   // Same call-site derivation as desktop POSSales — do not look up inside the hook.
   const enableMrp = purchaseSettings.show_mrp === true;
+  const retainPosSalesman = saleSettings.pos_retain_salesman === true;
   const posBarcodeMode = saleSettings.pos_barcode_price_mode === "mrp" ? "mrp" : "sale_price";
   const grossBasis: PosGrossBasis =
     enableMrp && posBarcodeMode === "mrp" ? "mrp" : "sale_price";
@@ -199,6 +222,10 @@ export default function MobilePosBilling() {
     removeLine,
     clearCart,
     buildSaleData,
+    flatDiscountValue,
+    flatDiscountMode,
+    setFlatDiscountMode,
+    setFlatDiscountValue,
   } = billing;
 
   const [searchInput, setSearchInput] = useState("");
@@ -222,6 +249,14 @@ export default function MobilePosBilling() {
   const [customerSearchTerm, setCustomerSearchTerm] = useState("");
   const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerPickerOption | null>(null);
+  // Premium theme only — bill options sheet (bill discount, salesman, notes, GST type, new customer).
+  const [showFastPicks, setShowFastPicks] = useState(readShowFastPicks);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [selectedSalesman, setSelectedSalesman] = useState("");
+  const [saleNotes, setSaleNotes] = useState("");
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [addingCustomer, setAddingCustomer] = useState(false);
   const saveLockRef = useRef(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -272,7 +307,26 @@ export default function MobilePosBilling() {
         .filter((row) => row.products)
         .map((row) => ({ variant: row, product: row.products }));
     },
-    enabled: theme === "premium" && !!currentOrganization?.id && debouncedSearch.length === 0,
+    enabled: theme === "premium" && showFastPicks && !!currentOrganization?.id && debouncedSearch.length === 0,
+    staleTime: 300000,
+  });
+
+  // Same list as the desktop POS salesman dropdown — loaded only when the options sheet opens.
+  const { data: employees = [] } = useQuery({
+    queryKey: ["pos-employees", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const { data, error } = await supabase
+        .from("employees")
+        .select("id, employee_name, designation, commission_percent")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .eq("status", "active")
+        .order("employee_name");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id && (optionsOpen || !!selectedSalesman),
     staleTime: 300000,
   });
 
@@ -464,16 +518,37 @@ export default function MobilePosBilling() {
 
     try {
       const customerName = selectedCustomer?.customer_name?.trim() || WALK_IN_CUSTOMER_NAME;
+      const salesmanName = selectedSalesman.trim();
       const saleData = buildSaleData({
         customerName,
         customerId: selectedCustomer?.id ?? null,
         customerPhone: selectedCustomer?.phone?.trim() || null,
+        salesman: salesmanName || null,
+        notes: saleNotes.trim() || null,
       });
       const result = await saveSale(saleData, method, breakdown, "pos");
       if (!result) {
         setSaveError("Save did not complete. No automatic retry — tap Pay again when ready.");
         return;
       }
+      if (
+        currentOrganization?.id &&
+        // Offline bills get a real id only when they sync — no commission row for them here.
+        !String(result.id).startsWith("offline-") &&
+        shouldCreatePosCommissionOnSave({ salesmanName, isEditingExistingSale: false })
+      ) {
+        void recordPosSalesmanCommission({
+          organizationId: currentOrganization.id,
+          saleId: result.id,
+          saleNumber: result.sale_number,
+          saleDate: result.sale_date || new Date().toISOString().split("T")[0],
+          customerName,
+          salesmanName,
+          totalNetAmount: Number(result.net_amount) || 0,
+        });
+      }
+      setSaleNotes("");
+      if (shouldClearPosSalesmanAfterSave(retainPosSalesman)) setSelectedSalesman("");
       const paymentMethod: MobilePosPaymentMethod = method;
       clearCart();
       setPreviewOpen(false);
@@ -494,6 +569,49 @@ export default function MobilePosBilling() {
     } finally {
       saveLockRef.current = false;
       setUiSaving(false);
+    }
+  };
+
+  const toggleFastPicks = () => {
+    const next = !showFastPicks;
+    setShowFastPicks(next);
+    writeShowFastPicks(next);
+  };
+
+  // Same create-or-reuse-by-phone path as the desktop POS "Add customer" dialog.
+  const handleAddCustomer = async () => {
+    if (!currentOrganization?.id || addingCustomer) return;
+    const name = newCustomerName.trim();
+    const phone = newCustomerPhone.trim();
+    if (!name) {
+      toast.error("Enter the customer name");
+      return;
+    }
+    const phoneError = mobileNumberError(phone);
+    if (phoneError) {
+      toast.error(phoneError);
+      return;
+    }
+    setAddingCustomer(true);
+    try {
+      const { createOrGetCustomer } = await import("@/utils/customerUtils");
+      const result = await createOrGetCustomer({
+        customer_name: name,
+        phone,
+        organization_id: currentOrganization.id,
+      });
+      setSelectedCustomer({
+        id: result.customer.id,
+        customer_name: result.customer.customer_name,
+        phone: result.customer.phone,
+      });
+      toast.success(result.isExisting ? "Existing customer selected" : "Customer added");
+      setNewCustomerName("");
+      setNewCustomerPhone("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not add customer");
+    } finally {
+      setAddingCustomer(false);
     }
   };
 
@@ -609,7 +727,7 @@ export default function MobilePosBilling() {
         <ShellHeader
           title="New sale"
           kicker={items.length ? `${items.length} line${items.length === 1 ? "" : "s"} · unsaved` : "New bill"}
-          action={<ShellButton onClick={() => setCustomerPickerOpen(true)}>Change</ShellButton>}
+          action={<ShellButton onClick={() => setOptionsOpen(true)}>Options</ShellButton>}
         >
           <button
             type="button"
@@ -668,24 +786,38 @@ export default function MobilePosBilling() {
 
         {/* ── SCROLL: fast picks + bill lines ── */}
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
-          <PosFastPicks items={fastPicks} searchTerm={debouncedSearch} loading={searchLoading} />
+          {/* Search matches always show; the top-sellers grid only when turned on. */}
+          {debouncedSearch.length >= 1 || showFastPicks ? (
+            <PosFastPicks items={fastPicks} searchTerm={debouncedSearch} loading={searchLoading} />
+          ) : null}
 
-          <div className="border-t-2 border-[var(--ez-rule)]">
+          <div className={cn(debouncedSearch.length >= 1 || showFastPicks ? "border-t-2 border-[var(--ez-rule)]" : "")}>
             <SectionHead
               title={`Bill lines · ${items.length}`}
               right={
-                items.length > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      clearCart();
-                      setSelIndex(null);
-                    }}
-                    className="ez-btn-label text-[10px] text-[var(--ez-debit)]"
-                  >
-                    Clear
-                  </button>
-                ) : null
+                <div className="flex items-baseline gap-4">
+                  {debouncedSearch.length === 0 ? (
+                    <button
+                      type="button"
+                      onClick={toggleFastPicks}
+                      className="ez-btn-label text-[10px] text-[var(--ez-accent-700)]"
+                    >
+                      {showFastPicks ? "Hide fast picks" : "Fast picks"}
+                    </button>
+                  ) : null}
+                  {items.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearCart();
+                        setSelIndex(null);
+                      }}
+                      className="ez-btn-label text-[10px] text-[var(--ez-debit)]"
+                    >
+                      Clear
+                    </button>
+                  ) : null}
+                </div>
               }
             />
             {items.length === 0 ? (
@@ -693,30 +825,59 @@ export default function MobilePosBilling() {
                 No lines yet. Scan a barcode or tap a product above — the camera stays armed while this screen is open.
               </p>
             ) : (
-              items.map((item, index) => (
-                <button
-                  key={`${item.id}-${index}`}
-                  type="button"
-                  disabled={saving}
-                  onClick={() => {
-                    setSelIndex(index);
-                    setKpMode("qty");
-                  }}
-                  className={cn(
-                    "block w-full border-t border-[var(--ez-rule-thin)] px-3.5 pb-2.5 pt-2.5 text-left",
-                    selIndex === index ? "bg-[var(--ez-tint)]" : "bg-[var(--ez-ground)]",
-                  )}
-                >
-                  <div className="flex justify-between gap-2.5">
-                    <p className="truncate text-[12.5px] font-bold leading-[1.3]">{item.productName}</p>
-                    <p className="num shrink-0 text-[13px] font-extrabold leading-[1.3]">₹{formatInr(item.netAmount)}</p>
+              items.map((item, index) => {
+                const discRs = posLineDiscountRupees(item);
+                const discPct = Number(item.discountPercent) || 0;
+                const hasDisc = discRs > 0.005 || discPct > 0.005;
+                return (
+                  <div
+                    key={`${item.id}-${index}`}
+                    className={cn(
+                      "flex items-stretch border-t border-[var(--ez-rule-thin)]",
+                      selIndex === index ? "bg-[var(--ez-tint)]" : "bg-[var(--ez-ground)]",
+                    )}
+                  >
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => {
+                        setSelIndex(index);
+                        setKpMode("qty");
+                      }}
+                      className="min-w-0 flex-1 py-2.5 pl-3.5 pr-2 text-left"
+                    >
+                      <div className="flex justify-between gap-2.5">
+                        <p className="flex min-w-0 items-center gap-1 text-[12.5px] font-bold leading-[1.3]">
+                          <span className="truncate">{item.productName}</span>
+                          <PosSchemeAppliedTag applied={item.categoryTierApplied} />
+                        </p>
+                        <p className="num shrink-0 text-[13px] font-extrabold leading-[1.3]">₹{formatInr(item.netAmount)}</p>
+                      </div>
+                      <p className="num mt-[3px] text-[10.5px] font-medium leading-none text-[var(--ez-muted-2)]">
+                        Qty {item.quantity} × ₹{formatInr(item.unitCost)}
+                        {item.size ? ` · ${item.size}` : ""}
+                      </p>
+                      {hasDisc ? (
+                        <p className="num mt-[3px] text-[10.5px] font-semibold leading-none text-[var(--ez-credit)]">
+                          Disc{discPct > 0.005 ? ` ${Number(discPct.toFixed(2))}%` : ""} −₹{formatInr(discRs)}
+                        </p>
+                      ) : null}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={saving}
+                      aria-label={`Discount on ${item.productName}`}
+                      onClick={() => {
+                        setSelIndex(index);
+                        setKpMode("disc");
+                      }}
+                      className="ez-btn-label shrink-0 border-l border-[var(--ez-rule-thin)] px-3 text-[10px] text-[var(--ez-accent-700)]"
+                    >
+                      Disc
+                    </button>
                   </div>
-                  <p className="num mt-[3px] text-[10.5px] font-medium leading-none text-[var(--ez-muted-2)]">
-                    Qty {item.quantity} × ₹{formatInr(item.unitCost)}
-                    {item.discountPercent ? ` · -${item.discountPercent}%` : ""}
-                  </p>
-                </button>
-              ))
+                );
+              })
             )}
           </div>
           <div className="h-4" />
@@ -725,10 +886,12 @@ export default function MobilePosBilling() {
         {/* ── KEYPAD (replaces the line-edit drawer) ── */}
         {selIndex != null && items[selIndex] ? (
           <PosKeypad
+            key={selIndex}
             title={items[selIndex].productName}
             qty={items[selIndex].quantity}
             price={items[selIndex].unitCost}
-            discPercent={items[selIndex].discountPercent}
+            discPercent={Number((Number(items[selIndex].discountPercent) || 0).toFixed(2))}
+            discAmount={posLineDiscountRupees(items[selIndex])}
             mode={kpMode}
             onModeChange={setKpMode}
             onClose={() => setSelIndex(null)}
@@ -745,10 +908,44 @@ export default function MobilePosBilling() {
                   ? updateQty(i, Math.max(minQtyForUom(items[i]), value))
                   : mode === "price"
                     ? updatePrice(i, value)
-                    : updateDiscountPercent(i, value);
+                    : mode === "discAmt"
+                      ? updateDiscountAmount(i, value)
+                      : updateDiscountPercent(i, value);
               if (r?.error) toast.warning(r.error.message);
             }}
           />
+        ) : null}
+
+        {/* ── BILL DISCOUNT / SALESMAN / NOTES summary (tap → options) + save errors ── */}
+        {items.length > 0 &&
+        (totals.flatDiscountAmount > 0.005 || selectedSalesman || saleNotes.trim() || totals.flatDiscountCapped) ? (
+          <button
+            type="button"
+            onClick={() => setOptionsOpen(true)}
+            className="ez shrink-0 border-t border-[var(--ez-rule-thin)] bg-[var(--ez-surface)] px-3.5 py-1.5 text-left"
+          >
+            <p className="num truncate text-[10.5px] font-semibold leading-[1.4] text-[var(--ez-muted-2)]">
+              {[
+                totals.flatDiscountAmount > 0.005
+                  ? `Bill disc ${flatDiscountMode === "percent" ? `${flatDiscountValue}% ` : ""}−₹${formatInr(totals.flatDiscountAmount)}`
+                  : "",
+                selectedSalesman ? `Salesman ${selectedSalesman}` : "",
+                saleNotes.trim() ? `Note: ${saleNotes.trim()}` : "",
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+            {totals.flatDiscountCapped ? (
+              <p className="text-[10.5px] font-semibold leading-[1.4] text-[var(--ez-debit)]">
+                Bill discount was capped at the maximum allowed for this bill.
+              </p>
+            ) : null}
+          </button>
+        ) : null}
+        {saveError ? (
+          <p className="ez shrink-0 border-t border-[var(--ez-rule-thin)] bg-[var(--ez-surface)] px-3.5 py-1.5 text-[11px] font-semibold text-[var(--ez-debit)]">
+            {saveError}
+          </p>
         ) : null}
 
         {/* ── TOTAL + ONE-TAP PAYMENT ── */}
@@ -762,6 +959,183 @@ export default function MobilePosBilling() {
           onPay={(m) => void runSave(m)}
           onMix={() => setMixOpen(true)}
         />
+
+        {/* ── BILL OPTIONS SHEET ── */}
+        <Drawer open={optionsOpen} onOpenChange={setOptionsOpen}>
+          <DrawerContent className="max-h-[90dvh] px-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+            <DrawerHeader className="px-0 pb-2">
+              <div className="flex items-start justify-between gap-2">
+                <DrawerTitle className="text-left text-base">Bill options</DrawerTitle>
+                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setOptionsOpen(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </DrawerHeader>
+            <div className="space-y-4 overflow-y-auto pb-2">
+              <div>
+                <Label className="text-xs text-muted-foreground">Bill discount</Label>
+                <div className="mt-1 flex items-center gap-2">
+                  <div className="flex shrink-0 overflow-hidden rounded-md border border-input">
+                    {(
+                      [
+                        ["percent", "%"],
+                        ["amount", "₹"],
+                      ] as const
+                    ).map(([mode, label]) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => {
+                          if (mode === flatDiscountMode) return;
+                          setFlatDiscountMode(mode);
+                          setFlatDiscountValue(0);
+                        }}
+                        className={cn(
+                          "h-11 w-11 text-base font-semibold",
+                          flatDiscountMode === mode ? "bg-primary text-primary-foreground" : "bg-background",
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    className="h-11 text-base tabular-nums"
+                    defaultValue={flatDiscountValue ? String(flatDiscountValue) : ""}
+                    key={`flat-${flatDiscountMode}-${flatDiscountValue}`}
+                    placeholder="0"
+                    onFocus={selectOnFocus}
+                    onBlur={(e) => {
+                      const v = Number(e.target.value || 0);
+                      if (!Number.isFinite(v) || v < 0) return;
+                      setFlatDiscountValue(flatDiscountMode === "percent" ? Math.min(v, 100) : v);
+                    }}
+                  />
+                </div>
+                {totals.flatDiscountAmount > 0.005 ? (
+                  <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+                    −₹{formatInr(totals.flatDiscountAmount)} off this bill
+                    {totals.flatDiscountCapped ? " (capped at the maximum allowed)" : ""}
+                  </p>
+                ) : null}
+              </div>
+
+              <div>
+                <Label className="text-xs text-muted-foreground">Salesman</Label>
+                <Select
+                  value={selectedSalesman || "__none__"}
+                  onValueChange={(v) => setSelectedSalesman(v === "__none__" ? "" : v)}
+                >
+                  <SelectTrigger className="mt-1 h-11">
+                    <SelectValue placeholder="No salesman" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No salesman</SelectItem>
+                    {employees.map((emp) => (
+                      <SelectItem key={emp.id} value={emp.employee_name}>
+                        {emp.employee_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-xs text-muted-foreground">Bill note</Label>
+                <Input
+                  className="mt-1 h-11 text-base"
+                  value={saleNotes}
+                  onChange={(e) => setSaleNotes(e.target.value)}
+                  placeholder="Optional note on the bill"
+                  maxLength={500}
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs text-muted-foreground">GST type</Label>
+                <Select
+                  value={taxType}
+                  onValueChange={(v) => setTaxType(normalizeGstTaxType(v) as GstTaxType)}
+                >
+                  <SelectTrigger className="mt-1 h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GST_TAX_TYPE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2 rounded-lg border border-border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-xs text-muted-foreground">Customer</Label>
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-primary"
+                    onClick={() => {
+                      setOptionsOpen(false);
+                      setCustomerPickerOpen(true);
+                    }}
+                  >
+                    Pick existing
+                  </button>
+                </div>
+                <p className="truncate text-sm font-medium">
+                  {selectedCustomer
+                    ? selectedCustomer.phone
+                      ? `${selectedCustomer.customer_name} · ${selectedCustomer.phone}`
+                      : selectedCustomer.customer_name
+                    : WALK_IN_CUSTOMER_NAME}
+                </p>
+                <p className="pt-1 text-xs text-muted-foreground">Add new customer</p>
+                <Input
+                  className="h-11 text-base"
+                  value={newCustomerName}
+                  onChange={(e) => setNewCustomerName(e.target.value)}
+                  placeholder="Customer name"
+                  autoComplete="off"
+                />
+                <Input
+                  type="tel"
+                  inputMode="tel"
+                  className="h-11 text-base"
+                  value={newCustomerPhone}
+                  onChange={(e) => setNewCustomerPhone(e.target.value)}
+                  placeholder="Mobile number"
+                  autoComplete="off"
+                />
+                <Button
+                  variant="outline"
+                  className="h-11 w-full"
+                  disabled={addingCustomer}
+                  onClick={() => void handleAddCustomer()}
+                >
+                  {addingCustomer ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add & use this customer"}
+                </Button>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">Fast picks</p>
+                  <p className="text-xs text-muted-foreground">Top sellers grid above the bill lines</p>
+                </div>
+                <Button variant={showFastPicks ? "default" : "outline"} className="h-10 shrink-0" onClick={toggleFastPicks}>
+                  {showFastPicks ? "On" : "Off"}
+                </Button>
+              </div>
+
+              <Button className="h-12 w-full" onClick={() => setOptionsOpen(false)}>
+                Done
+              </Button>
+            </div>
+          </DrawerContent>
+        </Drawer>
 
         <MixPaymentDialog
           open={mixOpen}
