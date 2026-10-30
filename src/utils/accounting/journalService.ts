@@ -209,7 +209,17 @@ export async function postJournalEntry(params: PostJournalEntryInput): Promise<P
 
   if (entryErr) {
     if (isUniqueViolation(entryErr)) {
-      return { status: "already_exists", journalEntryId: "" };
+      // Another save posted this document first (one live journal per document).
+      const { data: liveRows } = await client
+        .from("journal_entries")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("reference_type", referenceType)
+        .eq("reference_id", referenceId)
+        .is("reversed_journal_id", null)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      return { status: "already_exists", journalEntryId: (liveRows?.[0]?.id as string | undefined) ?? "" };
     }
     throw entryErr;
   }

@@ -66,6 +66,7 @@ import {
   fetchPendingGlBackfillCounts,
   formatAllOrganizationsBackfillResult,
   formatHistoricalBackfillSummary,
+  repostSalesAndPurchases,
   resetOrganizationGlLedger,
   runHistoricalAccountingBackfill,
   runHistoricalAccountingBackfillAllOrganizations,
@@ -343,7 +344,9 @@ export default function Accounts() {
   const [backfillAllError, setBackfillAllError] = useState<string | null>(null);
   const [resetLedgerDialogOpen, setResetLedgerDialogOpen] = useState(false);
   const [resetLedgerRunning, setResetLedgerRunning] = useState(false);
-  const ledgerMigrationBusy = backfillRunning || backfillAllOrgsRunning || resetLedgerRunning;
+  const [repostDialogOpen, setRepostDialogOpen] = useState(false);
+  const [repostRunning, setRepostRunning] = useState(false);
+  const ledgerMigrationBusy = backfillRunning || backfillAllOrgsRunning || resetLedgerRunning || repostRunning;
 
   const { data: settings } = useSettings();
   const paymentDialogs = useAccountsPaymentDialogs(settings);
@@ -709,6 +712,24 @@ export default function Accounts() {
     }
   };
 
+  const handleConfirmRepostSalesPurchases = async () => {
+    if (!currentOrganization?.id || ledgerMigrationBusy) return;
+    setRepostRunning(true);
+    try {
+      const summary = await repostSalesAndPurchases(currentOrganization.id, supabase);
+      toast.success(`Sales and purchases re-posted. ${formatHistoricalBackfillSummary(summary)}`, { duration: 10000 });
+      setRepostDialogOpen(false);
+      invalidateLedgerQueries(currentOrganization.id);
+      void refetchPendingGlCounts();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Re-post failed";
+      toast.error(message);
+      console.error(e);
+    } finally {
+      setRepostRunning(false);
+    }
+  };
+
   const handleConfirmResetGlLedger = async () => {
     if (!currentOrganization?.id || ledgerMigrationBusy) return;
     setResetLedgerRunning(true);
@@ -1016,6 +1037,21 @@ export default function Accounts() {
                       <Button
                         type="button"
                         variant="outline"
+                        disabled={ledgerMigrationBusy}
+                        onClick={() => setRepostDialogOpen(true)}
+                      >
+                        {repostRunning ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Re-posting…
+                          </>
+                        ) : (
+                          "Re-post sales & purchases"
+                        )}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
                         className="text-destructive border-destructive/40 hover:bg-destructive/10"
                         disabled={ledgerMigrationBusy}
                         onClick={() => setResetLedgerDialogOpen(true)}
@@ -1212,6 +1248,38 @@ export default function Accounts() {
   return (
     <div className="accounts-management-workspace accounts-management-dashboard flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
 
+      <AlertDialog open={repostDialogOpen} onOpenChange={setRepostDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Re-post sales and purchases?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deletes only the sale and purchase journals of this organization and posts them again with the current rules
+              (POS discount and purchase payment fixes). Receipts, payments, advances, deposits and manual journals are not
+              touched. Takes a few minutes on a busy shop.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={repostRunning}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={repostRunning}
+              onClick={(ev) => {
+                ev.preventDefault();
+                void handleConfirmRepostSalesPurchases();
+              }}
+            >
+              {repostRunning ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin inline" />
+                  Re-posting…
+                </>
+              ) : (
+                "Re-post"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={resetLedgerDialogOpen} onOpenChange={setResetLedgerDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1219,7 +1287,8 @@ export default function Accounts() {
             <AlertDialogDescription>
               This permanently deletes all journal lines and journal entries for the current organization, then marks sales and
               purchase bills as pending so you can run the historical backfill again. Expense vouchers lose their posted journals
-              until you backfill. This cannot be undone.
+              until you backfill. Manual journals, bank deposits and day-close entries are not rebuilt by the backfill. To fix
+              only sale and purchase entries, use "Re-post sales &amp; purchases" instead. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

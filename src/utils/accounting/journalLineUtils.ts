@@ -141,14 +141,27 @@ export function appendRoundOffBalancingLine(
   }
 }
 
-/** Add a 6900 line so total debits equal total credits. */
+/** Largest Dr/Cr gap treated as rounding (Round Off 6900). */
+export const ROUND_OFF_GAP_LIMIT = 1;
+
+/**
+ * Add a line so total debits equal total credits: up to ₹1 to Round Off (6900), anything
+ * larger to Journal Differences (Suspense, 9900) so a wrong figure shows in the Trial Balance
+ * instead of hiding in Round Off.
+ */
 export function balanceJournalWithRoundOff(lines: PostJournalLineInput[], accounts: SeededAccount[]): void {
   const dr = round2(lines.reduce((s, l) => s + l.debitAmount, 0));
   const cr = round2(lines.reduce((s, l) => s + l.creditAmount, 0));
   const diff = round2(dr - cr);
-  if (Math.abs(diff) >= 0.01) {
-    // diff > 0 → DR side is heavier, need CR (positive amount → CR)
-    // diff < 0 → CR side is heavier, need DR (negative amount → DR)
-    appendRoundOffBalancingLine(lines, accounts, diff);
+  if (Math.abs(diff) < 0.01) return;
+  const suspense = getByCode(accounts, "9900");
+  if (Math.abs(diff) > ROUND_OFF_GAP_LIMIT && suspense) {
+    // diff > 0 → DR side is heavier, need CR
+    if (diff > 0) pushLine(lines, suspense.id, 0, diff);
+    else pushLine(lines, suspense.id, -diff, 0);
+    return;
   }
+  // diff > 0 → DR side is heavier, need CR (positive amount → CR)
+  // diff < 0 → CR side is heavier, need DR (negative amount → DR)
+  appendRoundOffBalancingLine(lines, accounts, diff);
 }

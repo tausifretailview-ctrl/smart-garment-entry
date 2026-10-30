@@ -3,6 +3,8 @@ import type { Database } from "@/integrations/supabase/types";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { isHeldOrCancelledSale } from "@/utils/posHoldBill";
 import {
+  recordCustomerAdvanceReceiptJournalEntry,
+  recordCustomerAdvanceRefundJournalEntry,
   recordPurchaseJournalEntry,
   recordPurchaseReturnJournalEntry,
   recordSaleJournalEntry,
@@ -17,6 +19,13 @@ export type HistoricalBackfillSummary = {
   vouchers: { ok: number; err: number; skipped: number };
   saleReturns: { ok: number; err: number };
   purchaseReturns: { ok: number; err: number };
+  /** Customer advance receipts and advance refunds with no journal yet */
+  advances?: { ok: number; err: number };
+  /**
+   * Openings, balance adjustments and stock (posted by the database for shops switched on
+   * with gl_enable_auto_postings): re-synced, shop not switched on, or SQL not run yet.
+   */
+  autoPostings?: "resynced" | "off" | "unavailable" | "failed";
   accountingEngineEnabled: boolean;
 };
 
@@ -462,9 +471,177 @@ export async function runHistoricalAccountingBackfill(
       if (vouchers.length < PAGE_SIZE) break;
       voucherOffset += PAGE_SIZE;
     }
+
+    summary.advances = await backfillCustomerAdvanceJournals(organizationId, client);
+    summary.autoPostings = await resyncAutoPostingsIfSwitchedOn(organizationId, client);
   }
 
   return summary;
+}
+
+async function loadPostedReferenceIds(
+  organizationId: string,
+  referenceTypes: string[],
+  client: SupabaseClient<Database>,
+): Promise<Set<string>> {
+  const posted = new Set<string>();
+  let offset = 0;
+  for (;;) {
+    const { data, error } = await client
+      .from("journal_entries")
+      .select("reference_id")
+      .eq("organization_id", organizationId)
+      .in("reference_type", referenceTypes)
+      .order("id", { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1);
+    if (error) throw error;
+    if (!data?.length) break;
+    for (const r of data) if (r.reference_id) posted.add(String(r.reference_id));
+    if (data.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+  return posted;
+}
+
+/**
+ * Advance bookings and advance refunds are not vouchers, so the voucher pass never posted
+ * them. Advances written by Customer Balance Adjustment are left out: that adjustment's own
+ * journal carries them, and they are not money received.
+ */
+async function backfillCustomerAdvanceJournals(
+  organizationId: string,
+  client: SupabaseClient<Database>,
+): Promise<{ ok: number; err: number }> {
+  const result = { ok: 0, err: 0 };
+  const posted = await loadPostedReferenceIds(
+    organizationId,
+    ["CustomerAdvanceReceipt", "CustomerAdvanceRefund"],
+    client,
+  );
+
+  let offset = 0;
+  for (;;) {
+    const { data, error } = await client
+      .from("customer_advances")
+      .select("id, amount, payment_method, advance_date, advance_number, description")
+      .eq("organization_id", organizationId)
+      .order("id", { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1);
+    if (error) throw error;
+    if (!data?.length) break;
+    for (const a of data) {
+      const amount = Number(a.amount ?? 0);
+      if (posted.has(a.id) || amount <= 0) continue;
+      if (/^balance adjustment:/i.test(String(a.description ?? "").trim())) continue;
+      try {
+        await recordCustomerAdvanceReceiptJournalEntry(
+          a.id,
+          organizationId,
+          amount,
+          String(a.payment_method || "cash"),
+          String(a.advance_date).slice(0, 10),
+          String(a.description ?? "").trim() || `Advance ${a.advance_number ?? ""}`.trim(),
+          client,
+        );
+        result.ok++;
+      } catch (e) {
+        console.error("[historical backfill] advance", a.id, e);
+        result.err++;
+      }
+    }
+    if (data.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+
+  offset = 0;
+  for (;;) {
+    const { data, error } = await client
+      .from("advance_refunds")
+      .select("id, refund_amount, payment_method, refund_date, refund_number")
+      .eq("organization_id", organizationId)
+      .order("id", { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1);
+    if (error) throw error;
+    if (!data?.length) break;
+    for (const r of data) {
+      const amount = Number(r.refund_amount ?? 0);
+      if (posted.has(r.id) || amount <= 0) continue;
+      try {
+        await recordCustomerAdvanceRefundJournalEntry(
+          r.id,
+          organizationId,
+          amount,
+          String(r.payment_method || "cash"),
+          String(r.refund_date).slice(0, 10),
+          `Advance refund ${r.refund_number ?? ""}`.trim(),
+          client,
+        );
+        result.ok++;
+      } catch (e) {
+        console.error("[historical backfill] advance refund", r.id, e);
+        result.err++;
+      }
+    }
+    if (data.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+  return result;
+}
+
+/** Re-sync the database postings (openings, balance adjustments, stock) of a switched-on shop. */
+async function resyncAutoPostingsIfSwitchedOn(
+  organizationId: string,
+  client: SupabaseClient<Database>,
+): Promise<HistoricalBackfillSummary["autoPostings"]> {
+  const { data, error } = await (client as any)
+    .from("gl_auto_posting_orgs")
+    .select("organization_id")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (error) return "unavailable";
+  if (!data) return "off";
+  const { error: rpcErr } = await (client.rpc as any)("gl_enable_auto_postings", {
+    p_organization_id: organizationId,
+  });
+  if (rpcErr) {
+    console.error("[historical backfill] gl_enable_auto_postings", rpcErr);
+    return "failed";
+  }
+  return "resynced";
+}
+
+/**
+ * Re-post every sale and purchase bill with today's journal rules (after the Phase 1 fixes:
+ * POS rate-below-MRP discount, purchase paid part). Only Sale and Purchase journals are
+ * removed; receipts, payments, advances, deposits and manual journals stay as they are.
+ */
+export async function repostSalesAndPurchases(
+  organizationId: string,
+  client: SupabaseClient<Database>,
+): Promise<HistoricalBackfillSummary> {
+  if (!organizationId) throw new Error("organizationId is required");
+  const { error: delErr } = await client
+    .from("journal_entries")
+    .delete()
+    .eq("organization_id", organizationId)
+    .in("reference_type", ["Sale", "Purchase"]);
+  if (delErr) throw delErr;
+
+  const { error: saleErr } = await client
+    .from("sales")
+    .update({ journal_status: "pending", journal_error: null })
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null);
+  if (saleErr) throw saleErr;
+
+  const { error: purErr } = await client
+    .from("purchase_bills")
+    .update({ journal_status: "pending", journal_error: null })
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null);
+  if (purErr) throw purErr;
+
+  return runHistoricalAccountingBackfill(organizationId, client);
 }
 
 export type AllOrgsBackfillProgress = {
@@ -563,6 +740,11 @@ export function formatHistoricalBackfillSummary(summary: HistoricalBackfillSumma
     `Returns ${summary.saleReturns.ok + summary.purchaseReturns.ok} ok`,
     `Vouchers ${summary.vouchers.ok} posted, ${summary.vouchers.skipped} skipped, ${summary.vouchers.err} err`,
   ];
+  if (summary.advances) {
+    parts.push(`Advances ${summary.advances.ok} posted, ${summary.advances.err} err`);
+  }
+  if (summary.autoPostings === "resynced") parts.push("Openings & stock re-synced");
+  if (summary.autoPostings === "failed") parts.push("Openings & stock re-sync failed");
   if (!summary.accountingEngineEnabled) {
     parts.push("GL engine off — voucher journals skipped");
   }

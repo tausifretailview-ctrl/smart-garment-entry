@@ -18,7 +18,10 @@ export type JournalReferenceType =
   | "ManualJournal"
   | "ThirdPartyVoucher"
   | "Contra"
-  | "RoundOff";
+  | "RoundOff"
+  | "PartyOpening"
+  | "StockAdjustment"
+  | "BalanceAdjustment";
 
 export type PartyType = "customer" | "supplier";
 

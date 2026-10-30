@@ -220,6 +220,9 @@ const REFERENCE_TYPE_LABELS: Record<string, string> = {
   Contra: "Contra",
   ManualJournal: "Journal",
   StudentFeeReceipt: "Fee receipt",
+  PartyOpening: "Opening balance",
+  StockAdjustment: "Stock adjustment",
+  BalanceAdjustment: "Balance adjustment",
 };
 
 export function bankReferenceTypeLabel(referenceType: string | null | undefined, debit = 0): string {
