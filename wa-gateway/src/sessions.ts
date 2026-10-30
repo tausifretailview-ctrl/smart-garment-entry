@@ -69,16 +69,15 @@ interface Session {
   mediaCache: ReturnType<typeof makeMediaCache>;
   /** Why WhatsApp last closed the connection, shown on the page and in campaign notes. */
   lastClose: { code: number | null; reason: string; at: string } | null;
-  /** Customers added to a group from bills: own daily cap, gap and queue (group adds are watched for spam). */
-  groupAddsToday: number;
-  groupDay: string;
+  /** Customers added to a group from bills: gap and queue (group adds are watched for spam; daily counts in DAILY_COUNTS_FILE). */
   lastGroupAddAt: number;
   groupQueue: Promise<unknown>;
   groupPending: number;
   /** A new link (QR / code) is being made; on open its time is written to LINKED_AT_FILE. */
   newLink: boolean;
-  contactSavesToday: number;
-  contactDay: string;
+  /** Bill customers saved as contacts one at a time, CONTACT_SAVE_MIN/MAX_GAP_MS apart. */
+  contactQueue: Promise<unknown>;
+  lastContactSaveAt: number;
   /**
    * WhatsApp's own limits on messaging people who never chatted with this number: a "reach-out
    * timelock" (no new chats until a time; on a companion it is often followed by a 401 logout) and the
@@ -165,6 +164,13 @@ const MAX_CONTACT_SAVES_PER_DAY = Number(process.env.MAX_CONTACT_SAVES_PER_DAY ?
 const CONTACT_SAVE_MIN_GAP_MS = 4000;
 const CONTACT_SAVE_MAX_GAP_MS = 8000;
 const CONTACT_SAVE_AFTER_LINK_MS = 24 * 60 * 60 * 1000;
+/** Bill customers saved as contacts per shop number per day (one sync to the phone each). */
+const MAX_BILL_CONTACT_SAVES_PER_DAY = Number(process.env.MAX_BILL_CONTACT_SAVES_PER_DAY ?? 30);
+/**
+ * Today's contact saves / group adds per number, kept on the volume so a redeploy does not start a
+ * fresh day's allowance (it did while they were only in memory).
+ */
+const DAILY_COUNTS_FILE = "daily-counts.json";
 /** When this number was linked by QR / code on this server; missing = linked before this file existed. */
 const LINKED_AT_FILE = "linked-at.json";
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -180,7 +186,13 @@ const RESEND_MIN_GAP_MS = 8000;
 const RESEND_MAX_GAP_MS = 15_000;
 const MAX_GAP_MS = 5000;
 /** Bill customers added to a WhatsApp group per shop number per day, and the gap between two adds. */
-const MAX_GROUP_ADDS_PER_DAY = Number(process.env.MAX_GROUP_ADDS_PER_DAY ?? 25);
+const MAX_GROUP_ADDS_PER_DAY = Number(process.env.MAX_GROUP_ADDS_PER_DAY ?? 10);
+/** Customers whose privacy refused the add (they do not know this number): after this many, no more adds today. */
+const MAX_GROUP_REFUSALS_PER_DAY = 3;
+/** No group adds while a number is this new (adding strangers from a fresh link is a strong ban signal). */
+const GROUP_ADD_AFTER_LINK_MS = 7 * 24 * 60 * 60 * 1000;
+/** A group's invite link is asked from WhatsApp at most this often (bills reuse it). */
+const INVITE_LINK_CACHE_MS = 6 * 60 * 60 * 1000;
 const GROUP_ADD_MIN_GAP_MS = 20_000;
 const GROUP_ADD_MAX_GAP_MS = 40_000;
 /** Adds waiting in a shop's queue before new ones are turned away (they are tried on the customer's next bill). */
@@ -312,13 +324,14 @@ export interface JoinCustomerInput {
 }
 
 export interface JoinCustomerResult {
-  contact: "saved" | "skipped" | "failed";
+  contact: "saved" | "skipped" | "failed" | "limit";
   group: "added" | "already" | "invited" | "privacy" | "not_admin" | "left_recently" | "full" | "limit" | "failed" | "skipped";
   detail?: string;
 }
 
 export class SessionManager {
   private sessions = new Map<string, Session>();
+  private inviteCache = new Map<string, { link: string; name: string; at: number }>();
   /** Set while the server stops (redeploy): sockets close without logging out and do not reconnect here. */
   private shuttingDown = false;
   /** Delivery / read ticks for messages sent from Bulk WhatsApp sessions. */
@@ -375,6 +388,27 @@ export class SessionManager {
       return Number.isFinite(at) && at > 0 ? at : null;
     } catch {
       return null;
+    }
+  }
+
+  /** Today's contact saves / group adds for this number (zeros on a new day or when the file is missing). */
+  private dailyCounts(id: string): { day: string; contactSaves: number; groupAdds: number; groupRefusals: number } {
+    const fresh = { day: today(), contactSaves: 0, groupAdds: 0, groupRefusals: 0 };
+    try {
+      const saved = JSON.parse(fs.readFileSync(path.join(this.dir(id), DAILY_COUNTS_FILE), "utf8"));
+      return saved?.day === fresh.day ? { ...fresh, ...saved } : fresh;
+    } catch {
+      return fresh;
+    }
+  }
+
+  private countToday(id: string, key: "contactSaves" | "groupAdds" | "groupRefusals") {
+    const c = this.dailyCounts(id);
+    c[key]++;
+    try {
+      fs.writeFileSync(path.join(this.dir(id), DAILY_COUNTS_FILE), JSON.stringify(c));
+    } catch (e) {
+      logger.warn({ id, err: e }, "could not save today's counts");
     }
   }
 
@@ -475,8 +509,8 @@ export class SessionManager {
         sent: new Map(),
         mediaCache: makeMediaCache(),
         lastClose: null,
-        groupAddsToday: 0, groupDay: today(), lastGroupAddAt: 0, groupQueue: Promise.resolve(), groupPending: 0,
-        newLink: false, contactSavesToday: 0, contactDay: today(),
+        lastGroupAddAt: 0, groupQueue: Promise.resolve(), groupPending: 0,
+        newLink: false, contactQueue: Promise.resolve(), lastContactSaveAt: 0,
         reachoutUntil: null, reachoutType: null, chatCap: null, limitsCheckedAt: 0,
       };
       this.sessions.set(orgId, s);
@@ -1159,25 +1193,21 @@ export class SessionManager {
         );
       }
     }
-    if (s.contactDay !== today()) {
-      s.contactDay = today();
-      s.contactSavesToday = 0;
-    }
     for (const [i, c] of list.entries()) {
       const phone = String(c.phone ?? "").replace(/\D/g, "");
       const name = cleanName(c.name);
-      if (s.contactSavesToday >= MAX_CONTACT_SAVES_PER_DAY) {
+      if (this.dailyCounts(orgId).contactSaves >= MAX_CONTACT_SAVES_PER_DAY) {
         failed.push({ phone, error: `Daily limit of ${MAX_CONTACT_SAVES_PER_DAY} contact saves reached; save the rest tomorrow` });
         continue;
       }
       try {
         await this.saveOneContact(s, phone, name);
-        s.contactSavesToday++;
+        this.countToday(orgId, "contactSaves");
         saved.push(phone);
       } catch (e) {
         failed.push({ phone, error: e instanceof Error ? e.message : String(e) });
       }
-      if (i < list.length - 1 && s.contactSavesToday < MAX_CONTACT_SAVES_PER_DAY) {
+      if (i < list.length - 1 && this.dailyCounts(orgId).contactSaves < MAX_CONTACT_SAVES_PER_DAY) {
         await sleep(CONTACT_SAVE_MIN_GAP_MS + Math.random() * (CONTACT_SAVE_MAX_GAP_MS - CONTACT_SAVE_MIN_GAP_MS));
       }
     }
@@ -1199,23 +1229,49 @@ export class SessionManager {
     if (groupId && !/^[0-9-]+@g\.us$/.test(groupId)) throw new Error("Invalid group id");
 
     const result: JoinCustomerResult = { contact: "skipped", group: "skipped" };
+    const linkedAt = this.linkedAt(orgId);
+    const linkAge = linkedAt === null ? Infinity : Date.now() - linkedAt;
     if (input.saveContact) {
-      try {
-        await this.saveOneContact(s, phone, name);
-        result.contact = "saved";
-      } catch (e) {
-        result.contact = "failed";
-        result.detail = `Contact: ${e instanceof Error ? e.message : String(e)}`;
+      if (linkAge < CONTACT_SAVE_AFTER_LINK_MS) {
+        result.contact = "limit";
+        result.detail = "Contact: number linked less than a day ago";
+      } else if (this.dailyCounts(orgId).contactSaves >= MAX_BILL_CONTACT_SAVES_PER_DAY) {
+        result.contact = "limit";
+        result.detail = `Contact: daily limit (${MAX_BILL_CONTACT_SAVES_PER_DAY}) reached`;
+      } else {
+        // One at a time, 4-8 s apart: a burst of address-book syncs from a linked device looks automated.
+        const run = async () => {
+          const wait = s.lastContactSaveAt + CONTACT_SAVE_MIN_GAP_MS + Math.random() * (CONTACT_SAVE_MAX_GAP_MS - CONTACT_SAVE_MIN_GAP_MS) - Date.now();
+          if (wait > 0) await sleep(wait);
+          try {
+            await this.saveOneContact(s, phone, name);
+          } finally {
+            s.lastContactSaveAt = Date.now();
+          }
+        };
+        const next = s.contactQueue.then(run, run);
+        s.contactQueue = next.catch(() => undefined);
+        try {
+          await next;
+          this.countToday(orgId, "contactSaves");
+          result.contact = "saved";
+        } catch (e) {
+          result.contact = "failed";
+          result.detail = `Contact: ${e instanceof Error ? e.message : String(e)}`;
+        }
       }
     }
     if (!groupId) return result;
 
-    if (s.groupDay !== today()) {
-      s.groupDay = today();
-      s.groupAddsToday = 0;
+    if (linkAge < GROUP_ADD_AFTER_LINK_MS) {
+      return { ...result, group: "limit", detail: "Number linked less than 7 days ago: no group adds yet" };
     }
-    if (s.groupAddsToday >= MAX_GROUP_ADDS_PER_DAY) {
+    const counts = this.dailyCounts(orgId);
+    if (counts.groupAdds >= MAX_GROUP_ADDS_PER_DAY) {
       return { ...result, group: "limit", detail: `Daily group add limit (${MAX_GROUP_ADDS_PER_DAY}) reached` };
+    }
+    if (counts.groupRefusals >= MAX_GROUP_REFUSALS_PER_DAY) {
+      return { ...result, group: "limit", detail: "Several customers refused group adds today; stopped until tomorrow" };
     }
     if (s.groupPending >= GROUP_QUEUE_MAX) {
       return { ...result, group: "limit", detail: "Too many group adds waiting; tried again on the next bill" };
@@ -1226,7 +1282,7 @@ export class SessionManager {
       try {
         const wait = s.lastGroupAddAt + GROUP_ADD_MIN_GAP_MS + Math.random() * (GROUP_ADD_MAX_GAP_MS - GROUP_ADD_MIN_GAP_MS) - Date.now();
         if (wait > 0) await sleep(wait);
-        return await this.addToGroup(s, phone, groupId, input.inviteFallback === true, input.inviteText);
+        return await this.addToGroup(s, orgId, phone, groupId, input.inviteFallback === true, input.inviteText);
       } finally {
         s.groupPending--;
       }
@@ -1239,6 +1295,7 @@ export class SessionManager {
 
   private async addToGroup(
     s: Session,
+    orgId: string,
     phone: string,
     groupId: string,
     inviteFallback: boolean,
@@ -1257,13 +1314,14 @@ export class SessionManager {
 
       const [res] = await sock.groupParticipantsUpdate(groupId, [jid], "add");
       s.lastGroupAddAt = Date.now();
-      s.groupAddsToday++;
+      this.countToday(orgId, "groupAdds");
       const code = String(res?.status ?? "");
       if (code === "200") return { group: "added" };
       if (code === "409") return { group: "already" };
       if (code === "408") return { group: "left_recently", detail: "Customer left this group recently" };
       if (code === "500") return { group: "full", detail: "Group is full" };
       if (code !== "403") return { group: "failed", detail: `WhatsApp answered ${code || "nothing"}` };
+      this.countToday(orgId, "groupRefusals");
 
       // Privacy: only the customer's contacts may add them. Send the invite link so they can tap Join.
       if (!inviteFallback) return { group: "privacy", detail: "Customer's privacy settings block group adds" };
@@ -1283,6 +1341,22 @@ export class SessionManager {
       logger.warn({ groupId, error: message }, "Group add failed");
       return { group: "failed", detail: message };
     }
+  }
+
+  /**
+   * A group's join link (this number must be admin), for the bill message: customers tap Join themselves
+   * instead of being added without asking. Cached INVITE_LINK_CACHE_MS per group.
+   */
+  async groupInvite(orgId: string, groupId: string): Promise<{ link: string; name: string }> {
+    if (!/^[0-9-]+@g\.us$/.test(groupId)) throw new Error("Invalid group id");
+    const s = this.ready(orgId);
+    const cached = this.inviteCache.get(`${orgId}|${groupId}`);
+    if (cached && Date.now() - cached.at < INVITE_LINK_CACHE_MS) return { link: cached.link, name: cached.name };
+    const [meta, code] = await Promise.all([s.sock!.groupMetadata(groupId), s.sock!.groupInviteCode(groupId)]);
+    if (!code) throw new Error("WhatsApp gave no invite link (is this number a group admin?)");
+    const entry = { link: `https://chat.whatsapp.com/${code}`, name: meta.subject || "", at: Date.now() };
+    this.inviteCache.set(`${orgId}|${groupId}`, entry);
+    return { link: entry.link, name: entry.name };
   }
 
   /** Groups this number is in (and whether it is admin there), for Technical Support and bill group adds. */

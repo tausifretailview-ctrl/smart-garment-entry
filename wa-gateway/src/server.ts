@@ -113,6 +113,11 @@ app.post("/sessions/:orgId/join-customer", wrap(async (req, res) => {
   });
 }));
 
+// A group's join link, added to bill messages so customers join by themselves.
+app.get("/sessions/:orgId/group-invite", wrap(async (req, res) => {
+  res.json({ success: true, ...(await sessions.groupInvite(req.params.orgId, String(req.query.groupId ?? ""))) });
+}));
+
 // ---- Bulk WhatsApp campaigns (sessions "u_<userId>") ----
 app.post("/campaigns", wrap(async (req, res) => {
   res.json({ success: true, ...campaigns.create(req.body ?? {}) });

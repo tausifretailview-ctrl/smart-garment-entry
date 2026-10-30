@@ -39,7 +39,8 @@ const STATUS_LABELS: Record<string, string> = {
 
 /**
  * Ezzy ERP WhatsApp: after a sale bill is sent, save the customer's number as a contact on the
- * linked WhatsApp and/or add it to one group this number is admin of. Off by default.
+ * linked WhatsApp, and/or end the bill message with the join link of one group this number is admin
+ * of. Customers are no longer added to the group directly (that got shop numbers banned). Off by default.
  */
 export function BillCustomerGroupSettings() {
   const { currentOrganization } = useOrganization();
@@ -145,10 +146,14 @@ export function BillCustomerGroupSettings() {
       <div className="flex items-start gap-2">
         <Users className="h-4 w-4 mt-0.5 text-muted-foreground" />
         <div>
-          <p className="text-sm font-medium">Bill customers: save contact &amp; add to group</p>
+          <p className="text-sm font-medium">Bill customers: save contact &amp; group link</p>
           <p className="text-xs text-muted-foreground">
-            After a sale bill is sent on WhatsApp, the customer's number is saved on this WhatsApp and/or added to
-            your group. Each customer is tried once.
+            After a sale bill is sent on WhatsApp, the customer's number can be saved on this WhatsApp (once per
+            customer, up to 30 a day, never in the first day after linking), and the bill can end with your
+            group's join link so customers join by themselves.
+          </p>
+          <p className="text-xs text-destructive mt-1">
+            WhatsApp bans numbers that add people to groups without asking, so customers are not added directly.
           </p>
         </div>
       </div>
@@ -166,7 +171,7 @@ export function BillCustomerGroupSettings() {
 
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <Label className="text-sm font-normal">Add customer to WhatsApp group</Label>
+          <Label className="text-sm font-normal">WhatsApp group for the join link</Label>
           <Button
             type="button"
             variant="ghost"
@@ -189,10 +194,10 @@ export function BillCustomerGroupSettings() {
           }}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Don't add to a group" />
+            <SelectValue placeholder="No group link" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={NO_GROUP}>Don't add to a group</SelectItem>
+            <SelectItem value={NO_GROUP}>No group link</SelectItem>
             {selectedMissing && (
               <SelectItem value={form.builtin_group_id!}>{form.builtin_group_name || "Saved group"}</SelectItem>
             )}
@@ -207,15 +212,15 @@ export function BillCustomerGroupSettings() {
           <p className="text-xs text-destructive">{(groupsQuery.error as Error).message}</p>
         )}
         <p className="text-xs text-muted-foreground">
-          Only groups where this WhatsApp number is an admin can be picked. Up to 25 customers are added per day,
-          20–40 seconds apart, to protect the number from a WhatsApp ban.
+          Only groups where this WhatsApp number is an admin can be picked (WhatsApp gives the join link only to
+          admins).
         </p>
       </div>
 
       {form.builtin_group_id && (
         <div className="flex items-center justify-between gap-4">
           <Label htmlFor="builtin_group_invite_fallback" className="text-sm font-normal">
-            If the customer's privacy blocks adding, send them the group invite link
+            Add the group's join link at the end of every sale bill message
           </Label>
           <Switch
             id="builtin_group_invite_fallback"

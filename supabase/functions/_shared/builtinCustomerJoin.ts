@@ -6,9 +6,10 @@ const PLACEHOLDER_NAME = /^(walk[\s-]*in|cash|counter|customer|guest|valued cust
 
 /**
  * Ezzy ERP WhatsApp, after a bill reached the customer: save the number as a contact on the shop's
- * linked WhatsApp and/or add it to the shop's chosen group (Settings > WhatsApp, off by default).
- * Each number is tried once per group (whatsapp_group_joins), so repeat bills never re-add a customer
- * who left. Never throws: the bill was already sent.
+ * linked WhatsApp (Settings > WhatsApp, off by default). Each number is tried once
+ * (whatsapp_group_joins). Customers are no longer added to the shop's group directly: adding people who
+ * never asked got shop numbers banned, so the bill message carries the group's join link instead
+ * (groupInviteLine). Never throws: the bill was already sent.
  */
 export async function joinBillCustomer(
   supabase: SupabaseClient,
@@ -19,38 +20,24 @@ export async function joinBillCustomer(
 ): Promise<void> {
   try {
     const saveContact = settings?.builtin_save_contacts === true;
-    const groupId = String(settings?.builtin_group_id ?? "").trim();
-    if (!saveContact && !groupId) return;
+    if (!saveContact) return;
 
     const name = customerName.trim();
-    // Claim the number first: the unique key stops a second bill a moment later from adding it twice.
-    let { data: claimed, error: claimError } = await supabase
+    // Claim the number first: the unique key stops a second bill a moment later from saving it twice.
+    const { data: claimed, error: claimError } = await supabase
       .from("whatsapp_group_joins")
       .insert({
         organization_id: organizationId,
         phone,
-        group_id: groupId,
+        group_id: "",
         customer_name: name || null,
-        group_status: groupId ? "pending" : "skipped",
+        group_status: "skipped",
       })
       .select("id")
       .maybeSingle();
-    // 23505 = already tried for this group. A claim stuck on pending (the function was stopped while the
-    // add waited its turn) is taken over after 10 minutes.
-    if (claimError?.code === "23505") {
-      const stale = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-      ({ data: claimed, error: claimError } = await supabase
-        .from("whatsapp_group_joins")
-        .update({ created_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-        .eq("organization_id", organizationId)
-        .eq("phone", phone)
-        .eq("group_id", groupId)
-        .eq("group_status", "pending")
-        .lt("created_at", stale)
-        .select("id")
-        .maybeSingle());
-    }
+    // 23505 = already tried for this number: nothing to do.
     if (claimError || !claimed) {
+      if (claimError?.code === "23505") return;
       // Table missing (SQL not run yet) or another error: skip quietly, the bill was sent.
       if (claimError) console.warn("[group-join] claim failed:", claimError.message);
       return;
@@ -62,16 +49,14 @@ export async function joinBillCustomer(
         phone,
         name: name && !PLACEHOLDER_NAME.test(name) ? name : undefined,
         saveContact,
-        groupId: groupId || undefined,
-        inviteFallback: settings?.builtin_group_invite_fallback !== false,
       },
     });
     const data = result.data as { contact?: string; group?: string; detail?: string; error?: string };
     const ok = result.ok && (data as { success?: boolean }).success !== false;
     const groupStatus = String(data.group ?? "skipped");
 
-    // Busy queue / daily cap / server not reachable: forget the claim so the next bill tries again.
-    if (!ok || groupStatus === "limit") {
+    // Daily cap / just linked / server not reachable: forget the claim so the next bill tries again.
+    if (!ok || data.contact === "limit") {
       if (!ok) console.warn("[group-join] gateway:", data.error ?? result.status);
       await supabase.from("whatsapp_group_joins").delete().eq("id", claimed.id);
       return;
@@ -87,6 +72,37 @@ export async function joinBillCustomer(
       .eq("id", claimed.id);
   } catch (e) {
     console.warn("[group-join] failed:", e instanceof Error ? e.message : String(e));
+  }
+}
+
+/**
+ * "Join our WhatsApp group" line with the group's join link for a bill message, when the shop picked a
+ * group in Settings > WhatsApp and kept the link switch on (builtin_group_invite_fallback). Empty when
+ * there is no group or the link could not be had within 4 s (the bill goes out without it).
+ */
+export async function groupInviteLine(
+  organizationId: string,
+  settings: Record<string, unknown> | null,
+): Promise<string> {
+  const groupId = String(settings?.builtin_group_id ?? "").trim();
+  if (!groupId || settings?.builtin_group_invite_fallback === false) return "";
+  try {
+    const result = await Promise.race([
+      gatewayRequest(
+        `/sessions/${encodeURIComponent(organizationId)}/group-invite?groupId=${encodeURIComponent(groupId)}`,
+      ),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+    ]);
+    const link = result?.ok ? String(result.data.link ?? "") : "";
+    if (!/^https:\/\/chat\.whatsapp\.com\/\S+$/.test(link)) {
+      if (result && !result.ok) console.warn("[group-invite]", result.data.error ?? result.status);
+      return "";
+    }
+    const name = String(result?.data.name ?? settings?.builtin_group_name ?? "").trim();
+    return `Join our WhatsApp group${name ? ` "${name}"` : ""} for offers and new arrivals:\n${link}`;
+  } catch (e) {
+    console.warn("[group-invite] failed:", e instanceof Error ? e.message : String(e));
+    return "";
   }
 }
 
