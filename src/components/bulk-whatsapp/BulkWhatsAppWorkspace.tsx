@@ -5,6 +5,7 @@ import {
   BookmarkPlus,
   CalendarClock,
   CheckCheck,
+  Clock,
   Download,
   FileSpreadsheet,
   FileText,
@@ -58,6 +59,15 @@ import { BulkWhatsAppContactLists, type PickedContactList } from "./BulkWhatsApp
 import { BulkWhatsAppTemplates } from "./BulkWhatsAppTemplates";
 import { SCHEDULE_MAX_DAYS, ScheduledCampaigns, localInput, scheduleTimeOk } from "./BulkWhatsAppScheduled";
 import { CustomerMasterPicker } from "./CustomerMasterPicker";
+import {
+  SLOW_DEFAULT_WINDOW,
+  minutesToTime,
+  planSlowSend,
+  slowStartsTomorrowByDefault,
+  timeToMinutes,
+  windowOk,
+  type SendWindow,
+} from "@/utils/bulkWhatsAppSlow";
 import {
   buildBulkLinkLines,
   buildContactsVcf,
@@ -187,6 +197,10 @@ export function BulkWhatsAppWorkspace({
   const [videoQuality, setVideoQuality] = useState<VideoQuality>("medium");
   const [savedMedia, setSavedMedia] = useState<SavedMedia | null>(null);
   const [scheduleOn, setScheduleOn] = useState(false);
+  /** "Send slowly all day": one campaign spread over shop hours with gaps of several minutes. */
+  const [slowOn, setSlowOn] = useState(false);
+  const [slowWindow, setSlowWindow] = useState<SendWindow>(SLOW_DEFAULT_WINDOW);
+  const [slowTomorrow, setSlowTomorrow] = useState(false);
   /** One campaign is made per time: the same message can go out morning and evening, or on several days. */
   const [sendAts, setSendAts] = useState<string[]>([]);
   const [checking, setChecking] = useState<{ done: number; total: number } | null>(null);
@@ -583,12 +597,30 @@ export function BulkWhatsAppWorkspace({
     return null;
   };
   const scheduleOk = !scheduleOn || (sendAts.length > 0 && sendAts.every((_, i) => timeProblem(i) === null));
+  const slowWindowOk = windowOk(slowWindow);
+  const slowPlan = useMemo(
+    () => (slowOn && slowWindowOk && contacts.length ? planSlowSend(contacts.length, Date.now(), slowWindow, slowTomorrow) : null),
+    [slowOn, slowWindowOk, contacts.length, slowWindow, slowTomorrow],
+  );
+  const fmtGap = (ms: number) => {
+    const mins = Math.round(ms / 60_000);
+    return mins >= 60 ? `${Math.floor(mins / 60)} h${mins % 60 ? ` ${mins % 60} min` : ""}` : `${mins} min`;
+  };
+  const fmtDay = (ms: number) => {
+    const d = new Date(ms);
+    const days = Math.round((new Date(d).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86_400_000);
+    return days === 0 ? `today ${format(d, "hh:mm a")}` : days === 1 ? `tomorrow ${format(d, "hh:mm a")}` : format(d, "dd MMM, hh:mm a");
+  };
+  const slowSummary = slowPlan
+    ? `${slowPlan.startAt ? `Starts ${fmtDay(slowPlan.startAt)}` : "Starts now"}, 1 message about every ${fmtGap(slowPlan.gapMs)}. Last one about ${fmtDay(slowPlan.finishAt)}${slowPlan.days > 1 ? ` (over ${slowPlan.days} days)` : ""}.`
+    : "";
   const fmtTimes = (fmt: string) => scheduleTimes.map((t) => format(t, fmt)).join(", ");
   const canSend =
     linked &&
     contacts.length > 0 &&
     (message.trim() !== "" || attachment !== null) &&
     scheduleOk &&
+    (!slowOn || slowWindowOk) &&
     !sending &&
     !checking &&
     !savingContacts &&
@@ -600,7 +632,9 @@ export function BulkWhatsAppWorkspace({
     try {
       let mediaUrl: string | null = savedMedia?.url ?? null;
       if (media) mediaUrl = await uploadMedia(media);
-      const times: (Date | null)[] = scheduleTimes.length ? scheduleTimes : [null];
+      // Slow: worked out again at send time, so "starts now" and the gap are right even if the page sat open.
+      const plan = slowOn ? planSlowSend(contacts.length, Date.now(), slowWindow, slowTomorrow) : null;
+      const times: (Date | null)[] = plan ? [plan.startAt ? new Date(plan.startAt) : null] : scheduleTimes.length ? scheduleTimes : [null];
       let res: { total?: number; unsubscribed?: number; alreadySent?: number } = {};
       for (let i = 0; i < times.length; i++) {
         const t = times[i];
@@ -615,6 +649,7 @@ export function BulkWhatsAppWorkspace({
             mediaName: attachment?.name ?? null,
             videoQuality: attachment?.type.startsWith("video/") ? videoQuality : null,
             startAt: t ? t.toISOString() : null,
+            slow: plan ? { from: slowWindow.from, to: slowWindow.to, gapMs: plan.gapMs } : null,
             recipients: contacts,
           });
         } catch (e) {
@@ -627,15 +662,18 @@ export function BulkWhatsAppWorkspace({
       if (res.alreadySent) {
         skipped += ` ${res.alreadySent} ${res.alreadySent === 1 ? "number" : "numbers"} are still getting this message from a campaign that is sending, so ${res.alreadySent === 1 ? "it was" : "they were"} left out.`;
       }
-      const when = scheduleTimes.length
-        ? `Scheduled for ${fmtTimes("dd MMM, hh:mm a")} to ${res.total ?? contacts.length} numbers.`
-        : `Sending to ${res.total ?? contacts.length} numbers.`;
+      const when = plan
+        ? `Sending slowly to ${res.total ?? contacts.length} numbers. ${slowSummary}`
+        : scheduleTimes.length
+          ? `Scheduled for ${fmtTimes("dd MMM, hh:mm a")} to ${res.total ?? contacts.length} numbers.`
+          : `Sending to ${res.total ?? contacts.length} numbers.`;
       toast.success(`${when}${skipped} You can close this page; it keeps sending.`, {
         action: onOpenReports ? { label: "See report", onClick: onOpenReports } : undefined,
       });
       clearContacts();
       setName("");
       setScheduleOn(false);
+      setSlowOn(false);
       setSendAts([]);
       await queryClient.invalidateQueries({ queryKey: ["bulk-whatsapp-campaigns", orgId] });
     } catch (e) {
@@ -1126,32 +1164,94 @@ export function BulkWhatsAppWorkspace({
                 <span className="font-medium text-amber-700">Link your WhatsApp above first</span>
               ) : contacts.length ? (
                 <span className="text-slate-700">
-                  <b className="tabular-nums">{contacts.length.toLocaleString("en-IN")}</b> numbers · about{" "}
-                  <b className="tabular-nums">{estimateBulkMinutes(contacts.length)}</b> min
+                  <b className="tabular-nums">{contacts.length.toLocaleString("en-IN")}</b> numbers ·{" "}
+                  {slowOn ? (
+                    "spread over shop hours"
+                  ) : (
+                    <>
+                      about <b className="tabular-nums">{estimateBulkMinutes(contacts.length)}</b> min
+                    </>
+                  )}
                 </span>
               ) : (
                 <span className="text-slate-500">Add numbers to send</span>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 text-xs font-medium">
-              {([false, true] as const).map((later) => (
-                <button
-                  key={String(later)}
-                  type="button"
-                  onClick={() => {
-                    setScheduleOn(later);
-                    if (later && !sendAts.length) setSendAts([localInput(new Date(Date.now() + 60 * 60 * 1000))]);
-                  }}
-                  className={cn(
-                    "flex items-center justify-center gap-1.5 rounded-md py-1.5 transition",
-                    scheduleOn === later ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-800",
-                  )}
-                >
-                  {later ? <CalendarClock className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
-                  {later ? "Schedule" : "Send now"}
-                </button>
-              ))}
+            <div className="grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-1 text-xs font-medium">
+              {(["now", "later", "slow"] as const).map((mode) => {
+                const active = mode === "slow" ? slowOn : mode === "later" ? scheduleOn : !scheduleOn && !slowOn;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => {
+                      setScheduleOn(mode === "later");
+                      setSlowOn(mode === "slow");
+                      if (mode === "later" && !sendAts.length) setSendAts([localInput(new Date(Date.now() + 60 * 60 * 1000))]);
+                      if (mode === "slow" && !slowOn) setSlowTomorrow(slowStartsTomorrowByDefault(Date.now(), slowWindow));
+                    }}
+                    className={cn(
+                      "flex items-center justify-center gap-1 rounded-md px-1 py-1.5 transition",
+                      active ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-800",
+                    )}
+                  >
+                    {mode === "slow" ? (
+                      <Clock className="h-3.5 w-3.5 shrink-0" />
+                    ) : mode === "later" ? (
+                      <CalendarClock className="h-3.5 w-3.5 shrink-0" />
+                    ) : (
+                      <Send className="h-3.5 w-3.5 shrink-0" />
+                    )}
+                    {mode === "slow" ? "Slow all day" : mode === "later" ? "Schedule" : "Send now"}
+                  </button>
+                );
+              })}
             </div>
+            {slowOn && (
+              <div className="space-y-1.5">
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(["from", "to"] as const).map((end) => (
+                    <div key={end} className="space-y-0.5">
+                      <Label className="text-[11px] text-slate-600">{end === "from" ? "Send from" : "Until"}</Label>
+                      <Input
+                        type="time"
+                        value={minutesToTime(slowWindow[end])}
+                        onChange={(e) => {
+                          const mins = timeToMinutes(e.target.value);
+                          if (mins !== null) setSlowWindow({ ...slowWindow, [end]: mins });
+                        }}
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 text-[11px] font-medium">
+                  {([false, true] as const).map((tomorrow) => (
+                    <button
+                      key={String(tomorrow)}
+                      type="button"
+                      onClick={() => setSlowTomorrow(tomorrow)}
+                      className={cn(
+                        "rounded-md py-1 transition",
+                        slowTomorrow === tomorrow ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-800",
+                      )}
+                    >
+                      {tomorrow ? "Start tomorrow" : "Start today"}
+                    </button>
+                  ))}
+                </div>
+                {!slowWindowOk ? (
+                  <p className="text-[11px] text-red-600">Sending hours must be at least 1 hour, and end after they start.</p>
+                ) : slowSummary ? (
+                  <p className="rounded-md bg-emerald-50 px-2 py-1.5 text-[11px] text-emerald-800">{slowSummary}</p>
+                ) : null}
+                <p className="text-[11px] text-slate-500">
+                  Spreads the numbers evenly over these hours (IST) with a random gap of minutes, not seconds, so it
+                  looks like normal chatting. Nothing goes outside these hours; what is left continues the next day.
+                  Keep your phone online.
+                </p>
+              </div>
+            )}
             {scheduleOn && (
               <div className="space-y-1.5">
                 {sendAts.map((v, i) => {
@@ -1212,8 +1312,16 @@ export function BulkWhatsAppWorkspace({
               disabled={!canSend}
               onClick={() => setConfirmOpen(true)}
             >
-              {sending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : scheduleOn ? <CalendarClock className="mr-1.5 h-4 w-4" /> : <Send className="mr-1.5 h-4 w-4" />}
-              {scheduleOn ? "Schedule for" : "Send to"} {contacts.length.toLocaleString("en-IN")} numbers
+              {sending ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : slowOn ? (
+                <Clock className="mr-1.5 h-4 w-4" />
+              ) : scheduleOn ? (
+                <CalendarClock className="mr-1.5 h-4 w-4" />
+              ) : (
+                <Send className="mr-1.5 h-4 w-4" />
+              )}
+              {slowOn ? "Send slowly to" : scheduleOn ? "Schedule for" : "Send to"} {contacts.length.toLocaleString("en-IN")} numbers
               {scheduleOn && sendAts.length > 1 ? ` × ${sendAts.length}` : ""}
             </Button>
             {checking && (
@@ -1232,7 +1340,7 @@ export function BulkWhatsAppWorkspace({
             <ShieldAlert className="h-4 w-4 text-amber-700" />
             <AlertDescription className="text-xs text-amber-900">
               Messages go one by one with a random 8 to 20 second gap, up to 500 per number per day (the rest continue
-              the next day). WhatsApp may block numbers that send bulk messages, especially to people who have not saved
+              the next day). For less risk use Slow all day, which spaces them minutes apart over shop hours. WhatsApp may block numbers that send bulk messages, especially to people who have not saved
               your number.
             </AlertDescription>
           </Alert>
@@ -1259,14 +1367,25 @@ export function BulkWhatsAppWorkspace({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {scheduleTimes.length
+              {slowOn
+                ? `Send slowly to ${contacts.length} numbers?`
+                : scheduleTimes.length
                 ? `Schedule for ${contacts.length} numbers${scheduleTimes.length > 1 ? `, ${scheduleTimes.length} times` : ""}?`
                 : `Send to ${contacts.length} numbers?`}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {scheduleTimes.length ? `Starts ${fmtTimes("dd MMM yyyy, hh:mm a")}. Each send takes` : "This takes"} about{" "}
-              {estimateBulkMinutes(contacts.length)} minutes. It keeps sending even if you close this page or the browser.
-              You can pause or stop it from the delivery report.
+              {slowOn ? (
+                <>
+                  {slowSummary} Only between {minutesToTime(slowWindow.from)} and {minutesToTime(slowWindow.to)}.
+                </>
+              ) : (
+                <>
+                  {scheduleTimes.length ? `Starts ${fmtTimes("dd MMM yyyy, hh:mm a")}. Each send takes` : "This takes"} about{" "}
+                  {estimateBulkMinutes(contacts.length)} minutes.
+                </>
+              )}{" "}
+              It keeps sending even if you close this page or the browser. You can pause or stop it from the delivery
+              report.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1279,7 +1398,7 @@ export function BulkWhatsAppWorkspace({
               }}
             >
               {sending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
-              {scheduleTimes.length ? "Schedule" : "Start sending"}
+              {slowOn ? "Send slowly" : scheduleTimes.length ? "Schedule" : "Start sending"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
