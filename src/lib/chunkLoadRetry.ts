@@ -251,6 +251,7 @@ export const POST_LOGIN_IDLE_PREFETCH_TAB_PATHS = [
   "stock-analysis",
   "daily-cashier-report",
   "daily-tally",
+  "account-tally",
   "daily-sale-analysis",
   "hourly-sales-analysis",
   "sales-analytics",

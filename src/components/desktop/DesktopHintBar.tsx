@@ -38,6 +38,10 @@ const HINTS: Record<string, [string, string][]> = {
     ["Ctrl+P", "Print"],
     ["Esc", "Back"],
   ],
+  "account-tally": [
+    ["Enter", "Next note"],
+    ["Esc", "Back"],
+  ],
   "customer-master": [
     ["F2", "Search"],
     ["Alt+N", "New"],

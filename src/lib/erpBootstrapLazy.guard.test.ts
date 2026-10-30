@@ -57,7 +57,9 @@ describe("erpBootstrap lazy split (PR 1)", () => {
     expect(saleLookup).not.toMatch(/from "@\/components\/FloatingPOSReports"/);
     const pos = src("src/components/POSLayout.tsx");
     expect(pos).toContain("LazyFloatingPayments");
-    expect(pos).toContain("LazyFloatingCashTally");
+    // POS opens the full Account Tally page instead of the Cash Tally pop-up.
+    expect(pos).not.toMatch(/from "@\/components\/FloatingCashTally"/);
+    expect(pos).toContain('orgNavigate("/account-tally")');
     const widgets = src("src/components/lazyFloatingWidgets.tsx");
     expect(widgets).not.toContain("SizeStockDialog");
     expect(widgets).not.toContain("LazySizeStockDialog");

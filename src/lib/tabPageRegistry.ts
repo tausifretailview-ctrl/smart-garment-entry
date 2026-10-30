@@ -132,6 +132,7 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
   "product-tracking": { loader: () => import("@/pages/ProductTrackingReport"), layout: "layout" },
   "daily-cashier-report": { loader: () => import("@/pages/DailyCashierReport"), layout: "layout" },
   "daily-tally": { loader: () => import("@/pages/DailyTallyDashboard"), layout: "layout" },
+  "account-tally": { loader: () => import("@/pages/DailyAccountTally"), layout: "layout" },
   "daily-sale-analysis": { loader: () => import("@/pages/DailySaleAnalysis"), layout: "layout" },
   "hourly-sales-analysis": { loader: () => import("@/pages/HourlySalesAnalysis"), layout: "layout" },
   "sales-analytics": { loader: () => import("@/pages/SalesAnalyticsDashboard"), layout: "layout" },

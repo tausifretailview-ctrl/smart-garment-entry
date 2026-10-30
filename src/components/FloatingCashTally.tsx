@@ -287,7 +287,17 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
         handover_to_owner: handoverToOwner,
         notes: notes || null,
         created_by: user?.id || null,
-        denomination_data: { denomCounts, coinsBulk } as any,
+        // Keep Account Tally details (card/UPI check, who closed) saved on the same day.
+        denomination_data: {
+          ...(snapshot?.denomination_data && typeof snapshot.denomination_data === "object" && !Array.isArray(snapshot.denomination_data)
+            ? snapshot.denomination_data
+            : {}),
+          denomCounts,
+          coinsBulk,
+          counts: denomCounts,
+          coins: coinsBulk,
+          total: physicalCash,
+        } as any,
       };
       const { data, error } = await supabase
         .from("daily_tally_snapshot")

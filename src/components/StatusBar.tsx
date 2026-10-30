@@ -31,6 +31,7 @@ const getCurrentPageName = (path: string): string => {
     'product-entry': 'Product Entry',
     'barcode-printing': 'Barcode Printing',
     'daily-tally': 'Daily Tally',
+    'account-tally': 'Account Tally',
     'sale-return-entry': 'Sale Return',
     'purchase-return-entry': 'Purchase Return',
     'quotation-entry': 'Quotation Entry',

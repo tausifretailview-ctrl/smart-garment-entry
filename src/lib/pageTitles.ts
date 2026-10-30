@@ -53,6 +53,7 @@ export const PAGE_TITLE_CONFIG: Record<string, { label: string; icon: string }> 
   "product-tracking": { label: "Product Tracking", icon: "History" },
   "daily-cashier-report": { label: "Business Report", icon: "CalendarDays" },
   "daily-tally": { label: "Daily Tally", icon: "CalendarDays" },
+  "account-tally": { label: "Account Tally", icon: "Wallet" },
   "daily-sale-analysis": { label: "Daily Sale Analysis", icon: "BarChart3" },
   "hourly-sales-analysis": { label: "Hourly Sales", icon: "BarChart3" },
   "sales-analytics": { label: "Sales Analytics", icon: "BarChart3" },
