@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { calculateGlAccountLedger } from "@/utils/accountingReportUtils";
 import { deleteJournalEntryByReference, postJournalEntry } from "@/utils/accounting/journalService";
 import { seedDefaultAccounts } from "@/utils/accounting/seedDefaultAccounts";
+import { formatBankAccountLabel } from "@/utils/organizationBankAccounts";
 
 const round2 = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
 
@@ -295,4 +296,51 @@ export async function postCashBankTransfer(params: {
 
 export async function deleteCashBankTransfer(organizationId: string, referenceId: string) {
   await deleteJournalEntryByReference(organizationId, "Contra", referenceId, supabase);
+}
+
+/**
+ * Daily Tally "Deposit to bank" → a Contra (DR Bank, CR Cash) in the default bank, keyed by the
+ * tally snapshot id so re-saving the tally replaces it and a zero deposit removes it.
+ */
+export async function syncDailyTallyBankDeposit(params: {
+  organizationId: string;
+  snapshotId: string;
+  tallyDate: string;
+  amount: number;
+}) {
+  const amount = round2(params.amount);
+  await deleteJournalEntryByReference(params.organizationId, "Contra", params.snapshotId, supabase);
+  if (!(amount > 0)) return;
+
+  const { data: banks, error } = await supabase
+    .from("organization_bank_accounts")
+    .select("id, bank_name, account_number, is_default, created_at")
+    .eq("organization_id", params.organizationId)
+    .is("deleted_at", null)
+    .order("is_default", { ascending: false })
+    .order("created_at", { ascending: true })
+    .limit(1);
+  if (error) throw error;
+  const bank = banks?.[0] ?? null;
+
+  const accounts = await seedDefaultAccounts(params.organizationId, supabase);
+  const cash = accounts.find((a) => a.account_code === "1000");
+  const bankLedger = accounts.find((a) => a.account_code === "1010");
+  if (!cash || !bankLedger) throw new Error("Cash in Hand (1000) or Bank (1010) ledger is missing");
+
+  const [y, m, d] = params.tallyDate.split("-");
+  const bankLabel = bank ? formatBankAccountLabel(bank) : "bank";
+  await postJournalEntry({
+    organizationId: params.organizationId,
+    date: params.tallyDate,
+    referenceType: "Contra",
+    referenceId: params.snapshotId,
+    description: `Cash deposit to ${bankLabel} — Daily Tally ${d}/${m}/${y}`,
+    bankAccountId: bank?.id ?? null,
+    lines: [
+      { accountId: bankLedger.id, debitAmount: amount, creditAmount: 0 },
+      { accountId: cash.id, debitAmount: 0, creditAmount: amount },
+    ],
+    client: supabase,
+  });
 }

@@ -457,7 +457,7 @@ export default function BankStatementPage() {
                           <span className="text-xs text-muted-foreground">{drCr(row.balance)}</span>
                         </TableCell>
                         <TableCell className="py-2 text-center">
-                          {row.referenceType === "Contra" && row.referenceId && (
+                          {row.referenceType === "Contra" && row.referenceId && !/daily tally/i.test(row.description) && (
                             <Button
                               type="button"
                               variant="ghost"
