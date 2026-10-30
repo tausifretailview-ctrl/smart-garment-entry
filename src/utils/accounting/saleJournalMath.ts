@@ -105,3 +105,22 @@ export function counterTenderInSaleJournal(params: {
     Math.max(0, Number(params.paidAmount || 0) - params.journaledReceiptTotal - genuineCreditNote),
   );
 }
+
+/**
+ * Split the counter tender of a sale between Cash in Hand and Bank.
+ *
+ * Only a Mix (`multiple`) bill is split: its `cash_amount` is the cash actually applied
+ * at the counter, the rest (UPI / card / cheque / transfer) went to the bank. Every other
+ * method keeps its single cash-or-bank routing, so the whole tender is returned as `other`.
+ */
+export function splitMixCounterTender(params: {
+  paymentMethod: string | null | undefined;
+  counterPaid: number;
+  cashAmount: number | null | undefined;
+}): { cash: number; other: number } {
+  const paid = round2(Math.max(0, Number(params.counterPaid || 0)));
+  const pm = String(params.paymentMethod || "").toLowerCase().trim();
+  if (pm !== "multiple") return { cash: 0, other: paid };
+  const cash = round2(Math.min(paid, Math.max(0, Number(params.cashAmount || 0))));
+  return { cash, other: round2(paid - cash) };
+}

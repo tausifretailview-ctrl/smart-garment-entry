@@ -3,6 +3,7 @@ import {
   computeSaleRevenueBreakdown,
   counterTenderInSaleJournal,
   isOnOrAfterReturnCreditCutover,
+  splitMixCounterTender,
 } from "@/utils/accounting/saleJournalMath";
 
 describe("computeSaleRevenueBreakdown", () => {
@@ -121,5 +122,28 @@ describe("isOnOrAfterReturnCreditCutover", () => {
   it("treats a missing or unreadable date as new", () => {
     expect(isOnOrAfterReturnCreditCutover(null)).toBe(true);
     expect(isOnOrAfterReturnCreditCutover("not a date")).toBe(true);
+  });
+});
+
+describe("splitMixCounterTender", () => {
+  it("Mix bill: applied cash to Cash in Hand, rest to bank", () => {
+    expect(splitMixCounterTender({ paymentMethod: "multiple", counterPaid: 1000, cashAmount: 400 })).toEqual({
+      cash: 400,
+      other: 600,
+    });
+  });
+
+  it("Mix bill: cash never exceeds the counter tender", () => {
+    expect(splitMixCounterTender({ paymentMethod: "multiple", counterPaid: 300, cashAmount: 500 })).toEqual({
+      cash: 300,
+      other: 0,
+    });
+  });
+
+  it("single-mode bills are not split", () => {
+    expect(splitMixCounterTender({ paymentMethod: "upi", counterPaid: 800, cashAmount: 800 })).toEqual({
+      cash: 0,
+      other: 800,
+    });
   });
 });

@@ -21,6 +21,7 @@ export const HEAVY_TAB_PATHS = new Set([
   "accounts",
   "third-party-entry",
   "third-party-balances",
+  "bank-statement",
   "pos-dashboard",
   "sales-invoice-dashboard",
   // Canonical URL slug + legacy registry key (resolveTabCachePath → purchase-bills)
