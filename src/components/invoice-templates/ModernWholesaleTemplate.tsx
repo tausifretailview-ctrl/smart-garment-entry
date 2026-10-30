@@ -293,7 +293,11 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       } 
       // Otherwise, fill this page fully and continue
       else {
-        const takeCount = Math.min(itemsPerPage, remaining.length);
+        // Fewer than a full page left but too many for the last page: split the
+        // rest across two pages so the last page keeps room for the totals box.
+        const takeCount = remaining.length <= itemsPerPage
+          ? Math.max(remaining.length - lastPageMaxItems, Math.ceil(remaining.length / 2))
+          : itemsPerPage;
         pages.push(remaining.slice(0, takeCount));
         pageStartIndices.push(currentStart);
         currentStart += takeCount;
@@ -451,7 +455,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
     return (
     <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
       <colgroup>
-        <col style={{ width: isA5 ? "20px" : "22px" }} />
+        <col style={{ width: isA5 ? "20px" : "28px" }} />
         <col />
         <col style={{ width: isA5 ? "34px" : "45px" }} />
         <col style={{ width: isA5 ? "100px" : "100px" }} />
@@ -655,7 +659,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       <div style={{ display: "flex", borderTop: "1px solid #374151", width: "100%", boxSizing: "border-box", overflow: "visible" }}>
         <div style={{ flex: 1, padding: isA5 ? "5px 6px" : "8px", borderRight: "1px solid #374151", minWidth: 0 }}>
           <div style={{ fontSize: isA5 ? "6pt" : "7pt", fontWeight: "700" }}>AMOUNT IN WORDS:</div>
-          <div style={{ fontSize: isA5 ? "7.5pt" : "9pt", fontStyle: "italic" }}>{numberToWords(grandTotal)} Only</div>
+          <div style={{ fontSize: isA5 ? "7.5pt" : "9pt", fontStyle: "italic" }}>{numberToWords(grandTotal)}</div>
 
           {hsnSummary && hsnSummary.rows.length > 0 && renderHsnTaxSummary(hsnSummary)}
 
@@ -826,10 +830,13 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
     return (
       <div
         key={pageIndex}
-        className="invoice-page"
+        className="invoice-page modern-wholesale-page"
         style={{
           width: pageWidth,
-          minHeight: isLastPage ? pageHeight : undefined,
+          // Every sheet is a full page tall (not just the last). Short middle
+          // pages let the next page's header land mid-sheet when the PDF or
+          // printer cut the run at 297mm.
+          minHeight: pageHeight,
           margin: "0 auto",
           padding: pagePadding,
           fontFamily: font,
@@ -842,9 +849,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         {/* Main Border Wrapper */}
         <div style={{ 
           border: "1.5px solid #374151", 
-          minHeight: isLastPage
-            ? (format === 'a4' ? `calc(297mm - 12mm)` : format === 'a5-horizontal' ? `calc(148mm - 10mm)` : `calc(210mm - 4mm)`)
-            : undefined,
+          minHeight: format === 'a4' ? `calc(297mm - 12mm)` : format === 'a5-horizontal' ? `calc(148mm - 10mm)` : `calc(210mm - 4mm)`,
           maxHeight: format === 'a5-vertical' ? "calc(210mm - 4mm)" : undefined,
           overflow: "visible",
           boxSizing: "border-box",
@@ -872,7 +877,9 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           @media print {
             @page {
               size: ${format === 'a5-vertical' ? '148mm 210mm' : format === 'a5-horizontal' ? 'A5 landscape' : 'A4'};
-              margin: ${format === 'a5-vertical' ? '2mm' : format === 'a4' ? '6mm' : '4mm'};
+              /* Sheets carry their own padding and are a full page tall, so the
+                 printer margin must be 0 or each sheet spills onto the next. */
+              margin: 0 !important;
             }
             body { margin: 0; padding: 0; }
             .invoice-page {

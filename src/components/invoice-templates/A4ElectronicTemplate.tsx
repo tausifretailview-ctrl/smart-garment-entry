@@ -587,7 +587,7 @@ export const A4ElectronicTemplate: React.FC<A4ElectronicTemplateProps> = ({
 
         {/* Amount in words */}
         <div style={{ marginTop: "10px", fontSize: "10px", border: BORDER, padding: "6px 8px", background: GOLD_LIGHT }}>
-          <strong>Total Amount (in words):</strong> {numberToWords(grandTotal)} Only
+          <strong>Total Amount (in words):</strong> {numberToWords(grandTotal)}
         </div>
 
         {/* Signature */}
