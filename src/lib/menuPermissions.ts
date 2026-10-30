@@ -48,6 +48,7 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   "stock-analysis": "stock_analysis",
   "daily-cashier-report": "daily_cashier_report",
   "daily-tally": "daily_tally",
+  "account-tally": "daily_tally",
   "daily-sale-analysis": "sale_analysis",
   "hourly-sales-analysis": "hourly_sales_analysis",
   "payments-dashboard": "payments_dashboard",

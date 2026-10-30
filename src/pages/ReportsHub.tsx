@@ -277,6 +277,14 @@ const ALL_REPORTS: ReportItem[] = [
   },
   {
     icon: Wallet,
+    label: "Account Tally",
+    path: "/account-tally",
+    desc: "Day close: cash count, handover, closing balance",
+    tab: "accounts",
+    permission: "daily_tally",
+  },
+  {
+    icon: Wallet,
     label: "Payments",
     path: "/payments-dashboard",
     desc: "Customer and supplier payments",

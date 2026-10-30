@@ -47,7 +47,6 @@ import { OfflinePosButton } from "@/components/pos/OfflinePosButton";
 import { ShopChatButton } from "@/components/shop-chat/ShopChatButton";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
 import {
-  LazyFloatingCashTally,
   LazyFloatingPayments,
 } from "@/components/lazyFloatingWidgets";
 import { Truck } from "lucide-react";
@@ -71,7 +70,6 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const { onNewSale, onClearCart, onOpenCashierReport, onOpenStockReport, onOpenSaleReturn, onSaveChanges, onEstimatePrint, hasItems, isEditing, isSavingChanges, onOpenDeliveryChallan } = usePOS();
   const { isOpen, setIsOpen } = useKeyboardShortcuts("pos");
   const [showSizeStock, setShowSizeStock] = useState(false);
-  const [showCashTally, setShowCashTally] = useState(false);
   const [showPayments, setShowPayments] = useState(false);
   const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
   const can = (id: string) => !permissionsLoading && (permissions === null || hasMenuAccess(id));
@@ -102,7 +100,6 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
     <>
       <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="pos" />
       <SizeStockDialog open={showSizeStock} onOpenChange={setShowSizeStock} />
-      <LazyFloatingCashTally open={showCashTally} onOpenChange={setShowCashTally} />
       <LazyFloatingPayments open={showPayments} onOpenChange={setShowPayments} />
     </>
   );
@@ -330,15 +327,19 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  onClick={() => setShowCashTally(true)}
+                  onClick={() => {
+                    if (hasItems && !window.confirm("A bill is still open. Open Account Tally anyway?")) return;
+                    orgNavigate("/account-tally");
+                  }}
+                  onPointerEnter={() => prefetchTabPage("account-tally", { intent: true })}
                   className={posNavBtnClass}
                 >
                   <Wallet className={posNavIconClass} />
-                  <span className="hidden sm:inline">Cash Tally</span>
+                  <span className="hidden sm:inline">Account Tally</span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
-                <p>Daily Cash Tally</p>
+                <p>Day close: cash count, handover, closing balance</p>
               </TooltipContent>
             </Tooltip>}
             {(can("payment_recording") || can("payments_dashboard")) && <Tooltip>

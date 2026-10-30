@@ -44,7 +44,6 @@ import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
 import {
-  LazyFloatingCashTally,
   LazyFloatingPayments,
 } from "@/components/lazyFloatingWidgets";
 import { PwaInstallBanner } from "@/components/mobile/PwaInstallBanner";
@@ -73,7 +72,6 @@ function PosDeliveryChallanLayoutContent({ children }: { children: ReactNode }) 
   } = usePosDC();
   const { isOpen, setIsOpen } = useKeyboardShortcuts("pos");
   const [showSizeStock, setShowSizeStock] = useState(false);
-  const [showCashTally, setShowCashTally] = useState(false);
   const [showPayments, setShowPayments] = useState(false);
   const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
   const can = (id: string) => !permissionsLoading && (permissions === null || hasMenuAccess(id));
@@ -263,14 +261,14 @@ function PosDeliveryChallanLayoutContent({ children }: { children: ReactNode }) 
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setShowCashTally(true)}
+                  onClick={() => orgNavigate("/account-tally")}
                   className="text-white hover:bg-orange-500 gap-1"
                 >
                   <Wallet className="h-4 w-4" />
-                  <span className="hidden sm:inline">Cash Tally</span>
+                  <span className="hidden sm:inline">Account Tally</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Daily Cash Tally</TooltipContent>
+              <TooltipContent>Day close: cash count, handover, closing balance</TooltipContent>
             </Tooltip>
           )}
           {(can("payment_recording") || can("payments_dashboard")) && (
@@ -328,7 +326,6 @@ function PosDeliveryChallanLayoutContent({ children }: { children: ReactNode }) 
     <>
       <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="pos" />
       <SizeStockDialog open={showSizeStock} onOpenChange={setShowSizeStock} />
-      <LazyFloatingCashTally open={showCashTally} onOpenChange={setShowCashTally} />
       <LazyFloatingPayments open={showPayments} onOpenChange={setShowPayments} />
     </>
   );

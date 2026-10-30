@@ -162,6 +162,16 @@ export const COMMAND_PALETTE_REGISTRY: CommandPaletteRegistryItem[] = [
     permission: "daily_tally",
   },
   {
+    id: "nav-account-tally",
+    group: "Go to",
+    label: "Account Tally",
+    subtitle: "Day close: count cash, handover, closing balance",
+    icon: Wallet,
+    path: "/account-tally",
+    keywords: ["day close", "closing", "opening", "cash", "denomination", "handover", "account tally"],
+    permission: "daily_tally",
+  },
+  {
     id: "nav-daily-cashier",
     group: "Go to",
     label: "Business Report",

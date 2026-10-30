@@ -90,6 +90,7 @@ const SalesReportByCustomer = lazyWithRetry(() => import("./pages/SalesReportByC
 const ProductTrackingReport = lazyWithRetry(() => import("./pages/ProductTrackingReport"));
 const DailyCashierReport = lazyWithRetry(() => import("./pages/DailyCashierReport"));
 const DailyTallyDashboard = lazyWithRetry(() => import("./pages/DailyTallyDashboard"));
+const DailyAccountTally = lazyWithRetry(() => import("./pages/DailyAccountTally"));
 const AuditLog = lazyWithRetry(() => import("./pages/AuditLog"));
 const Accounts = lazyWithRetry(() => import("./pages/Accounts"));
 const ChartOfAccounts = lazyWithRetry(() => import("./pages/accounts/ChartOfAccounts"));
@@ -1388,6 +1389,16 @@ const App = () => {
                     <ProtectedRoute>
                       <Layout>
                         <DailyTallyDashboard />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="account-tally"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <DailyAccountTally />
                       </Layout>
                     </ProtectedRoute>
                   }

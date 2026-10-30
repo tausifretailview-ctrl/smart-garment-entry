@@ -30,6 +30,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { localDayBounds } from "@/lib/localDayBounds";
 import {
@@ -39,7 +40,6 @@ import {
 } from "@/utils/cashierSaleModeAmounts";
 import { createSameDaySaleReceiptOverlapTracker } from "@/utils/posCashierCashIn";
 import { toast } from "sonner";
-import { syncDailyTallyBankDeposit } from "@/utils/accounting/bankStatement";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
@@ -90,6 +90,7 @@ const DailyTally = () => {
   const { hideDc, onlyDc } = useDcVisibility();
   const { user } = useAuth();
   const { isAdmin, isManager } = useUserRoles();
+  const { orgNavigate } = useOrgNavigation();
   const queryClient = useQueryClient();
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -460,51 +461,6 @@ const DailyTally = () => {
     return { label: "Cash Mismatch", variant: "destructive" as const, color: "bg-red-50 text-red-700 border-red-600 border-[1.5px] ring-2 ring-red-200" };
   }, [physicalCash, difference, snapshot]);
 
-  // ─── Save snapshot ─────────────────────────────────────────────────
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      // FIX 4: Include denomination_data in snapshot
-      const payload = {
-        organization_id: orgId!,
-        tally_date: dateStr,
-        opening_cash: openingCash,
-        expected_cash: expectedCash,
-        physical_cash: physicalCash,
-        difference_amount: difference,
-        leave_in_drawer: leaveInDrawer,
-        deposit_to_bank: depositToBank,
-        handover_to_owner: handoverToOwner,
-        notes: notes || null,
-        created_by: user?.id || null,
-        denomination_data: JSON.stringify({ counts: denomCounts, coins: coinsBulk, total: denomTotal }),
-      };
-
-      // Upsert
-      const { data, error } = await supabase
-        .from("daily_tally_snapshot")
-        .upsert(payload, { onConflict: "organization_id,tally_date" })
-        .select("id")
-        .single();
-      if (error) throw error;
-      // "Deposit to bank" also goes to the Bank Statement (Contra in the default bank).
-      try {
-        await syncDailyTallyBankDeposit({
-          organizationId: orgId!,
-          snapshotId: (data as { id: string }).id,
-          tallyDate: dateStr,
-          amount: depositToBank,
-        });
-      } catch (e) {
-        toast.warning(`Tally saved, but the bank deposit was not posted: ${(e as Error).message}`);
-      }
-    },
-    onSuccess: () => {
-      toast.success("Daily tally snapshot saved");
-      refetchSnapshot();
-    },
-    onError: (e: Error) => toast.error(`Save failed: ${e.message}`),
-  });
-
   // ─── Refresh ───────────────────────────────────────────────────────
   const handleRefresh = useCallback(() => {
     refetchSales();
@@ -874,283 +830,27 @@ const DailyTally = () => {
         </Card>
       </div>
 
-      {/* ═══ Cash Reconciliation ═══ */}
-      <Card className="border-[1.5px] border-slate-200 dark:border-slate-700">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-slate-100 font-bold">
-            <Wallet className="h-5 w-5 text-indigo-600" /> Closing Entry Form (Cash &amp; Bank)
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="rounded-lg border-[1.5px] border-slate-200 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-800/40">
-              <p className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1">Expected Bank/UPI Settlement</p>
-              <p className="text-2xl font-bold tabular-nums">{fmt(expectedBank)}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                (UPI + Card + Bank In) - Bank Out
-              </p>
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 block">Actual Bank/UPI Settlement</label>
-              <Input
-                type="number"
-                value={actualBankBalance || ""}
-                onChange={(e) => setActualBankBalance(Number(e.target.value) || 0)}
-                placeholder="0.00"
-                className="text-lg font-bold tabular-nums"
-              />
-              <p className={cn(
-                "text-sm font-semibold",
-                Math.abs(bankDifference) < 0.01 ? "text-emerald-600" : bankDifference > 0 ? "text-amber-600" : "text-red-600"
-              )}>
-                Bank Difference: {bankDifference >= 0 ? "+" : ""}{fmt(bankDifference)}
-              </p>
-            </div>
+      {/* ═══ Day close lives on its own page (Account Tally) ═══ */}
+      <Card className="border-[1.5px] border-teal-200 dark:border-teal-800 bg-teal-50/60 dark:bg-teal-950/20">
+        <CardContent className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 font-bold text-teal-800 dark:text-teal-300">
+              <Wallet className="h-5 w-5" /> Day close (cash count, handover, closing balance)
+            </p>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+              {snapshot
+                ? `Closed: counted ${fmt(physicalCash)}, ${difference === 0 ? "balanced" : difference > 0 ? `excess ${fmt(difference)}` : `short ${fmt(Math.abs(difference))}`}, owner ${fmt(Number(snapshot.handover_to_owner) || 0)}, bank ${fmt(depositToBank)}, closing ${fmt(leaveInDrawer)}.`
+                : `Not closed yet. Cash should be in drawer: ${fmt(expectedCash)}.`}
+            </p>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Left — Expected */}
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">
-                  Opening Cash
-                  {!snapshot && yesterdaySnapshot ? (
-                    <span className="ml-2 text-xs normal-case tracking-normal font-normal text-indigo-600">(Yesterday's closing balance)</span>
-                  ) : null}
-                </label>
-                <Input
-                  type="number"
-                  value={openingCash || ""}
-                  onChange={(e) => setOpeningCash(Number(e.target.value) || 0)}
-                  placeholder="0.00"
-                  className="text-lg font-bold tabular-nums"
-                />
-              </div>
-              {/* FIX 7: Improved Expected Cash formula label */}
-              <div className="rounded-lg border-[1.5px] border-slate-200 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-800/50">
-                <p className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1">Expected Cash</p>
-                <p className="text-3xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{fmt(expectedCash)}</p>
-                <div className="mt-2 font-mono text-xs text-slate-500 dark:text-slate-400 space-y-0.5">
-                  <div className="flex justify-between">
-                    <span>Opening Cash</span><span className="tabular-nums">{fmt(openingCash)}</span>
-                  </div>
-                  <div className="flex justify-between text-emerald-600">
-                    <span>+ Cash In (POS+Invoice+RCP+Adv)</span><span className="tabular-nums">{fmt(totalIn.cash)}</span>
-                  </div>
-                  <div className="flex justify-between text-rose-600">
-                    <span>− Cash Out (Expenses+Supplier+Salary)</span><span className="tabular-nums">{fmt(totalOut.cash)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-slate-700 dark:text-slate-300 border-t border-slate-200 dark:border-slate-600 pt-1">
-                    <span>= Expected Cash</span><span className="tabular-nums">{fmt(expectedCash)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Right — Physical Tally (Tabbed) */}
-            <div className="space-y-4">
-              <Tabs value={tallyTab} onValueChange={setTallyTab}>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Physical Cash Counted</label>
-                  <TabsList className="h-8">
-                    <TabsTrigger value="manual" className="text-xs px-3 py-1">Manual</TabsTrigger>
-                    <TabsTrigger value="denomination" className="text-xs px-3 py-1">Denomination</TabsTrigger>
-                  </TabsList>
-                </div>
-
-                <TabsContent value="manual" className="mt-0">
-                  <Input
-                    type="number"
-                    value={physicalCash || ""}
-                    onChange={(e) => setPhysicalCash(Number(e.target.value) || 0)}
-                    placeholder="0.00"
-                    className="text-lg font-bold tabular-nums"
-                  />
-                </TabsContent>
-
-                <TabsContent value="denomination" className="mt-0">
-                  <div className="rounded-lg border-[1.5px] border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 p-4 space-y-3">
-                    {/* Callout */}
-                    <div className="border-l-4 border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30 rounded-r-md px-3 py-2">
-                      <p className="text-xs text-indigo-700 dark:text-indigo-300 font-medium">
-                        🧮 Physical Tally (Blind Count) — Count what's in your drawer. Don't rely on system figures.
-                      </p>
-                    </div>
-                    {/* Denomination rows — FIX 5: includes ₹20 and ₹10 */}
-                    <div className="space-y-2">
-                      {DENOMINATIONS.map((denom) => (
-                        <div key={denom} className="flex items-center gap-3 py-1.5">
-                          <span className="bg-slate-100 dark:bg-slate-700 rounded-md px-3 py-1.5 font-bold text-sm tabular-nums min-w-[80px] text-center text-slate-800 dark:text-slate-200">
-                            ₹ {denom.toLocaleString("en-IN")}
-                          </span>
-                          <span className="text-slate-400 font-medium">×</span>
-                          <Input
-                            type="number"
-                            min={0}
-                            value={denomCounts[denom] || ""}
-                            onChange={(e) => setDenomCounts(prev => ({ ...prev, [denom]: Number(e.target.value) || 0 }))}
-                            className="h-11 w-24 text-center text-lg font-bold tabular-nums"
-                            placeholder="0"
-                          />
-                          <span className="text-slate-400 font-medium">=</span>
-                          <span className="text-right tabular-nums font-semibold text-sm text-slate-700 dark:text-slate-300 min-w-[100px]">
-                            {fmt(denom * (denomCounts[denom] || 0))}
-                          </span>
-                        </div>
-                      ))}
-                      {/* Coins / small notes bulk entry */}
-                      <div className="flex items-center gap-3 py-1.5 border-t border-slate-200 dark:border-slate-600 pt-3">
-                        <span className="bg-slate-100 dark:bg-slate-700 rounded-md px-3 py-1.5 font-bold text-sm min-w-[80px] text-center text-slate-800 dark:text-slate-200">
-                          Coins
-                        </span>
-                        <span className="text-slate-400 font-medium invisible">×</span>
-                        <Input
-                          type="number"
-                          min={0}
-                          value={coinsBulk || ""}
-                          onChange={(e) => setCoinsBulk(Number(e.target.value) || 0)}
-                          className="h-11 w-24 text-center text-lg font-bold tabular-nums"
-                          placeholder="₹"
-                        />
-                        <span className="text-slate-400 font-medium invisible">=</span>
-                        <span className="text-right tabular-nums font-semibold text-sm text-slate-700 dark:text-slate-300 min-w-[100px]">
-                          {fmt(coinsBulk)}
-                        </span>
-                      </div>
-                    </div>
-                    {/* Denomination Total */}
-                    <div className="border-t-2 border-indigo-200 dark:border-indigo-800 pt-3 flex items-center justify-between">
-                      <span className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Total Physical Cash</span>
-                      <span className="text-2xl font-bold tabular-nums text-indigo-700 dark:text-indigo-400">{fmt(denomTotal)}</span>
-                    </div>
-                  </div>
-                </TabsContent>
-              </Tabs>
-
-              {/* ═══ Variance Shield ═══ */}
-              <div className={cn(
-                "rounded-lg border-2 p-5 text-center",
-                Math.abs(difference) === 0 ? "border-emerald-600 bg-emerald-50 dark:bg-emerald-950/30" :
-                Math.abs(difference) <= 100 ? "border-amber-500 bg-amber-50 dark:bg-amber-950/30" :
-                "border-red-600 bg-red-50 dark:bg-red-950/30 animate-pulse"
-              )}>
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  {Math.abs(difference) === 0 ? (
-                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                  ) : Math.abs(difference) <= 100 ? (
-                    <AlertTriangle className="h-5 w-5 text-amber-600" />
-                  ) : (
-                    <XCircle className="h-5 w-5 text-red-600" />
-                  )}
-                  <p className={cn(
-                    "text-xs uppercase tracking-wider font-bold",
-                    Math.abs(difference) === 0 ? "text-emerald-700 dark:text-emerald-400" :
-                    Math.abs(difference) <= 100 ? "text-amber-700 dark:text-amber-400" : "text-red-700 dark:text-red-400"
-                  )}>
-                    {Math.abs(difference) === 0 ? "Cash Balanced" : Math.abs(difference) <= 100 ? "Minor Variance" : "Cash Mismatch"}
-                  </p>
-                </div>
-                <p className={cn(
-                  "text-4xl font-bold tabular-nums",
-                  Math.abs(difference) === 0 ? "text-emerald-700 dark:text-emerald-400" :
-                  Math.abs(difference) <= 100 ? "text-amber-700 dark:text-amber-400" : "text-red-700 dark:text-red-400"
-                )}>
-                  {difference >= 0 ? "+" : ""}{fmt(difference)}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 tabular-nums">
-                  Physical ({fmt(physicalCash)}) − Expected ({fmt(expectedCash)})
-                </p>
-              </div>
-            </div>
-          </div>
+          <Button
+            onClick={() => orgNavigate("/account-tally")}
+            className="shrink-0 gap-2 bg-teal-700 hover:bg-teal-800 text-white"
+          >
+            <Wallet className="h-4 w-4" /> {snapshot ? "Open Account Tally" : "Close the day"}
+          </Button>
         </CardContent>
       </Card>
-
-      {/* ═══ Settlement ═══ */}
-      <Card className="border-[1.5px] border-slate-200 dark:border-slate-700">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-slate-100 font-bold">
-            <TrendingDown className="h-5 w-5 text-indigo-600" /> Settlement (Optional)
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">Leave in Drawer</label>
-              <Input type="number" value={leaveInDrawer || ""} onChange={(e) => setLeaveInDrawer(Number(e.target.value) || 0)} placeholder="0.00" className="font-semibold tabular-nums" />
-            </div>
-            <div>
-              <label className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">Deposit to Bank</label>
-              <Input type="number" value={depositToBank || ""} onChange={(e) => setDepositToBank(Number(e.target.value) || 0)} placeholder="0.00" className="font-semibold tabular-nums" />
-            </div>
-            {/* FIX 6: Conditional styling for negative handover */}
-            <div>
-              <label className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">Handover to Owner</label>
-              <div className={cn(
-                "rounded-lg border-[1.5px] p-3",
-                handoverToOwner < 0
-                  ? "border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30"
-                  : "border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/30"
-              )}>
-                <p className={cn(
-                  "text-xl font-bold tabular-nums",
-                  handoverToOwner < 0 ? "text-red-700 dark:text-red-400" : "text-indigo-700 dark:text-indigo-400"
-                )}>{fmt(handoverToOwner)}</p>
-                <p className={cn(
-                  "text-xs font-medium",
-                  handoverToOwner < 0 ? "text-red-500 dark:text-red-400" : "text-indigo-500 dark:text-indigo-400"
-                )}>
-                  {handoverToOwner < 0 ? "⚠️ Over-allocated — reduce Drawer or Bank" : "Auto-calculated"}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="mt-4">
-            <label className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1.5 block">Notes</label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional settlement notes…" rows={2} />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* UI-1: Day-End Cash Summary strip */}
-      <Card className="border-[1.5px] border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30">
-        <CardContent className="py-4">
-          <p className="text-xs uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mb-3">Day-End Cash Summary</p>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            {[
-              { label: "Opening Cash", value: openingCash, color: "text-slate-700 dark:text-slate-300" },
-              { label: "Cash In", value: totalIn.cash, color: "text-emerald-700 dark:text-emerald-400" },
-              { label: "Cash Out", value: totalOut.cash, color: "text-red-700 dark:text-red-400" },
-              { label: "Expected Closing", value: expectedCash, color: "text-indigo-700 dark:text-indigo-400" },
-              { label: "Physical Counted", value: physicalCash, color: difference === 0 ? "text-emerald-700 dark:text-emerald-400" : Math.abs(difference) <= 100 ? "text-amber-700 dark:text-amber-400" : "text-red-700 dark:text-red-400" },
-            ].map(item => (
-              <div key={item.label} className="text-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2.5">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mb-1">{item.label}</p>
-                <p className={cn("text-lg font-bold tabular-nums", item.color)}>{fmt(item.value)}</p>
-              </div>
-            ))}
-          </div>
-          {difference !== 0 && (
-            <div className={cn(
-              "mt-3 text-center text-sm font-semibold rounded-md py-1.5",
-              difference > 0 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400" : "bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400"
-            )}>
-              {difference > 0 ? `Cash surplus: +${fmt(difference)}` : `Cash shortage: ${fmt(difference)}`}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* ═══ Save Snapshot — "The Final Touch" ═══ */}
-      <div className="flex justify-center pt-2">
-        <Button
-          onClick={() => saveMutation.mutate()}
-          disabled={saveMutation.isPending}
-          className="h-12 px-8 text-base font-semibold rounded-lg bg-indigo-700 hover:bg-indigo-800 text-white shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all duration-150 gap-2"
-        >
-          <Save className="h-5 w-5" /> Save Snapshot
-        </Button>
-      </div>
       </>
       )}
 

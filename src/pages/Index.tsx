@@ -53,6 +53,7 @@ import {
   Archive,
   Eye,
   EyeOff,
+  Wallet,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -267,6 +268,11 @@ const DesktopDashboard = () => {
       onClick: () => navigate("/daily-cashier-report"),
     },
     {
+      label: "Account Tally (day close)",
+      icon: Wallet,
+      onClick: () => navigate("/account-tally"),
+    },
+    {
       label: "Size-wise Stock",
       icon: Layers,
       onClick: () => setShowSizeStock(true),
@@ -294,6 +300,8 @@ const DesktopDashboard = () => {
   };
   
   const canViewGrossProfit = isAdmin || hasSpecialPermission("view_gross_profit");
+  const canViewAccountTally =
+    !permissionsLoading && (permissions === null || hasMenuAccess("daily_tally"));
   const canViewNetProfit =
     !permissionsLoading && (permissions === null || hasMenuAccess("net_profit_analysis"));
   const canViewSupplierBalance =
@@ -967,6 +975,20 @@ const DesktopDashboard = () => {
             )}
             {figuresHidden ? "Show" : "Hide"}
           </Button>
+          {canViewAccountTally && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/account-tally")}
+              onPointerEnter={() => prefetchTabPage("account-tally")}
+              onTouchStart={() => prefetchTabPage("account-tally", { intent: true })}
+              title="Day close: cash sale, card & UPI, cash count, handover and closing balance"
+              className="h-9 shrink-0 border-teal-200 bg-teal-50 text-sm font-medium text-teal-800 hover:bg-teal-100"
+            >
+              <Wallet className="mr-1.5 h-4 w-4" />
+              Account Tally
+            </Button>
+          )}
           {canViewNetProfit && (
             <Button
               variant="outline"
