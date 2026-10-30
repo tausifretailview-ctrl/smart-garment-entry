@@ -33,13 +33,14 @@ describe("GST Filing full view", () => {
     expect(reports).toContain("Import error report");
   });
 
-  it("reminds about a due return through the alert popups", () => {
+  it("reminds about a due return through the shop alerts (Notifications page, pop-up optional)", () => {
     expect(ALERT_POPUP_KINDS).toContain("gst_due");
     expect(ALERT_POPUP_LABELS.gst_due).toBe("GST return due");
-    expect(DEFAULT_ALERT_POPUP_PREFS.gst_due).toBe(true);
-    const host = read("src/components/alert-popups/AlertPopupHost.tsx");
-    expect(host).toContain('case "gst_due"');
-    expect(host).toContain('path: "/gst-filing"');
+    expect(DEFAULT_ALERT_POPUP_PREFS.gst_due).toBe(false);
+    const alerts = read("src/components/alert-popups/shopAlerts.ts");
+    expect(alerts).toContain('case "gst_due"');
+    expect(alerts).toContain('path: "/gst-filing"');
+    expect(read("src/pages/OwnerNotifications.tsx")).toContain("useShopAlerts(orgId)");
   });
 
   it("refuses edits and deletes of bills inside a filed period", () => {

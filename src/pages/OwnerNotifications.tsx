@@ -1,10 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
-import { BarChart3, Bell, BellRing, CheckCheck, ChevronRight, Loader2, PackageX, Receipt, RefreshCw, Star } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { BarChart3, Bell, BellRing, CheckCheck, ChevronRight, Loader2, PackageX, Receipt, RefreshCw, Settings2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AlertPopupSwitches } from "@/components/alert-popups/AlertPopupSwitches";
+import { TodaySalesWindow } from "@/components/alert-popups/TodaySalesWindow";
+import { KIND_STYLE as SHOP_ALERT_STYLE, useShopAlertAccess, useShopAlerts, type AlertPopup } from "@/components/alert-popups/shopAlerts";
+import { useAuth } from "@/contexts/AuthContext";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { useWindowTabs } from "@/contexts/WindowTabsContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { normalizeActivityPath, queueActivityNavigation } from "@/lib/activityCenterNavigation";
 import { useCanSeeOwnerAlerts, useOwnerAlertHistory } from "@/hooks/useOwnerAlertHistory";
 import {
   istDayBoundsIso,
@@ -20,6 +28,8 @@ import { cn } from "@/lib/utils";
  * Notifications: every owner alert the shop's phones were sent (bills, business
  * reports, day-end, low stock, reviews), numbered newest first, so a missed one can
  * be opened later. Clicking a row opens the same screen as tapping the phone alert.
+ * Above the list: today's shop alerts (GST due, low stock, dues, dead stock, today's
+ * sales), which no longer pop up on screen unless a user turns pop-ups on here.
  */
 
 const FILTERS: { id: OwnerAlertFilter; label: string }[] = [
@@ -57,6 +67,10 @@ const timeOf = (iso: string) =>
 
 export default function OwnerNotifications() {
   const { orgNavigate } = useOrgNavigation();
+  const { currentOrganization } = useOrganization();
+  const { user } = useAuth();
+  const orgId = currentOrganization?.id;
+  const userId = user?.id;
   const canSee = useCanSeeOwnerAlerts();
   const [today, setToday] = useState(() => istDayOffset(0));
   const [fromDay, setFromDay] = useState(() => istDayOffset(-29));
@@ -128,6 +142,17 @@ export default function OwnerNotifications() {
               Notifications
             </h1>
             <div className="flex shrink-0 items-center gap-1">
+              {orgId && userId ? (
+                <PopupSettings orgId={orgId} userId={userId}>
+                  <button
+                    type="button"
+                    aria-label="Pop-up alerts"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-600 touch-manipulation active:bg-slate-100 dark:text-muted-foreground dark:active:bg-muted"
+                  >
+                    <Settings2 className="h-4 w-4" />
+                  </button>
+                </PopupSettings>
+              ) : null}
               <button
                 type="button"
                 disabled={counts.unread === 0}
@@ -247,6 +272,14 @@ export default function OwnerNotifications() {
                 className="h-9 w-[9.5rem] border-slate-200 bg-white text-sm dark:bg-card"
               />
             </div>
+            {orgId && userId ? (
+              <PopupSettings orgId={orgId} userId={userId}>
+                <Button variant="outline" size="sm" className="h-9 gap-1.5 px-3 text-sm">
+                  <Settings2 className="h-4 w-4" />
+                  Pop-ups
+                </Button>
+              </PopupSettings>
+            ) : null}
             <Button
               variant="outline"
               size="sm"
@@ -299,6 +332,8 @@ export default function OwnerNotifications() {
             </button>
           ))}
         </div>
+
+        <ShopAlertsNow orgId={orgId} />
 
         {/* List */}
         <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-slate-200 bg-white shadow-sm dark:border-border dark:bg-card">
@@ -443,6 +478,99 @@ function Empty({ text }: { text: string }) {
     <div className="flex flex-col items-center justify-center px-6 py-20 text-center">
       <Bell className="mb-3 h-10 w-10 text-muted-foreground/40" />
       <p className="max-w-md text-[15px] text-muted-foreground">{text}</p>
+    </div>
+  );
+}
+
+/** Pop-up on/off switches (all off by default), opened from the toolbar. */
+function PopupSettings({ orgId, userId, children }: { orgId: string; userId: string; children: ReactNode }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>{children}</PopoverTrigger>
+      <PopoverContent align="end" className="w-80 p-0">
+        <p className="border-b border-border px-4 py-2.5 text-sm font-bold">Pop-up alerts</p>
+        <AlertPopupSwitches orgId={orgId} userId={userId} />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** Today's shop alerts as small cards; these used to pop up on screen. */
+function ShopAlertsNow({ orgId }: { orgId: string | undefined }) {
+  const { data: alerts = [], isLoading } = useShopAlerts(orgId);
+  const { canItemWiseSales } = useShopAlertAccess();
+  const { openWindow } = useWindowTabs();
+  const { orgNavigate } = useOrgNavigation();
+  const [salesWindowOpen, setSalesWindowOpen] = useState(false);
+
+  const goTo = (path: string, extraState?: Record<string, unknown>) => {
+    const navState = { ...(extraState ?? {}), activityNavTs: Date.now() };
+    if (orgId) queueActivityNavigation(orgId, path, navState);
+    const tabPath = normalizeActivityPath(path);
+    if (tabPath) openWindow(tabPath);
+    orgNavigate(path, { state: navState });
+  };
+
+  const open = (alert: AlertPopup) => {
+    if (alert.kind === "today_sold") setSalesWindowOpen(true);
+    else if (alert.path) goTo(alert.path, alert.navState);
+  };
+
+  if (!orgId || (!isLoading && alerts.length === 0)) return null;
+
+  return (
+    <div className="shrink-0">
+      <p className="mb-1 px-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Shop alerts now</p>
+      {isLoading ? (
+        <Skeleton className="h-[68px] w-full rounded-lg" />
+      ) : (
+        <div className="-mx-2 flex gap-2 overflow-x-auto px-2 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-3 xl:grid-cols-6 [&::-webkit-scrollbar]:hidden">
+          {alerts.map((alert) => {
+            const style = SHOP_ALERT_STYLE[alert.kind];
+            const Icon = style.icon;
+            const canOpen = alert.kind === "today_sold" || !!alert.path;
+            return (
+              <button
+                key={alert.kind}
+                type="button"
+                disabled={!canOpen}
+                onClick={() => open(alert)}
+                className="flex w-[17rem] shrink-0 items-start gap-2.5 rounded-lg border border-slate-200 bg-white p-2.5 text-left shadow-sm transition-colors touch-manipulation hover:bg-teal-50/60 disabled:cursor-default disabled:hover:bg-white sm:w-auto dark:border-border dark:bg-card dark:hover:bg-muted/60"
+              >
+                <span
+                  className={cn(
+                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br text-white",
+                    style.header,
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {style.label}
+                  </span>
+                  <span className="block truncate text-[13px] font-bold leading-snug text-foreground">{alert.title}</span>
+                  <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">{alert.body}</span>
+                </span>
+                {canOpen ? <ChevronRight className="mt-2 h-4 w-4 shrink-0 text-slate-400" /> : null}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <TodaySalesWindow
+        open={salesWindowOpen}
+        onOpenChange={setSalesWindowOpen}
+        orgId={orgId}
+        onOpenItemWiseSales={
+          canItemWiseSales
+            ? () => {
+                setSalesWindowOpen(false);
+                goTo("/item-wise-sales");
+              }
+            : undefined
+        }
+      />
     </div>
   );
 }
