@@ -105,8 +105,8 @@ function renderWithHtml2Canvas(
 }
 
 /**
- * Retail ERP / Motas multi-page invoices render one `.retail-erp-invoice-template`
- * (or `.motas-a4-page`) per
+ * Retail ERP / Motas / Modern Wholesale multi-page invoices render one
+ * `.retail-erp-invoice-template` (or `.motas-a4-page` / `.modern-wholesale-page`) per
  * physical page — capture each at exact page size instead of slicing one tall image.
  */
 async function capturePagedInvoiceTemplatesToPdfBlob(
@@ -116,7 +116,7 @@ async function capturePagedInvoiceTemplatesToPdfBlob(
   wappConnectPdf = false,
 ): Promise<Blob | null> {
   const pageEls = Array.from(
-    element.querySelectorAll<HTMLElement>(".retail-erp-invoice-template, .motas-a4-page"),
+    element.querySelectorAll<HTMLElement>(".retail-erp-invoice-template, .motas-a4-page, .modern-wholesale-page"),
   );
   if (pageEls.length === 0) return null;
 
@@ -147,7 +147,8 @@ async function capturePagedInvoiceTemplatesToPdfBlob(
     let offsetY = 0;
     if (canvasAspect > pageAspect) {
       drawH = pdfWidth / canvasAspect;
-      offsetY = (pdfHeight - drawH) / 2;
+      // Modern Wholesale sheets start at the top like paper; others stay centred.
+      offsetY = pageEls[i].classList.contains("modern-wholesale-page") ? 0 : (pdfHeight - drawH) / 2;
     } else {
       drawW = pdfHeight * canvasAspect;
       offsetX = (pdfWidth - drawW) / 2;

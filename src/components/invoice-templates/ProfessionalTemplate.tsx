@@ -783,7 +783,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         borderRadius: '3px',
         background: colors.accent
       }}>
-        <strong>Amount in Words:</strong> {numberToWords(grandTotal)} Only
+        <strong>Amount in Words:</strong> {numberToWords(grandTotal)}
       </div>
       
       {(pointsRedeemed > 0 || pointsBalance > 0) && (
