@@ -338,7 +338,7 @@ async function createCampaign(
   if (!message.trim() && !mediaUrl) return json({ error: "Type a message or attach a poster" }, 400);
   // "Send slowly all day": only inside shop hours (IST minutes after midnight), an average gap of gapMs
   // with ±40% randomness. The page works the gap out from the number count and the hours.
-  let slow: { from: number; to: number; minGapMs: number; maxGapMs: number } | null = null;
+  let slow: { from: number; to: number; minGapMs: number; maxGapMs: number; perDay: number | null } | null = null;
   if (body.slow) {
     const s = body.slow as Record<string, unknown>;
     const from = Math.round(Number(s.from));
@@ -348,7 +348,9 @@ async function createCampaign(
       return json({ error: "Sending hours must be at least 1 hour long" }, 400);
     }
     const gap = Math.min(2 * 60 * 60 * 1000, Math.max(60_000, gapMs));
-    slow = { from, to, minGapMs: Math.round(gap * 0.6), maxGapMs: Math.round(gap * 1.4) };
+    // Optional "messages per day": the rest wait for the next days' hours.
+    const perDay = Number(s.perDay) >= 1 ? Math.min(5000, Math.floor(Number(s.perDay))) : null;
+    slow = { from, to, minGapMs: Math.round(gap * 0.6), maxGapMs: Math.round(gap * 1.4), perDay };
   }
 
   const raw = Array.isArray(body.recipients) ? (body.recipients as Record<string, unknown>[]) : [];
@@ -447,6 +449,7 @@ async function createCampaign(
       minGapMs: slow ? slow.minGapMs : MIN_GAP_MS,
       maxGapMs: slow ? slow.maxGapMs : MAX_GAP_MS,
       window: slow ? { from: slow.from, to: slow.to } : undefined,
+      perDay: slow?.perDay ?? undefined,
       startAt,
       media: mediaUrl
         ? {

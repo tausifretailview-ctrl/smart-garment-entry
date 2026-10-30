@@ -32,6 +32,16 @@ export function windowOpenAt(ms: number, w: SendWindow): number {
   return (open - IST_OFFSET_MIN) * 60_000;
 }
 
+/** IST day number of a moment, to count a slow campaign's messages per day. */
+export function istDay(ms: number): number {
+  return Math.floor((Math.floor(ms / 60_000) + IST_OFFSET_MIN) / DAY_MIN);
+}
+
+/** When the window opens on the IST day after `ms`. */
+export function nextDayOpen(ms: number, w: SendWindow): number {
+  return ((istDay(ms) + 1) * DAY_MIN + w.from - IST_OFFSET_MIN) * 60_000;
+}
+
 /** 10:00 AM style, IST. */
 export function istTime(ms: number): string {
   return new Date(ms).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: true });

@@ -73,19 +73,32 @@ export interface SlowPlan {
   days: number;
 }
 
+/** Most messages a day the box takes (the number's own daily cap is 500). */
+export const SLOW_MAX_PER_DAY = 500;
+
+/** When the window opens on the IST day after `ms`. */
+function nextDayOpen(ms: number, w: SendWindow): number {
+  return ((istDay(ms) + 1) * DAY_MIN + w.from - IST_OFFSET_MIN) * 60_000;
+}
+
 /**
- * Spreads `count` messages evenly over the hours left on the start day. Gaps stay between 1 minute and
- * 2 hours, so a long list carries on into the next days' hours.
+ * Spreads the messages evenly over the hours left on the start day: all of them, or `perDay` a day when
+ * set (e.g. 150 a day from a list of 1,000). Gaps stay between 1 minute and 2 hours, so a long list
+ * carries on into the next days' hours.
  */
-export function planSlowSend(count: number, now: number, w: SendWindow, tomorrow: boolean): SlowPlan {
+export function planSlowSend(count: number, now: number, w: SendWindow, tomorrow: boolean, perDay?: number | null): SlowPlan {
   let start = windowOpenAt(now, w);
-  if (tomorrow && istDay(start) === istDay(now)) {
-    start = ((istDay(now) + 1) * DAY_MIN + w.from - IST_OFFSET_MIN) * 60_000;
-  }
+  if (tomorrow && istDay(start) === istDay(now)) start = nextDayOpen(now, w);
+  const daily = perDay && perDay > 0 ? Math.min(perDay, count) : count;
   const span = closesOn(start, w) - start;
-  const gapMs = Math.min(SLOW_MAX_GAP_MS, Math.max(SLOW_MIN_GAP_MS, Math.floor(span / Math.max(1, count))));
+  const gapMs = Math.min(SLOW_MAX_GAP_MS, Math.max(SLOW_MIN_GAP_MS, Math.floor(span / Math.max(1, daily))));
   let t = start;
-  for (let i = 1; i < count; i++) t = windowOpenAt(t + gapMs, w);
+  let today = 1;
+  for (let i = 1; i < count; i++) {
+    const next = today >= daily ? nextDayOpen(t, w) : windowOpenAt(t + gapMs, w);
+    today = istDay(next) === istDay(t) ? today + 1 : 1;
+    t = next;
+  }
   return {
     startAt: start - now > 60_000 ? start : null,
     gapMs,

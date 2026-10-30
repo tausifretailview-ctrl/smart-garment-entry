@@ -59,6 +59,15 @@ describe("send slowly all day", () => {
     expect(windowOpenAt(p.finishAt, W)).toBe(p.finishAt);
   });
 
+  it("sends only so many a day when a daily count is set", () => {
+    const p = planSlowSend(1000, ist("2026-10-30T09:00:00"), W, false, 150);
+    expect(p.gapMs).toBe(Math.floor((11 * 60 * 60_000) / 150)); // 4.4 min
+    expect(p.days).toBe(7);
+    const short = planSlowSend(100, ist("2026-10-30T09:00:00"), W, false, 150);
+    expect(short.days).toBe(1);
+    expect(short.gapMs).toBe(Math.floor((11 * 60 * 60_000) / 100));
+  });
+
   it("reads and writes time boxes", () => {
     expect(timeToMinutes("09:30")).toBe(570);
     expect(timeToMinutes("x")).toBeNull();

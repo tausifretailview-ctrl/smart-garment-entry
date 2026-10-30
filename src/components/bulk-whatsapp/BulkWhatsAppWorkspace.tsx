@@ -61,6 +61,7 @@ import { SCHEDULE_MAX_DAYS, ScheduledCampaigns, localInput, scheduleTimeOk } fro
 import { CustomerMasterPicker } from "./CustomerMasterPicker";
 import {
   SLOW_DEFAULT_WINDOW,
+  SLOW_MAX_PER_DAY,
   minutesToTime,
   planSlowSend,
   slowStartsTomorrowByDefault,
@@ -201,6 +202,8 @@ export function BulkWhatsAppWorkspace({
   const [slowOn, setSlowOn] = useState(false);
   const [slowWindow, setSlowWindow] = useState<SendWindow>(SLOW_DEFAULT_WINDOW);
   const [slowTomorrow, setSlowTomorrow] = useState(false);
+  /** Messages a day (e.g. 150); empty = the whole list in one day. */
+  const [slowPerDay, setSlowPerDay] = useState("");
   /** One campaign is made per time: the same message can go out morning and evening, or on several days. */
   const [sendAts, setSendAts] = useState<string[]>([]);
   const [checking, setChecking] = useState<{ done: number; total: number } | null>(null);
@@ -598,9 +601,14 @@ export function BulkWhatsAppWorkspace({
   };
   const scheduleOk = !scheduleOn || (sendAts.length > 0 && sendAts.every((_, i) => timeProblem(i) === null));
   const slowWindowOk = windowOk(slowWindow);
+  const perDayNum = slowPerDay.trim() ? Math.floor(Number(slowPerDay)) : null;
+  const slowPerDayOk = perDayNum === null || (perDayNum >= 1 && perDayNum <= SLOW_MAX_PER_DAY);
   const slowPlan = useMemo(
-    () => (slowOn && slowWindowOk && contacts.length ? planSlowSend(contacts.length, Date.now(), slowWindow, slowTomorrow) : null),
-    [slowOn, slowWindowOk, contacts.length, slowWindow, slowTomorrow],
+    () =>
+      slowOn && slowWindowOk && slowPerDayOk && contacts.length
+        ? planSlowSend(contacts.length, Date.now(), slowWindow, slowTomorrow, perDayNum)
+        : null,
+    [slowOn, slowWindowOk, slowPerDayOk, contacts.length, slowWindow, slowTomorrow, perDayNum],
   );
   const fmtGap = (ms: number) => {
     const mins = Math.round(ms / 60_000);
@@ -612,7 +620,9 @@ export function BulkWhatsAppWorkspace({
     return days === 0 ? `today ${format(d, "hh:mm a")}` : days === 1 ? `tomorrow ${format(d, "hh:mm a")}` : format(d, "dd MMM, hh:mm a");
   };
   const slowSummary = slowPlan
-    ? `${slowPlan.startAt ? `Starts ${fmtDay(slowPlan.startAt)}` : "Starts now"}, 1 message about every ${fmtGap(slowPlan.gapMs)}. Last one about ${fmtDay(slowPlan.finishAt)}${slowPlan.days > 1 ? ` (over ${slowPlan.days} days)` : ""}.`
+    ? `${slowPlan.startAt ? `Starts ${fmtDay(slowPlan.startAt)}` : "Starts now"}${
+        perDayNum && perDayNum < contacts.length ? `, ${perDayNum} a day` : ""
+      }, 1 message about every ${fmtGap(slowPlan.gapMs)}. Last one about ${fmtDay(slowPlan.finishAt)}${slowPlan.days > 1 ? ` (over ${slowPlan.days} days)` : ""}.`
     : "";
   const fmtTimes = (fmt: string) => scheduleTimes.map((t) => format(t, fmt)).join(", ");
   const canSend =
@@ -620,7 +630,7 @@ export function BulkWhatsAppWorkspace({
     contacts.length > 0 &&
     (message.trim() !== "" || attachment !== null) &&
     scheduleOk &&
-    (!slowOn || slowWindowOk) &&
+    (!slowOn || (slowWindowOk && slowPerDayOk)) &&
     !sending &&
     !checking &&
     !savingContacts &&
@@ -633,7 +643,7 @@ export function BulkWhatsAppWorkspace({
       let mediaUrl: string | null = savedMedia?.url ?? null;
       if (media) mediaUrl = await uploadMedia(media);
       // Slow: worked out again at send time, so "starts now" and the gap are right even if the page sat open.
-      const plan = slowOn ? planSlowSend(contacts.length, Date.now(), slowWindow, slowTomorrow) : null;
+      const plan = slowOn ? planSlowSend(contacts.length, Date.now(), slowWindow, slowTomorrow, perDayNum) : null;
       const times: (Date | null)[] = plan ? [plan.startAt ? new Date(plan.startAt) : null] : scheduleTimes.length ? scheduleTimes : [null];
       let res: { total?: number; unsubscribed?: number; alreadySent?: number } = {};
       for (let i = 0; i < times.length; i++) {
@@ -649,7 +659,7 @@ export function BulkWhatsAppWorkspace({
             mediaName: attachment?.name ?? null,
             videoQuality: attachment?.type.startsWith("video/") ? videoQuality : null,
             startAt: t ? t.toISOString() : null,
-            slow: plan ? { from: slowWindow.from, to: slowWindow.to, gapMs: plan.gapMs } : null,
+            slow: plan ? { from: slowWindow.from, to: slowWindow.to, gapMs: plan.gapMs, perDay: perDayNum } : null,
             recipients: contacts,
           });
         } catch (e) {
@@ -674,6 +684,7 @@ export function BulkWhatsAppWorkspace({
       setName("");
       setScheduleOn(false);
       setSlowOn(false);
+      setSlowPerDay("");
       setSendAts([]);
       await queryClient.invalidateQueries({ queryKey: ["bulk-whatsapp-campaigns", orgId] });
     } catch (e) {
@@ -1225,6 +1236,20 @@ export function BulkWhatsAppWorkspace({
                     </div>
                   ))}
                 </div>
+                <div className="space-y-0.5">
+                  <Label className="text-[11px] text-slate-600">Messages per day</Label>
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={SLOW_MAX_PER_DAY}
+                    placeholder={contacts.length ? `All ${contacts.length} in one day` : "All in one day"}
+                    value={slowPerDay}
+                    onChange={(e) => setSlowPerDay(e.target.value.replace(/\D/g, ""))}
+                    className="h-9 text-sm"
+                  />
+                  {!slowPerDayOk && <p className="text-[11px] text-red-600">Enter 1 to {SLOW_MAX_PER_DAY} a day.</p>}
+                </div>
                 <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 text-[11px] font-medium">
                   {([false, true] as const).map((tomorrow) => (
                     <button
@@ -1247,7 +1272,8 @@ export function BulkWhatsAppWorkspace({
                 ) : null}
                 <p className="text-[11px] text-slate-500">
                   Spreads the numbers evenly over these hours (IST) with a random gap of minutes, not seconds, so it
-                  looks like normal chatting. Nothing goes outside these hours; what is left continues the next day.
+                  looks like normal chatting. With a messages-per-day count, only that many go each day and the rest
+                  continue the next days. Nothing goes outside these hours.
                   Keep your phone online.
                 </p>
               </div>

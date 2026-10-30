@@ -4,7 +4,7 @@ import pino from "pino";
 import { type BulkContent, type InboxEvent, type ReceiptStatus, type SessionManager, WARMUP_GAP_MS } from "./sessions.js";
 import { removeCampaignVideos, shrinkVideo, type VideoQuality } from "./video.js";
 import { pruneVideos } from "./storage.js";
-import { type SendWindow, istTime, parseWindow, windowOpenAt } from "./slowWindow.js";
+import { type SendWindow, istDay, istTime, nextDayOpen, parseWindow, windowOpenAt } from "./slowWindow.js";
 
 /**
  * Bulk WhatsApp campaigns. Each job is saved on the volume and sent one number at a time with a
@@ -54,6 +54,11 @@ interface CampaignJob {
   window?: SendWindow;
   /** Slow campaigns: no message before this time (ISO). */
   nextAt?: string;
+  /** Slow campaigns: at most this many messages a day; the rest go on the next days. */
+  perDay?: number;
+  /** IST day number and how many messages this campaign sent on it (for perDay). */
+  sentDay?: number;
+  sentToday?: number;
   /** Last note sent to the app while a slow campaign waits, so it is not posted again. */
   slowNote?: string;
 }
@@ -329,6 +334,7 @@ export class CampaignRunner {
     const job: CampaignJob = {
       campaignId, sessionId, status: "running", media, minGapMs, maxGapMs, items, createdAt: new Date().toISOString(),
       reportUrl, startAt, window,
+      perDay: window && Number(input.perDay) >= 1 ? Math.min(5000, Math.floor(Number(input.perDay))) : undefined,
     };
     this.jobs.set(campaignId, job);
     this.save(job);
@@ -625,10 +631,20 @@ export class CampaignRunner {
         if (job.window) {
           // Slow campaign: remember when the next message is due (survives a restart) instead of holding the
           // number, so other campaigns can go out in between. A normal gap still follows this message.
-          const due = windowOpenAt(Date.now() + wait, job.window);
+          const today = istDay(Date.now());
+          job.sentToday = job.sentDay === today ? (job.sentToday ?? 0) + 1 : 1;
+          job.sentDay = today;
+          const due = job.perDay && job.sentToday >= job.perDay
+            ? nextDayOpen(Date.now(), job.window)
+            : windowOpenAt(Date.now() + wait, job.window);
           job.nextAt = new Date(due).toISOString();
           this.save(job);
-          this.slowNote(job, `Sending slowly. Next message about ${istTime(due)}.`);
+          this.slowNote(
+            job,
+            job.perDay && job.sentToday >= job.perDay
+              ? `Today's ${job.perDay} sent. Continues tomorrow at ${istTime(due)}.`
+              : `Sending slowly. Next message about ${istTime(due)}.`,
+          );
           await sleep(DEFAULT_GAP_MS[0] + Math.random() * (DEFAULT_GAP_MS[1] - DEFAULT_GAP_MS[0]));
         } else {
           await this.gap(job, wait);
