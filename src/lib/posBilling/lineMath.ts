@@ -107,6 +107,13 @@ export function applyPosGarmentGstForBill(
   return changed ? next : items;
 }
 
+/** Line "Disc Rs" as the desktop POS grid shows it: typed ₹ when set, else Disc % of MRP × qty. */
+export function posLineDiscountRupees(item: PosCartItem): number {
+  if (Number(item.discountAmount) > 0) return Number(item.discountAmount);
+  const baseAmount = Math.max(0, (Number(item.mrp) || 0) * (Number(item.quantity) || 0));
+  return Math.round(((baseAmount * (Number(item.discountPercent) || 0)) / 100) * 100) / 100;
+}
+
 export function sumLineDiscount(rows: PosCartItem[]): number {
   return rows.reduce((sum, item) => {
     if (item.categoryTierApplied) {

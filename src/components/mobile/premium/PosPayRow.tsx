@@ -8,6 +8,7 @@
  */
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MOBILE_BOTTOM_NAV_HEIGHT } from "@/lib/mobileShell";
 
 export type PayMethod = "cash" | "upi" | "card" | "pay_later";
 
@@ -43,7 +44,8 @@ export function PosPayRow({
   return (
     <div
       className="ez shrink-0 border-t-2 border-[var(--ez-ink)] bg-[var(--ez-ground)]"
-      style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px))" }}
+      // Clear the fixed bottom nav (OwnerBottomNav) so Cash / UPI / Card / Mix stay tappable.
+      style={{ paddingBottom: `calc(${MOBILE_BOTTOM_NAV_HEIGHT} + env(safe-area-inset-bottom, 0px))` }}
     >
       <div className="flex items-end justify-between gap-3 px-3.5 pb-2 pt-2.5">
         <div className="min-w-0">
