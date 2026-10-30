@@ -9,7 +9,7 @@ import { normalizeWhatsAppApiBaseUrl, normalizeWhatsAppApiVersion } from "../_sh
 import { buildPublicInvoiceViewUrl, WHATSAPP_FALLBACK_HEADER_IMAGE_URL } from "../_shared/publicInvoiceLink.ts";
 import { formatPhoneNumber } from "../_shared/whatsappPhone.ts";
 import { getGatewayConfig, sendViaBuiltinGateway } from "../_shared/builtinGatewaySend.ts";
-import { joinBillCustomer, runInBackground } from "../_shared/builtinCustomerJoin.ts";
+import { groupInviteLine, joinBillCustomer, runInBackground } from "../_shared/builtinCustomerJoin.ts";
 import { loadCreditBlockReason } from "../_shared/whatsappCredits.ts";
 import { isBspSendAccepted } from "../_shared/whatsappStatusWebhook.ts";
 import {
@@ -863,6 +863,11 @@ serve(async (req) => {
       // Ezzy ERP WhatsApp always does this: WhatsApp keeps document captions, and fewer sends
       // per bill lowers the ban risk on the shop's number.
       const wantsSingleMessage = isBuiltin || orgSettings?.wappconnect_single_message === true;
+      // Shop's WhatsApp group: its join link goes at the end of the bill (customers join themselves).
+      if (isBuiltin && referenceType === 'sale') {
+        const inviteLine = await groupInviteLine(organizationId, orgSettings as Record<string, unknown> | null);
+        if (inviteLine) resolvedMessage = [resolvedMessage, inviteLine].filter(Boolean).join('\n\n');
+      }
       const wappConnectResult = isBuiltin
         ? {
             ...(await sendViaBuiltinGateway(organizationId, formattedPhone, {
@@ -930,7 +935,7 @@ serve(async (req) => {
         );
       }
 
-      // Bill customers: save as contact / add to the shop's WhatsApp group (Settings > WhatsApp, off by default).
+      // Bill customers: save as contact (Settings > WhatsApp, off by default).
       if (isBuiltin && referenceType === 'sale') {
         runInBackground(joinBillCustomer(
           supabase,
