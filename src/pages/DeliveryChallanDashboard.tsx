@@ -44,6 +44,8 @@ import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersB
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { cn } from "@/lib/utils";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { postSaleJournalInBackground } from "@/utils/accounting/journalService";
 
 export default function DeliveryChallanDashboard() {
   const { toast } = useToast();
@@ -251,6 +253,8 @@ export default function DeliveryChallanDashboard() {
           flat_discount_amount: challan.flat_discount_amount,
           round_off: challan.round_off,
           net_amount: netAmount,
+          // GST is added on top of the challan line totals below, as on a GST-exclusive invoice.
+          tax_type: defaultGst > 0 ? 'exclusive' : 'inclusive',
           payment_method: 'pay_later',
           payment_status: 'pending',
           organization_id: currentOrganization?.id,
@@ -277,11 +281,25 @@ export default function DeliveryChallanDashboard() {
         unit_price: item.unit_price,
         mrp: item.mrp,
         discount_percent: item.discount_percent,
+        // line_total above includes this GST; the invoice journal and GST reports read the rate.
+        gst_percent: item.gst_percent,
         line_total: item.line_total,
         hsn_code: item.hsn_code,
       }));
       const { error: itemsError } = await supabase.from('sale_items').insert(saleItemsData);
       if (itemsError) throw itemsError;
+
+      if (isAccountingEngineEnabled(orgSettings as { accounting_engine_enabled?: boolean } | null)) {
+        postSaleJournalInBackground(
+          saleData.id,
+          currentOrganization!.id,
+          Number(saleData.net_amount ?? netAmount),
+          0,
+          'pay_later',
+          saleData.sale_date,
+          supabase,
+        );
+      }
 
       await supabase
         .from('delivery_challans')

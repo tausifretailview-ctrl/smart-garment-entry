@@ -9,6 +9,7 @@ import { downloadJsPdf } from "@/utils/mobileDocumentDelivery";
 import { useQueryClient, useMutation, useQuery, keepPreviousData } from "@tanstack/react-query";
 import { STALE_DASHBOARD_TAB_RETURN, STALE_FREQUENT, STALE_REFERENCE } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
+import { postCustomerRefundVoucherJournal } from "@/utils/accounting/journalService";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { useOrgLedgerReferenceFetcher } from "@/hooks/useOrgLedgerReferenceData";
 import {
@@ -3371,23 +3372,37 @@ Please clear your dues at the earliest. Thank you!`;
                 const { data: { user } } = await supabase.auth.getUser();
                 const voucherNum = `REFUND-${Date.now()}`;
                 const refundMode = overpaymentRefundMode || "cash";
-                const { error } = await supabase
+                const refundDate = new Date().toISOString().split('T')[0];
+                const refundDescription =
+                  overpaymentRefundNote ||
+                  `Overpayment refund to ${selectedCustomer.customer_name} (${refundMode})`;
+                const { data: refundVoucher, error } = await supabase
                   .from('voucher_entries')
                   .insert({
                     organization_id: organizationId,
                     voucher_type: 'payment',
                     voucher_number: voucherNum,
-                    voucher_date: new Date().toISOString().split('T')[0],
+                    voucher_date: refundDate,
                     reference_type: 'customer',
                     reference_id: selectedCustomer.id,
                     total_amount: amount,
                     payment_method: refundMode,
-                    description:
-                      overpaymentRefundNote ||
-                      `Overpayment refund to ${selectedCustomer.customer_name} (${refundMode})`,
+                    description: refundDescription,
                     created_by: user?.id || null,
-                  });
+                  })
+                  .select('id')
+                  .single();
                 if (error) throw error;
+                // Ledger: the customer's credit sits in Debtors; paying it back is Dr Debtors, Cr Cash/Bank.
+                await postCustomerRefundVoucherJournal({
+                  organizationId,
+                  voucherId: refundVoucher?.id ?? "",
+                  amount,
+                  paymentMethod: refundMode,
+                  date: refundDate,
+                  description: refundDescription,
+                  client: supabase,
+                });
 
                 // Consume pending sale-return / CN credit so it cannot be applied again
                 // after cash was paid out (same pattern as Sale Return → Refund CN).

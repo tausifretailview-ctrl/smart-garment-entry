@@ -96,6 +96,17 @@ function isMissingBankAccountColumn(err: unknown): boolean {
   return (e?.code === "42703" || e?.code === "PGRST204") && /bank_account_id/i.test(e?.message || "");
 }
 
+/** Reads `settings.accounting_engine_enabled` for the org (on unless explicitly false). */
+export async function isAccountingEngineOnForOrg(organizationId: string, client: any = supabase): Promise<boolean> {
+  if (!organizationId) return false;
+  const { data } = await client
+    .from("settings")
+    .select("accounting_engine_enabled")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  return isAccountingEngineEnabled(data as { accounting_engine_enabled?: boolean } | null);
+}
+
 /**
  * Single entry point for chart postings: balance check, idempotency by (org, reference_type, reference_id),
  * insert header + lines (rolls back header if line insert fails).
@@ -566,6 +577,37 @@ export async function recordCustomerAdvanceApplicationJournalEntry(
 }
 
 /**
+ * One CustomerAdvanceApplication journal per advance_adjustment voucher, each for that voucher's
+ * own amount, so deleting or restoring one voucher reverses or re-posts just its share.
+ */
+export async function postAdvanceApplicationJournalsForVouchers(
+  voucherIds: string[],
+  organizationId: string,
+  entryDate: string,
+  description: string,
+  client: any = supabase
+): Promise<void> {
+  const ids = [...new Set(voucherIds.filter(Boolean))];
+  if (!ids.length) return;
+  const { data, error } = await client
+    .from("voucher_entries")
+    .select("id, total_amount")
+    .eq("organization_id", organizationId)
+    .in("id", ids);
+  if (error) throw error;
+  for (const v of (data ?? []) as Array<{ id: string; total_amount: number | null }>) {
+    await recordCustomerAdvanceApplicationJournalEntry(
+      v.id,
+      organizationId,
+      Number(v.total_amount ?? 0),
+      entryDate,
+      description,
+      client
+    );
+  }
+}
+
+/**
  * Customer advance booking (`customer_advances` row): DR Cash/Bank, CR Customer Advances (2150).
  */
 export async function recordCustomerAdvanceReceiptJournalEntry(
@@ -608,6 +650,48 @@ export async function recordCustomerAdvanceReceiptJournalEntry(
     client,
   });
   return result.journalEntryId;
+}
+
+/**
+ * After an advance's amount or payment mode is edited, replace its receipt journal from the saved
+ * row. Only advances that already had one are re-posted: older advances that never reached the
+ * ledger may sit in opening balances instead.
+ */
+export async function repostCustomerAdvanceReceiptJournal(
+  customerAdvanceId: string,
+  organizationId: string,
+  client: any = supabase
+): Promise<void> {
+  if (!customerAdvanceId || !(await isAccountingEngineOnForOrg(organizationId, client))) return;
+  const { data: existing, error: existingErr } = await client
+    .from("journal_entries")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("reference_type", "CustomerAdvanceReceipt")
+    .eq("reference_id", customerAdvanceId)
+    .limit(1);
+  if (existingErr) throw existingErr;
+  if (!existing?.length) return;
+
+  const { data: adv, error: advErr } = await client
+    .from("customer_advances")
+    .select("id, amount, payment_method, advance_date, advance_number, description")
+    .eq("id", customerAdvanceId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (advErr) throw advErr;
+  if (!adv) return;
+
+  await deleteJournalEntryByReference(organizationId, "CustomerAdvanceReceipt", customerAdvanceId, client);
+  await recordCustomerAdvanceReceiptJournalEntry(
+    customerAdvanceId,
+    organizationId,
+    Number(adv.amount ?? 0),
+    String(adv.payment_method || "cash"),
+    String(adv.advance_date || new Date().toISOString()).slice(0, 10),
+    String(adv.description || "").trim() || `Advance ${adv.advance_number ?? ""}`.trim(),
+    client
+  );
 }
 
 /**
@@ -711,6 +795,178 @@ export async function recordCustomerCreditNoteApplicationJournalEntry(
     client,
   });
   return result.journalEntryId;
+}
+
+/**
+ * Money paid back to a customer (`voucher_type` payment, `reference_type` customer): credit note
+ * refund, overpayment refund, POS exchange refund. DR Receivable (the customer's credit is used up),
+ * CR Cash/Bank. A `round_off` voucher is credit the customer gave up: CR Round Off instead.
+ * Reference type `Payment` so a voucher delete reverses it (post_journal_reversal_for_voucher_ref).
+ * Not for a sale return's own cash refund voucher: that return's journal already credited Cash.
+ */
+export async function recordCustomerRefundJournalEntry(
+  voucherEntryId: string,
+  organizationId: string,
+  amount: number,
+  paymentMethod: string,
+  entryDate: string,
+  description: string,
+  client: any = supabase
+) {
+  if (!voucherEntryId) throw new Error("voucherEntryId is required");
+  if (!organizationId) throw new Error("organizationId is required");
+
+  const net = round2(amount);
+  if (net <= 0) return null;
+
+  const systemAccounts = await seedDefaultAccounts(organizationId, client);
+  const arAccount = getAccountByCode(systemAccounts, "1200");
+  if (!arAccount) throw new Error("Missing chart account Accounts Receivable (1200) for customer refund");
+
+  const pm = String(paymentMethod || "").toLowerCase().trim();
+  const creditAccount =
+    pm === "round_off"
+      ? getAccountByCode(systemAccounts, "6900")
+      : resolveCashOrBankLedgerAccount(systemAccounts, pm || "cash");
+  if (!creditAccount) throw new Error("Missing chart account Round Off (6900) for customer refund");
+
+  const desc = description.trim() || `Customer refund ${voucherEntryId.slice(0, 8)}`;
+  const result = await postJournalEntry({
+    organizationId,
+    date: entryDate,
+    referenceType: "Payment",
+    referenceId: voucherEntryId,
+    description: desc,
+    lines: [
+      { accountId: arAccount.id, debitAmount: net, creditAmount: 0 },
+      { accountId: creditAccount.id, debitAmount: 0, creditAmount: net },
+    ],
+    client,
+  });
+  return result.journalEntryId;
+}
+
+/**
+ * Refund received from a supplier against a purchase credit note (`voucher_type` receipt,
+ * `reference_type` supplier): DR Cash/Bank, CR Creditors (the supplier's debit is cleared).
+ */
+export async function recordSupplierRefundReceiptJournalEntry(
+  voucherEntryId: string,
+  organizationId: string,
+  amount: number,
+  paymentMethod: string,
+  entryDate: string,
+  description: string,
+  client: any = supabase
+) {
+  if (!voucherEntryId) throw new Error("voucherEntryId is required");
+  if (!organizationId) throw new Error("organizationId is required");
+
+  const net = round2(amount);
+  if (net <= 0) return null;
+
+  const systemAccounts = await seedDefaultAccounts(organizationId, client);
+  const apAccount = getAccountByCode(systemAccounts, "2000");
+  if (!apAccount) throw new Error("Missing chart account Accounts Payable (2000) for supplier refund");
+  const receiptAccount = resolveCashOrBankLedgerAccount(systemAccounts, paymentMethod || "cash");
+
+  const desc = description.trim() || `Supplier refund ${voucherEntryId.slice(0, 8)}`;
+  const result = await postJournalEntry({
+    organizationId,
+    date: entryDate,
+    referenceType: "Payment",
+    referenceId: voucherEntryId,
+    description: desc,
+    lines: [
+      { accountId: receiptAccount.id, debitAmount: net, creditAmount: 0 },
+      { accountId: apAccount.id, debitAmount: 0, creditAmount: net },
+    ],
+    client,
+  });
+  return result.journalEntryId;
+}
+
+type RefundVoucherJournalParams = {
+  organizationId: string;
+  voucherId: string;
+  amount: number;
+  paymentMethod: string;
+  date: string;
+  description: string;
+  client?: any;
+};
+
+/**
+ * Post the journal of a refund voucher that was just saved, when the ledger is on. If posting
+ * fails the voucher is removed and the error rethrown, so a refund is never half-recorded.
+ */
+async function postRefundVoucherJournalOrUndo(
+  params: RefundVoucherJournalParams,
+  post: (client: any) => Promise<unknown>,
+): Promise<void> {
+  const client = params.client ?? supabase;
+  if (!params.voucherId || !(await isAccountingEngineOnForOrg(params.organizationId, client))) return;
+  try {
+    await post(client);
+  } catch (err) {
+    await deleteJournalEntryByReference(params.organizationId, "Payment", params.voucherId, client);
+    await client.from("voucher_entries").delete().eq("id", params.voucherId);
+    throw err;
+  }
+}
+
+/** Customer refund voucher just saved → Dr Debtors, Cr Cash/Bank (see recordCustomerRefundJournalEntry). */
+export function postCustomerRefundVoucherJournal(params: RefundVoucherJournalParams): Promise<void> {
+  return postRefundVoucherJournalOrUndo(params, (client) =>
+    recordCustomerRefundJournalEntry(
+      params.voucherId,
+      params.organizationId,
+      params.amount,
+      params.paymentMethod,
+      params.date,
+      params.description,
+      client,
+    ),
+  );
+}
+
+/** Supplier refund receipt just saved → Dr Cash/Bank, Cr Creditors. */
+export function postSupplierRefundReceiptJournal(params: RefundVoucherJournalParams): Promise<void> {
+  return postRefundVoucherJournalOrUndo(params, (client) =>
+    recordSupplierRefundReceiptJournalEntry(
+      params.voucherId,
+      params.organizationId,
+      params.amount,
+      params.paymentMethod,
+      params.date,
+      params.description,
+      client,
+    ),
+  );
+}
+
+/**
+ * Re-post a refund voucher's journal after a recycle-bin restore, only when the voucher carried one
+ * before it was deleted (its delete left a reversed `Payment` journal). Refund vouchers written by a
+ * sale return's own cash refund never had one and must stay without, and older refunds were saved
+ * before refunds were journaled.
+ */
+async function repostRefundVoucherIfJournaledBefore(
+  voucherId: string,
+  orgId: string,
+  post: () => Promise<unknown>,
+  client: any
+): Promise<void> {
+  const { data: rows, error } = await client
+    .from("journal_entries")
+    .select("id")
+    .eq("organization_id", orgId)
+    .eq("reference_type", "Payment")
+    .eq("reference_id", voucherId)
+    .limit(1);
+  if (error) throw error;
+  if (!rows?.length) return;
+  await post();
 }
 
 /**
@@ -837,6 +1093,26 @@ export async function repostJournalForRestoredVoucher(voucherId: string, client:
     return;
   }
 
+  if (vt === "payment" && rt === "customer") {
+    await repostRefundVoucherIfJournaledBefore(
+      voucherId,
+      orgId,
+      () => recordCustomerRefundJournalEntry(voucherId, orgId, amt, pm || "cash", vDate, desc, client),
+      client,
+    );
+    return;
+  }
+
+  if (vt === "receipt" && rt === "supplier") {
+    await repostRefundVoucherIfJournaledBefore(
+      voucherId,
+      orgId,
+      () => recordSupplierRefundReceiptJournalEntry(voucherId, orgId, amt, pm || "cash", vDate, desc, client),
+      client,
+    );
+    return;
+  }
+
   if (vt === "receipt" && rt === "student_fee") {
     await recordSchoolFeeReceiptJournalEntry(voucherId, orgId, amt, pm || "cash", vDate, desc, client);
     return;
@@ -845,6 +1121,9 @@ export async function repostJournalForRestoredVoucher(voucherId: string, client:
   if (vt === "receipt" && (rt === "customer" || rt === "sale")) {
     // The bill's counter tender written as a voucher: the Sale journal already booked that cash.
     if (rt === "sale" && /^counter payment received for sale/i.test(desc.trim())) return;
+    // Book adjustments, not money received: their screens post no journal, so neither does a
+    // restore or the backfill (posting them as a receipt put money in Cash / Bank).
+    if (pm === "balance_adjustment" || pm === "round_off") return;
     if (pm === "advance_adjustment") {
       await recordCustomerAdvanceApplicationJournalEntry(voucherId, orgId, amt, vDate, desc, client);
       return;

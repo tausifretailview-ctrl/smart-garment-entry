@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { syncDailyTallyBankDeposit } from "@/utils/accounting/bankStatement";
+import { syncDayCloseCashJournal } from "@/utils/accounting/dayCloseJournal";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { localDayBounds } from "@/lib/localDayBounds";
 import DailyTallyReport from "@/components/DailyTallyReport";
@@ -315,6 +316,18 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
         });
       } catch (e) {
         toast.warning(`Tally saved, but the bank deposit was not posted: ${(e as Error).message}`);
+      }
+      // Owner handover and cash short/excess go to the ledger so Cash in Hand follows the drawer.
+      try {
+        await syncDayCloseCashJournal({
+          organizationId: orgId!,
+          snapshotId: (data as { id: string }).id,
+          tallyDate: dateStr,
+          handover: handoverToOwner,
+          difference,
+        });
+      } catch (e) {
+        toast.warning(`Tally saved, but the owner handover / cash difference was not posted: ${(e as Error).message}`);
       }
     },
     onSuccess: () => {

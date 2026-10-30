@@ -3,6 +3,8 @@ import {
   computeSaleRevenueBreakdown,
   counterTenderInSaleJournal,
   isOnOrAfterReturnCreditCutover,
+  saleOrphanHeaderDiscount,
+  saleReturnGstBreakdown,
   splitMixCounterTender,
 } from "@/utils/accounting/saleJournalMath";
 
@@ -145,5 +147,74 @@ describe("splitMixCounterTender", () => {
       cash: 0,
       other: 800,
     });
+  });
+});
+
+describe("saleOrphanHeaderDiscount", () => {
+  it("POS: selling below MRP is already in the line total, nothing left for Trade Discount", () => {
+    // MRP 1000, sold at 850, 10% off MRP → line 750; POS header discount = 100 + 150.
+    const items = [{ unit_price: 850, mrp: 1000, quantity: 1, line_total: 750 }];
+    expect(saleOrphanHeaderDiscount(items, 250, 0)).toBe(0);
+  });
+
+  it("Sales Invoice: header discount measured against the selling rate", () => {
+    const items = [{ unit_price: 500, mrp: 600, quantity: 2, line_total: 900 }];
+    expect(saleOrphanHeaderDiscount(items, 100, 50)).toBe(0);
+  });
+
+  it("POS Delivery Challan: header discount is the flat discount", () => {
+    const items = [{ unit_price: 400, mrp: 400, quantity: 1, line_total: 400 }];
+    expect(saleOrphanHeaderDiscount(items, 40, 40)).toBe(0);
+  });
+
+  it("keeps a header-only discount that no line or flat discount carries", () => {
+    const items = [{ unit_price: 500, mrp: 500, quantity: 1, line_total: 500 }];
+    expect(saleOrphanHeaderDiscount(items, 30, 0)).toBe(30);
+  });
+
+  it("GST-exclusive invoice: line total has GST on top, the line discount is still found", () => {
+    // Rate 1000 pre-tax, 10% off → 900, + 18% GST → line 1062; header discount = 100.
+    const items = [{ unit_price: 1000, mrp: 1000, quantity: 1, line_total: 1062, gst_percent: 18 }];
+    expect(saleOrphanHeaderDiscount(items, 100, 0, { taxType: "exclusive", saleType: "invoice" })).toBe(0);
+    // Without the tax type the GST hides the discount and all 100 would go to Trade Discount.
+    expect(saleOrphanHeaderDiscount(items, 100, 0)).toBe(100);
+  });
+
+  it("GST-exclusive POS: line total is pre-tax already", () => {
+    const items = [{ unit_price: 1000, mrp: 1000, quantity: 1, line_total: 900, gst_percent: 18 }];
+    expect(saleOrphanHeaderDiscount(items, 100, 0, { taxType: "exclusive", saleType: "pos" })).toBe(0);
+  });
+});
+
+describe("saleReturnGstBreakdown", () => {
+  it("GST-exclusive return: pre-tax lines, header GST is reversed in full", () => {
+    const r = saleReturnGstBreakdown({
+      netAmount: 1180,
+      headerGst: 180,
+      items: [{ line_total: 1000, gst_percent: 18 }],
+    });
+    expect(r.taxableAmount).toBe(1000);
+    expect(r.totalGst).toBe(180);
+    expect(r.cgst + r.sgst).toBe(180);
+  });
+
+  it("GST-inclusive return: GST extracted from each line", () => {
+    const r = saleReturnGstBreakdown({
+      netAmount: 1180,
+      headerGst: 180,
+      items: [{ line_total: 1180, gst_percent: 18 }],
+    });
+    expect(r.taxableAmount).toBe(1000);
+    expect(r.totalGst).toBe(180);
+  });
+
+  it("header without GST falls back to the lines", () => {
+    const r = saleReturnGstBreakdown({
+      netAmount: 1050,
+      headerGst: 0,
+      items: [{ line_total: 1050, gst_percent: 5 }],
+    });
+    expect(r.taxableAmount).toBe(1000);
+    expect(r.totalGst).toBe(50);
   });
 });

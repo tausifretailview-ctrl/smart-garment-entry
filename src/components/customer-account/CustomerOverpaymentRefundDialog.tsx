@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { postCustomerRefundVoucherJournal } from "@/utils/accounting/journalService";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -134,19 +135,35 @@ export function CustomerOverpaymentRefundDialog({
                   data: { user },
                 } = await supabase.auth.getUser();
                 const voucherNum = `REFUND-${Date.now()}`;
-                const { error } = await supabase.from("voucher_entries").insert({
-                  organization_id: organizationId,
-                  voucher_type: "payment",
-                  voucher_number: voucherNum,
-                  voucher_date: new Date().toISOString().split("T")[0],
-                  reference_type: "customer",
-                  reference_id: customerId,
-                  total_amount: refundAmount,
-                  payment_method: mode,
-                  description: note || `Overpayment refund to ${customerName}`,
-                  created_by: user?.id || null,
-                });
+                const refundDate = new Date().toISOString().split("T")[0];
+                const refundDescription = note || `Overpayment refund to ${customerName}`;
+                const { data: refundVoucher, error } = await supabase
+                  .from("voucher_entries")
+                  .insert({
+                    organization_id: organizationId,
+                    voucher_type: "payment",
+                    voucher_number: voucherNum,
+                    voucher_date: refundDate,
+                    reference_type: "customer",
+                    reference_id: customerId,
+                    total_amount: refundAmount,
+                    payment_method: mode,
+                    description: refundDescription,
+                    created_by: user?.id || null,
+                  })
+                  .select("id")
+                  .single();
                 if (error) throw error;
+                // Ledger: the overpayment sits as credit in Debtors; paying it back is Dr Debtors, Cr Cash/Bank.
+                await postCustomerRefundVoucherJournal({
+                  organizationId,
+                  voucherId: refundVoucher?.id ?? "",
+                  amount: refundAmount,
+                  paymentMethod: mode,
+                  date: refundDate,
+                  description: refundDescription,
+                  client: supabase,
+                });
                 toast.success(`Refund of ₹${refundAmount.toLocaleString("en-IN")} recorded successfully`);
                 await invalidateCustomerAccountHistoryQueries(queryClient, customerId, organizationId);
                 onSuccess?.();

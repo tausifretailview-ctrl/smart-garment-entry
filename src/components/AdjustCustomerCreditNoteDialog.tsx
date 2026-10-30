@@ -17,6 +17,7 @@ import { Loader2, IndianRupee } from "lucide-react";
 import { ListSkeleton } from "@/components/ui/skeletons";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import {
+  postCustomerRefundVoucherJournal,
   recordCustomerCreditNoteApplicationJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
@@ -498,9 +499,26 @@ export function AdjustCustomerCreditNoteDialog({
         if (customerId && customerId !== "") {
           insertData.reference_id = customerId;
         }
-        const { error: paymentError } = await supabase.from("voucher_entries").insert(insertData);
+        const { data: refundVoucher, error: paymentError } = await supabase
+          .from("voucher_entries")
+          .insert(insertData)
+          .select("id")
+          .single();
 
         if (paymentError) throw paymentError;
+
+        // Ledger: the credit note sits in Debtors; paying it out is Dr Debtors, Cr Cash/Bank.
+        if (currentOrganization?.id) {
+          await postCustomerRefundVoucherJournal({
+            organizationId: currentOrganization.id,
+            voucherId: refundVoucher?.id ?? "",
+            amount: liveCn,
+            paymentMethod: refundMode,
+            date: today,
+            description: insertData.description,
+            client: supabase,
+          });
+        }
 
         const { error: returnError } = await supabase
           .from("sale_returns")

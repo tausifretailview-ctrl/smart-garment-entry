@@ -28,8 +28,10 @@ import {
 } from "@/utils/receiptIdempotency";
 import {
   deleteJournalEntryByReference,
+  isAccountingEngineOnForOrg,
   recordCustomerReceiptJournalEntry,
   recordExpenseVoucherJournalEntry,
+  recordSupplierPaymentJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { toast } from "sonner";
@@ -918,33 +920,58 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
         allocations: processedBills.map((p) => ({ bill: p.bill, amountApplied: p.amountApplied })),
       });
 
-      // A bill is marked paid only after its payment voucher exists; a failed insert
-      // removes the vouchers already written so nothing is half-recorded.
+      // A bill is marked paid only after its payment voucher (and its ledger entry) exists;
+      // a failed insert removes the vouchers already written so nothing is half-recorded.
+      const postLedger = await isAccountingEngineOnForOrg(organizationId, supabase);
+      const voucherDateYmd = format(voucherDate, "yyyy-MM-dd");
       const insertedVoucherIds: string[] = [];
+      const undoInserted = async () => {
+        for (const vid of insertedVoucherIds) {
+          await deleteJournalEntryByReference(organizationId, "SupplierPayment", vid, supabase);
+          await supabase.from("voucher_entries").delete().eq("id", vid);
+        }
+      };
       for (const row of voucherRows) {
+        const voucherDescription = supplierPaymentVoucherDescription({
+          row,
+          userDescription: description,
+          supplierName,
+          paymentDetails,
+        });
         const { data: ins, error: voucherError } = await supabase.from("voucher_entries").insert({
           organization_id: organizationId,
           voucher_number: `${voucherNumber}${row.voucherNumberSuffix}`,
           voucher_type: "payment",
-          voucher_date: format(voucherDate, "yyyy-MM-dd"),
+          voucher_date: voucherDateYmd,
           reference_type: "supplier",
           reference_id: row.referenceId,
-          description: supplierPaymentVoucherDescription({
-            row,
-            userDescription: description,
-            supplierName,
-            paymentDetails,
-          }),
+          description: voucherDescription,
           total_amount: row.amount,
+          payment_method: paymentMethod,
           created_by: user?.id ?? null,
         }).select("id").single();
         if (voucherError || !ins?.id) {
-          for (const vid of insertedVoucherIds) {
-            await supabase.from("voucher_entries").delete().eq("id", vid);
-          }
+          await undoInserted();
           throw voucherError ?? new Error("Supplier payment voucher insert failed");
         }
         insertedVoucherIds.push(ins.id);
+        if (postLedger) {
+          try {
+            await recordSupplierPaymentJournalEntry(
+              ins.id,
+              organizationId,
+              row.amount,
+              0,
+              paymentMethod,
+              voucherDateYmd,
+              voucherDescription,
+              supabase,
+            );
+          } catch (glErr) {
+            await undoInserted();
+            throw glErr;
+          }
+        }
       }
 
       for (const p of processedBills) {

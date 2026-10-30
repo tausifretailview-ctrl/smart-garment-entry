@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
+import { postCustomerRefundVoucherJournal } from "@/utils/accounting/journalService";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
@@ -1272,19 +1273,34 @@ export default function SaleReturnDashboard() {
                     if (rfNumErr) throw rfNumErr;
                     const noteSuffix = refundNote.trim() ? ` — ${refundNote.trim()}` : "";
                     const returnNo = selectedReturnForRefund.return_number || "sale return";
-                    const { error: voucherError } = await supabase.from("voucher_entries").insert({
-                      organization_id: currentOrganization.id,
-                      voucher_type: "payment",
-                      voucher_number: String(rfNumber || `RF/${refundDate}`),
-                      voucher_date: refundDate,
-                      reference_type: "customer",
-                      reference_id: selectedReturnForRefund.customer_id,
-                      total_amount: amount,
-                      payment_method: refundMode,
-                      description: `Credit note refund for ${returnNo} to ${selectedReturnForRefund.customer_name}${noteSuffix}`,
-                      created_by: user?.id || null,
-                    });
+                    const refundDescription = `Credit note refund for ${returnNo} to ${selectedReturnForRefund.customer_name}${noteSuffix}`;
+                    const { data: refundVoucher, error: voucherError } = await supabase
+                      .from("voucher_entries")
+                      .insert({
+                        organization_id: currentOrganization.id,
+                        voucher_type: "payment",
+                        voucher_number: String(rfNumber || `RF/${refundDate}`),
+                        voucher_date: refundDate,
+                        reference_type: "customer",
+                        reference_id: selectedReturnForRefund.customer_id,
+                        total_amount: amount,
+                        payment_method: refundMode,
+                        description: refundDescription,
+                        created_by: user?.id || null,
+                      })
+                      .select("id")
+                      .single();
                     if (voucherError) throw voucherError;
+                    // Ledger: the credit note sits in Debtors; paying it out is Dr Debtors, Cr Cash/Bank.
+                    await postCustomerRefundVoucherJournal({
+                      organizationId: currentOrganization.id,
+                      voucherId: refundVoucher?.id ?? "",
+                      amount,
+                      paymentMethod: refundMode,
+                      date: refundDate,
+                      description: refundDescription,
+                      client: supabase,
+                    });
 
                     const remaining = Math.max(0, maxRef - amount);
                     const { error: srError } = await supabase

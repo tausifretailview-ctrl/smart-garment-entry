@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { localDayBounds } from "@/lib/localDayBounds";
 import { fetchAllSalesWithFilters } from "@/utils/fetchAllRows";
 import { syncDailyTallyBankDeposit } from "@/utils/accounting/bankStatement";
+import { syncDayCloseCashJournal } from "@/utils/accounting/dayCloseJournal";
 import {
   aggregateCashTallyDrawerFlows,
   computeExpectedDrawerCash,
@@ -380,6 +381,18 @@ export default function DailyAccountTally() {
         });
       } catch (e) {
         toast.warning(`Day closed, but the bank deposit was not posted: ${(e as Error).message}`);
+      }
+      // Owner handover and cash short/excess go to the ledger so Cash in Hand follows the drawer.
+      try {
+        await syncDayCloseCashJournal({
+          organizationId: orgId!,
+          snapshotId: (data as { id: string }).id,
+          tallyDate: dateStr,
+          handover,
+          difference,
+        });
+      } catch (e) {
+        toast.warning(`Day closed, but the owner handover / cash difference was not posted: ${(e as Error).message}`);
       }
     },
     onSuccess: () => {

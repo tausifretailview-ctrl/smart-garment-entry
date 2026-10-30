@@ -4,6 +4,11 @@ import { useSearchParams } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  deleteJournalEntryByReference,
+  isAccountingEngineOnForOrg,
+  recordCustomerReceiptJournalEntry,
+} from "@/utils/accounting/journalService";
+import {
   describeReceiptGuardError,
   newReceiptSubmissionId,
   receiptRequestId,
@@ -542,7 +547,8 @@ export default function PaymentsDashboard() {
 
       // Create voucher entry
       const receiptSubmissionId = newReceiptSubmissionId();
-      const { error: voucherEntryError } = await supabase
+      const receiptDescription = `Payment received from ${selectedInvoice.customer_name} for invoice ${selectedInvoice.sale_number}${paymentDetails}`;
+      const { data: receiptRow, error: voucherEntryError } = await supabase
         .from('voucher_entries')
         .insert({
           client_request_id: receiptRequestId(receiptSubmissionId, selectedInvoice.id),
@@ -553,10 +559,34 @@ export default function PaymentsDashboard() {
           reference_type: 'customer',
           reference_id: selectedInvoice.id,
           total_amount: amount,
-          description: `Payment received from ${selectedInvoice.customer_name} for invoice ${selectedInvoice.sale_number}${paymentDetails}`,
-        });
+          payment_method: paymentMethod,
+          description: receiptDescription,
+        })
+        .select('id')
+        .single();
 
       if (voucherEntryError) throw voucherEntryError;
+
+      // Ledger: Dr Cash/Bank, Cr Debtors (same as Accounts > Customer Payment).
+      const orgId = currentOrganization!.id;
+      if (receiptRow?.id && (await isAccountingEngineOnForOrg(orgId, supabase))) {
+        try {
+          await recordCustomerReceiptJournalEntry(
+            receiptRow.id,
+            orgId,
+            amount,
+            0,
+            paymentMethod,
+            format(paymentDate, 'yyyy-MM-dd'),
+            receiptDescription,
+            supabase,
+          );
+        } catch (glErr) {
+          await deleteJournalEntryByReference(orgId, "CustomerReceipt", receiptRow.id, supabase);
+          await supabase.from('voucher_entries').delete().eq('id', receiptRow.id);
+          throw glErr;
+        }
+      }
 
       // The receipt voucher is the source of truth. Derive paid_amount / status from the
       // vouchers (DB compute_sale_settlement) instead of writing currentPaid + amount up front:

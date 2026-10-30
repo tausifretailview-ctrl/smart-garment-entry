@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { isHeldOrCancelledSale } from "@/utils/posHoldBill";
 import {
   recordPurchaseJournalEntry,
   recordPurchaseReturnJournalEntry,
@@ -104,6 +105,47 @@ function journalErrorMessage(e: unknown, maxLen = 2000): string {
 const PAGE_SIZE = 500;
 
 /**
+ * POS used to post one advance-application journal for the whole amount, keyed to the last of
+ * the FIFO vouchers, so the other vouchers of that split have no journal of their own. Posting
+ * them again would use the advance twice. True when the live advance journals on this bill or
+ * opening balance already cover all its live advance vouchers.
+ */
+async function advanceSplitAlreadyJournaled(
+  organizationId: string,
+  referenceId: string | null,
+  client: SupabaseClient<Database>,
+): Promise<boolean> {
+  if (!referenceId) return false;
+  const { data: siblings, error: sibErr } = await client
+    .from("voucher_entries")
+    .select("id, total_amount")
+    .eq("organization_id", organizationId)
+    .eq("reference_id", referenceId)
+    .eq("payment_method", "advance_adjustment")
+    .is("deleted_at", null);
+  if (sibErr) throw sibErr;
+  const ids = (siblings ?? []).map((s) => s.id as string);
+  if (!ids.length) return false;
+  const voucherTotal = (siblings ?? []).reduce((sum, s) => sum + Number(s.total_amount ?? 0), 0);
+
+  const { data: journals, error: jeErr } = await client
+    .from("journal_entries")
+    .select("id, total_amount, reversed_journal_id")
+    .eq("organization_id", organizationId)
+    .eq("reference_type", "CustomerAdvanceApplication")
+    .in("reference_id", ids);
+  if (jeErr) throw jeErr;
+  // Live originals only: leave out reversal rows and the originals they reversed.
+  const reversedIds = new Set(
+    (journals ?? []).map((j) => j.reversed_journal_id as string | null).filter((id): id is string => !!id),
+  );
+  const journaled = (journals ?? [])
+    .filter((j) => !j.reversed_journal_id && !reversedIds.has(j.id as string))
+    .reduce((sum, j) => sum + Number(j.total_amount ?? 0), 0);
+  return journaled > 0 && journaled >= voucherTotal - 0.01;
+}
+
+/**
  * Post journals for legacy rows that never left `pending` (sales, purchase_bills, sale_returns, purchase_returns)
  * and expense vouchers that have no `journal_entries` row yet. Per-row try/catch so one bad row does not stop the batch.
  */
@@ -164,7 +206,7 @@ export async function runHistoricalAccountingBackfill(
   for (;;) {
     const { data: salesRows, error: saleErr } = await client
       .from("sales")
-      .select("id, net_amount, paid_amount, payment_method, sale_date")
+      .select("id, net_amount, paid_amount, payment_method, payment_status, sale_number, is_cancelled, sale_date")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .eq("is_cancelled", false)
@@ -177,6 +219,8 @@ export async function runHistoricalAccountingBackfill(
 
     for (const row of salesRows) {
       const id = row.id as string;
+      // Held carts (F7 Hold, Hold/ numbers) are not sales yet; the bill posts when it is completed.
+      if (isHeldOrCancelledSale(row)) continue;
       try {
         const net = Number(row.net_amount ?? 0);
         if (net <= 0) {
@@ -376,7 +420,7 @@ export async function runHistoricalAccountingBackfill(
     for (;;) {
       const { data: vouchers, error: vErr } = await client
         .from("voucher_entries")
-        .select("id, total_amount, voucher_type, reference_type, payment_method")
+        .select("id, total_amount, voucher_type, reference_type, reference_id, payment_method")
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
         .order("id", { ascending: true })
@@ -399,6 +443,13 @@ export async function runHistoricalAccountingBackfill(
         }
 
         try {
+          if (
+            String(v.payment_method || "").toLowerCase() === "advance_adjustment" &&
+            (await advanceSplitAlreadyJournaled(organizationId, v.reference_id as string | null, client))
+          ) {
+            summary.vouchers.skipped++;
+            continue;
+          }
           await repostJournalForRestoredVoucher(vid, client);
           summary.vouchers.ok++;
           postedVoucherIds.add(vid);

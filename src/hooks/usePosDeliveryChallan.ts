@@ -11,6 +11,8 @@ import { resolveServiceDefaultQty } from "@/utils/serviceDefaultQty";
 import { useStockValidation } from "@/hooks/useStockValidation";
 import { computePosFlatDiscount } from "@/utils/posGstTotals";
 import { saleDateIsoIst, saleDateIsoIstForDay } from "@/lib/localDayBounds";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { postSaleJournalInBackground } from "@/utils/accounting/journalService";
 
 export type PosDcLastBillHint = {
   invoiceNumber: string;
@@ -694,6 +696,20 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
 
       const { error: itemsError } = await (supabase as any).from("sale_items").insert(saleItemsData);
       if (itemsError) throw itemsError;
+
+      // DC bills are sales in the books too (ledgers / P&L stay full in DC hide mode). Post after
+      // sale_items exist, as the POS does: the journal reads them for revenue, GST and COGS.
+      if (isAccountingEngineEnabled(orgSettings as { accounting_engine_enabled?: boolean } | null)) {
+        postSaleJournalInBackground(
+          savedSale.id,
+          currentOrganization.id,
+          net,
+          paidAmt,
+          method,
+          savedSale.sale_date ?? saleDate,
+          supabase,
+        );
+      }
 
       const invoiceData = {
         billNo: dcNumber,
