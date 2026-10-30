@@ -40,19 +40,25 @@ export type AlertPopupPrefs = Record<AlertPopupKind, boolean>;
 /** Epoch ms of the last time each kind was shown (or checked and found empty). */
 export type AlertPopupLog = Partial<Record<AlertPopupKind, number>>;
 
+/**
+ * Pop-ups are off until a user turns them on (Notifications → Pop-ups). The same
+ * alerts are always listed on the Notifications page, so nothing is missed.
+ */
 export const DEFAULT_ALERT_POPUP_PREFS: AlertPopupPrefs = {
-  gst_due: true,
-  low_stock: true,
-  customer_dues: true,
-  supplier_dues: true,
-  dead_stock: true,
-  today_sold: true,
+  gst_due: false,
+  low_stock: false,
+  customer_dues: false,
+  supplier_dues: false,
+  dead_stock: false,
+  today_sold: false,
 };
 
 const PREFS_EVENT = "ezzy-alert-popup-prefs";
 
+// v2: pop-ups became off by default; switches saved under the old key (when they
+// were all on) are ignored so every device starts quiet.
 function prefsKey(orgId: string, userId: string): string {
-  return `ezzy-alert-popups:prefs:${orgId}:${userId}`;
+  return `ezzy-alert-popups:prefs:v2:${orgId}:${userId}`;
 }
 
 function logKey(orgId: string, userId: string): string {

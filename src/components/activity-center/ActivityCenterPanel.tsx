@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
   AlertTriangle,
@@ -9,16 +9,8 @@ import {
   MessageCircle,
   Settings2,
 } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  ALERT_POPUP_KINDS,
-  ALERT_POPUP_LABELS,
-  loadAlertPopupPrefs,
-  onAlertPopupPrefsChange,
-  saveAlertPopupPrefs,
-  type AlertPopupPrefs,
-} from "@/lib/alertPopups";
+import { AlertPopupSwitches } from "@/components/alert-popups/AlertPopupSwitches";
 import { cn } from "@/lib/utils";
 import { useActivityCenter } from "@/contexts/ActivityCenterContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -108,41 +100,6 @@ function ActivityRow({
         />
       )}
     </button>
-  );
-}
-
-/** Per-device on/off switches for the small alert pop-ups. */
-function AlertPopupSwitches({ orgId, userId }: { orgId: string; userId: string }) {
-  const [prefs, setPrefs] = useState<AlertPopupPrefs>(() => loadAlertPopupPrefs(orgId, userId));
-
-  useEffect(() => {
-    setPrefs(loadAlertPopupPrefs(orgId, userId));
-    return onAlertPopupPrefsChange(() => setPrefs(loadAlertPopupPrefs(orgId, userId)));
-  }, [orgId, userId]);
-
-  return (
-    <div className="p-3 space-y-1">
-      <p className="text-[12px] text-muted-foreground px-1 pb-2">
-        Small pop-ups at the bottom right (top on phones). Each shows at most once a day and never
-        on POS or billing screens.
-      </p>
-      {ALERT_POPUP_KINDS.map((kind) => (
-        <label
-          key={kind}
-          className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-muted/60 cursor-pointer"
-        >
-          <span className="text-[13px] font-medium">{ALERT_POPUP_LABELS[kind]}</span>
-          <Switch
-            checked={prefs[kind]}
-            onCheckedChange={(checked) => {
-              const next = { ...prefs, [kind]: checked };
-              setPrefs(next);
-              saveAlertPopupPrefs(orgId, userId, next);
-            }}
-          />
-        </label>
-      ))}
-    </div>
   );
 }
 

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  ALERT_POPUP_KINDS,
+  DEFAULT_ALERT_POPUP_PREFS,
   TODAY_SOLD_REPEAT_MS,
   aggregateTodaySalesItems,
   aggregateTodaySold,
@@ -7,6 +9,12 @@ import {
   isAlertPopupDue,
   summarizeTodayPayments,
 } from "./alertPopups";
+
+describe("alert pop-up defaults", () => {
+  it("keeps every pop-up off until the user turns it on", () => {
+    for (const kind of ALERT_POPUP_KINDS) expect(DEFAULT_ALERT_POPUP_PREFS[kind]).toBe(false);
+  });
+});
 
 describe("isAlertPopupDue", () => {
   const morning = new Date(2026, 9, 8, 10, 0, 0).getTime();
