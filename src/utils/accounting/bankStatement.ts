@@ -58,6 +58,9 @@ export function cleanBankStatementDescription(
 ): string {
   const raw = String(description || "").trim();
   if (/^auto journal for sale\b/i.test(raw)) return docNumber ? `Sale ${docNumber}` : "Sale";
+  // Tally v2 posters write "Sale 1a2b3c4d" (first 8 of the id) — show the bill number instead.
+  const shortId = raw.match(/^(sale|purchase|sale return|purchase return) [0-9a-f]{8}$/i);
+  if (shortId && docNumber) return `${shortId[1][0].toUpperCase()}${shortId[1].slice(1)} ${docNumber}`;
   return raw;
 }
 

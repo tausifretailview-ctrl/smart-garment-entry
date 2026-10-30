@@ -82,5 +82,6 @@ describe("labels", () => {
   it("auto sale narration shows the bill number", () => {
     expect(cleanBankStatementDescription("Auto journal for sale 1b2c", "POS/9")).toBe("Sale POS/9");
     expect(cleanBankStatementDescription("Receipt from Ravi", null)).toBe("Receipt from Ravi");
+    expect(cleanBankStatementDescription("Sale 25adb583", "POS/26-27/333")).toBe("Sale POS/26-27/333");
   });
 });
