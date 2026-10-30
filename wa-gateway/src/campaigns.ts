@@ -4,6 +4,7 @@ import pino from "pino";
 import { type BulkContent, type InboxEvent, type ReceiptStatus, type SessionManager, WARMUP_GAP_MS } from "./sessions.js";
 import { removeCampaignVideos, shrinkVideo, type VideoQuality } from "./video.js";
 import { pruneVideos } from "./storage.js";
+import { type SendWindow, istDay, istTime, nextDayOpen, parseWindow, windowOpenAt } from "./slowWindow.js";
 
 /**
  * Bulk WhatsApp campaigns. Each job is saved on the volume and sent one number at a time with a
@@ -46,6 +47,20 @@ interface CampaignJob {
   startAt?: string;
   /** When the scheduled time came; campaigns on one number go out in this order. */
   queuedAt?: string;
+  /**
+   * "Send slowly all day": messages only go out inside these shop hours, minGapMs-maxGapMs apart (minutes
+   * long). Between two messages other campaigns on the number may send.
+   */
+  window?: SendWindow;
+  /** Slow campaigns: no message before this time (ISO). */
+  nextAt?: string;
+  /** Slow campaigns: at most this many messages a day; the rest go on the next days. */
+  perDay?: number;
+  /** IST day number and how many messages this campaign sent on it (for perDay). */
+  sentDay?: number;
+  sentToday?: number;
+  /** Last note sent to the app while a slow campaign waits, so it is not posted again. */
+  slowNote?: string;
 }
 
 const AUTH_DIR = process.env.AUTH_DIR ?? "./data/sessions";
@@ -73,6 +88,8 @@ const MAX_VIDEO_SOURCE_BYTES = 50 * 1024 * 1024;
 const logger = pino({ level: process.env.LOG_LEVEL ?? "warn" });
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** Normal campaign gap; also kept after a slow campaign's message before the number sends anything else. */
+const DEFAULT_GAP_MS = [8000, 20_000] as const;
 /** A chat the app said is not a bulk customer is not reported again for this long. */
 const INBOX_IGNORE_MS = 30 * 60 * 1000;
 
@@ -83,6 +100,8 @@ export class CampaignRunner {
   private jobs = new Map<string, CampaignJob>();
   private workers = new Set<string>();
   private timers = new Map<string, NodeJS.Timeout>();
+  /** Per number: wakes the worker when its next slow-campaign message is due. */
+  private slowTimers = new Map<string, NodeJS.Timeout>();
   private media = new Map<string, BulkContent["media"]>();
   private receipts: { messageId: string; status: ReceiptStatus; at: string }[] = [];
   /** "sessionId:phone" → until when: chats with people who never got a bulk message (friends, family). */
@@ -294,8 +313,10 @@ export class CampaignRunner {
       media = { url: url.toString(), mimetype: String(m.mimetype ?? "image/jpeg"), filename: String(m.filename ?? "poster"), kind, quality };
     }
     if (!media && items.every((i) => !i.text.trim())) throw new Error("Message or poster is required");
-    const minGapMs = Math.max(3000, Number(input.minGapMs ?? 8000));
-    const maxGapMs = Math.max(minGapMs, Number(input.maxGapMs ?? 20000));
+    const window = parseWindow(input.window);
+    // Slow campaigns: gaps of a few minutes up to a few hours.
+    const minGapMs = Math.min(4 * 60 * 60 * 1000, Math.max(window ? 30_000 : 3000, Number(input.minGapMs ?? 8000)));
+    const maxGapMs = Math.min(6 * 60 * 60 * 1000, Math.max(minGapMs, Number(input.maxGapMs ?? 20000)));
     let reportUrl: string | undefined;
     if (input.reportUrl) {
       const u = new URL(String(input.reportUrl));
@@ -312,7 +333,8 @@ export class CampaignRunner {
     }
     const job: CampaignJob = {
       campaignId, sessionId, status: "running", media, minGapMs, maxGapMs, items, createdAt: new Date().toISOString(),
-      reportUrl, startAt,
+      reportUrl, startAt, window,
+      perDay: window && Number(input.perDay) >= 1 ? Math.min(5000, Math.floor(Number(input.perDay))) : undefined,
     };
     this.jobs.set(campaignId, job);
     this.save(job);
@@ -411,9 +433,54 @@ export class CampaignRunner {
   }
 
   private nextJob(sessionId: string) {
+    const now = Date.now();
     return [...this.jobs.values()]
-      .filter((j) => j.sessionId === sessionId && j.status === "running" && !this.waitingForStart(j))
+      .filter((j) => j.sessionId === sessionId && j.status === "running" && !this.waitingForStart(j) && this.slowDueAt(j, now) <= now)
       .sort((a, b) => (a.queuedAt ?? a.createdAt).localeCompare(b.queuedAt ?? b.createdAt))[0];
+  }
+
+  /** When a slow campaign may send its next message: after its gap, and inside shop hours. */
+  private slowDueAt(job: CampaignJob, now: number): number {
+    if (!job.window) return 0;
+    return windowOpenAt(Math.max(now, job.nextAt ? Date.parse(job.nextAt) : 0), job.window);
+  }
+
+  /**
+   * Nothing due on this number: wake up when the next slow message is due, and tell the app when a slow
+   * campaign is waiting for shop hours to open.
+   */
+  private wakeForSlow(sessionId: string) {
+    clearTimeout(this.slowTimers.get(sessionId));
+    this.slowTimers.delete(sessionId);
+    const now = Date.now();
+    let next = Infinity;
+    for (const job of this.jobs.values()) {
+      if (job.sessionId !== sessionId || job.status !== "running" || !job.window || this.waitingForStart(job)) continue;
+      const due = this.slowDueAt(job, now);
+      next = Math.min(next, due);
+      const opens = windowOpenAt(now, job.window);
+      if (opens > now) {
+        // Closed: `opens` is the next opening time, so closing is the window's length later.
+        const closes = opens + (job.window.to - job.window.from) * 60_000;
+        this.slowNote(job, `Outside sending hours (${istTime(opens)} to ${istTime(closes)}). Continues at ${istTime(due)}.`);
+      }
+    }
+    if (!Number.isFinite(next)) return;
+    this.slowTimers.set(
+      sessionId,
+      setTimeout(() => {
+        this.slowTimers.delete(sessionId);
+        this.kick(sessionId);
+      }, Math.max(1000, next - now + 1000)),
+    );
+  }
+
+  private slowNote(job: CampaignJob, note: string | null) {
+    if ((job.slowNote ?? null) === note) return;
+    if (note) job.slowNote = note;
+    else delete job.slowNote;
+    this.save(job);
+    this.report(job, note);
   }
 
   private waitingForStart(job: CampaignJob) {
@@ -460,7 +527,10 @@ export class CampaignRunner {
     let waitingNote: string | null = null;
     for (;;) {
       const job = this.nextJob(sessionId);
-      if (!job) return;
+      if (!job) {
+        this.wakeForSlow(sessionId);
+        return;
+      }
       if (job.startAt) {
         // Scheduled time reached: clear the "Starts at" note in the app.
         job.queuedAt = job.startAt;
@@ -557,7 +627,28 @@ export class CampaignRunner {
         const [min, max] = this.sessions.inWarmup(sessionId)
           ? [Math.max(job.minGapMs, WARMUP_GAP_MS[0]), Math.max(job.maxGapMs, WARMUP_GAP_MS[1])]
           : [job.minGapMs, job.maxGapMs];
-        await this.gap(job, min + Math.random() * (max - min));
+        const wait = min + Math.random() * (max - min);
+        if (job.window) {
+          // Slow campaign: remember when the next message is due (survives a restart) instead of holding the
+          // number, so other campaigns can go out in between. A normal gap still follows this message.
+          const today = istDay(Date.now());
+          job.sentToday = job.sentDay === today ? (job.sentToday ?? 0) + 1 : 1;
+          job.sentDay = today;
+          const due = job.perDay && job.sentToday >= job.perDay
+            ? nextDayOpen(Date.now(), job.window)
+            : windowOpenAt(Date.now() + wait, job.window);
+          job.nextAt = new Date(due).toISOString();
+          this.save(job);
+          this.slowNote(
+            job,
+            job.perDay && job.sentToday >= job.perDay
+              ? `Today's ${job.perDay} sent. Continues tomorrow at ${istTime(due)}.`
+              : `Sending slowly. Next message about ${istTime(due)}.`,
+          );
+          await sleep(DEFAULT_GAP_MS[0] + Math.random() * (DEFAULT_GAP_MS[1] - DEFAULT_GAP_MS[0]));
+        } else {
+          await this.gap(job, wait);
+        }
       }
     }
   }

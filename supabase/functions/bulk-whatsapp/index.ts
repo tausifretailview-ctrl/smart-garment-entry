@@ -336,6 +336,22 @@ async function createCampaign(
     if (at > Date.now() + 60_000) startAt = new Date(at).toISOString();
   }
   if (!message.trim() && !mediaUrl) return json({ error: "Type a message or attach a poster" }, 400);
+  // "Send slowly all day": only inside shop hours (IST minutes after midnight), an average gap of gapMs
+  // with ±40% randomness. The page works the gap out from the number count and the hours.
+  let slow: { from: number; to: number; minGapMs: number; maxGapMs: number; perDay: number | null } | null = null;
+  if (body.slow) {
+    const s = body.slow as Record<string, unknown>;
+    const from = Math.round(Number(s.from));
+    const to = Math.round(Number(s.to));
+    const gapMs = Math.round(Number(s.gapMs));
+    if (![from, to, gapMs].every(Number.isFinite) || from < 0 || to > 1440 || to - from < 60) {
+      return json({ error: "Sending hours must be at least 1 hour long" }, 400);
+    }
+    const gap = Math.min(2 * 60 * 60 * 1000, Math.max(60_000, gapMs));
+    // Optional "messages per day": the rest wait for the next days' hours.
+    const perDay = Number(s.perDay) >= 1 ? Math.min(5000, Math.floor(Number(s.perDay))) : null;
+    slow = { from, to, minGapMs: Math.round(gap * 0.6), maxGapMs: Math.round(gap * 1.4), perDay };
+  }
 
   const raw = Array.isArray(body.recipients) ? (body.recipients as Record<string, unknown>[]) : [];
   const seen = new Set<string>();
@@ -430,8 +446,10 @@ async function createCampaign(
       // The server posts results straight back here, whatever its own settings say.
       reportUrl: `${(Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "")}/functions/v1/bulk-whatsapp`,
       message,
-      minGapMs: MIN_GAP_MS,
-      maxGapMs: MAX_GAP_MS,
+      minGapMs: slow ? slow.minGapMs : MIN_GAP_MS,
+      maxGapMs: slow ? slow.maxGapMs : MAX_GAP_MS,
+      window: slow ? { from: slow.from, to: slow.to } : undefined,
+      perDay: slow?.perDay ?? undefined,
       startAt,
       media: mediaUrl
         ? {
