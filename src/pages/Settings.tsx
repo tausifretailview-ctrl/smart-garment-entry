@@ -2656,7 +2656,7 @@ export default function Settings() {
                   </Label>
                 </div>
                 <p className="text-xs text-muted-foreground ml-6">
-                  Shows live margin % and profit on the POS screen for the owner (admin without custom
+                  Shows live markup % (profit on purchase value) and profit on the POS screen for the owner (admin without custom
                   User Rights). Staff still need the POS Margin Indicator right in User Rights.
                 </p>
                 

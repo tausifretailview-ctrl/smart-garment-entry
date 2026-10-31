@@ -32,6 +32,7 @@ describe("computePosLiveMargin", () => {
     const before = computePosLiveMargin({ items, billNet: 1450 });
     expect(before.profit).toBe(651);
     expect(before.marginPercent).toBeCloseTo(44.9, 1);
+    expect(before.markupPercent).toBeCloseTo(81.5, 1);
 
     const afterTenPercent = computePosLiveMargin({ items, billNet: 1305 });
     expect(afterTenPercent.profit).toBe(506);
@@ -47,6 +48,14 @@ describe("computePosLiveMargin", () => {
     const m = computePosLiveMargin({ items, billNet: 1300 });
     expect(m.totalCost).toBe(0);
     expect(m.profit).toBe(1300);
+    expect(m.markupPercent).toBeNull();
+  });
+
+  it("shows markup on purchase cost: buy 500, sell 1000 = 100%", () => {
+    const m = computePosLiveMargin({ items: [line({ purPrice: 500 })], billNet: 1000 });
+    expect(m.profit).toBe(500);
+    expect(m.markupPercent).toBeCloseTo(100, 5);
+    expect(m.marginPercent).toBeCloseTo(50, 5);
   });
 });
 
