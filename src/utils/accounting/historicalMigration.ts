@@ -3,6 +3,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { isHeldOrCancelledSale } from "@/utils/posHoldBill";
 import {
+  deleteJournalEntryByReference,
   recordCustomerAdvanceReceiptJournalEntry,
   recordCustomerAdvanceRefundJournalEntry,
   recordPurchaseJournalEntry,
@@ -21,6 +22,8 @@ export type HistoricalBackfillSummary = {
   purchaseReturns: { ok: number; err: number };
   /** Customer advance receipts and advance refunds with no journal yet */
   advances?: { ok: number; err: number };
+  /** Bills posted again because a receipt against them was journalled by this run */
+  salesRepostedForReceipts?: { ok: number; err: number };
   /**
    * Openings, balance adjustments and stock (posted by the database for shops switched on
    * with gl_enable_auto_postings): re-synced, shop not switched on, or SQL not run yet.
@@ -152,6 +155,87 @@ async function advanceSplitAlreadyJournaled(
     .filter((j) => !j.reversed_journal_id && !reversedIds.has(j.id as string))
     .reduce((sum, j) => sum + Number(j.total_amount ?? 0), 0);
   return journaled > 0 && journaled >= voucherTotal - 0.01;
+}
+
+type BackfillVoucherRow = {
+  voucher_type?: string | null;
+  reference_type?: string | null;
+  reference_id?: string | null;
+  payment_method?: string | null;
+  description?: string | null;
+};
+
+/**
+ * True when posting this voucher's journal changes the Sale journal of its bill. The Sale journal
+ * books the bill's paid amount as counter cash minus receipts / advance applications that carry
+ * their own journal, so a receipt journalled after the bill was counted as counter cash there and
+ * is now counted twice until the bill is posted again. Counter payments, credit notes and book
+ * adjustments do not change it.
+ */
+export function voucherChangesSaleJournal(v: BackfillVoucherRow): boolean {
+  if (String(v.voucher_type || "").toLowerCase() !== "receipt") return false;
+  if (String(v.reference_type || "").toLowerCase() !== "sale" || !v.reference_id) return false;
+  if (/^counter payment received for sale/i.test(String(v.description || "").trim())) return false;
+  const pm = String(v.payment_method || "").toLowerCase();
+  return !["balance_adjustment", "round_off", "credit_note_adjustment"].includes(pm);
+}
+
+/**
+ * Post the Sale journal again for bills that already have one, so receipts journalled by this
+ * backfill are taken out of its counter cash. Bills without a journal are left to the sales pass.
+ */
+async function repostSalesSettledByBackfilledVouchers(
+  organizationId: string,
+  saleIds: string[],
+  client: SupabaseClient<Database>,
+): Promise<{ ok: number; err: number }> {
+  const result = { ok: 0, err: 0 };
+  const ids = [...new Set(saleIds.filter(Boolean))];
+  const CHUNK = 200;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const { data: journals, error: jeErr } = await client
+      .from("journal_entries")
+      .select("reference_id")
+      .eq("organization_id", organizationId)
+      .eq("reference_type", "Sale")
+      .is("reversed_journal_id", null)
+      .in("reference_id", chunk);
+    if (jeErr) throw jeErr;
+    const journaled = new Set((journals ?? []).map((j) => String(j.reference_id)));
+    if (!journaled.size) continue;
+
+    const { data: sales, error: saleErr } = await client
+      .from("sales")
+      .select("id, sale_date")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .eq("is_cancelled", false)
+      .in("id", [...journaled]);
+    if (saleErr) throw saleErr;
+
+    for (const sale of sales ?? []) {
+      const id = sale.id as string;
+      try {
+        await deleteJournalEntryByReference(organizationId, "Sale", id, client);
+        await recordSaleJournalEntry(
+          id,
+          organizationId,
+          client,
+          sale.sale_date != null ? String(sale.sale_date).slice(0, 10) : undefined,
+        );
+        result.ok++;
+      } catch (e) {
+        console.error("[historical backfill] sale re-post after receipt", id, e);
+        await client
+          .from("sales")
+          .update({ journal_status: "failed", journal_error: journalErrorMessage(e) })
+          .eq("id", id);
+        result.err++;
+      }
+    }
+  }
+  return result;
 }
 
 /**
@@ -425,11 +509,12 @@ export async function runHistoricalAccountingBackfill(
   // —— Vouchers (expense, salary, customer receipt, supplier payment, advance/CN) ——
   if (summary.accountingEngineEnabled) {
     const postedVoucherIds = await loadVoucherIdsWithPostedJournals(organizationId, client);
+    const salesToRepost: string[] = [];
     let voucherOffset = 0;
     for (;;) {
       const { data: vouchers, error: vErr } = await client
         .from("voucher_entries")
-        .select("id, total_amount, voucher_type, reference_type, reference_id, payment_method")
+        .select("id, total_amount, voucher_type, reference_type, reference_id, payment_method, description")
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
         .order("id", { ascending: true })
@@ -462,6 +547,7 @@ export async function runHistoricalAccountingBackfill(
           await repostJournalForRestoredVoucher(vid, client);
           summary.vouchers.ok++;
           postedVoucherIds.add(vid);
+          if (voucherChangesSaleJournal(v)) salesToRepost.push(v.reference_id as string);
         } catch (e) {
           console.error("[historical backfill] voucher", vid, e);
           summary.vouchers.err++;
@@ -472,6 +558,13 @@ export async function runHistoricalAccountingBackfill(
       voucherOffset += PAGE_SIZE;
     }
 
+    if (salesToRepost.length) {
+      summary.salesRepostedForReceipts = await repostSalesSettledByBackfilledVouchers(
+        organizationId,
+        salesToRepost,
+        client,
+      );
+    }
     summary.advances = await backfillCustomerAdvanceJournals(organizationId, client);
     summary.autoPostings = await resyncAutoPostingsIfSwitchedOn(organizationId, client);
   }
@@ -593,6 +686,7 @@ async function resyncAutoPostingsIfSwitchedOn(
   organizationId: string,
   client: SupabaseClient<Database>,
 ): Promise<HistoricalBackfillSummary["autoPostings"]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
   const { data, error } = await (client as any)
     .from("gl_auto_posting_orgs")
     .select("organization_id")
@@ -600,6 +694,7 @@ async function resyncAutoPostingsIfSwitchedOn(
     .maybeSingle();
   if (error) return "unavailable";
   if (!data) return "off";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated types yet
   const { error: rpcErr } = await (client.rpc as any)("gl_enable_auto_postings", {
     p_organization_id: organizationId,
   });
@@ -742,6 +837,10 @@ export function formatHistoricalBackfillSummary(summary: HistoricalBackfillSumma
   ];
   if (summary.advances) {
     parts.push(`Advances ${summary.advances.ok} posted, ${summary.advances.err} err`);
+  }
+  if (summary.salesRepostedForReceipts) {
+    const r = summary.salesRepostedForReceipts;
+    parts.push(`Bills re-posted for receipts ${r.ok} ok / ${r.err} err`);
   }
   if (summary.autoPostings === "resynced") parts.push("Openings & stock re-synced");
   if (summary.autoPostings === "failed") parts.push("Openings & stock re-sync failed");
