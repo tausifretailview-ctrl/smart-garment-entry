@@ -116,3 +116,31 @@ describe("numberToWords reused for Wholesale GST A4", () => {
     expect(numberToWords(100000)).toBe("Rs. One Lakh Rupees Only");
   });
 });
+
+/** MOTAS INV/26-27/421: Exclusive, ₹230 + 5% lines saved GST-inclusive, 5% flat disc. */
+describe("buildInvoiceGstBreakdown — exclusive bill with flat discount", () => {
+  const items = [
+    { total: 120.75, qty: 0.5, gstPercent: 5 },
+    { total: 110.25, qty: 0.5, gstPercent: 5 },
+    { total: 120.75, qty: 0.5, gstPercent: 5 },
+    { total: 241.5, qty: 1, gstPercent: 5 },
+    { total: 120.75, qty: 0.5, gstPercent: 5 },
+    { total: 231, qty: 1, gstPercent: 5 },
+  ];
+
+  it("reads GST-inclusive line totals as inclusive (taxable 900, not 945)", () => {
+    const r = buildInvoiceGstBreakdown({ items, taxType: "exclusive", grandTotal: 898, discount: 45 });
+    expect(r.mode).toBe("inclusive");
+    expect(r.taxableTotal).toBe(900);
+    expect(r.taxTotal).toBe(45);
+    expect(r.lines[3].unitRate).toBeCloseTo(230, 2);
+  });
+
+  it("keeps POS-style taxable line totals exclusive when discounted", () => {
+    const pos = items.map((i) => ({ ...i, total: i.total / 1.05 }));
+    // taxable 900 − 45 = 855, + 5% = 897.75 → 898
+    const r = buildInvoiceGstBreakdown({ items: pos, taxType: "exclusive", grandTotal: 898, discount: 45 });
+    expect(r.mode).toBe("exclusive");
+    expect(r.taxableTotal).toBe(900);
+  });
+});
