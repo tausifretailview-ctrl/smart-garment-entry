@@ -335,11 +335,14 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
   const storedDiscount = Number(discount) || 0;
   // Stored discount is on the price basis: incl. GST for inclusive bills, pre-GST for exclusive.
   const discountBasis = taxType === "exclusive" ? taxableTotal : totalAmount;
+  const storedRatio = discountBasis > 0 ? storedDiscount / discountBasis : 0;
+  const gapRatio = totalAmount > 0 ? totalsGap / totalAmount : 0;
+  // Net is rounded to the rupee even when the saved round off is 0, so the gap can be
+  // a few paise off the real discount (898 vs 897.75): then trust the stored discount.
+  const storedFitsGap = Math.abs(storedRatio * totalAmount - totalsGap) <= 0.5;
   const discountRatio =
     storedDiscount > 0.005 && totalAmount > 0 && discountBasis > 0
-      ? // +0.5: Net is rounded to the rupee even when the saved round off is 0, so the
-        // gap can be a few paise short of the real discount (898 vs 897.75).
-        Math.min(1, (totalsGap + 0.5) / totalAmount, storedDiscount / discountBasis)
+      ? Math.min(1, storedFitsGap ? storedRatio : Math.min(gapRatio, storedRatio))
       : 0;
   // GST law: the discount comes off the taxable value, then GST is charged on the rest.
   const billDiscount = roundInvoiceMoney(taxableTotal * discountRatio);
