@@ -53,18 +53,39 @@ export function roundInvoiceMoney(n: number): number {
  */
 export function resolveInvoiceLineTaxMode(opts: {
   taxType?: string | null;
-  items: Array<{ total: number }>;
+  items: Array<{ total: number; gstPercent?: number }>;
   grandTotal: number;
   saleReturnAdjust?: number;
+  /** Bill discount (pre-GST basis on exclusive bills). */
+  discount?: number;
 }): "inclusive" | "exclusive" | "no_gst" {
   const taxType = normalizeGstTaxType(opts.taxType);
   if (taxType === "no_gst") return "no_gst";
   const linesSum = opts.items.reduce((s, i) => s + Number(i.total || 0), 0);
-  const lineTotalsEmbedGst =
-    taxType === "exclusive" &&
-    Math.abs(Number(opts.grandTotal || 0) - linesSum + Number(opts.saleReturnAdjust || 0)) < 1;
-  if (taxType === "exclusive" && !lineTotalsEmbedGst) return "exclusive";
-  return "inclusive";
+  if (taxType !== "exclusive") return "inclusive";
+  const netTarget = Number(opts.grandTotal || 0) + Number(opts.saleReturnAdjust || 0);
+  if (Math.abs(netTarget - linesSum) < 1) return "inclusive";
+
+  // A flat bill discount breaks the simple "net ≈ Σ lines" test. The discount is on
+  // the pre-GST basis, so for each reading of the lines work out the net it gives
+  // (lines − discount, with GST on the discounted part) and keep the closer one.
+  // Sales Invoice exclusive: 6 × ₹230 + 5% lines saved as 241.50 etc (Σ 945),
+  // 5% flat disc ₹45 → net 855 + 42.75 = 898, so the lines already hold GST.
+  const discount = Number(opts.discount || 0);
+  if (discount > 0.005 && linesSum > 0) {
+    let embedTaxable = 0;
+    let exclAmount = 0;
+    for (const i of opts.items) {
+      const total = Number(i.total || 0);
+      const g = Number(i.gstPercent || 0);
+      embedTaxable += g > 0 ? total / (1 + g / 100) : total;
+      exclAmount += g > 0 ? total * (1 + g / 100) : total;
+    }
+    const embedNet = embedTaxable > 0 ? linesSum - discount * (linesSum / embedTaxable) : linesSum;
+    const exclNet = exclAmount - discount * (exclAmount / linesSum);
+    if (Math.abs(netTarget - embedNet) < Math.abs(netTarget - exclNet)) return "inclusive";
+  }
+  return "exclusive";
 }
 
 export function computeInvoiceGstLine(
@@ -162,6 +183,8 @@ export function buildInvoiceGstBreakdown(opts: {
   sellerGstin?: string | null;
   buyerGstin?: string | null;
   taxTypeHint?: GstTaxType | string | null;
+  /** Bill discount; lets an exclusive bill with a flat discount be read correctly. */
+  discount?: number;
 }): {
   mode: "inclusive" | "exclusive" | "no_gst";
   isInterState: boolean;
@@ -175,6 +198,7 @@ export function buildInvoiceGstBreakdown(opts: {
     items: opts.items,
     grandTotal: opts.grandTotal,
     saleReturnAdjust: opts.saleReturnAdjust,
+    discount: opts.discount,
   });
   const isInterState = classifyInterState(opts.sellerGstin || null, opts.buyerGstin || null);
   const lines = opts.items.map((item) => computeInvoiceGstLine(item, mode));
