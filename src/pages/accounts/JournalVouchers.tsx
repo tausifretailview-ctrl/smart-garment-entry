@@ -39,7 +39,10 @@ type RefTypeFilter =
   | "ManualJournal"
   | "ThirdPartyVoucher"
   | "Contra"
-  | "RoundOff";
+  | "RoundOff"
+  | "PartyOpening"
+  | "StockAdjustment"
+  | "BalanceAdjustment";
 
 const REF_TYPE_VALUES: RefTypeFilter[] = [
   "all",
@@ -61,6 +64,9 @@ const REF_TYPE_VALUES: RefTypeFilter[] = [
   "ThirdPartyVoucher",
   "Contra",
   "RoundOff",
+  "PartyOpening",
+  "StockAdjustment",
+  "BalanceAdjustment",
 ];
 
 function parseRefTypeParam(v: string | null): RefTypeFilter {
@@ -358,6 +364,9 @@ export default function JournalVouchers() {
                     <SelectItem value="ThirdPartyVoucher">Third-party voucher</SelectItem>
                     <SelectItem value="Contra">Contra</SelectItem>
                     <SelectItem value="RoundOff">Round off</SelectItem>
+                    <SelectItem value="PartyOpening">Customer / supplier opening</SelectItem>
+                    <SelectItem value="StockAdjustment">Opening stock / stock adjustment</SelectItem>
+                    <SelectItem value="BalanceAdjustment">Customer balance adjustment</SelectItem>
                   </SelectContent>
                 </Select>
                 <ResetPersistedFiltersButton

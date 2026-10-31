@@ -69,10 +69,17 @@ const DEFAULT_SYSTEM_ACCOUNTS: Array<{
   { account_code: "6070", account_name: "Settlement Discounts Received", account_type: "Revenue", account_group: "Indirect Incomes" },
   { account_code: "6100", account_name: "Salaries & Wages", account_type: "Expense", account_group: "Indirect Expenses" },
   { account_code: "6900", account_name: "Round Off", account_type: "Expense", account_group: "Indirect Expenses" },
+  // A journal gap above ₹1 is a bug, not rounding: it lands here so the Trial Balance shows it.
+  {
+    account_code: "9900",
+    account_name: "Journal Differences (Suspense)",
+    account_type: "Liability",
+    account_group: "Suspense Account",
+  },
 ];
 
 /** Bump when DEFAULT_SYSTEM_ACCOUNTS changes so in-memory cache cannot omit new codes. */
-const SEED_LIST_VERSION = 2;
+const SEED_LIST_VERSION = 3;
 
 const SEED_CACHE_MS = 5 * 60 * 1000;
 const seedCache = new Map<string, { accounts: SeededAccount[]; expiresAt: number; version: number }>();
