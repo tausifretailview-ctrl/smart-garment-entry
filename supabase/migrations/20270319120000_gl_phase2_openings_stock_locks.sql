@@ -313,8 +313,9 @@ $$;
 --   adjustment  Stock Adjustment, physical count, stock settlement, closing stock import:
 --               Dr/Cr Stock vs Stock Shortage & Excess
 --   transfer    Shop-to-shop transfer: Dr/Cr Stock vs Inter-shop Stock Transfers
--- Valued at product_variants.pur_price (same as the Stock Report). Automatic reconciliation
--- rows only correct a drifted stock_qty back to the documents, which the ledger already
+-- Valued at product_variants.pur_price (same as the Stock Report). Reconciliation rows
+-- ("Stock reconciliation:", "Auto-reconciliation:", "Recon:", "Global reconciliation" ...)
+-- only correct a drifted stock_qty back to the documents, which the ledger already
 -- follows, so they post nothing.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.gl_stock_movement_kind(p_type text, p_notes text)
@@ -327,7 +328,7 @@ AS $$
     WHEN p_type IN ('reconciliation', 'adjustment') THEN
       CASE
         WHEN COALESCE(p_notes, '') ILIKE 'Opening stock%' THEN 'opening'
-        WHEN COALESCE(p_notes, '') ~* '^(stock reconciliation:|reconciliation:|auto-reconciliation:)' THEN NULL
+        WHEN COALESCE(p_notes, '') ~* '^\s*(recon:|[a-z -]*reconcil)' THEN NULL
         ELSE 'adjustment'
       END
     WHEN p_type IN ('transfer_in', 'transfer_out', 'transfer_in_cancel', 'transfer_out_cancel') THEN 'transfer'
