@@ -8,6 +8,8 @@ export type PosLiveMarginInputItem = {
 export type PosLiveMargin = {
   profit: number;
   marginPercent: number;
+  /** Profit ÷ purchase cost (markup, like purchase entry). Null when cost is 0/missing. */
+  markupPercent: number | null;
   totalCost: number;
   totalSale: number;
 };
@@ -33,7 +35,8 @@ export function computePosLiveMargin(input: {
   const totalSale = roundMoney(input.billNet);
   const profit = roundMoney(totalSale - totalCost);
   const marginPercent = totalSale > 0.005 ? (profit / totalSale) * 100 : 0;
-  return { profit, marginPercent, totalCost, totalSale };
+  const markupPercent = totalCost > 0.005 ? (profit / totalCost) * 100 : null;
+  return { profit, marginPercent, markupPercent, totalCost, totalSale };
 }
 
 export function applyPurchasePricesToPosCart(

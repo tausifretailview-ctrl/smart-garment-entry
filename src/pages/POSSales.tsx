@@ -8262,13 +8262,16 @@ export default function POSSales() {
           <div className="h-10 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-3 flex items-center justify-center min-w-[120px] shadow-sm shrink-0">
             {showPosMarginIndicator && liveMargin.totalSale > 0 ? (
               <div className="flex items-center gap-2 text-sm font-semibold text-white tabular-nums">
-                <span
-                  className={cn(
-                    liveMargin.marginPercent < 0 ? "text-red-200" : "text-emerald-100",
-                  )}
-                >
-                  {liveMargin.marginPercent.toFixed(1)}%
-                </span>
+                {liveMargin.markupPercent !== null && (
+                  <span
+                    title="Markup on purchase value (profit ÷ purchase cost)"
+                    className={cn(
+                      liveMargin.markupPercent < 0 ? "text-red-200" : "text-emerald-100",
+                    )}
+                  >
+                    {liveMargin.markupPercent.toFixed(1)}%
+                  </span>
+                )}
                 <span>₹{formatINR2(liveMargin.profit)}</span>
               </div>
             ) : (
