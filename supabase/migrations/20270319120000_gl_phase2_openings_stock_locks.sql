@@ -391,6 +391,7 @@ BEGIN
     SELECT k.kind, round(SUM(sm.quantity * COALESCE(pv.pur_price, 0))::numeric, 2) AS val
     FROM public.stock_movements sm
     JOIN public.product_variants pv ON pv.id = sm.variant_id
+    JOIN public.products p ON p.id = pv.product_id
     CROSS JOIN LATERAL (SELECT public.gl_stock_movement_kind(sm.movement_type, sm.notes) AS kind) k
     WHERE sm.organization_id = p_org
       AND sm.created_at >= v_from
@@ -401,6 +402,7 @@ BEGIN
         'transfer_in', 'transfer_out', 'transfer_in_cancel', 'transfer_out_cancel'
       )
       AND k.kind IS NOT NULL
+      AND COALESCE(p.product_type, 'goods') NOT IN ('service', 'combo')
     GROUP BY k.kind
   LOOP
     CONTINUE WHEN abs(r.val) < 0.01;
