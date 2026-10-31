@@ -190,3 +190,31 @@ describe("saleItemDiscountPercentForPersist", () => {
     expect(Math.round((3500 * pct) / 100)).toBe(1501);
   });
 });
+
+describe("resolveFlatDiscountFromSale — flat % saved with its amount (MOTAS INV/26-27/538)", () => {
+  const items = [{ unit_price: 230, quantity: 1, discount_percent: 0, line_total: 230 }];
+
+  it("does not add the saved 5% amount again as Flat Disc ₹", () => {
+    expect(
+      resolveFlatDiscountFromSale(
+        { gross_amount: 230, flat_discount_percent: 5, flat_discount_amount: 11.5, net_amount: 219, round_off: 0.5 },
+        items,
+      ),
+    ).toEqual({ percent: 5, rupees: 0 });
+  });
+
+  it("keeps a real extra ₹ typed on top of the percent", () => {
+    expect(
+      resolveFlatDiscountFromSale(
+        { gross_amount: 230, flat_discount_percent: 5, flat_discount_amount: 21.5, net_amount: 209 },
+        items,
+      ),
+    ).toEqual({ percent: 5, rupees: 10 });
+  });
+
+  it("keeps a rupee-only flat discount", () => {
+    expect(
+      resolveFlatDiscountFromSale({ gross_amount: 230, flat_discount_percent: 0, flat_discount_amount: 30 }, items),
+    ).toEqual({ percent: 0, rupees: 30 });
+  });
+});

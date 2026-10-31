@@ -45,9 +45,18 @@ export function resolveFlatDiscountFromSale(
   saleItems: SaleItemDiscountSource[],
 ): { percent: number; rupees: number } {
   const percent = n(invoice.flat_discount_percent);
-  const rupees = n(invoice.flat_discount_amount);
-  if (rupees > EPS || percent > EPS) {
-    return { percent, rupees };
+  const savedFlat = n(invoice.flat_discount_amount);
+  if (percent > EPS) {
+    // flat_discount_amount is saved as (gross × %) + extra ₹, so only the part above the
+    // percent is the Flat Disc ₹ box. Returning the whole amount doubled the discount on
+    // every edit + save (MOTAS INV/26-27/538: 5% of ₹230 → Disc 11.50, then 23, then 35).
+    const itemsBase = saleItems.reduce((sum, item) => sum + n(item.unit_price) * n(item.quantity), 0);
+    const base = itemsBase > EPS ? itemsBase : n(invoice.gross_amount);
+    const extra = savedFlat - (base * percent) / 100;
+    return { percent, rupees: extra > 0.05 ? Math.round(extra * 100) / 100 : 0 };
+  }
+  if (savedFlat > EPS) {
+    return { percent: 0, rupees: savedFlat };
   }
 
   const lineDisc = saleItems.reduce((sum, item) => {
