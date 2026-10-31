@@ -204,6 +204,30 @@ describe("MotasA4Template", () => {
     expect(html).toContain("61.19");
   });
 
+  it("reads an Exclusive bill with GST-inclusive line totals and a flat discount (INV/26-27/421)", () => {
+    // ₹230 + 5% lines saved as 241.50 (Σ 945 = taxable 900 + GST 45); 5% flat disc ₹45;
+    // Net 898 = 855 + 42.75 rounded, saved round off 0.
+    const html = renderToStaticMarkup(
+      createElement(MotasA4Template, {
+        ...baseProps,
+        taxType: "exclusive",
+        items: [
+          item(0, { qty: 1, rate: 230, sp: 230, total: 241.5 }),
+          item(1, { qty: 3, rate: 230, sp: 230, total: 703.5 }),
+        ],
+        discount: 45,
+        roundOff: 0,
+        grandTotal: 898,
+      }),
+    );
+    expect(html).toContain("230.00");
+    expect(html).toContain("-45.00");
+    expect(html).toContain("855.00");
+    expect(html).toContain("42.75");
+    expect(html).toContain("0.25");
+    expect(html).not.toContain("-47.00");
+  });
+
   it("shows no Discount row when only line discounts were given", () => {
     const html = renderToStaticMarkup(
       createElement(MotasA4Template, {
