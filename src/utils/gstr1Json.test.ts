@@ -234,6 +234,57 @@ describe("buildGstr1Json", () => {
     expect(r.warnings.find((w) => w.code === "nil_rated")?.refs).toEqual(["POS/26-27/1", "INV/26-27/1"]);
   });
 
+  it("debit notes: registered buyer → CDNR note type D, retail → added to B2CS, own series in Table 13", () => {
+    const r = buildGstr1Json(
+      input({
+        bills: [bill({ id: "1", number: "POS/26-27/1", billValue: 1050 })],
+        debitNotes: [
+          bill({ id: "d1", number: "DN/26-27/1", date: "2026-10-12", gstin: MAH, billValue: 1180, taxType: "exclusive", lines: [
+            { hsn: "6204", rate: 18, qty: 0, value: 1000, uom: "oth", productName: "Rate difference" },
+          ] }),
+          bill({ id: "d2", number: "DN/26-27/2", date: "2026-10-13", billValue: 210, taxType: "exclusive", lines: [
+            { hsn: "9965", rate: 5, qty: 0, value: 200, uom: "na", productName: "Freight charges" },
+          ] }),
+        ],
+        documents: {
+          invoices: [{ number: "POS/26-27/1", cancelled: false }],
+          creditNotes: [],
+          debitNotes: [
+            { number: "DN/26-27/1", cancelled: false },
+            { number: "DN/26-27/2", cancelled: false },
+          ],
+        },
+      }),
+    );
+    expect(r.errors).toEqual([]);
+    const json = r.json!;
+    expect(json.cdnr).toHaveLength(1);
+    expect(json.cdnr[0].ctin).toBe(MAH);
+    expect(json.cdnr[0].nt[0]).toMatchObject({ ntty: "D", nt_num: "DN/26-27/1", nt_dt: "12-10-2026", pos: "27", val: 1180 });
+    expect(json.cdnr[0].nt[0].itms[0].itm_det).toEqual({ rt: 18, txval: 1000, iamt: 0, camt: 90, samt: 90, csamt: 0 });
+    expect(json.cdnur).toEqual([]);
+
+    // Retail debit note adds to the 5% B2CS row: 1000 from the bill + 200 freight.
+    expect(json.b2cs).toEqual([
+      { sply_ty: "INTRA", rt: 5, typ: "OE", pos: "27", txval: 1200, iamt: 0, camt: 30, samt: 30, csamt: 0 },
+    ]);
+
+    // Value-only notes add value, not quantity, to the HSN summary.
+    expect(json.hsn.hsn_b2b).toEqual([
+      { num: 1, hsn_sc: "6204", desc: "Rate difference", uqc: "OTH", qty: 0, rt: 18, txval: 1000, iamt: 0, camt: 90, samt: 90, csamt: 0 },
+    ]);
+    expect(json.hsn.hsn_b2c.map((h) => [h.hsn_sc, h.uqc, h.qty, h.txval])).toEqual([
+      ["6109", "PCS", 1, 1000],
+      ["9965", "NA", 0, 200],
+    ]);
+
+    expect(json.doc_issue.doc_det).toEqual([
+      { doc_num: 1, docs: [{ num: 1, from: "POS/26-27/1", to: "POS/26-27/1", totnum: 1, cancel: 0, net_issue: 1 }] },
+      { doc_num: 4, docs: [{ num: 1, from: "DN/26-27/1", to: "DN/26-27/2", totnum: 2, cancel: 0, net_issue: 2 }] },
+    ]);
+    expect(r.summary).toMatchObject({ cdnrNotes: 1, debitNotes: 1, docSeries: 2, taxable: 2200, tax: 240 });
+  });
+
   it("inter-state retail above ₹2.5 lakh is B2CL; a retail credit note that outweighs sales warns", () => {
     const r = buildGstr1Json(
       input({

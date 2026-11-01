@@ -280,3 +280,49 @@ export function debitNotePrintItems(d: DebitNoteDetails) {
 export function debitNoteBalance(net: number | null | undefined, paid: number | null | undefined): number {
   return Math.max(0, round2(num(net ?? 0) - num(paid ?? 0)));
 }
+
+/* ------------------------------------------------------------------ */
+/* GST returns (step 1b)                                               */
+/* ------------------------------------------------------------------ */
+
+export type DebitNoteTaxHeads = { taxable: number; gst: number; igst: number; cgst: number; sgst: number };
+
+/** Taxable value and GST heads of a saved note, from its stored lines. */
+export function debitNoteTaxHeads(d: DebitNoteDetails): DebitNoteTaxHeads {
+  const taxable = round2(d.lines.reduce((s, l) => s + num(l.taxable), 0));
+  const gst = round2(d.lines.reduce((s, l) => s + num(l.gst_amount), 0));
+  const half = round2(gst / 2);
+  return {
+    taxable,
+    gst,
+    igst: d.inter_state ? gst : 0,
+    cgst: d.inter_state ? 0 : half,
+    sgst: d.inter_state ? 0 : round2(gst - half),
+  };
+}
+
+/** SAC codes (services such as freight) start with 99. */
+function isSac(hsn: string): boolean {
+  return /^99/.test(hsn.trim());
+}
+
+/**
+ * Lines in the shape the GSTR-1 file builder reads (tax exclusive: value = taxable).
+ * Only a short-billed quantity adds goods to the HSN summary; a rate difference,
+ * freight or interest note changes value only, so it reports quantity 0.
+ */
+export function debitNoteGstr1Lines(d: DebitNoteDetails) {
+  return d.lines.map((l) => {
+    const hsn = l.hsn.trim();
+    const service = isSac(hsn);
+    const carriesQty = d.reason === "short_billed" && !service;
+    return {
+      hsn,
+      rate: l.gst_percent,
+      qty: carriesQty ? l.qty : 0,
+      value: l.taxable,
+      uom: service ? "na" : carriesQty ? "" : "oth",
+      productName: l.description,
+    };
+  });
+}

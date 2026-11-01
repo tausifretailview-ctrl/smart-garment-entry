@@ -4,9 +4,11 @@ import {
   computeDebitNote,
   debitNoteBalance,
   debitNoteDetailsToForms,
+  debitNoteGstr1Lines,
   debitNotePrintItems,
   debitNotePrintNote,
   debitNoteReasonLabel,
+  debitNoteTaxHeads,
   isDebitNoteSale,
   newDebitNoteLineForm,
   parseDebitNoteDetails,
@@ -101,5 +103,31 @@ describe("helpers", () => {
     expect(isDebitNoteSale({ sale_type: "invoice" })).toBe(false);
     expect(debitNoteBalance(3012, 1000)).toBe(2012);
     expect(debitNoteBalance(100, 150)).toBe(0);
+  });
+});
+
+describe("GST return helpers", () => {
+  const build = (reason: "rate_difference" | "short_billed" | "freight", hsn: string, interState: boolean) =>
+    buildDebitNoteDetails({
+      againstSaleId: null,
+      againstSaleNumber: "INV/26-27/12",
+      againstSaleDate: null,
+      reason,
+      reasonNote: "",
+      interState,
+      totals: computeDebitNote([line({ description: "Line", hsn, qty: "100", rate: "2", gst_percent: "18" })], interState),
+    });
+
+  it("splits stored GST into CGST + SGST or IGST", () => {
+    expect(debitNoteTaxHeads(build("rate_difference", "7306", false))).toEqual({ taxable: 200, gst: 36, igst: 0, cgst: 18, sgst: 18 });
+    expect(debitNoteTaxHeads(build("rate_difference", "7306", true))).toEqual({ taxable: 200, gst: 36, igst: 36, cgst: 0, sgst: 0 });
+  });
+
+  it("reports quantity only for a short-billed quantity, and services as unit NA", () => {
+    expect(debitNoteGstr1Lines(build("rate_difference", "7306", false))[0]).toEqual({
+      hsn: "7306", rate: 18, qty: 0, value: 200, uom: "oth", productName: "Line",
+    });
+    expect(debitNoteGstr1Lines(build("short_billed", "7306", false))[0]).toMatchObject({ qty: 100, uom: "" });
+    expect(debitNoteGstr1Lines(build("freight", "996511", false))[0]).toMatchObject({ qty: 0, uom: "na" });
   });
 });

@@ -49,6 +49,8 @@ import { fetchAllSaleItems, fetchProductsByIds, fetchSaleReturnItemsWithDcFlag }
 import { isHeldOrCancelledSale, isParkedHoldNumberSale } from "@/utils/posHoldBill";
 import { allDcDocumentIds, saleReturnAmountsWithoutDc, withoutDcLines } from "@/utils/gstDcExclusion";
 import { buildGstr1Json, type Gstr1Bill, type Gstr1Build, type Gstr1Input, type Gstr1Issue } from "@/utils/gstr1Json";
+import { debitNoteGstr1Lines, debitNoteTaxHeads, isDebitNoteSale } from "@/utils/debitNote";
+import { fetchDebitNoteDetailsByIds, fetchPeriodDebitNoteTaxHeads } from "@/utils/debitNoteData";
 import { resolveGstFilingPrefs, type GstFilingScheme } from "@/utils/gstReadiness";
 import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -449,13 +451,17 @@ const GSTReports = () => {
           .range(from, to),
       );
       // Held carts (Hold/ bills) and cancelled bills are not supplies.
-      const salesData = salesFetched.filter((s) => !isHeldOrCancelledSale(s));
+      // Debit notes (Industrial mode) are not bills: they go to CDNR / CDNUR as note type D below.
+      const salesData = salesFetched.filter((s) => !isHeldOrCancelledSale(s) && !isDebitNoteSale(s));
+      const debitNoteSales = salesFetched.filter((s) => !isHeldOrCancelledSale(s) && isDebitNoteSale(s));
+      // No query runs when the period has no debit notes.
+      const debitNoteDetails = await fetchDebitNoteDetailsByIds(debitNoteSales.map((s) => String(s.id)));
 
       // Every document issued in the period, cancelled ones included, for Table 13 of the GSTR-1 file.
       const periodDocuments = await fetchAllPages<any>((from, to) =>
         supabase
           .from("sales")
-          .select("sale_number, is_cancelled, payment_status, payment_method")
+          .select("sale_number, sale_type, is_cancelled, payment_status, payment_method")
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
           .gte("sale_date", fromDateObj.toISOString())
@@ -700,6 +706,64 @@ const GSTReports = () => {
           igst: 0,
         }));
 
+      // Debit notes: CDNR (registered buyer) / CDNUR rows with note type D, and their lines in the HSN summary.
+      const debitNotes: Gstr1Bill[] = [];
+      for (const dn of debitNoteSales) {
+        const details = debitNoteDetails.get(String(dn.id));
+        if (!details) continue;
+        const gstin = String((dn.customers as any)?.gst_number || "").trim().toUpperCase();
+        const heads = debitNoteTaxHeads(details);
+        const lines = debitNoteGstr1Lines(details);
+        debitNotes.push({
+          id: String(dn.id),
+          number: String(dn.sale_number || ""),
+          date: String(dn.sale_date || ""),
+          gstin,
+          billValue: Number(dn.net_amount) || 0,
+          taxType: "exclusive",
+          lines,
+        });
+        const row = {
+          noteType: "D",
+          noteNo: dn.sale_number,
+          noteDate: format(new Date(dn.sale_date), "dd-MM-yyyy"),
+          partyName: dn.customer_name,
+          originalInvoice: details.against_sale_number,
+          noteValue: Number(dn.net_amount) || 0,
+          taxableValue: heads.taxable,
+          cgst: heads.cgst,
+          sgst: heads.sgst,
+          igst: heads.igst,
+        };
+        if (gstin) cdnr.push({ gstin, ...row });
+        else cdnur.push(row);
+        details.lines.forEach((l, i) => {
+          const hsnCode = l.hsn || "00000000";
+          const existing = hsnMap.get(hsnCode) || {
+            hsnCode,
+            description: l.description || "",
+            uqc: "NOS",
+            totalQty: 0,
+            totalValue: 0,
+            taxableValue: 0,
+            igst: 0,
+            cgst: 0,
+            sgst: 0,
+            rate: l.gst_percent,
+          };
+          existing.totalQty += Number(lines[i]?.qty) || 0;
+          existing.totalValue += l.taxable + l.gst_amount;
+          existing.taxableValue += l.taxable;
+          if (details.inter_state) {
+            existing.igst += l.gst_amount;
+          } else {
+            existing.cgst += l.gst_amount / 2;
+            existing.sgst += l.gst_amount / 2;
+          }
+          hsnMap.set(hsnCode, existing);
+        });
+      }
+
       const hsnRows = Array.from(hsnMap.values());
 
       // Source for the GSTR-1 file: GST bills and credit notes with their lines, plus every number issued.
@@ -728,14 +792,18 @@ const GSTReports = () => {
             productName: l.product_name,
           })),
         })),
+        debitNotes,
         documents: {
           invoices: periodDocuments
-            .filter((d) => !isHeldCart(d))
+            .filter((d) => !isHeldCart(d) && !isDebitNoteSale(d))
             .map((d) => ({
               number: String(d.sale_number || ""),
               cancelled: d.is_cancelled === true || String(d.payment_status || "").toLowerCase() === "cancelled",
             })),
           creditNotes: saleReturns.map((r) => ({ number: String(r.return_number || ""), cancelled: false })),
+          debitNotes: periodDocuments
+            .filter((d) => isDebitNoteSale(d))
+            .map((d) => ({ number: String(d.sale_number || ""), cancelled: d.is_cancelled === true })),
         },
       });
       setGstr1Check(null);
@@ -763,8 +831,10 @@ const GSTReports = () => {
       toast({
         title: "Success",
         description: gstSales.length > 0
-          ? `GSTR-1 generated from ${gstSales.length} GST bill(s)`
-          : "No GST sale bills found in this period",
+          ? `GSTR-1 generated from ${gstSales.length} GST bill(s)${debitNotes.length > 0 ? ` and ${debitNotes.length} debit note(s)` : ""}`
+          : debitNotes.length > 0
+            ? `GSTR-1 generated from ${debitNotes.length} debit note(s)`
+            : "No GST sale bills found in this period",
       });
     } catch (error) {
       console.error("Error generating GSTR-1:", error);
@@ -817,8 +887,14 @@ const GSTReports = () => {
       }, 0);
       const returnGST = gstSaleReturns.reduce((sum, r) => sum + (r.gst_amount || 0), 0);
 
-      const netOutwardTaxable = outwardTaxable - returnTaxable;
-      const netOutwardGST = outwardGST - returnGST;
+      // Debit notes (Industrial mode) add to outward supplies; none exist for other shops.
+      const dnFrom = new Date(fromDate);
+      const dnTo = new Date(toDate);
+      dnTo.setHours(23, 59, 59, 999);
+      const debitNoteHeads = await fetchPeriodDebitNoteTaxHeads(currentOrganization.id, dnFrom.toISOString(), dnTo.toISOString());
+
+      const netOutwardTaxable = outwardTaxable - returnTaxable + debitNoteHeads.taxable;
+      const netOutwardGST = outwardGST - returnGST + debitNoteHeads.gst;
 
       // Fetch purchases
       const { data: purchaseData } = await supabase
@@ -926,6 +1002,8 @@ const GSTReports = () => {
           .range(from, to),
       );
 
+      // Debit notes have no sale lines; their stored GST lines are added below.
+      const hsnDebitNoteIds = (salesData || []).filter((s) => isDebitNoteSale(s)).map((s) => String(s.id));
       const saleIds = salesData?.map(s => s.id) || [];
       const taxTypeBySale = new Map(
         (salesData || []).map((s) => [
@@ -968,6 +1046,38 @@ const GSTReports = () => {
         existing.sgst += gstAmount / 2;
         hsnMap.set(hsnCode, existing);
       });
+
+      if (hsnDebitNoteIds.length > 0) {
+        const dnDetails = await fetchDebitNoteDetailsByIds(hsnDebitNoteIds);
+        dnDetails.forEach((details) => {
+          const qtyLines = debitNoteGstr1Lines(details);
+          details.lines.forEach((l, i) => {
+            const hsnCode = l.hsn || "00000000";
+            const existing = hsnMap.get(hsnCode) || {
+              hsnCode,
+              description: l.description || "",
+              uqc: "NOS",
+              totalQty: 0,
+              totalValue: 0,
+              taxableValue: 0,
+              igst: 0,
+              cgst: 0,
+              sgst: 0,
+              rate: l.gst_percent,
+            };
+            existing.totalQty += Number(qtyLines[i]?.qty) || 0;
+            existing.totalValue += l.taxable + l.gst_amount;
+            existing.taxableValue += l.taxable;
+            if (details.inter_state) {
+              existing.igst += l.gst_amount;
+            } else {
+              existing.cgst += l.gst_amount / 2;
+              existing.sgst += l.gst_amount / 2;
+            }
+            hsnMap.set(hsnCode, existing);
+          });
+        });
+      }
 
       setHsnData(Array.from(hsnMap.values()).sort((a, b) => b.totalValue - a.totalValue));
       setHsnGenerated(true);
@@ -1864,7 +1974,8 @@ const GSTReports = () => {
                   ["B2B bills", gstr1Check.summary.b2bInvoices],
                   ["B2CL bills", gstr1Check.summary.b2clInvoices],
                   ["B2CS rows", gstr1Check.summary.b2csRows],
-                  ["Credit notes", gstr1Check.summary.cdnrNotes + gstr1Check.summary.cdnurNotes],
+                  ["Credit notes", gstr1Check.summary.cdnrNotes + gstr1Check.summary.cdnurNotes - gstr1Check.summary.debitNotes],
+                  ...(gstr1Check.summary.debitNotes > 0 ? [["Debit notes", gstr1Check.summary.debitNotes]] : []),
                   ["HSN rows", gstr1Check.summary.hsnRows],
                   ["Bill series", gstr1Check.summary.docSeries],
                   ["Taxable", formatCurrency(gstr1Check.summary.taxable)],
