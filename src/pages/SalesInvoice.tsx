@@ -13,6 +13,7 @@ import {
   type SaleB2BDetailsForm,
 } from "@/utils/industrialMode";
 import { SaleB2BDetailsBand } from "@/components/sales/SaleB2BDetailsBand";
+import { fetchQuotationWithItems } from "@/utils/quotationListQueries";
 import type { Json } from "@/integrations/supabase/types";
 import { flushSync } from "react-dom";
 import { allowsDecimalQty, clampQty, minQtyForUom, parseQtyValue } from "@/utils/qtyInput";
@@ -433,6 +434,8 @@ export default function SalesInvoice() {
   const [b2bForm, setB2bForm] = useState<SaleB2BDetailsForm>(EMPTY_SALE_B2B_FORM);
   // Edit only rewrites b2b_details when the loaded bill row carried the column.
   const b2bLoadedForEditRef = useRef(false);
+  // Industrial mode: bill started from a quotation (marked Confirmed once the bill saves).
+  const fromQuotationRef = useRef<{ id: string; number: string } | null>(null);
   const creditLimitAcknowledgedRef = useRef(false);
   const savingLockRef = useRef(false); // Synchronous lock to prevent duplicate saves from rapid clicks
   const printRef = useRef<HTMLDivElement>(null);
@@ -1364,6 +1367,96 @@ export default function SalesInvoice() {
       loadInvoiceById(editId);
     }
   }, [location.state?.editInvoiceId, location.state?.invoiceData, currentOrganization?.id]);
+
+  // Industrial mode: Quotation dashboard "Convert to Invoice" opens a new bill filled from the quotation.
+  useEffect(() => {
+    const quotationId = location.state?.fromQuotationId as string | undefined;
+    if (!quotationId || !currentOrganization?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const q = await fetchQuotationWithItems(quotationId, currentOrganization.id);
+        if (cancelled) return;
+        if (!q) throw new Error("Quotation not found");
+        fromQuotationRef.current = { id: q.id, number: q.quotation_number };
+        setEditingInvoiceId(null);
+        setInvoiceDate(new Date());
+        setDueDate(new Date());
+        setSelectedCustomerId(q.customer_id || "");
+        if (q.customer_id) {
+          let meta: { gst_number?: string | null; transport_details?: string | null } | null = null;
+          try {
+            const { data } = await supabase
+              .from("customers")
+              .select("gst_number, transport_details")
+              .eq("id", q.customer_id)
+              .maybeSingle();
+            meta = data || null;
+          } catch {
+            meta = null;
+          }
+          if (cancelled) return;
+          setSelectedCustomer({
+            id: q.customer_id,
+            customer_name: q.customer_name,
+            phone: q.customer_phone,
+            email: q.customer_email,
+            address: q.customer_address,
+            gst_number: meta?.gst_number || null,
+            transport_details: meta?.transport_details || "",
+          });
+        } else {
+          setSelectedCustomer(null);
+        }
+        setTaxType(q.tax_type === "exclusive" ? "exclusive" : "inclusive");
+        setTermsConditions(q.terms_conditions || "");
+        setNotes(q.notes?.trim() ? q.notes : `Ref: Quotation ${q.quotation_number}`);
+        setShippingAddress(q.shipping_address || "");
+        setSalesman(q.salesman || "");
+        setB2bForm(EMPTY_SALE_B2B_FORM);
+        const flatPct = Number(q.flat_discount_percent || 0);
+        setFlatDiscountPercent(flatPct > 0 ? flatPct : 0);
+        setFlatDiscountRupees(flatPct > 0 ? 0 : Number(q.flat_discount_amount || 0));
+        setOtherCharges(0);
+        const items = (q.quotation_items || [])
+          .filter((item) => !item.deleted_at)
+          .map((item) => ({
+            id: crypto.randomUUID(),
+            productId: item.product_id,
+            variantId: item.variant_id,
+            productName: item.product_name,
+            size: item.size,
+            barcode: item.barcode || "",
+            color: item.color || "",
+            quantity: item.quantity,
+            box: "",
+            mrp: item.mrp,
+            salePrice: item.unit_price,
+            discountPercent: Number(item.discount_percent || 0),
+            discountAmount: 0,
+            gstPercent: item.gst_percent,
+            lineTotal: item.line_total,
+            hsnCode: item.hsn_code || "",
+          }));
+        if (items.length > 0) {
+          setLineItems(items);
+          rebuildStagedQtyByVariantRef(items);
+        }
+        toast({ title: `Quotation ${q.quotation_number} loaded`, description: "Check stock and rates, then save the invoice." });
+      } catch (err) {
+        fromQuotationRef.current = null;
+        toast({
+          variant: "destructive",
+          title: "Could not load quotation",
+          description: err instanceof Error ? err.message : String(err),
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per navigation
+  }, [location.state?.fromQuotationId, currentOrganization?.id]);
 
   // Load invoice for duplication when navigated from dashboard
   useEffect(() => {
@@ -3988,6 +4081,20 @@ Thank you for choosing us!`;
         setOriginalItemsForEdit([]);
         resetPaidInvoiceGuard();
         setPaymentOverride(null);
+
+        // Bill made from a quotation: mark the quotation Confirmed (best effort, bill is already saved).
+        const fromQuotation = fromQuotationRef.current;
+        fromQuotationRef.current = null;
+        if (fromQuotation && currentOrganization?.id) {
+          void supabase
+            .from("quotations")
+            .update({ status: "confirmed" })
+            .eq("id", fromQuotation.id)
+            .eq("organization_id", currentOrganization.id)
+            .then(({ error: qErr }) => {
+              if (qErr) console.error("Quotation status update failed:", qErr);
+            });
+        }
 
         // Now show print dialog with saved data
         setSavedInvoiceData(invoiceDataForPrint);
