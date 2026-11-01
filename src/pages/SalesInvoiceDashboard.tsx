@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import type { SaleB2BDetails } from "@/utils/industrialMode";
 import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
@@ -2325,6 +2326,7 @@ export default function SalesInvoiceDashboard() {
         <InvoiceWrapper
           format={format}
           billNo={invoiceToPrint.sale_number}
+          b2bDetails={(invoiceToPrint as { b2b_details?: SaleB2BDetails | null }).b2b_details ?? null}
           date={new Date(invoiceToPrint.sale_date)}
           dueDate={invoiceToPrint.due_date || null}
           customerName={invoiceToPrint.customer_name}
@@ -3800,6 +3802,7 @@ export default function SalesInvoiceDashboard() {
               ref={printRef}
               format={saleInvoiceWrapperFormat}
               billNo={invoiceToPrint.sale_number}
+              b2bDetails={(invoiceToPrint as { b2b_details?: SaleB2BDetails | null }).b2b_details ?? null}
               date={new Date(invoiceToPrint.sale_date)}
               dueDate={invoiceToPrint.due_date || null}
               customerName={invoiceToPrint.customer_name}
@@ -5460,6 +5463,7 @@ export default function SalesInvoiceDashboard() {
               ref={printRef}
               format={saleInvoiceWrapperFormat}
               billNo={invoiceToPrint.sale_number}
+              b2bDetails={(invoiceToPrint as { b2b_details?: SaleB2BDetails | null }).b2b_details ?? null}
               date={new Date(invoiceToPrint.sale_date)}
               dueDate={invoiceToPrint.due_date || null}
               customerName={invoiceToPrint.customer_name}

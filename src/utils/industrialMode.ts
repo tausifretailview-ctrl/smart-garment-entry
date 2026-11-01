@@ -296,3 +296,41 @@ export function formatCustomerPoRef(d: SaleB2BDetails | null | undefined): strin
   if (!d?.customer_po_no) return "";
   return `${d.customer_po_no}${d.customer_po_date ? ` dt ${dmy(d.customer_po_date)}` : ""}`;
 }
+
+const dmyDash = (d: Date) =>
+  `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
+
+function toLocalDay(v: Date | string | null | undefined): Date | null {
+  if (!v) return null;
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
+  // "yyyy-MM-dd" from the database is a calendar day, not a UTC instant.
+  if (ISO_DATE_RE.test(v)) return new Date(Number(v.slice(0, 4)), Number(v.slice(5, 7)) - 1, Number(v.slice(8, 10)), 12);
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Label / value rows for the A4 invoice detail box (Tally Tax Invoice).
+ * Empty for bills without B2B details, so retail prints stay exactly as before.
+ */
+export function buildB2BInvoiceRows(
+  d: SaleB2BDetails | null | undefined,
+  opts: { invoiceDate?: Date | string | null; dueDate?: Date | string | null } = {},
+): Array<[string, string]> {
+  if (!d || typeof d !== "object") return [];
+  const rows: Array<[string, string]> = [];
+  const po = formatCustomerPoRef(d);
+  if (po) rows.push(["Buyer's Order No.", po]);
+  const through = [d.transporter_name, d.transport_mode && d.transport_mode !== "road" ? `by ${TRANSPORT_MODE_LABEL[d.transport_mode]}` : ""]
+    .filter(Boolean)
+    .join(" ");
+  if (through) rows.push(["Dispatched through", through]);
+  if (d.transporter_id) rows.push(["Transporter ID", d.transporter_id]);
+  if (d.vehicle_no) rows.push(["Vehicle No.", d.vehicle_no]);
+  if (d.lr_no) rows.push(["LR / RR No.", `${d.lr_no}${d.lr_date ? ` dt ${dmy(d.lr_date)}` : ""}`]);
+  if (d.distance_km != null && d.distance_km > 0) rows.push(["Distance", `${d.distance_km} km`]);
+  const due = toLocalDay(opts.dueDate);
+  const inv = toLocalDay(opts.invoiceDate);
+  if (due && (!inv || due.toDateString() !== inv.toDateString())) rows.push(["Due Date", dmyDash(due)]);
+  return rows;
+}

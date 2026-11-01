@@ -7,7 +7,6 @@ import {
   checkCreditLimit,
   dueDateFromCreditDays,
   formatInr,
-  formatSaleTransportLine,
   parseSaleB2BForm,
   saleB2BToForm,
   type SaleB2BDetails,
@@ -4562,7 +4561,7 @@ Thank you for choosing us!`;
         <SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={sizeGridProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} showStock validateStock={!allowNegativeStock} title="Enter Size-wise Qty" isLoading={sizeGridLoading} />
         <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
           {savedInvoiceData?.invoiceNumber && (savedInvoiceData?.filledItems?.length ?? 0) > 0 ? (
-            <InvoiceWrapper ref={printRef} template={effectiveInvoicePrintTemplate} billNo={savedInvoiceData.invoiceNumber} date={invoiceDate} dueDate={dueDate} customerName={savedInvoiceData?.customer?.customer_name || selectedCustomer?.customer_name || ""} customerAddress={savedInvoiceData?.customer?.address || ""} shippingAddress={savedInvoiceData?.shippingAddress || ""} customerMobile={savedInvoiceData?.customer?.phone || ""} customerGSTIN={savedInvoiceData?.customer?.gst_number || ""} customerTransportDetails="" items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({ sr: index + 1, particulars: item.productName, productId: item.productId, size: item.size, barcode: item.barcode || "", hsn: item.hsnCode || "", sp: item.salePrice, mrp: item.mrp, qty: item.quantity, rate: item.salePrice, total: item.lineTotal, color: item.color || "", gstPercent: item.gstPercent || 0, discountPercent: item.discountPercent || 0 }))} subTotal={savedInvoiceData?.grossAmount ?? grossAmount} discount={savedInvoiceData?.totalDiscount ?? totalDiscount} grandTotal={savedInvoiceData?.netAmount ?? netAmount} notes={savedInvoiceData?.notes ?? notes} pointsBalance={savedInvoiceData?.pointsBalance} pointsRedeemed={savedInvoiceData?.pointsRedeemed} otherCharges={savedInvoiceData?.otherCharges ?? otherCharges} roundOff={roundOff} paymentMethod="Cash" taxType={taxType} financerDetails={financerDetails} />
+            <InvoiceWrapper ref={printRef} template={effectiveInvoicePrintTemplate} billNo={savedInvoiceData.invoiceNumber} date={invoiceDate} dueDate={dueDate} customerName={savedInvoiceData?.customer?.customer_name || selectedCustomer?.customer_name || ""} customerAddress={savedInvoiceData?.customer?.address || ""} shippingAddress={savedInvoiceData?.shippingAddress || ""} customerMobile={savedInvoiceData?.customer?.phone || ""} customerGSTIN={savedInvoiceData?.customer?.gst_number || ""} customerTransportDetails="" b2bDetails={savedInvoiceData?.b2bDetails as SaleB2BDetails | null | undefined} items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({ sr: index + 1, particulars: item.productName, productId: item.productId, size: item.size, barcode: item.barcode || "", hsn: item.hsnCode || "", sp: item.salePrice, mrp: item.mrp, qty: item.quantity, rate: item.salePrice, total: item.lineTotal, color: item.color || "", gstPercent: item.gstPercent || 0, discountPercent: item.discountPercent || 0 }))} subTotal={savedInvoiceData?.grossAmount ?? grossAmount} discount={savedInvoiceData?.totalDiscount ?? totalDiscount} grandTotal={savedInvoiceData?.netAmount ?? netAmount} notes={savedInvoiceData?.notes ?? notes} pointsBalance={savedInvoiceData?.pointsBalance} pointsRedeemed={savedInvoiceData?.pointsRedeemed} otherCharges={savedInvoiceData?.otherCharges ?? otherCharges} roundOff={roundOff} paymentMethod="Cash" taxType={taxType} financerDetails={financerDetails} />
           ) : <div ref={printRef} />}
         </div>
         {historyProduct && currentOrganization && <ProductHistoryDialog isOpen={!!historyProduct} onClose={() => setHistoryProduct(null)} productId={historyProduct.id} productName={historyProduct.name} organizationId={currentOrganization.id} />}
@@ -6132,10 +6131,8 @@ Thank you for choosing us!`;
           shippingAddress={savedInvoiceData?.shippingAddress || ""}
           customerMobile={savedInvoiceData?.customer.phone || selectedCustomer?.phone || ""}
           customerGSTIN={savedInvoiceData?.customer.gst_number || selectedCustomer?.gst_number || ""}
-          customerTransportDetails={formatSaleTransportLine(
-            savedInvoiceData?.b2bDetails as SaleB2BDetails | null | undefined,
-            (savedInvoiceData?.customer as any)?.transport_details || (selectedCustomer as any)?.transport_details || "",
-          )}
+          customerTransportDetails={(savedInvoiceData?.customer as any)?.transport_details || (selectedCustomer as any)?.transport_details || ""}
+          b2bDetails={savedInvoiceData?.b2bDetails as SaleB2BDetails | null | undefined}
             items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({
               sr: index + 1,
               particulars: item.productName,

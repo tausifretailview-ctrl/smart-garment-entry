@@ -11,6 +11,7 @@ import {
   formatInvoicePaymentModeFallback,
 } from "@/utils/invoicePaymentModeDisplay";
 import { isValidImeiLuhn } from "@/utils/barcodeChecksum";
+import { buildB2BInvoiceRows, type SaleB2BDetails } from "@/utils/industrialMode";
 
 interface InvoiceItem {
   sr: number;
@@ -50,6 +51,9 @@ interface TallyTaxInvoiceTemplateProps {
   customerGSTIN?: string;
   customerTransportDetails?: string;
   salesman?: string;
+  /** Industrial mode: customer PO + dispatch details (extra rows in the invoice box). */
+  b2bDetails?: SaleB2BDetails | null;
+  dueDate?: Date | string | null;
   /** inclusive = rate/amount include GST, GST bifurcated at bottom; exclusive = taxable amounts, GST added in summary */
   taxType?: GstTaxType | string;
   items: InvoiceItem[];
@@ -304,6 +308,8 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
   customerGSTIN,
   customerTransportDetails,
   salesman,
+  b2bDetails,
+  dueDate,
   taxType: taxTypeProp = "inclusive",
   items,
   mobileErp = false,
@@ -598,20 +604,32 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                     })()}
                   </td>
                 </tr>
-                <tr>
-                  <td
-                    style={{
-                      borderBottom: "none",
-                      borderRight: b,
-                      padding: "4px 6px",
-                      fontWeight: "bold",
-                      backgroundColor: "#fafafa",
-                    }}
-                  >
-                    Salesman
-                  </td>
-                  <td style={{ borderBottom: "none", padding: "4px 6px" }}>{salesman || "-"}</td>
-                </tr>
+                {(() => {
+                  // Industrial mode bills add Buyer's Order / Dispatch rows; retail bills keep the old box.
+                  const rows: Array<[string, string]> = [
+                    ["Salesman", salesman || "-"],
+                    ...buildB2BInvoiceRows(b2bDetails, { invoiceDate, dueDate }),
+                  ];
+                  return rows.map(([label, value], i) => {
+                    const last = i === rows.length - 1;
+                    return (
+                      <tr key={label}>
+                        <td
+                          style={{
+                            borderBottom: last ? "none" : b,
+                            borderRight: b,
+                            padding: "4px 6px",
+                            fontWeight: "bold",
+                            backgroundColor: "#fafafa",
+                          }}
+                        >
+                          {label}
+                        </td>
+                        <td style={{ borderBottom: last ? "none" : b, padding: "4px 6px", lineHeight: "1.3" }}>{value}</td>
+                      </tr>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           </div>

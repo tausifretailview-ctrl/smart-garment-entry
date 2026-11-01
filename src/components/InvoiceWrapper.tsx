@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formatSaleTransportLine, type SaleB2BDetails } from "@/utils/industrialMode";
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
@@ -111,6 +112,8 @@ interface InvoiceWrapperProps {
   customerMobile?: string;
   customerGSTIN?: string;
   customerTransportDetails?: string;
+  /** Industrial mode: customer PO + dispatch details saved on the bill (sales.b2b_details). */
+  b2bDetails?: SaleB2BDetails | null;
   
   // Items
   items: InvoiceItem[];
@@ -647,7 +650,11 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       shippingAddress: shipToAddress || undefined,
       customerMobile: props.customerMobile,
       customerGSTIN: props.customerGSTIN,
-      customerTransportDetails: props.customerTransportDetails,
+      // Bills with dispatch details print them in the Transport slot (falls back to the party's text).
+      customerTransportDetails: props.b2bDetails
+        ? formatSaleTransportLine(props.b2bDetails, props.customerTransportDetails || "")
+        : props.customerTransportDetails,
+      b2bDetails: props.b2bDetails ?? null,
       
       items: props.items.map((item) => {
         if (templateForFormat !== "tally-tax-invoice") return item;
