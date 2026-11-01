@@ -126,11 +126,14 @@ export type SaleRowForFlatResolve = {
   discount_amount?: number | null;
   flat_discount_amount?: number | null;
   flat_discount_percent?: number | null;
+  round_off?: number | null;
 };
 
 export type SaleItemRowForFlatResolve = {
   line_total?: number | null;
   per_qty_net_amount?: number | null;
+  /** Bill flat-discount share saved on the line (newer rows). */
+  discount_share?: number | null;
   quantity?: number | null;
   mrp?: number | null;
   unit_price?: number | null;

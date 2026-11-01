@@ -607,6 +607,35 @@ describe("POS billing characterisation — hold resume / edit restore", () => {
     expect(res.mode).toBe("amount");
   });
 
+  it("resolveBillFlatForPosEdit does not turn a cashier round-off into a flat discount", () => {
+    // POS/26-27/20 case: gross 10,694, final typed 9,000 → R/O −1,694, no flat discount.
+    const res = resolveBillFlatForPosEdit({ gross_amount: 10694, round_off: -1694 }, [
+      { line_total: 6000, per_qty_net_amount: 5049.56, quantity: 1 },
+      { line_total: 4694, per_qty_net_amount: 1975.22, quantity: 2 },
+    ]);
+    expect(res.value).toBe(0);
+  });
+
+  it("resolveBillFlatForPosEdit keeps the real flat when the bill also has a round-off", () => {
+    // gross 1000, flat 100, R/O −0.40 → per_qty_net 899.60
+    const res = resolveBillFlatForPosEdit({ gross_amount: 1000, round_off: -0.4 }, [
+      { line_total: 1000, per_qty_net_amount: 899.6, quantity: 1 },
+    ]);
+    expect(res.value).toBe(100);
+  });
+
+  it("resolveBillFlatForPosEdit uses saved discount_share when lines have it", () => {
+    const res = resolveBillFlatForPosEdit({ gross_amount: 10694, round_off: -1694 }, [
+      { line_total: 6000, per_qty_net_amount: 5049.56, quantity: 1, discount_share: 0 },
+      { line_total: 4694, per_qty_net_amount: 1975.22, quantity: 2, discount_share: 0 },
+    ]);
+    expect(res.value).toBe(0);
+    const withFlat = resolveBillFlatForPosEdit({ gross_amount: 1000, round_off: -0.4 }, [
+      { line_total: 1000, per_qty_net_amount: 899.6, quantity: 1, discount_share: 100 },
+    ]);
+    expect(withFlat.value).toBe(100);
+  });
+
   it("resume-held cart totals match persisted held line nets", () => {
     // Held cart stores CartItem[] as-is — recompute totals from those lines.
     const heldItems = [
