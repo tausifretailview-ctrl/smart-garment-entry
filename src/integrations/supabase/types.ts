@@ -7938,6 +7938,8 @@ export type Database = {
           customer_id: string | null
           customer_name: string
           customer_phone: string | null
+          customer_po_date?: string | null
+          customer_po_no?: string | null
           deleted_at: string | null
           deleted_by: string | null
           discount_amount: number
@@ -7972,6 +7974,8 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string
           customer_phone?: string | null
+          customer_po_date?: string | null
+          customer_po_no?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
           discount_amount?: number
@@ -8006,6 +8010,8 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string
           customer_phone?: string | null
+          customer_po_date?: string | null
+          customer_po_no?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
           discount_amount?: number

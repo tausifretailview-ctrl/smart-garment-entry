@@ -64,6 +64,7 @@ import { SaleOrderPrint } from "@/components/SaleOrderPrint";
 import { INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS } from "@/utils/thermalReceiptPrintDocument";
 import { waitForPrintReady } from "@/utils/printReady";
 import { useDraftSave } from "@/hooks/useDraftSave";
+import { useIndustrialMode } from "@/hooks/useIndustrialMode";
 
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { pickLastPurchaseScanPrice, resolveSaleScanPriceSource } from "@/utils/saleScanPricePreference";
@@ -154,6 +155,12 @@ export default function SaleOrderEntry() {
   const [isSaving, setIsSaving] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [quotationId, setQuotationId] = useState<string | null>(null);
+  // Industrial mode: the buyer's PO, copied onto the bill when the order is converted.
+  const industrialMode = useIndustrialMode();
+  const [customerPoNo, setCustomerPoNo] = useState("");
+  const [customerPoDate, setCustomerPoDate] = useState("");
+  /** The edited order came back with the step-6 columns (SQL has been run). */
+  const [loadedHasPoColumns, setLoadedHasPoColumns] = useState(false);
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
   const [printData, setPrintData] = useState<any>(null);
   const printRef = useRef<HTMLDivElement>(null);
@@ -238,6 +245,8 @@ export default function SaleOrderEntry() {
     setFlatDiscountPercent(data.flatDiscountPercent || 0);
     setFlatDiscountAmount(data.flatDiscountAmount || 0);
     setRoundOff(data.roundOff || 0);
+    setCustomerPoNo(typeof data.customerPoNo === "string" ? data.customerPoNo : "");
+    setCustomerPoDate(typeof data.customerPoDate === "string" ? data.customerPoDate : "");
     // Silent restore - no toast to avoid disturbing user
   }, [toast]);
 
@@ -269,9 +278,11 @@ export default function SaleOrderEntry() {
         flatDiscountPercent,
         flatDiscountAmount,
         roundOff,
+        customerPoNo,
+        customerPoDate,
       });
     }
-  }, [orderDate, expectedDelivery, lineItems, selectedCustomerId, selectedCustomer, termsConditions, notes, shippingAddress, taxType, salesman, flatDiscountPercent, flatDiscountAmount, roundOff, editingOrderId, updateCurrentData]);
+  }, [orderDate, expectedDelivery, lineItems, selectedCustomerId, selectedCustomer, termsConditions, notes, shippingAddress, taxType, salesman, flatDiscountPercent, flatDiscountAmount, roundOff, customerPoNo, customerPoDate, editingOrderId, updateCurrentData]);
 
   // Start auto-save when not in edit mode.
   // The draft is saved on unmount by useDraftSave from the latest updateCurrentData
@@ -474,6 +485,9 @@ export default function SaleOrderEntry() {
       setNotes(o.notes || "");
       setShippingAddress(o.shipping_address || "");
       setSalesman(o.salesman || "");
+      setLoadedHasPoColumns("customer_po_no" in o && "customer_po_date" in o);
+      setCustomerPoNo(typeof o.customer_po_no === "string" ? o.customer_po_no : "");
+      setCustomerPoDate(typeof o.customer_po_date === "string" ? o.customer_po_date.slice(0, 10) : "");
       
       if (o.customer_id) {
         setSelectedCustomer({
@@ -1365,6 +1379,27 @@ export default function SaleOrderEntry() {
         .insert(orderItems);
       if (itemsError) throw itemsError;
 
+      // Industrial mode: buyer's PO, written on its own so a shop that has not
+      // run the step-6 SQL still saves the order.
+      if (industrialMode.enabled && orderId && (!editingOrderId || loadedHasPoColumns)) {
+        const poNo = customerPoNo.trim().slice(0, 60);
+        const { error: poError } = await supabase
+          .from('sale_orders')
+          .update({
+            customer_po_no: poNo || null,
+            customer_po_date: poNo && /^\d{4}-\d{2}-\d{2}$/.test(customerPoDate) ? customerPoDate : null,
+          })
+          .eq('id', orderId)
+          .eq('organization_id', currentOrganization!.id);
+        if (poError) {
+          toast({
+            variant: "destructive",
+            title: "Customer PO not saved",
+            description: "The order is saved. Run the Industrial mode step 6 SQL to keep the customer PO.",
+          });
+        }
+      }
+
       // Auto-send WhatsApp sale order notification (does not block saving)
       if (selectedCustomer?.phone && currentOrganization?.id && !editingOrderId) {
         try {
@@ -1576,6 +1611,8 @@ export default function SaleOrderEntry() {
                 setFlatDiscountPercent(0);
                 setFlatDiscountAmount(0);
                 setRoundOff(0);
+                setCustomerPoNo("");
+                setCustomerPoDate("");
                 setSearchInput("");
               }}
               className="h-8 text-black hover:bg-black/5 border border-black/20 text-xs gap-1 px-2.5 font-bold"
@@ -1718,6 +1755,40 @@ export default function SaleOrderEntry() {
             </Select>
           </div>
         </div>
+        {industrialMode.enabled && (
+          <div className="mt-2 flex flex-wrap items-end gap-2.5 rounded-md border border-sky-200 bg-sky-50/60 px-3 py-2" data-testid="sale-order-customer-po">
+            <div className="flex items-center gap-1.5 self-center pr-1 text-[13px] font-bold text-sky-900">
+              <FileText className="h-4 w-4 text-sky-700" />
+              Customer PO
+            </div>
+            <div className="w-44">
+              <Label htmlFor="so-customer-po-no" className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                PO no
+              </Label>
+              <Input
+                id="so-customer-po-no"
+                value={customerPoNo}
+                maxLength={60}
+                onChange={(e) => setCustomerPoNo(e.target.value)}
+                placeholder="PO-7781"
+                className="h-9 bg-white text-sm"
+              />
+            </div>
+            <div className="w-40">
+              <Label htmlFor="so-customer-po-date" className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                PO date
+              </Label>
+              <Input
+                id="so-customer-po-date"
+                type="date"
+                value={customerPoDate}
+                onChange={(e) => setCustomerPoDate(e.target.value)}
+                className="h-9 bg-white text-sm"
+              />
+            </div>
+            <p className="self-center text-xs text-slate-500">Goes on the bill when this order is converted.</p>
+          </div>
+        )}
       </section>
 
       <EntryBillProductSearchBar
