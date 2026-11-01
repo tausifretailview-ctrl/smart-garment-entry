@@ -18,6 +18,7 @@ import { useDcVisibility } from "@/hooks/useDcVisibility";
 import { useMobileScan } from "@/contexts/MobileScanContext";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { ErrorDialog } from "@/components/ui/error-dialog";
@@ -651,7 +652,7 @@ export default function MobilePurchaseEntry() {
             <span className="block text-[8.5px] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--ez-muted)]">
               Bill date
             </span>
-            <input
+            <DateInput
               type="date"
               value={billDate}
               disabled={saving}

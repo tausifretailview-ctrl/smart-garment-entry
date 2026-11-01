@@ -9057,7 +9057,7 @@ const PurchaseEntry = () => {
                     >
                       <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
                       <span className="truncate">
-                        {billDate ? format(billDate, "PPP") : "Pick a date"}
+                        {billDate ? format(billDate, "dd MMM yyyy") : "Pick a date"}
                       </span>
                     </Button>
                   </PopoverTrigger>

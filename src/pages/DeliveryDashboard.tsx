@@ -675,7 +675,7 @@ const DeliveryDashboard = () => {
                     <PopoverTrigger asChild>
                       <Button variant="outline" className={cn("w-36 justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}>
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {dateFrom ? format(dateFrom, "PP") : "From Date"}
+                        {dateFrom ? format(dateFrom, "dd MMM yyyy") : "From Date"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -694,7 +694,7 @@ const DeliveryDashboard = () => {
                     <PopoverTrigger asChild>
                       <Button variant="outline" className={cn("w-36 justify-start text-left font-normal", !dateTo && "text-muted-foreground")}>
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {dateTo ? format(dateTo, "PP") : "To Date"}
+                        {dateTo ? format(dateTo, "dd MMM yyyy") : "To Date"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -897,7 +897,7 @@ const DeliveryDashboard = () => {
                   <PopoverTrigger asChild>
                     <Button variant="outline" className="w-full justify-start text-left font-normal">
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {statusDate ? format(statusDate, "PPP") : "Pick a date"}
+                      {statusDate ? format(statusDate, "dd MMM yyyy") : "Pick a date"}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">

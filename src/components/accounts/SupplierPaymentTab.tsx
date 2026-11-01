@@ -837,7 +837,7 @@ export function SupplierPaymentTab({
                   <PopoverTrigger asChild>
                     <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !voucherDate && "text-muted-foreground")}>
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {voucherDate ? format(voucherDate, "PPP") : <span>Pick a date</span>}
+                      {voucherDate ? format(voucherDate, "dd MMM yyyy") : <span>Pick a date</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
@@ -1280,7 +1280,7 @@ export function SupplierPaymentTab({
                       <PopoverTrigger asChild>
                         <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !chequeDate && "text-muted-foreground")}>
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          {chequeDate ? format(chequeDate, "PPP") : <span>Pick date</span>}
+                          {chequeDate ? format(chequeDate, "dd MMM yyyy") : <span>Pick date</span>}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0">

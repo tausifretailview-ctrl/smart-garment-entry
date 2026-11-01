@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { BarChart3, Bell, BellRing, CheckCheck, ChevronRight, Loader2, PackageX, Receipt, RefreshCw, Settings2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -186,7 +187,7 @@ export default function OwnerNotifications() {
                 className="flex h-9 min-w-0 items-center gap-1.5 rounded-md border border-slate-200 bg-white pl-2 dark:border-border dark:bg-card"
               >
                 <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-500">{d.label}</span>
-                <input
+                <DateInput
                   id={d.id}
                   type="date"
                   value={d.value}

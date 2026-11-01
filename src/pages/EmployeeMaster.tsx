@@ -38,6 +38,7 @@ import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersB
 import { cn } from "@/lib/utils";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
+import { formatDateDMY } from "@/lib/dateDisplay";
 
 interface Employee {
   id: string;
@@ -268,7 +269,7 @@ const EmployeeMaster = () => {
       accessorKey: "joining_date",
       header: "Joining Date",
       cell: ({ row }) =>
-        row.original.joining_date ? new Date(row.original.joining_date).toLocaleDateString() : "-",
+        row.original.joining_date ? formatDateDMY(row.original.joining_date) : "-",
       size: 130,
     },
     {

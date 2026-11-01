@@ -230,6 +230,7 @@ import {
 import { upsertPrinterPresetRow } from "@/utils/printerPresetDbCompat";
 import { fetchSaleDiscPercentBySkuId } from "@/utils/pricingSaleDiscPercentLookup";
 import { escapeHtml } from "@/utils/escapeHtml";
+import { formatDateDMY } from "@/lib/dateDisplay";
 
 const precisionPresetStorageKey = (orgId: string) => `precision_active_preset_${orgId}`;
 
@@ -7063,7 +7064,7 @@ export default function BarcodePrinting() {
                             <div className="flex flex-col">
                               <span className="font-medium">{bill.software_bill_no}</span>
                               <span className="text-xs text-muted-foreground">
-                                {bill.supplier_name} - {new Date(bill.bill_date).toLocaleDateString()}
+                                {bill.supplier_name} - {formatDateDMY(bill.bill_date)}
                               </span>
                             </div>
                           </SelectItem>

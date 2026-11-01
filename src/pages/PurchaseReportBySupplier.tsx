@@ -234,7 +234,7 @@ const PurchaseReportBySupplier = () => {
                     className={cn("w-full justify-start text-left font-normal", !startDate && "text-muted-foreground")}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {startDate ? format(startDate, "PPP") : "Pick a date"}
+                    {startDate ? format(startDate, "dd MMM yyyy") : "Pick a date"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 bg-background z-50" align="start">
@@ -252,7 +252,7 @@ const PurchaseReportBySupplier = () => {
                     className={cn("w-full justify-start text-left font-normal", !endDate && "text-muted-foreground")}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {endDate ? format(endDate, "PPP") : "Pick a date"}
+                    {endDate ? format(endDate, "dd MMM yyyy") : "Pick a date"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 bg-background z-50" align="start">

@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { callBulkWhatsApp, db } from "@/components/bulk-whatsapp/bulkWhatsAppApi";
+import { formatDateDMY } from "@/lib/dateDisplay";
 
 export interface WhatsAppShopOrg {
   id: string;
@@ -132,7 +133,7 @@ function ShopCard({
             )}
           </div>
         </CardTitle>
-        <CardDescription>Created {new Date(shop.created_at).toLocaleDateString()}</CardDescription>
+        <CardDescription>Created {formatDateDMY(shop.created_at)}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <div className="flex items-center justify-between gap-2">

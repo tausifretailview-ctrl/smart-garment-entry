@@ -4928,7 +4928,7 @@ Thank you for choosing us!`;
               <PopoverTrigger asChild>
                 <Button variant="outline" className={cn("w-full justify-start text-left font-semibold h-11 text-base")}>
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {format(invoiceDate, "PPP")}
+                  {format(invoiceDate, "dd MMM yyyy")}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0 z-50">

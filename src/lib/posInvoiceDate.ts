@@ -40,9 +40,3 @@ export function samePickerDay(a: Date | null | undefined, b: Date | null | undef
     a.getDate() === b.getDate()
   );
 }
-
-/** dd/MM/yyyy for a yyyy-MM-dd day (no timezone shift). */
-export function ymdToDdMmYyyy(ymd: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : ymd;
-}

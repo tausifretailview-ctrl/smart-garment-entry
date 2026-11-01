@@ -3,7 +3,6 @@ import {
   istYmdOfTimestamp,
   posPickerDayFromSaleDate,
   samePickerDay,
-  ymdToDdMmYyyy,
 } from "./posInvoiceDate";
 
 describe("posInvoiceDate", () => {
@@ -22,10 +21,9 @@ describe("posInvoiceDate", () => {
     expect(posPickerDayFromSaleDate(undefined)).toBeNull();
   });
 
-  it("compares calendar days and formats dd/MM/yyyy", () => {
+  it("compares calendar days", () => {
     expect(samePickerDay(new Date(2026, 9, 31, 9), new Date(2026, 9, 31, 22))).toBe(true);
     expect(samePickerDay(new Date(2026, 9, 31), new Date(2026, 10, 1))).toBe(false);
     expect(samePickerDay(null, new Date())).toBe(false);
-    expect(ymdToDdMmYyyy("2026-10-31")).toBe("31/10/2026");
   });
 });

@@ -202,7 +202,7 @@ export function ReconciliationTab({ organizationId, customers, visitedTabs }: Re
                 <PopoverTrigger asChild>
                   <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !reconStartDate && "text-muted-foreground")}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {reconStartDate ? format(reconStartDate, "PPP") : <span>Pick a date</span>}
+                    {reconStartDate ? format(reconStartDate, "dd MMM yyyy") : <span>Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -216,7 +216,7 @@ export function ReconciliationTab({ organizationId, customers, visitedTabs }: Re
                 <PopoverTrigger asChild>
                   <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !reconEndDate && "text-muted-foreground")}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {reconEndDate ? format(reconEndDate, "PPP") : <span>Pick a date</span>}
+                    {reconEndDate ? format(reconEndDate, "dd MMM yyyy") : <span>Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">

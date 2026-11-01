@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { ArrowDown, ArrowUp, Loader2, Minus, RefreshCw } from "lucide-react";
+import { formatDateTimeDMY } from "@/lib/dateDisplay";
 
 type DigestRow = {
   check_name: string;
@@ -192,7 +193,7 @@ export function InvariantDigestPanel() {
           <CardContent>
             <div className="text-sm tabular-nums font-mono">{lastSnapshot?.snapshot_date || "—"}</div>
             <div className="text-xs text-muted-foreground">
-              {lastSnapshot?.created_at ? new Date(lastSnapshot.created_at).toLocaleString() : "no snapshot recorded"}
+              {lastSnapshot?.created_at ? formatDateTimeDMY(lastSnapshot.created_at) : "no snapshot recorded"}
             </div>
           </CardContent>
         </Card>

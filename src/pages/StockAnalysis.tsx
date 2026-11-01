@@ -12,6 +12,7 @@ import { dcViewKey, filterVariantsForDcView } from "@/utils/dcView";
 import { StockAnalysisSearch, StockAnalysisLoadingSkeleton } from "@/components/StockAnalysisSearch";
 import { movementLabelKey } from "@/utils/stockSettlementMovement";
 import { fetchTransferInByVariantId, type TransferInInfo } from "@/lib/stockTransferStockReport";
+import { formatDateTimeDMY } from "@/lib/dateDisplay";
 
 interface StockItem {
   id: string;
@@ -781,7 +782,7 @@ export default function StockAnalysis() {
                           {movements.map((movement) => (
                           <TableRow key={movement.id}>
                             <TableCell>
-                              {new Date(movement.created_at).toLocaleDateString()} {new Date(movement.created_at).toLocaleTimeString()}
+                              {formatDateTimeDMY(movement.created_at)}
                             </TableCell>
                             <TableCell className="font-medium">{movement.product_name}</TableCell>
                             <TableCell>{movement.size}</TableCell>

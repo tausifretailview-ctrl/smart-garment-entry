@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Loader2, Plus, X, Store, KeyRound } from "lucide-react";
+import { formatDateDMY } from "@/lib/dateDisplay";
 
 interface User {
   id: string;
@@ -299,7 +300,7 @@ export function UserManagement() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    {new Date(user.created_at).toLocaleDateString()}
+                    {formatDateDMY(user.created_at)}
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1 flex-wrap">

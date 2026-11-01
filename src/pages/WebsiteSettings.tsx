@@ -83,6 +83,7 @@ import { saveProductSectionAssignment } from "@/lib/websiteSectionIo";
 import { cn } from "@/lib/utils";
 import type { WebsiteEnquiry, WebsiteEnquiryStatus, WebsiteProduct, WebsiteSettings } from "@/lib/websiteTypes";
 import { coerceActiveUpiId, patchCompanyUpi, resolveCompanyUpiId } from "@/utils/companyUpi";
+import { formatDateTimeDMY } from "@/lib/dateDisplay";
 
 type CatalogProduct = {
   id: string;
@@ -1776,7 +1777,7 @@ function EnquiryInbox({ orgId }: { orgId?: string }) {
                       </select>
                     </TableCell>
                     <TableCell className={cn(INSIGHTS_BODY_CELL, "text-xs text-muted-foreground whitespace-nowrap")}>
-                      {new Date(row.created_at).toLocaleString()}
+                      {formatDateTimeDMY(row.created_at)}
                     </TableCell>
                   </TableRow>
                   );

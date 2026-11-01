@@ -196,7 +196,8 @@ import {
 } from "@/utils/thermalReceiptPrintDocument";
 import { buildPublicInvoiceViewUrl } from "@/utils/publicInvoiceLink";
 import { localDayBounds, todayLocalYmd, saleDateIsoIstForDay, istCalendarYmd } from "@/lib/localDayBounds";
-import { istYmdOfTimestamp, posPickerDayFromSaleDate, samePickerDay, ymdToDdMmYyyy } from "@/lib/posInvoiceDate";
+import { istYmdOfTimestamp, posPickerDayFromSaleDate, samePickerDay } from "@/lib/posInvoiceDate";
+import { ymdToDdMmYyyy } from "@/lib/dateDisplay";
 import { syncFinanceDiscountVoucher } from "@/utils/financeDiscountVoucher";
 import {
   readPersistedLastPosHint,

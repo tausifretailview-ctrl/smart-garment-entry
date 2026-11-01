@@ -1048,7 +1048,7 @@ export default function QuotationEntry() {
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-left font-normal h-10 text-sm border-black/20">
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(quotationDate, "PPP")}
+                    {format(quotationDate, "dd MMM yyyy")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -1063,7 +1063,7 @@ export default function QuotationEntry() {
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-left font-normal h-10 text-sm border-black/20">
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(validUntil, "PPP")}
+                    {format(validUntil, "dd MMM yyyy")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
