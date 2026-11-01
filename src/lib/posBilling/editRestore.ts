@@ -22,15 +22,30 @@ export function resolveBillFlatForPosEdit(
   if (percentLooksClean) return { value: savedFlatPercent, mode: "percent", percentLooksClean: true };
   if (savedFlatAmount > 0.005) return { value: savedFlatAmount, mode: "amount", percentLooksClean: false };
 
+  // Lines saved with their own flat share: use it as-is. (The column defaults to 0 on
+  // old rows and on other save paths, so 0 is not trusted — fall through.)
+  const rows = saleItems || [];
+  const shares = Math.round(rows.reduce((s, r) => s + (Number(r.discount_share) || 0), 0) * 100) / 100;
+  if (shares > 0.02) return { value: shares, mode: "amount", percentLooksClean: false };
+  // Older lines: per_qty_net_amount = (line_total − flat share + round-off share) / qty,
+  // so line_total − per_qty_net × qty also holds the bill round-off. Add it back, or a
+  // cashier's round-off (e.g. final amount typed ₹9,000 → R/O −₹1,694) comes back as an
+  // extra flat discount of the same size and is taken off the bill twice on re-save.
   let fromLines = 0;
-  for (const row of saleItems || []) {
+  let anyNet = false;
+  for (const row of rows) {
     const lt = Number(row.line_total) || 0;
     const pq = Number(row.per_qty_net_amount) || 0;
     const q = Number(row.quantity) || 0;
-    if (pq > 0.005 && q > 0) fromLines += Math.max(0, lt - pq * q);
+    if (pq > 0.005 && q > 0) {
+      fromLines += lt - pq * q;
+      anyNet = true;
+    }
   }
+  if (anyNet) fromLines += Number(sale.round_off) || 0;
   fromLines = Math.round(fromLines * 100) / 100;
-  if (fromLines > 0.02) return { value: fromLines, mode: "amount", percentLooksClean: false };
+  // per_qty_net is rounded to paise per piece, so allow a few paise of drift.
+  if (fromLines > 0.05) return { value: fromLines, mode: "amount", percentLooksClean: false };
 
   const gross = Number(sale.gross_amount) || 0;
   const discAgg = Number(sale.discount_amount) || 0;
