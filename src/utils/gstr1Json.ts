@@ -13,6 +13,8 @@
  * - Walk-in (B2C) sales are intra-state unless the bill carries a place of supply.
  * - Credit notes to unregistered buyers are netted into B2CS (the portal has no row for them);
  *   only an inter-state note above ₹2.5 lakh goes to CDNUR.
+ * - Debit notes (Industrial mode, sale_type debit_note) follow the same routes with note type "D"
+ *   and add to tax instead of reducing it; they are numbered as their own series in Table 13.
  * - 0% lines on a GST bill, and No-GST bills, are reported as nil-rated (Table 8).
  */
 import { round2, splitLineValue } from "@/utils/gstAnalysis";
@@ -45,7 +47,7 @@ export type Gstr1Bill = {
   lines: Gstr1Line[];
 };
 
-/** Sale return = credit note. */
+/** Sale return = credit note; a debit note uses the same shape. */
 export type Gstr1Note = Gstr1Bill;
 
 export type Gstr1Document = { number: string; cancelled: boolean };
@@ -57,8 +59,10 @@ export type Gstr1Input = {
   toYmd: string;
   bills: Gstr1Bill[];
   notes: Gstr1Note[];
-  /** Every bill / credit note number issued in the period, cancelled ones included, for Table 13. */
-  documents: { invoices: Gstr1Document[]; creditNotes: Gstr1Document[] };
+  /** Sales debit notes (rate difference, freight…): tax exclusive, added to the period's tax. */
+  debitNotes?: Gstr1Note[];
+  /** Every bill / credit note / debit note number issued in the period, cancelled ones included, for Table 13. */
+  documents: { invoices: Gstr1Document[]; creditNotes: Gstr1Document[]; debitNotes?: Gstr1Document[] };
   /** Shop under ₹5 crore turnover may leave HSN off retail (B2C) lines. */
   skipB2cHsn?: boolean;
 };
@@ -101,7 +105,7 @@ export type Gstr1Json = {
 
 export type Gstr1Item = { num: number; itm_det: { rt: number; txval: number; iamt: number; camt: number; samt: number; csamt: number } };
 export type Gstr1Invoice = { inum: string; idt: string; val: number; pos: string; rchrg: "N"; inv_typ: "R"; itms: Gstr1Item[] };
-export type Gstr1CreditNote = { ntty: "C"; nt_num: string; nt_dt: string; pos: string; rchrg: "N"; inv_typ: "R"; val: number; itms: Gstr1Item[] };
+export type Gstr1CreditNote = { ntty: "C" | "D"; nt_num: string; nt_dt: string; pos: string; rchrg: "N"; inv_typ: "R"; val: number; itms: Gstr1Item[] };
 export type Gstr1HsnRow = { num: number; hsn_sc: string; desc: string; uqc: string; qty: number; rt: number; txval: number; iamt: number; camt: number; samt: number; csamt: number };
 
 export type Gstr1Build = {
@@ -116,6 +120,8 @@ export type Gstr1Build = {
     b2csRows: number;
     cdnrNotes: number;
     cdnurNotes: number;
+    /** How many of the CDNR / CDNUR notes are debit notes (note type D). */
+    debitNotes: number;
     hsnRows: number;
     docSeries: number;
     taxable: number;
@@ -423,6 +429,30 @@ export function buildGstr1Json(input: Gstr1Input): Gstr1Build {
     }
   }
 
+  for (const note of input.debitNotes ?? []) {
+    const { gstin, registered, inter, pos } = classify(note);
+    // A debit note adds to the period, so its lines go in at +1 (sales direction).
+    const rates = rateSplit(note, registered, inter, 1);
+    if (registered || (inter && Number(note.billValue) > 250000)) {
+      const itms = itemsFromRates(rates);
+      if (itms.length === 0) continue;
+      const nt: Gstr1CreditNote = { ntty: "D", nt_num: note.number, nt_dt: portalDate(note.date), pos, rchrg: "N", inv_typ: "R", val: round2(note.billValue), itms };
+      if (registered) {
+        const list = cdnrMap.get(gstin) || [];
+        list.push(nt);
+        cdnrMap.set(gstin, list);
+      } else {
+        cdnur.push({ typ: "B2CL", ...nt });
+      }
+    } else {
+      const sply_ty = inter ? "INTER" : "INTRA";
+      const key = `${sply_ty}|${pos}`;
+      const bucket = b2csMap.get(key) || { sply_ty, pos, rates: new Map<number, RateHeads>() };
+      rates.forEach((r, rate) => addRate(bucket.rates, rate, r.txval, r.iamt + r.camt + r.samt, inter));
+      b2csMap.set(key, bucket);
+    }
+  }
+
   // ── Issues ──
   pushRefs(errors, "buyer_gstin", "Buyer GSTIN fails the GST checksum: correct it on the customer, or clear it to bill as B2C", badGstinBills);
   pushRefs(warnings, "partial_gstin", "Buyer GSTIN is not 15 characters; these bills are reported as B2C", partialGstinBills);
@@ -508,8 +538,11 @@ export function buildGstr1Json(input: Gstr1Input): Gstr1Build {
     });
   const invoiceSeries = seriesDocs(input.documents.invoices);
   const noteSeries = seriesDocs(input.documents.creditNotes);
+  const debitSeries = seriesDocs(input.documents.debitNotes ?? []);
   const doc_det: Gstr1Json["doc_issue"]["doc_det"] = [];
   if (invoiceSeries.length) doc_det.push({ doc_num: 1, docs: invoiceSeries });
+  // Table 13 nature 4 = debit notes, 5 = credit notes.
+  if (debitSeries.length) doc_det.push({ doc_num: 4, docs: debitSeries });
   if (noteSeries.length) doc_det.push({ doc_num: 5, docs: noteSeries });
 
   const b2b = [...b2bMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([ctin, inv]) => ({ ctin, inv }));
@@ -525,8 +558,9 @@ export function buildGstr1Json(input: Gstr1Input): Gstr1Build {
     b2csRows: b2cs.length,
     cdnrNotes: cdnr.reduce((n, c) => n + c.nt.length, 0),
     cdnurNotes: cdnur.length,
+    debitNotes: cdnr.reduce((n, c) => n + c.nt.filter((x) => x.ntty === "D").length, 0) + cdnur.filter((x) => x.ntty === "D").length,
     hsnRows: hsn_b2b.length + hsn_b2c.length,
-    docSeries: invoiceSeries.length + noteSeries.length,
+    docSeries: invoiceSeries.length + noteSeries.length + debitSeries.length,
     taxable: 0,
     tax: 0,
   };
@@ -540,8 +574,9 @@ export function buildGstr1Json(input: Gstr1Input): Gstr1Build {
     summary.taxable += r.txval;
     summary.tax += r.iamt + r.camt + r.samt;
   });
-  cdnr.forEach((c) => c.nt.forEach((n) => n.itms.forEach((it) => addItem(it, -1))));
-  cdnur.forEach((n) => n.itms.forEach((it) => addItem(it, -1)));
+  // Credit notes reduce the period's tax; debit notes add to it.
+  cdnr.forEach((c) => c.nt.forEach((n) => n.itms.forEach((it) => addItem(it, n.ntty === "D" ? 1 : -1))));
+  cdnur.forEach((n) => n.itms.forEach((it) => addItem(it, n.ntty === "D" ? 1 : -1)));
   summary.taxable = round2(summary.taxable);
   summary.tax = round2(summary.tax);
 
