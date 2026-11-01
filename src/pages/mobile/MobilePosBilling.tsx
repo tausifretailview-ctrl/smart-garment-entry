@@ -197,6 +197,8 @@ export default function MobilePosBilling() {
 
   const billing = usePosBilling({
     grossBasis,
+    // Settings loaded and MRP off → sale price is the MRP (old hidden item MRPs ignored).
+    ignoreMrp: settingsData != null && !enableMrp,
     garmentGstSettings,
     calculateRedemptionValue,
     initialTaxType,

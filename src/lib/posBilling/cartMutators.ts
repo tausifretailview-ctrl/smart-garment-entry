@@ -399,13 +399,23 @@ export type AddLineInput = {
   customerHasMasterDiscount?: boolean;
   /** Injected id factory for services and for a 2nd line of one SKU at another picked price (default: variant.id-timestamp-random). */
   makeLineId?: () => string;
+  /**
+   * Shop's MRP setting is OFF: the item's saved MRP (often an old or hidden pre-fill value)
+   * is ignored and the sale price is used as MRP, so POS shows no MRP-vs-rate discount.
+   */
+  ignoreMrp?: boolean;
 };
 
-export function addLine(input: AddLineInput): CartMutatorResult {
+export function addLine(rawInput: AddLineInput): CartMutatorResult {
+  // MRP off: a picked price tier's MRP is ignored too (sale price stands in as MRP).
+  const input: AddLineInput =
+    rawInput.ignoreMrp && rawInput.overridePrice
+      ? { ...rawInput, overridePrice: { ...rawInput.overridePrice, mrp: rawInput.overridePrice.sale_price } }
+      : rawInput;
   const { product, variant } = input;
   const isServiceProduct = product.product_type === "service";
   const masterSalePrice = parseFloat(String(variant.sale_price || 0)) || 0;
-  const rawMrp = variant.mrp ? parseFloat(String(variant.mrp)) : 0;
+  const rawMrp = !input.ignoreMrp && variant.mrp ? parseFloat(String(variant.mrp)) : 0;
   const masterMrp = rawMrp > 0 ? rawMrp : masterSalePrice;
   const productSaleDiscount = (() => {
     const sdt = product.sale_discount_type;
