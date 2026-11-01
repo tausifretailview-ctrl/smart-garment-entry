@@ -15,7 +15,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, MessageCircle, CalendarIcon, Download, FilePenLine, Home, RefreshCw, CheckCircle, PauseCircle, XCircle } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, MessageCircle, CalendarIcon, Download, FilePenLine, Home, RefreshCw, CheckCircle, PauseCircle, XCircle, Receipt } from "lucide-react";
+import { useIndustrialMode } from "@/hooks/useIndustrialMode";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   getQuotationStatusConfig,
@@ -78,6 +79,7 @@ export default function QuotationDashboard() {
   const { navigate } = useOrgNavigation();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
+  const industrialMode = useIndustrialMode();
   const inTabCache = useTabCacheLayout();
   const sharedShell = useSharedAppShell();
 
@@ -356,6 +358,11 @@ export default function QuotationDashboard() {
     }
   };
 
+  // Industrial mode: skip the sale order and bill the quotation straight away.
+  const handleConvertToInvoice = (quotation: { id: string }) => {
+    navigate("/sales-invoice", { state: { fromQuotationId: quotation.id } });
+  };
+
   const handleConvertToSaleOrder = async (quotation: any) => {
     setRowActionLoadingId(quotation.id);
     try {
@@ -464,6 +471,12 @@ export default function QuotationDashboard() {
       icon: ArrowRight,
       onClick: () => void handleConvertToSaleOrder(quotation),
       hidden: quotation.status === "confirmed",
+    },
+    {
+      label: "Convert to Invoice",
+      icon: Receipt,
+      onClick: () => handleConvertToInvoice(quotation),
+      hidden: !industrialMode.enabled || quotation.status === "confirmed" || quotation.status === "cancelled",
     },
     { label: "", separator: true, onClick: () => {} },
     {
@@ -832,6 +845,17 @@ export default function QuotationDashboard() {
                             title="Convert to Sale Order"
                           >
                             <ArrowRight className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {industrialMode.enabled && quotation.status !== 'confirmed' && quotation.status !== 'cancelled' && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={isRowBusy}
+                            onClick={() => handleConvertToInvoice(quotation)}
+                            title="Convert to Invoice"
+                          >
+                            <Receipt className="h-4 w-4" />
                           </Button>
                         )}
                         <Button variant="ghost" size="icon" disabled={isRowBusy} onClick={() => setQuotationToDelete(quotation)}>
