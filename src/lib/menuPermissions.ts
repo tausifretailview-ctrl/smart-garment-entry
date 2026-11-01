@@ -69,6 +69,7 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   "delivery-dashboard": "delivery_dashboard",
   "delivery-challan-entry": "delivery_challan_entry",
   "delivery-challan-dashboard": "delivery_challan_dashboard",
+  "debit-notes": "sales_invoice_dashboard",
   settings: "settings_view",
   website: "website_settings",
   backup: "settings_view",

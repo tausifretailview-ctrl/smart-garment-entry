@@ -139,6 +139,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { DEBIT_NOTE_SALE_TYPE } from "@/utils/debitNote";
 import {
   Form,
   FormControl,
@@ -2632,6 +2633,12 @@ export default function SalesInvoice() {
         .eq('id', saleId)
         .single();
       if (error || !invoiceData) throw error || new Error('Invoice not found');
+
+      // Industrial mode debit notes are sales rows too; they open in their own screen.
+      if ((invoiceData as { sale_type?: string | null }).sale_type === DEBIT_NOTE_SALE_TYPE) {
+        navigate(`/debit-notes?edit=${saleId}`, { replace: true });
+        return;
+      }
 
       // Customer and product lookups are independent: run them together.
       const productIds = [...new Set((invoiceData.sale_items || []).map((it: any) => it.product_id).filter(Boolean))];

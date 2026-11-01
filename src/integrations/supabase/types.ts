@@ -8331,6 +8331,7 @@ export type Database = {
           customer_id: string | null
           customer_name: string
           customer_phone: string | null
+          debit_note_details?: Json | null
           deleted_at: string | null
           deleted_by: string | null
           delivery_status: string | null
@@ -8401,6 +8402,7 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string
           customer_phone?: string | null
+          debit_note_details?: Json | null
           deleted_at?: string | null
           deleted_by?: string | null
           delivery_status?: string | null
@@ -8471,6 +8473,7 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string
           customer_phone?: string | null
+          debit_note_details?: Json | null
           deleted_at?: string | null
           deleted_by?: string | null
           delivery_status?: string | null

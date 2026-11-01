@@ -175,6 +175,7 @@ const StockReconciliationReport = lazyWithRetry(() => import("./pages/StockRecon
 const BulkProductUpdate = lazyWithRetry(() => import("./pages/BulkProductUpdate"));
 const DeliveryChallanEntry = lazyWithRetry(() => import("./pages/DeliveryChallanEntry"));
 const DeliveryChallanDashboard = lazyWithRetry(() => import("./pages/DeliveryChallanDashboard"));
+const DebitNoteDashboard = lazyWithRetry(() => import("./pages/DebitNoteDashboard"));
 const AdvanceBookingDashboard = lazyWithRetry(() => import("./pages/AdvanceBookingDashboard"));
 const DiscountSchemeDashboard = lazyWithRetry(() => import("./pages/DiscountSchemeDashboard"));
 const SalesmanLayout = lazyWithRetry(() => import("./layouts/SalesmanLayout"));
@@ -1226,6 +1227,16 @@ const App = () => {
                     <ProtectedRoute>
                       <Layout>
                         <DeliveryChallanDashboard />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="debit-notes"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <DebitNoteDashboard />
                       </Layout>
                     </ProtectedRoute>
                   }

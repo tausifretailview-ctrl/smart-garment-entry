@@ -37,6 +37,7 @@ const getCurrentPageName = (path: string): string => {
     'quotation-entry': 'Quotation Entry',
     'sale-order-entry': 'Sale Order Entry',
     'delivery-challan-entry': 'Delivery Challan',
+    'debit-notes': 'Debit Notes',
     'settings': 'Settings',
     'gst-reports': 'GST Reports',
     'gst-analysis': 'GST Analysis',
