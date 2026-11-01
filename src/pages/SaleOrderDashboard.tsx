@@ -49,7 +49,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
-import { Check, FileText, X } from "lucide-react";
+import { Check, FileText, PackageSearch, X } from "lucide-react";
+import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { SaleOrderPendingItemsDialog } from "@/components/sales/SaleOrderPendingItemsDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { formatDistanceToNow } from "date-fns";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
@@ -116,6 +118,8 @@ export default function SaleOrderDashboard() {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
+  const industrialMode = useIndustrialMode();
+  const [showPendingItems, setShowPendingItems] = useState(false);
 
   const isDesktop = useIsDesktop();
   const rowContextMenu = useContextMenu<any>();
@@ -322,6 +326,7 @@ export default function SaleOrderDashboard() {
     void queryClient.invalidateQueries({ queryKey: ["sale-orders-list", orgId] });
     void queryClient.invalidateQueries({ queryKey: ["sale-orders-stats", orgId] });
     void queryClient.invalidateQueries({ queryKey: ["sale-order-customers", orgId] });
+    void queryClient.invalidateQueries({ queryKey: ["sale-order-pending-items", orgId] });
   }, [currentOrganization?.id, queryClient]);
 
   const {
@@ -677,6 +682,15 @@ export default function SaleOrderDashboard() {
           notes: `Converted from Sale Order ${selectedOrder.order_number}`,
           terms_conditions: selectedOrder.terms_conditions,
           shipping_address: selectedOrder.shipping_address,
+          // Industrial mode: the buyer's PO from the order goes on the bill's Order & dispatch details.
+          ...(industrialMode.enabled && String(selectedOrder.customer_po_no ?? "").trim()
+            ? {
+                b2b_details: {
+                  customer_po_no: String(selectedOrder.customer_po_no).trim(),
+                  ...(selectedOrder.customer_po_date ? { customer_po_date: String(selectedOrder.customer_po_date).slice(0, 10) } : {}),
+                },
+              }
+            : {}),
         }])
         .select()
         .single();
@@ -973,14 +987,34 @@ export default function SaleOrderDashboard() {
           </h1>
           <p className="mt-1 text-sm text-slate-500">Manage customer orders and fulfillment</p>
         </div>
-        <Button
-          onClick={() => navigate('/sale-order-entry')}
-          className="h-9 gap-1.5 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-        >
-          <Plus className="h-4 w-4" />
-          New Sale Order
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {industrialMode.enabled && (
+            <Button
+              variant="outline"
+              onClick={() => setShowPendingItems(true)}
+              className="h-9 gap-1.5 px-3 text-sm font-semibold border-sky-300 text-sky-800 hover:bg-sky-50"
+            >
+              <PackageSearch className="h-4 w-4" />
+              Pending by item
+            </Button>
+          )}
+          <Button
+            onClick={() => navigate('/sale-order-entry')}
+            className="h-9 gap-1.5 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+          >
+            <Plus className="h-4 w-4" />
+            New Sale Order
+          </Button>
+        </div>
       </div>
+
+      {industrialMode.enabled && (
+        <SaleOrderPendingItemsDialog
+          open={showPendingItems}
+          onOpenChange={setShowPendingItems}
+          organizationId={currentOrganization?.id}
+        />
+      )}
 
       {hasDraft && draftData && (
         <Card className="shrink-0 border border-amber-400/60 bg-amber-50 rounded-lg shadow-sm">

@@ -31,7 +31,7 @@ export type SaleOrderReservationRow = {
 };
 
 /** Order statuses that no longer hold stock (fully billed or closed). */
-const CLOSED_SALE_ORDER_STATUSES = ["confirmed", "cancelled", "completed", "closed"];
+export const CLOSED_SALE_ORDER_STATUSES = ["confirmed", "cancelled", "completed", "closed"];
 
 const VARIANT_ID_CHUNK = 200;
 
