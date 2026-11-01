@@ -741,6 +741,13 @@ export const ProductEntryDialog = ({
   const initialBarcodeAppliedRef = useRef(false);
   const productFieldSettings = useProductFieldSettings();
   const [showMrp, setShowMrp] = useState(false);
+  /**
+   * True only once settings have loaded and the shop's MRP setting is OFF. The MRP box is
+   * hidden then, yet "last product" pre-fill can still carry an old MRP into the new item
+   * unseen, which POS later shows as MRP total + discount. Save strips MRP in that case.
+   * Stays false while settings are unknown so a failed load never wipes a real MRP.
+   */
+  const mrpSettingOffRef = useRef(false);
   /** Ephemeral Sale Disc % for MRP→Sale pricing only — never persisted to sale_discount_*. */
   const [pricingDiscPercent, setPricingDiscPercent] = useState("");
   const [showDiscountFields, setShowDiscountFields] = useState(false);
@@ -1921,6 +1928,7 @@ export const ProductEntryDialog = ({
 
   const fetchDefaultSizeGroup = async () => {
     if (!currentOrganization) return;
+    mrpSettingOffRef.current = false;
 
     try {
       const { data, error } = await supabase
@@ -1934,6 +1942,9 @@ export const ProductEntryDialog = ({
         setSizeGroupsError(error.message || "Couldn't load product settings");
         return;
       }
+
+      mrpSettingOffRef.current =
+        (data?.purchase_settings as { show_mrp?: boolean } | null | undefined)?.show_mrp !== true;
 
       if (data) {
         if (typeof data.product_settings === "object" && data.product_settings !== null) {
@@ -2560,6 +2571,12 @@ export const ProductEntryDialog = ({
         }
       }
       variantsToCreate = [...collapsed.values()];
+    }
+
+    // MRP setting OFF: the MRP box is hidden, so any MRP here came from hidden pre-fill
+    // (last product / size grid). Save none; POS then uses the sale price as MRP.
+    if (mrpSettingOffRef.current && formData.product_type !== "service") {
+      variantsToCreate = variantsToCreate.map((v) => ({ ...v, mrp: null }));
     }
 
     if (variantsToCreate.length > 0) {
