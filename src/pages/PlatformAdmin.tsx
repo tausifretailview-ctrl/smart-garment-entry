@@ -82,6 +82,8 @@ const AVAILABLE_FEATURES = [
   "bulk_operations",
   // Manufacturer ERP (fabric roll → stages → ready piece): DEMO first, then shops on request.
   "manufacturer_erp",
+  // Industrial mode (B2B: credit limits, quotations, e-way bill, godowns): DEMO first.
+  "industrial_mode",
 ];
 
 // Audit Log Section Component

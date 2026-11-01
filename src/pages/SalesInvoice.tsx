@@ -1,5 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import { CustomerBalanceBadge } from "@/components/CustomerBalanceBadge";
+import { CustomerCreditChip } from "@/components/customers/CustomerCreditChip";
+import { useCustomerCreditTerms, useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { checkCreditLimit, dueDateFromCreditDays, formatInr } from "@/utils/industrialMode";
 import { flushSync } from "react-dom";
 import { allowsDecimalQty, clampQty, minQtyForUom, parseQtyValue } from "@/utils/qtyInput";
 import { fetchProductQtyMeta } from "@/utils/productQtyMeta";
@@ -322,7 +325,7 @@ export default function SalesInvoice() {
   const { lockedVariantIds, isLocked: isVariantLockedForSettlement } = useOpenSettlementVariantIds();
   const queryClient = useQueryClient();
   const { scheduleInvalidateSales, flushScheduledSalesInvalidation, invalidateSales } = useDashboardInvalidation();
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, organizationRole } = useOrganization();
 
   const scheduleInvoiceDashboardRefresh = useCallback(() => {
     // Edits/saves on Sales Invoice are explicit single actions — invalidate
@@ -411,6 +414,11 @@ export default function SalesInvoice() {
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
   const [dueDate, setDueDate] = useState<Date>(new Date());
   const handleSaveInvoiceRef = useRef<(() => Promise<void>) | null>(null);
+  // Industrial mode: party credit limit / credit days (off for every shop unless turned on).
+  const industrialMode = useIndustrialMode();
+  const { data: customerCreditTerms } = useCustomerCreditTerms(selectedCustomerId || null, industrialMode.enabled);
+  const [showCreditLimitDialog, setShowCreditLimitDialog] = useState(false);
+  const creditLimitAcknowledgedRef = useRef(false);
   const savingLockRef = useRef(false); // Synchronous lock to prevent duplicate saves from rapid clicks
   const printRef = useRef<HTMLDivElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -3286,6 +3294,20 @@ Thank you for choosing us!`;
       return;
     }
 
+    if (industrialMode.enabled && creditLimitCheck.exceeded && !creditLimitAcknowledgedRef.current) {
+      savingLockRef.current = false;
+      if (industrialMode.credit_limit_action === "block" && organizationRole !== "admin") {
+        toast({
+          variant: "destructive",
+          title: "Credit limit crossed",
+          description: `${selectedCustomer.customer_name} goes over the credit limit by ${formatInr(creditLimitCheck.overBy)}. Take payment on this bill or ask an admin to save it.`,
+        });
+        return;
+      }
+      setShowCreditLimitDialog(true);
+      return;
+    }
+
     if (
       editingInvoiceId &&
       recordedReceiptAmount > 0.005 &&
@@ -4142,6 +4164,33 @@ Thank you for choosing us!`;
   
   const netAmount = Math.round(netBeforeRoundOff + roundOff);
 
+  // Industrial mode: will this bill take the party over its credit limit?
+  const creditLimitCheck = useMemo(
+    () =>
+      checkCreditLimit({
+        creditLimit: industrialMode.enabled ? customerCreditTerms?.credit_limit : null,
+        currentBalance: customerBalance || 0,
+        billAmount: netAmount,
+        paidNow: paymentOverride?.totalPaid ?? 0,
+        originalBillAmount: editingInvoiceId ? originalNetAmount : 0,
+      }),
+    [industrialMode.enabled, customerCreditTerms?.credit_limit, customerBalance, netAmount, paymentOverride?.totalPaid, editingInvoiceId, originalNetAmount],
+  );
+
+  // A "save anyway" answer covers only this party and amount.
+  useEffect(() => {
+    creditLimitAcknowledgedRef.current = false;
+  }, [selectedCustomerId, netAmount]);
+
+  // Industrial mode: due date = bill date + party credit days (new bills only).
+  const creditDays = industrialMode.enabled && industrialMode.auto_due_date ? customerCreditTerms?.credit_days ?? null : null;
+  const invoiceDayKey = invoiceDate.toDateString();
+  useEffect(() => {
+    if (editingInvoiceId || creditDays == null) return;
+    setDueDate(dueDateFromCreditDays(invoiceDate, creditDays));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- invoiceDayKey stands for invoiceDate
+  }, [creditDays, invoiceDayKey, editingInvoiceId, selectedCustomerId]);
+
   // Persist Exclusive gross as MRP+GST (dashboard Sale Amount). Keep `grossAmount`
   // for on-screen discount math / UI — only the DB write uses this.
   const persistedGrossAmount =
@@ -4150,6 +4199,44 @@ Thank you for choosing us!`;
       : grossAmount;
 
   const isMobile = useIsMobile();
+
+  const creditLimitDialog = (
+    <AlertDialog
+      open={showCreditLimitDialog}
+      onOpenChange={(open) => {
+        if (!open) setShowCreditLimitDialog(false);
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Credit limit crossed</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2 text-sm">
+              <p>
+                {selectedCustomer?.customer_name || "This party"} has a credit limit of{" "}
+                <b>{formatInr(customerCreditTerms?.credit_limit || 0)}</b>. After this bill the balance will be{" "}
+                <b>{formatInr(creditLimitCheck.balanceAfter)}</b>, which is <b className="text-red-600">{formatInr(creditLimitCheck.overBy)}</b> over.
+              </p>
+              <p>Take part payment on this bill, or save it anyway.</p>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Go back</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => {
+              e.preventDefault();
+              creditLimitAcknowledgedRef.current = true;
+              setShowCreditLimitDialog(false);
+              void handleSaveInvoice();
+            }}
+          >
+            Save anyway
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
 
   const paidLineEditDialog = (
     <AlertDialog
@@ -4408,6 +4495,7 @@ Thank you for choosing us!`;
           </DialogContent>
         </Dialog>
         {paidLineEditDialog}
+        {creditLimitDialog}
         <AlertDialog
           open={showPrintDialog}
           onOpenChange={(open) => {
@@ -5645,6 +5733,14 @@ Thank you for choosing us!`;
                 customerName={selectedCustomer?.customer_name}
               />
             )}
+            {selectedCustomerId && industrialMode.enabled && customerCreditTerms && (
+              <CustomerCreditChip
+                creditLimit={customerCreditTerms.credit_limit}
+                creditDays={customerCreditTerms.credit_days}
+                check={creditLimitCheck}
+                dueDate={creditDays != null ? dueDate : null}
+              />
+            )}
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
@@ -5918,6 +6014,7 @@ Thank you for choosing us!`;
       </AlertDialog>
 
       {paidLineEditDialog}
+      {creditLimitDialog}
 
       {/* Print Confirmation Dialog */}
       <AlertDialog

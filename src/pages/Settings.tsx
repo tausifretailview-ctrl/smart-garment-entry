@@ -6,6 +6,9 @@ import { prefetchTabPage, shouldAllowSpeculativeChunkPrefetch } from "@/lib/tabP
 import { logError } from "@/lib/errorLogger";
 import { UOM_OPTIONS } from "@/constants/uom";
 import { useManufacturerERPAvailable } from "@/hooks/useManufacturerERP";
+import { useIndustrialModeAvailable } from "@/hooks/useIndustrialMode";
+import { IndustrialModeSettingsCard } from "@/components/settings/IndustrialModeSettingsCard";
+import type { IndustrialModeConfig } from "@/utils/industrialMode";
 import { DEFAULT_MANUFACTURER_ERP, type ManufacturerERPConfig } from "@/utils/manufacturing";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, BarChart2, Factory } from "lucide-react";
@@ -243,6 +246,8 @@ interface EInvoiceSettings {
 }
 
 interface SaleSettings {
+  /** Settings > Product: Industrial mode (Platform Admin feature `industrial_mode` + this switch). */
+  industrial_mode?: IndustrialModeConfig;
   /** Settings > WhatsApp: gift voucher buttons (off until turned on). */
   gift_vouchers_enabled?: boolean;
   /** Settings > WhatsApp: Bulk WhatsApp page and menu (off until turned on). */
@@ -507,6 +512,7 @@ export default function Settings() {
   const queryClient = useQueryClient();
   const { currentOrganization, organizations } = useOrganization();
   const manufacturerErpAvailable = useManufacturerERPAvailable();
+  const industrialModeAvailable = useIndustrialModeAvailable();
   const { data: cachedSettings } = useSettings();
   const settingsHydratedRef = useRef(false);
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(["company"]));
@@ -2136,6 +2142,18 @@ export default function Settings() {
                 </Card>
               );
             })()}
+
+            {industrialModeAvailable && (
+              <IndustrialModeSettingsCard
+                value={settings.sale_settings?.industrial_mode}
+                onChange={(next) =>
+                  setSettings({
+                    ...settings,
+                    sale_settings: { ...settings.sale_settings, industrial_mode: next },
+                  })
+                }
+              />
+            )}
             
             <LazySettingsPanel>
               <LazySizeGroupManagement />
