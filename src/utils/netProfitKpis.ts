@@ -15,6 +15,11 @@ export const NPA_NET_PROFIT_CAPTION = "NPA net (before returns) − COGS";
 
 export const NPA_MARGIN_CAPTION = "NPA margin on NPA-net";
 
+/** Net sale after S/R minus COGS, returned goods' cost back to stock (NPA "S/R Adjusted"). */
+export const NPA_PROFIT_AFTER_SR_CAPTION = "Net sale after S/R − COGS";
+
+export const NPA_MARGIN_AFTER_SR_CAPTION = "margin on net after S/R";
+
 export type NetProfitKpis = {
   gross_sales: number;
   discounts: number;
@@ -25,6 +30,14 @@ export type NetProfitKpis = {
   gross_profit: number;
   margin_percent: number;
   invoice_count: number;
+  /** True once the RPC returns the S/R Adjusted fields below (migration 20270320120000). */
+  sr_adjusted: boolean;
+  return_cogs: number;
+  amount_only_returns: number;
+  net_sales_after_sr: number;
+  total_cogs_after_sr: number;
+  gross_profit_after_sr: number;
+  margin_after_sr: number;
 };
 
 export function emptyNetProfitKpis(): NetProfitKpis {
@@ -38,6 +51,13 @@ export function emptyNetProfitKpis(): NetProfitKpis {
     gross_profit: 0,
     margin_percent: 0,
     invoice_count: 0,
+    sr_adjusted: false,
+    return_cogs: 0,
+    amount_only_returns: 0,
+    net_sales_after_sr: 0,
+    total_cogs_after_sr: 0,
+    gross_profit_after_sr: 0,
+    margin_after_sr: 0,
   };
 }
 
@@ -58,6 +78,46 @@ export function parseNetProfitKpis(data: unknown): NetProfitKpis {
     gross_profit: num(row.gross_profit),
     margin_percent: num(row.margin_percent),
     invoice_count: Math.round(num(row.invoice_count)),
+    sr_adjusted: row.sr_adjusted === true,
+    return_cogs: num(row.return_cogs),
+    amount_only_returns: num(row.amount_only_returns),
+    net_sales_after_sr: num(row.net_sales_after_sr),
+    total_cogs_after_sr: num(row.total_cogs_after_sr),
+    gross_profit_after_sr: num(row.gross_profit_after_sr),
+    margin_after_sr: num(row.margin_after_sr),
+  };
+}
+
+/**
+ * Profit the dashboards show: S/R Adjusted (returns off sales, returned goods' cost
+ * back to stock), same as Net Profit Analysis "S/R Adjusted" and the Total Sales tile.
+ * Falls back to the before-returns figure until the SQL is applied.
+ */
+export function dashboardProfit(kpis: NetProfitKpis | null | undefined): {
+  profit: number;
+  marginPercent: number;
+  hasSales: boolean;
+  caption: string;
+  marginCaption: string;
+} {
+  if (!kpis) {
+    return { profit: 0, marginPercent: 0, hasSales: false, caption: NPA_NET_PROFIT_CAPTION, marginCaption: NPA_MARGIN_CAPTION };
+  }
+  if (kpis.sr_adjusted) {
+    return {
+      profit: kpis.gross_profit_after_sr,
+      marginPercent: kpis.margin_after_sr,
+      hasSales: kpis.net_sales_after_sr > 0,
+      caption: NPA_PROFIT_AFTER_SR_CAPTION,
+      marginCaption: NPA_MARGIN_AFTER_SR_CAPTION,
+    };
+  }
+  return {
+    profit: kpis.gross_profit,
+    marginPercent: kpis.margin_percent,
+    hasSales: kpis.net_sales > 0,
+    caption: NPA_NET_PROFIT_CAPTION,
+    marginCaption: NPA_MARGIN_CAPTION,
   };
 }
 
@@ -66,6 +126,7 @@ export function netProfitKpisFromTotals(
   invoiceCount: number,
 ): NetProfitKpis {
   return {
+    ...emptyNetProfitKpis(),
     gross_sales: totals.grossSales,
     discounts: totals.totalDiscounts,
     round_off: totals.roundOff,

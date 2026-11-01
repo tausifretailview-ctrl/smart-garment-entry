@@ -13,10 +13,11 @@ describe("OwnerDashboard last-fetched badge", () => {
     expect(dash).not.toMatch(/isRefreshing \? "Syncing" : "Synced"/);
   });
 
-  it("labels stored-net vs NPA-net and does not mix margin bases", () => {
+  it("labels stored-net vs profit after S/R and does not mix margin bases", () => {
     const dash = readFileSync(join(here, "OwnerDashboard.tsx"), "utf8");
     expect(dash).toContain("STORED_NET_CAPTION");
-    expect(dash).toContain("NPA_NET_PROFIT_CAPTION");
+    expect(dash).toContain("dashboardProfit(npaKpis)");
+    expect(dash).not.toMatch(/npaKpis\?\.gross_profit/);
     expect(dash).toContain("fetchNetProfitKpis");
     expect(dash).not.toMatch(/dashStats\?\.gross_profit/);
     expect(dash).not.toMatch(/grossProfit \/ totalSales/);
