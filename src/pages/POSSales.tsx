@@ -962,6 +962,8 @@ export default function POSSales() {
 
   const billing = usePosBilling({
     grossBasis,
+    // Settings loaded and MRP off → sale price is the MRP (old hidden item MRPs ignored).
+    ignoreMrp: posRuntimeSettings != null && posRuntimeSettings.enable_mrp !== true,
     garmentGstSettings,
     calculateRedemptionValue,
     initialTaxType: defaultPosTaxTypeEarly,

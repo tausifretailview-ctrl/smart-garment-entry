@@ -50,6 +50,11 @@ export type UsePosBillingParams = {
    * The hook never reads settings context.
    */
   grossBasis: PosGrossBasis;
+  /**
+   * True only when settings are loaded and the shop's MRP setting is OFF: new lines use
+   * the sale price as MRP (saved item MRP ignored). False while settings are unknown.
+   */
+  ignoreMrp?: boolean;
   garmentGstSettings: GarmentGstRuleSettings | null | undefined;
   /** Injected — typically useCustomerPoints().calculateRedemptionValue */
   calculateRedemptionValue: (points: number) => number;
@@ -168,6 +173,7 @@ export type UsePosBillingResult = {
  */
 export function usePosBilling(params: UsePosBillingParams): UsePosBillingResult {
   const { grossBasis, garmentGstSettings, calculateRedemptionValue, categoryTierPricing } = params;
+  const ignoreMrp = params.ignoreMrp === true;
 
   const tierFinalize = useCallback(
     (raw: PosCartItem[]) => {
@@ -356,9 +362,10 @@ export function usePosBilling(params: UsePosBillingParams): UsePosBillingResult 
           brandDiscountPercent: input.brandDiscountPercent,
           customerHasMasterDiscount: input.customerHasMasterDiscount,
           makeLineId: input.makeLineId,
+          ignoreMrp,
         }),
       ),
-    [applyMutator, garmentGstSettings, grossBasis],
+    [applyMutator, garmentGstSettings, grossBasis, ignoreMrp],
   );
 
   const updateQty = useCallback(
