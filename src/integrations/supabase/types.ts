@@ -7473,14 +7473,17 @@ export type Database = {
           discount_amount: number
           flat_discount_amount: number
           flat_discount_percent: number
+          follow_up_date?: string | null
           gross_amount: number
           gst_amount: number
           id: string
+          lost_reason?: string | null
           net_amount: number
           notes: string | null
           organization_id: string
           quotation_date: string
           quotation_number: string
+          revision_no?: number | null
           round_off: number
           salesman: string | null
           shipping_address: string | null
@@ -7503,14 +7506,17 @@ export type Database = {
           discount_amount?: number
           flat_discount_amount?: number
           flat_discount_percent?: number
+          follow_up_date?: string | null
           gross_amount?: number
           gst_amount?: number
           id?: string
+          lost_reason?: string | null
           net_amount?: number
           notes?: string | null
           organization_id: string
           quotation_date?: string
           quotation_number: string
+          revision_no?: number | null
           round_off?: number
           salesman?: string | null
           shipping_address?: string | null
@@ -7533,14 +7539,17 @@ export type Database = {
           discount_amount?: number
           flat_discount_amount?: number
           flat_discount_percent?: number
+          follow_up_date?: string | null
           gross_amount?: number
           gst_amount?: number
           id?: string
+          lost_reason?: string | null
           net_amount?: number
           notes?: string | null
           organization_id?: string
           quotation_date?: string
           quotation_number?: string
+          revision_no?: number | null
           round_off?: number
           salesman?: string | null
           shipping_address?: string | null

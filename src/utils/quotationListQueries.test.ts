@@ -31,6 +31,10 @@ function createFilterRecorder() {
       calls.push({ method: "is", column, value });
       return query;
     },
+    not(column: string, operator: string, value: string) {
+      calls.push({ method: `not.${operator}`, column, value });
+      return query;
+    },
   };
   return { query, calls };
 }
@@ -104,6 +108,15 @@ describe("applyQuotationListFilters", () => {
         value:
           "quotation_number.ilike.%a b%,customer_name.ilike.%a b%,customer_phone.ilike.%a b%",
       },
+    ]);
+  });
+
+  it("lists open quotations with a follow-up due (Industrial mode)", () => {
+    const { query, calls } = createFilterRecorder();
+    applyQuotationListFilters(query, baseFilters({ followUpDueBy: "2026-11-01" }));
+    expect(calls).toEqual([
+      { method: "lte", column: "follow_up_date", value: "2026-11-01" },
+      { method: "not.in", column: "status", value: "(confirmed,cancelled)" },
     ]);
   });
 });

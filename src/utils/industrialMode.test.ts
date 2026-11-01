@@ -5,7 +5,13 @@ import {
   checkCreditLimit,
   dueDateFromCreditDays,
   formatCustomerPoRef,
+  buildQuotationLostReason,
+  formatFollowUpChip,
   formatSaleTransportLine,
+  fromIsoDay,
+  quotationDisplayNumber,
+  quotationFollowUpState,
+  toIsoDay,
   parseCustomerCreditTermsInput,
   parseSaleB2BForm,
   resolveIndustrialMode,
@@ -193,5 +199,42 @@ describe("buildB2BInvoiceRows", () => {
     expect(buildB2BInvoiceRows({ customer_po_no: "A1" }, { invoiceDate: new Date(2026, 10, 1), dueDate: "2026-11-01" })).toEqual([
       ["Buyer's Order No.", "A1"],
     ]);
+  });
+});
+
+describe("quotation follow-up and revision", () => {
+  it("shows Rev only after the first edit", () => {
+    expect(quotationDisplayNumber("QT/26-27/0042", null)).toBe("QT/26-27/0042");
+    expect(quotationDisplayNumber("QT/26-27/0042", 0)).toBe("QT/26-27/0042");
+    expect(quotationDisplayNumber("QT/26-27/0042", 2)).toBe("QT/26-27/0042 Rev 2");
+  });
+
+  it("works out the follow-up chip", () => {
+    const today = new Date(2026, 10, 5, 9);
+    expect(quotationFollowUpState("2026-11-04", "sent", today)).toBe("overdue");
+    expect(quotationFollowUpState("2026-11-05", "draft", today)).toBe("today");
+    expect(quotationFollowUpState("2026-11-09", "hold", today)).toBe("upcoming");
+    expect(quotationFollowUpState("2026-11-04", "confirmed", today)).toBeNull();
+    expect(quotationFollowUpState(null, "sent", today)).toBeNull();
+  });
+
+  it("converts calendar days without a UTC shift", () => {
+    const d = fromIsoDay("2026-11-05");
+    expect(d && toIsoDay(d)).toBe("2026-11-05");
+    expect(toIsoDay(new Date(2026, 10, 5, 0, 10))).toBe("2026-11-05");
+    expect(fromIsoDay("bad")).toBeNull();
+  });
+
+  it("labels the follow-up chip", () => {
+    const today = new Date(2026, 10, 1, 18);
+    expect(formatFollowUpChip("2026-10-28", "overdue", today)).toBe("Follow up 28/10 · 4d late");
+    expect(formatFollowUpChip("2026-11-01", "today", today)).toBe("Follow up today");
+    expect(formatFollowUpChip("2026-11-05", "upcoming", today)).toBe("Follow up 05/11");
+  });
+
+  it("joins the lost reason and note", () => {
+    expect(buildQuotationLostReason("Price too high", " we quoted 455 ")).toBe("Price too high: we quoted 455");
+    expect(buildQuotationLostReason("", "Owner changed")).toBe("Owner changed");
+    expect(buildQuotationLostReason(" ", " ")).toBeNull();
   });
 });
