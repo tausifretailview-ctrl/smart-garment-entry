@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  EMPTY_SALE_B2B_FORM,
   checkCreditLimit,
   dueDateFromCreditDays,
+  formatCustomerPoRef,
+  formatSaleTransportLine,
   parseCustomerCreditTermsInput,
+  parseSaleB2BForm,
   resolveIndustrialMode,
+  saleB2BToForm,
 } from "./industrialMode";
 
 describe("resolveIndustrialMode", () => {
@@ -58,6 +63,11 @@ describe("dueDateFromCreditDays", () => {
     expect([d.getFullYear(), d.getMonth(), d.getDate()]).toEqual([2026, 10, 19]);
   });
 
+  it("returns local noon so the saved ISO date is the same calendar day", () => {
+    const d = dueDateFromCreditDays(new Date(2026, 10, 1, 0, 5), 30);
+    expect(d.getHours()).toBe(12);
+  });
+
   it("keeps the bill date when no credit days", () => {
     const d = dueDateFromCreditDays(new Date(2026, 10, 1, 15, 30), null);
     expect([d.getFullYear(), d.getMonth(), d.getDate()]).toEqual([2026, 10, 1]);
@@ -92,5 +102,70 @@ describe("checkCreditLimit", () => {
 
   it("ignores paise noise", () => {
     expect(checkCreditLimit({ creditLimit: 1000, currentBalance: 0, billAmount: 1000.4 }).exceeded).toBe(false);
+  });
+});
+
+describe("sale B2B details", () => {
+  it("saves NULL for an empty form", () => {
+    expect(parseSaleB2BForm(EMPTY_SALE_B2B_FORM)).toBeNull();
+  });
+
+  it("normalises vehicle and transporter id and keeps mode only with transport", () => {
+    expect(
+      parseSaleB2BForm({
+        ...EMPTY_SALE_B2B_FORM,
+        customer_po_no: " PO-7781 ",
+        customer_po_date: "2026-10-28",
+        transporter_name: "VRL Logistics",
+        transporter_id: "29aabcv1234f1z5",
+        vehicle_no: "mh 04-ab 1234",
+        lr_no: "55821",
+        lr_date: "2026-11-01",
+        distance_km: "142",
+      }),
+    ).toEqual({
+      customer_po_no: "PO-7781",
+      customer_po_date: "2026-10-28",
+      transporter_name: "VRL Logistics",
+      transporter_id: "29AABCV1234F1Z5",
+      vehicle_no: "MH04AB1234",
+      lr_no: "55821",
+      lr_date: "2026-11-01",
+      distance_km: 142,
+      transport_mode: "road",
+    });
+    expect(parseSaleB2BForm({ ...EMPTY_SALE_B2B_FORM, customer_po_no: "A1" })).toEqual({ customer_po_no: "A1" });
+  });
+
+  it("rejects bad values", () => {
+    expect(() => parseSaleB2BForm({ ...EMPTY_SALE_B2B_FORM, transporter_id: "12345" })).toThrow();
+    expect(() => parseSaleB2BForm({ ...EMPTY_SALE_B2B_FORM, vehicle_no: "MH" })).toThrow();
+    expect(() => parseSaleB2BForm({ ...EMPTY_SALE_B2B_FORM, distance_km: "12.5" })).toThrow();
+  });
+
+  it("round-trips through the form", () => {
+    const saved = { customer_po_no: "PO-1", vehicle_no: "MH04AB1234", distance_km: 20, transport_mode: "rail" };
+    const form = saleB2BToForm(saved);
+    expect(form.distance_km).toBe("20");
+    expect(form.transport_mode).toBe("rail");
+    expect(parseSaleB2BForm(form)).toEqual(saved);
+    expect(saleB2BToForm(null)).toEqual(EMPTY_SALE_B2B_FORM);
+  });
+
+  it("formats print lines", () => {
+    const d = {
+      customer_po_no: "PO-7781",
+      customer_po_date: "2026-10-28",
+      transporter_name: "VRL",
+      vehicle_no: "MH04AB1234",
+      lr_no: "55821",
+      lr_date: "2026-11-01",
+      distance_km: 142,
+      transport_mode: "road" as const,
+    };
+    expect(formatSaleTransportLine(d)).toBe("VRL · Vehicle MH04AB1234 · LR 55821 dt 01/11/2026 · 142 km");
+    expect(formatCustomerPoRef(d)).toBe("PO-7781 dt 28/10/2026");
+    expect(formatSaleTransportLine(null, "VRL")).toBe("VRL");
+    expect(formatSaleTransportLine({ vehicle_no: "MH04AB1234" }, "VRL")).toBe("VRL · Vehicle MH04AB1234");
   });
 });

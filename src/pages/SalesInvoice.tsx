@@ -2,7 +2,19 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } fr
 import { CustomerBalanceBadge } from "@/components/CustomerBalanceBadge";
 import { CustomerCreditChip } from "@/components/customers/CustomerCreditChip";
 import { useCustomerCreditTerms, useIndustrialMode } from "@/hooks/useIndustrialMode";
-import { checkCreditLimit, dueDateFromCreditDays, formatInr } from "@/utils/industrialMode";
+import {
+  EMPTY_SALE_B2B_FORM,
+  checkCreditLimit,
+  dueDateFromCreditDays,
+  formatInr,
+  formatSaleTransportLine,
+  parseSaleB2BForm,
+  saleB2BToForm,
+  type SaleB2BDetails,
+  type SaleB2BDetailsForm,
+} from "@/utils/industrialMode";
+import { SaleB2BDetailsBand } from "@/components/sales/SaleB2BDetailsBand";
+import type { Json } from "@/integrations/supabase/types";
 import { flushSync } from "react-dom";
 import { allowsDecimalQty, clampQty, minQtyForUom, parseQtyValue } from "@/utils/qtyInput";
 import { fetchProductQtyMeta } from "@/utils/productQtyMeta";
@@ -418,6 +430,10 @@ export default function SalesInvoice() {
   const industrialMode = useIndustrialMode();
   const { data: customerCreditTerms } = useCustomerCreditTerms(selectedCustomerId || null, industrialMode.enabled);
   const [showCreditLimitDialog, setShowCreditLimitDialog] = useState(false);
+  // Industrial mode: customer PO + dispatch details (sales.b2b_details).
+  const [b2bForm, setB2bForm] = useState<SaleB2BDetailsForm>(EMPTY_SALE_B2B_FORM);
+  // Edit only rewrites b2b_details when the loaded bill row carried the column.
+  const b2bLoadedForEditRef = useRef(false);
   const creditLimitAcknowledgedRef = useRef(false);
   const savingLockRef = useRef(false); // Synchronous lock to prevent duplicate saves from rapid clicks
   const printRef = useRef<HTMLDivElement>(null);
@@ -704,6 +720,7 @@ export default function SalesInvoice() {
     setSelectedCustomerId(data.selectedCustomerId || "");
     setSelectedCustomer(data.selectedCustomer || null);
     setPaymentTerm(data.paymentTerm || "");
+    setB2bForm(data.b2bForm ? saleB2BToForm(data.b2bForm) : EMPTY_SALE_B2B_FORM);
     setTermsConditions(data.termsConditions || "");
     setNotes(data.notes || "");
     setShippingAddress(data.shippingAddress || "");
@@ -761,6 +778,7 @@ export default function SalesInvoice() {
     flatDiscountRupees,
     otherCharges,
     roundOff,
+    b2bForm,
   });
 
   // Update current data for auto-save whenever form data changes.
@@ -772,7 +790,7 @@ export default function SalesInvoice() {
       updateCurrentData(buildDraftSnapshot());
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoiceDate, dueDate, lineItems, selectedCustomerId, selectedCustomer, paymentTerm, termsConditions, notes, shippingAddress, shippingInstructions, taxType, salesman, flatDiscountPercent, flatDiscountRupees, otherCharges, roundOff, editingInvoiceId, updateCurrentData]);
+  }, [invoiceDate, dueDate, lineItems, selectedCustomerId, selectedCustomer, paymentTerm, termsConditions, notes, shippingAddress, shippingInstructions, taxType, salesman, flatDiscountPercent, flatDiscountRupees, otherCharges, roundOff, b2bForm, editingInvoiceId, updateCurrentData]);
 
   // Start auto-save when not in edit mode
   useEffect(() => {
@@ -1284,6 +1302,9 @@ export default function SalesInvoice() {
       }
       
       setPaymentTerm(invoiceData.payment_term || "");
+      
+      b2bLoadedForEditRef.current = Object.prototype.hasOwnProperty.call(invoiceData, "b2b_details");
+      setB2bForm(saleB2BToForm((invoiceData as { b2b_details?: unknown }).b2b_details));
       setTermsConditions(invoiceData.terms_conditions || "");
       setNotes(invoiceData.notes || "");
       setShippingAddress(invoiceData.shipping_address || "");
@@ -1374,6 +1395,8 @@ export default function SalesInvoice() {
             });
           }
           setPaymentTerm(invoiceData.payment_term || "");
+          // A duplicate is a new bill: new PO and dispatch details.
+          setB2bForm(EMPTY_SALE_B2B_FORM);
           setTermsConditions(invoiceData.terms_conditions || "");
           setNotes(invoiceData.notes || "");
           setShippingAddress(invoiceData.shipping_address || "");
@@ -2567,6 +2590,8 @@ export default function SalesInvoice() {
         setSelectedCustomerId("");
       }
       setPaymentTerm(invoiceData.payment_term || "");
+      b2bLoadedForEditRef.current = Object.prototype.hasOwnProperty.call(invoiceData, "b2b_details");
+      setB2bForm(saleB2BToForm((invoiceData as { b2b_details?: unknown }).b2b_details));
       setTermsConditions(invoiceData.terms_conditions || "");
       setNotes(invoiceData.notes || "");
       setShippingAddress(invoiceData.shipping_address || "");
@@ -2676,6 +2701,7 @@ export default function SalesInvoice() {
         notes: invoiceData.notes || "",
         otherCharges: Number(invoiceData.other_charges || 0),
         shippingAddress: invoiceData.shipping_address || "",
+        b2bDetails: ((invoiceData as { b2b_details?: unknown }).b2b_details ?? null) as SaleB2BDetails | null,
         customer: {
           id: invoiceData.customer_id,
           customer_name: customerMeta?.customer_name || invoiceData.customer_name,
@@ -3308,6 +3334,26 @@ Thank you for choosing us!`;
       return;
     }
 
+    let b2bDetails: SaleB2BDetails | null = null;
+    if (industrialMode.enabled) {
+      try {
+        b2bDetails = parseSaleB2BForm(b2bForm);
+      } catch (err) {
+        savingLockRef.current = false;
+        toast({
+          variant: "destructive",
+          title: "Check order & dispatch details",
+          description: err instanceof Error ? err.message : String(err),
+        });
+        return;
+      }
+    }
+    // Only shops with Industrial mode on write the column (others may not have run its SQL).
+    const b2bPatch =
+      industrialMode.enabled && (!editingInvoiceId || b2bLoadedForEditRef.current)
+        ? { b2b_details: b2bDetails as unknown as Json }
+        : {};
+
     if (
       editingInvoiceId &&
       recordedReceiptAmount > 0.005 &&
@@ -3499,6 +3545,7 @@ Thank you for choosing us!`;
             shipping_instructions: shippingInstructions || null,
             salesman: salesman || null,
             tax_type: taxType,
+            ...b2bPatch,
             updated_at: new Date().toISOString(),
           })
           .eq('id', editingInvoiceId);
@@ -3588,6 +3635,7 @@ Thank you for choosing us!`;
           otherCharges,
           shippingAddress,
           customer: selectedCustomer,
+          b2bDetails,
           ...crmPointsPrintSnapshot({
             crmEnabled: isPointsEnabled,
             customerId: selectedCustomerId,
@@ -3641,6 +3689,7 @@ Thank you for choosing us!`;
             shipping_instructions: shippingInstructions || null,
             salesman: salesman || null,
             tax_type: taxType,
+            ...b2bPatch,
           }])
           .select()
           .single();
@@ -3762,6 +3811,7 @@ Thank you for choosing us!`;
           otherCharges,
           shippingAddress,
           customer: selectedCustomer,
+          b2bDetails,
           ...crmPointsPrintSnapshot({
             crmEnabled: isPointsEnabled,
             customerId: selectedCustomerId,
@@ -3924,6 +3974,7 @@ Thank you for choosing us!`;
         setInvoiceDate(new Date());
         setDueDate(new Date());
         setPaymentTerm("");
+        setB2bForm(EMPTY_SALE_B2B_FORM);
         setTermsConditions("");
         setNotes("");
         setShippingAddress("");
@@ -4623,6 +4674,7 @@ Thank you for choosing us!`;
                 setInvoiceDate(new Date());
                 setDueDate(new Date());
                 setPaymentTerm("");
+                setB2bForm(EMPTY_SALE_B2B_FORM);
                 setTermsConditions("");
                 setNotes("");
                 setShippingAddress("");
@@ -5058,6 +5110,14 @@ Thank you for choosing us!`;
           </div>
 
         </div>
+        {industrialMode.enabled && (
+          <SaleB2BDetailsBand
+            className="mt-2.5"
+            value={b2bForm}
+            onChange={setB2bForm}
+            customerTransport={selectedCustomer?.transport_details}
+          />
+        )}
       </section>
 
       {/* Product Entry Bar */}
@@ -6072,7 +6132,10 @@ Thank you for choosing us!`;
           shippingAddress={savedInvoiceData?.shippingAddress || ""}
           customerMobile={savedInvoiceData?.customer.phone || selectedCustomer?.phone || ""}
           customerGSTIN={savedInvoiceData?.customer.gst_number || selectedCustomer?.gst_number || ""}
-          customerTransportDetails={(savedInvoiceData?.customer as any)?.transport_details || (selectedCustomer as any)?.transport_details || ""}
+          customerTransportDetails={formatSaleTransportLine(
+            savedInvoiceData?.b2bDetails as SaleB2BDetails | null | undefined,
+            (savedInvoiceData?.customer as any)?.transport_details || (selectedCustomer as any)?.transport_details || "",
+          )}
             items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({
               sr: index + 1,
               particulars: item.productName,
