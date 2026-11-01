@@ -102,6 +102,14 @@ import { CustomerSpecialDaysDialog } from "@/components/customers/CustomerSpecia
 import { isMissingSpecialDayColumnError, toDateInputValue } from "@/utils/customerSpecialDays";
 import { CustomerShippingAddressesEditor } from "@/components/CustomerShippingAddressesEditor";
 import {
+  CustomerCreditTermsFields,
+  EMPTY_CREDIT_TERMS_FORM,
+  creditTermsToForm,
+  type CustomerCreditTermsForm,
+} from "@/components/customers/CustomerCreditTermsFields";
+import { customerCreditTermsKey, fetchCustomerCreditTerms, useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { parseCustomerCreditTermsInput, type CustomerCreditTerms } from "@/utils/industrialMode";
+import {
   type CustomerShippingAddress,
   cleanCustomerShippingAddresses,
   fetchCustomerShippingAddresses,
@@ -210,6 +218,8 @@ const CustomerMaster = () => {
   const toastRef = useRef(toast);
   toastRef.current = toast;
   const queryClient = useQueryClient();
+  const industrialMode = useIndustrialMode();
+  const [creditTermsForm, setCreditTermsForm] = useState<CustomerCreditTermsForm>(EMPTY_CREDIT_TERMS_FORM);
   const { user } = useAuth();
   const { currentOrganization, organizationRole } = useOrganization();
   const { hasMenuAccess, isAdmin: isAdminPermissions } = useUserPermissions();
@@ -669,6 +679,18 @@ const CustomerMaster = () => {
   };
 
   /** Saved in a second step (like birthdays) so shops without the shipping SQL can still save customers. */
+  /** Industrial mode only: credit terms live in columns the retail select never reads. */
+  const saveCustomerCreditTerms = async (customerId: string, terms: CustomerCreditTerms | null) => {
+    if (!terms || !currentOrganization?.id) return;
+    const { error } = await supabase
+      .from("customers" as any)
+      .update(terms)
+      .eq("id", customerId)
+      .eq("organization_id", currentOrganization.id);
+    if (error) throw new Error(`Customer saved, but credit terms were not: ${error.message}`);
+    queryClient.invalidateQueries({ queryKey: customerCreditTermsKey(currentOrganization.id, customerId) });
+  };
+
   const saveShippingAddresses = async (customerId: string, rows: CustomerShippingAddress[]) => {
     if (!currentOrganization?.id) return;
     const next = cleanCustomerShippingAddresses(rows);
@@ -702,6 +724,7 @@ const CustomerMaster = () => {
       assertNoCustomerDuplicate(duplicateCheck);
       
       const pointsBalance = enablePointsSystem ? parseCustomerPointsInput(data.points_balance) : 0;
+      const creditTerms = industrialMode.enabled ? parseCustomerCreditTermsInput(creditTermsForm) : null;
 
       const customerData: any = {
         customer_name: (data.customer_name.trim() || normalizedPhone || "WALK-IN").toUpperCase(),
@@ -727,6 +750,7 @@ const CustomerMaster = () => {
       if (inserted?.id) {
         await saveCustomerSpecialDays(inserted.id, data, { birthday: "", anniversary: "" });
         await saveShippingAddresses(inserted.id, shippingAddresses);
+        await saveCustomerCreditTerms(inserted.id, creditTerms);
       }
       if (enablePointsSystem && pointsBalance > 0 && inserted?.id) {
         const { error: historyError } = await supabase.from("customer_points_history").insert({
@@ -780,6 +804,7 @@ const CustomerMaster = () => {
       
       const previousPoints = Number(editingCustomer?.points_balance ?? 0);
       const nextPoints = enablePointsSystem ? parseCustomerPointsInput(data.points_balance) : previousPoints;
+      const creditTerms = industrialMode.enabled ? parseCustomerCreditTermsInput(creditTermsForm) : null;
 
       const customerData: any = {
         customer_name: (data.customer_name.trim() || normalizedPhone || "WALK-IN").toUpperCase(),
@@ -803,6 +828,7 @@ const CustomerMaster = () => {
       if (error) throw error;
       await saveCustomerSpecialDays(id, data, editingSpecialDaysRef.current);
       await saveShippingAddresses(id, shippingAddresses);
+      await saveCustomerCreditTerms(id, creditTerms);
 
       const pointsDelta = nextPoints - previousPoints;
       if (enablePointsSystem && pointsDelta !== 0) {
@@ -893,6 +919,7 @@ const CustomerMaster = () => {
     });
     setShippingAddresses([]);
     editingShippingAddressesRef.current = [];
+    setCreditTermsForm(EMPTY_CREDIT_TERMS_FORM);
     setEditingCustomer(null);
   };
 
@@ -910,6 +937,7 @@ const CustomerMaster = () => {
 
   const handleEdit = (customer: Customer) => {
     setEditingCustomer(customer);
+    setCreditTermsForm(EMPTY_CREDIT_TERMS_FORM);
     setFormData({
       customer_name: customer.customer_name,
       phone: customer.phone || "",
@@ -951,6 +979,11 @@ const CustomerMaster = () => {
           setShippingAddresses(rows);
         })
         .catch(() => undefined);
+      if (industrialMode.enabled) {
+        void fetchCustomerCreditTerms(currentOrganization.id, customer.id)
+          .then((t) => setCreditTermsForm(creditTermsToForm(t)))
+          .catch(() => undefined);
+      }
     }
   };
 
@@ -1824,6 +1857,9 @@ const CustomerMaster = () => {
               <div><Label htmlFor="m-address">Address</Label><Textarea id="m-address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} /></div>
               <CustomerShippingAddressesEditor value={shippingAddresses} onChange={setShippingAddresses} />
               <div><Label htmlFor="m-gst">GST Number</Label><Input id="m-gst" value={formData.gst_number} onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })} /></div>
+              {industrialMode.enabled && (
+                <CustomerCreditTermsFields value={creditTermsForm} onChange={setCreditTermsForm} idPrefix="m-ct" />
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div><Label htmlFor="m-birthday">Birthday</Label><Input id="m-birthday" type="date" value={formData.birthday} onChange={(e) => setFormData({ ...formData, birthday: e.target.value })} /></div>
                 <div><Label htmlFor="m-anniversary">Anniversary</Label><Input id="m-anniversary" type="date" value={formData.anniversary} onChange={(e) => setFormData({ ...formData, anniversary: e.target.value })} /></div>
@@ -2104,6 +2140,9 @@ const CustomerMaster = () => {
                       <Textarea id="address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="min-h-[60px]" />
                     </div>
                     <CustomerShippingAddressesEditor value={shippingAddresses} onChange={setShippingAddresses} compact />
+                    {industrialMode.enabled && (
+                      <CustomerCreditTermsFields value={creditTermsForm} onChange={setCreditTermsForm} compact idPrefix="ct" />
+                    )}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <Label htmlFor="birthday" className="text-xs">Birthday</Label>
