@@ -465,6 +465,8 @@ export const generateTallyExcel = (data: {
   purchaseVouchers?: TallyPurchaseVoucher[];
   creditNotes?: TallySalesVoucher[];
   debitNotes?: TallyPurchaseVoucher[];
+  /** Sales debit notes raised on customers (Industrial mode); Tally voucher type Debit Note. */
+  salesDebitNotes?: TallySalesVoucher[];
   receiptVouchers?: TallyReceiptVoucher[];
   paymentVouchers?: TallyReceiptVoucher[];
 }) => {
@@ -593,6 +595,30 @@ export const generateTallyExcel = (data: {
     }));
     const debitSheet = XLSX.utils.json_to_sheet(debitData);
     XLSX.utils.book_append_sheet(workbook, debitSheet, 'Debit Notes');
+  }
+
+  // Sheet 6b: Sales Debit Notes (extra charges raised on customers)
+  if (data.salesDebitNotes && data.salesDebitNotes.length > 0) {
+    const salesDebitData = data.salesDebitNotes.map(d => ({
+      'Date': d.date,
+      'Voucher No': d.voucherNo,
+      'Party Ledger': d.partyLedger,
+      'Party GSTIN': d.partyGstin,
+      'Item Name': d.itemName,
+      'HSN/SAC': d.hsnCode,
+      'Qty': d.qty,
+      'Rate': d.rate,
+      'Taxable Amount': d.taxableAmount,
+      'CGST Rate (%)': d.cgstRate,
+      'CGST Amount': d.cgstAmount,
+      'SGST Rate (%)': d.sgstRate,
+      'SGST Amount': d.sgstAmount,
+      'IGST Rate (%)': d.igstRate,
+      'IGST Amount': d.igstAmount,
+      'Total Amount': d.totalAmount
+    }));
+    const salesDebitSheet = XLSX.utils.json_to_sheet(salesDebitData);
+    XLSX.utils.book_append_sheet(workbook, salesDebitSheet, 'Sales Debit Notes');
   }
   
   // Sheet 7: Receipt Vouchers

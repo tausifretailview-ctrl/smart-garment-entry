@@ -326,3 +326,35 @@ export function debitNoteGstr1Lines(d: DebitNoteDetails) {
     };
   });
 }
+
+/* ------------------------------------------------------------------ */
+/* Accounts, Tally export, GST Analysis (step 1c)                      */
+/* ------------------------------------------------------------------ */
+
+/** Output GST of a note in the ledger shape (GstBreakdown in accounting/gstBreakdown). */
+export function debitNoteGstBreakdown(d: DebitNoteDetails): {
+  taxableAmount: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  totalGst: number;
+} {
+  const h = debitNoteTaxHeads(d);
+  return { taxableAmount: h.taxable, cgst: h.cgst, sgst: h.sgst, igst: h.igst, totalGst: h.gst };
+}
+
+/**
+ * The note's GST lines shaped like sale_items rows (tax exclusive: line_total = taxable),
+ * for readers that only know sale lines (Tally export, GST Analysis).
+ */
+export function debitNoteSaleLines(d: DebitNoteDetails) {
+  return d.lines.map((l) => ({
+    product_name: l.description,
+    hsn_code: l.hsn,
+    quantity: l.qty,
+    unit_price: l.rate,
+    line_total: l.taxable,
+    gst_percent: l.gst_percent,
+    discount_share: 0,
+  }));
+}

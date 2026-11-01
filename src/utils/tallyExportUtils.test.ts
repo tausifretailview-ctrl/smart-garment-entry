@@ -7,6 +7,7 @@ import {
   transformSaleReturnsToCreditNotes,
   transformSalesToVouchers,
 } from "./tallyExportUtils";
+import { buildDebitNoteDetails, computeDebitNote, debitNoteSaleLines, newDebitNoteLineForm } from "./debitNote";
 
 const ORG_GSTIN = "27ABCDE1234F1Z5";
 // Same-state customer GSTIN → intra-state (CGST + SGST, no IGST).
@@ -228,5 +229,40 @@ describe("tally export receipt/payment voucher_type matching", () => {
     const payments = transformPaymentsToVouchers(mixedVouchers);
     expect(payments[0].paymentMode).toBe("bank");
     expect(payments[1].paymentMode).toBe("card");
+  });
+});
+
+describe("tally export sales debit notes", () => {
+  it("a debit note's stored GST lines export as exclusive voucher rows", () => {
+    const details = buildDebitNoteDetails({
+      againstSaleId: null,
+      againstSaleNumber: "INV/26-27/1",
+      againstSaleDate: "2026-09-10",
+      reason: "rate_difference",
+      reasonNote: "",
+      interState: false,
+      totals: computeDebitNote(
+        [newDebitNoteLineForm({ description: "Rate difference", hsn: "8507", qty: "100", rate: "2", gst_percent: "18" })],
+        false,
+      ),
+    });
+    const [row] = transformSalesToVouchers(
+      [
+        {
+          sale_date: "2026-09-20",
+          sale_number: "DN/26-27/1",
+          customer_name: "Test Customer",
+          customer_gstin: INTRA_STATE_GSTIN,
+          tax_type: "exclusive",
+          sale_items: debitNoteSaleLines(details),
+        },
+      ],
+      ORG_GSTIN,
+    );
+    expect(row).toMatchObject({ voucherNo: "DN/26-27/1", itemName: "Rate difference", hsnCode: "8507", qty: 100 });
+    expect(Number(row.taxableAmount)).toBe(200);
+    expect(Number(row.cgstAmount) + Number(row.sgstAmount)).toBe(36);
+    expect(Number(row.igstAmount)).toBe(0);
+    expect(Number(row.totalAmount)).toBe(236);
   });
 });

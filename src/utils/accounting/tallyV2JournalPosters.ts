@@ -29,6 +29,7 @@ import {
   fetchSaleReturnCogsAmount,
 } from "@/utils/accounting/saleCogs";
 import { seedDefaultAccounts, type SeededAccount } from "@/utils/accounting/seedDefaultAccounts";
+import { debitNoteGstBreakdown, isDebitNoteSale, parseDebitNoteDetails, type DebitNoteDetails } from "@/utils/debitNote";
 
 const round2 = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
 
@@ -181,6 +182,16 @@ async function fetchSaleSettledOutsideJournal(
   return { journaledReceiptTotal: Math.max(0, journaledReceiptTotal), creditNoteVoucherTotal };
 }
 
+/** Stored GST lines of a sales debit note (Industrial mode); read only for sale_type debit_note. */
+async function fetchDebitNoteDetailsForJournal(
+  saleId: string,
+  client: SupabaseClient<Database>,
+): Promise<DebitNoteDetails | null> {
+  const { data, error } = await client.from("sales").select("debit_note_details").eq("id", saleId).maybeSingle();
+  if (error) throw error;
+  return parseDebitNoteDetails((data as { debit_note_details?: unknown } | null)?.debit_note_details);
+}
+
 export async function buildSaleJournalV2(
   saleId: string,
   organizationId: string,
@@ -226,7 +237,17 @@ export async function buildSaleJournalV2(
         flatDiscount: Number(sale.flat_discount_amount ?? 0),
       })
     : null;
-  const gst = revenue ? revenue.gst : breakdownFromGrossAndGst(emptyItemsGstBase, 0);
+  // A debit note has no sale lines: its taxable value and CGST / SGST / IGST come from the
+  // lines stored on the note, so GST is not booked as Sales Revenue.
+  const debitNote =
+    !hasItems && isDebitNoteSale(sale as { sale_type?: string | null })
+      ? await fetchDebitNoteDetailsForJournal(saleId, client)
+      : null;
+  const gst = revenue
+    ? revenue.gst
+    : debitNote
+      ? debitNoteGstBreakdown(debitNote)
+      : breakdownFromGrossAndGst(emptyItemsGstBase, 0);
 
   const systemAccounts = await seedDefaultAccounts(organizationId, client);
   const salesRevenue = getAccountByCode(systemAccounts, "4000");
