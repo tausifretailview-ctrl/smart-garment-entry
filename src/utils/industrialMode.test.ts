@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   EMPTY_SALE_B2B_FORM,
+  buildB2BInvoiceRows,
   checkCreditLimit,
   dueDateFromCreditDays,
   formatCustomerPoRef,
@@ -167,5 +168,30 @@ describe("sale B2B details", () => {
     expect(formatCustomerPoRef(d)).toBe("PO-7781 dt 28/10/2026");
     expect(formatSaleTransportLine(null, "VRL")).toBe("VRL");
     expect(formatSaleTransportLine({ vehicle_no: "MH04AB1234" }, "VRL")).toBe("VRL · Vehicle MH04AB1234");
+  });
+});
+
+describe("buildB2BInvoiceRows", () => {
+  it("adds nothing for retail bills", () => {
+    expect(buildB2BInvoiceRows(null, { invoiceDate: new Date(2026, 10, 1), dueDate: "2026-12-01" })).toEqual([]);
+  });
+
+  it("lists only filled rows and the due date when it differs", () => {
+    expect(
+      buildB2BInvoiceRows(
+        { customer_po_no: "PO-7781", customer_po_date: "2026-10-28", transporter_name: "VRL", transport_mode: "rail", vehicle_no: "MH04AB1234", lr_no: "55821", lr_date: "2026-11-01", distance_km: 142 },
+        { invoiceDate: new Date(2026, 10, 1, 10), dueDate: "2026-12-01" },
+      ),
+    ).toEqual([
+      ["Buyer's Order No.", "PO-7781 dt 28/10/2026"],
+      ["Dispatched through", "VRL by Rail"],
+      ["Vehicle No.", "MH04AB1234"],
+      ["LR / RR No.", "55821 dt 01/11/2026"],
+      ["Distance", "142 km"],
+      ["Due Date", "01-12-2026"],
+    ]);
+    expect(buildB2BInvoiceRows({ customer_po_no: "A1" }, { invoiceDate: new Date(2026, 10, 1), dueDate: "2026-11-01" })).toEqual([
+      ["Buyer's Order No.", "A1"],
+    ]);
   });
 });
