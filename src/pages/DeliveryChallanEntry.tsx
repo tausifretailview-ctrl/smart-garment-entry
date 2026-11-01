@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 import { useSettings } from "@/hooks/useSettings";
+import { useIndustrialMode } from "@/hooks/useIndustrialMode";
 import { useEntryBillProductSearch } from "@/hooks/useEntryBillProductSearch";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { Input } from "@/components/ui/input";
@@ -65,6 +66,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS } from "@/utils/thermalReceiptPrintDocument";
 import { waitForPrintReady } from "@/utils/printReady";
+import {
+  CHALLAN_TYPES,
+  DEFAULT_CHALLAN_TYPE,
+  challanPrintTitle,
+  challanTypeHint,
+  isChallanType,
+  type ChallanType,
+} from "@/utils/industrialMode";
 
 interface LineItem {
   id: string;
@@ -116,6 +125,7 @@ export default function DeliveryChallanEntry() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const { data: settings } = useSettings();
+  const industrialMode = useIndustrialMode();
   const location = useLocation();
   const { orgNavigate: navigate } = useOrgNavigation();
 
@@ -150,6 +160,7 @@ export default function DeliveryChallanEntry() {
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
   const [selectedSaleOrderId, setSelectedSaleOrderId] = useState<string | null>(null);
   const [showNotesSection, setShowNotesSection] = useState(false);
+  const [challanType, setChallanType] = useState<ChallanType>(DEFAULT_CHALLAN_TYPE);
   const [printData, setPrintData] = useState<{
     items: Array<Record<string, unknown>>;
     grossAmount: number;
@@ -163,6 +174,7 @@ export default function DeliveryChallanEntry() {
     notes: string;
     salesman: string;
     roundOff: number;
+    documentTitle: string;
   } | null>(null);
 
   const printRef = useRef<HTMLDivElement>(null);
@@ -731,6 +743,7 @@ export default function DeliveryChallanEntry() {
         shippingAddress: string;
         salesman: string;
         roundOff: number;
+        documentTitle?: string;
       },
     ) => {
       setPrintData({
@@ -746,6 +759,7 @@ export default function DeliveryChallanEntry() {
         notes: snapshot.notes,
         salesman: snapshot.salesman,
         roundOff: snapshot.roundOff,
+        documentTitle: snapshot.documentTitle || "DELIVERY CHALLAN",
       });
       requestAnimationFrame(() => {
         waitForPrintReady(printRef, () => handlePrint(), { maxWait: 8000 });
@@ -890,6 +904,20 @@ export default function DeliveryChallanEntry() {
         const { error: itemsError } = await supabase.from("delivery_challan_items").insert(challanItemsData);
         if (itemsError) throw itemsError;
 
+        if (industrialMode.enabled) {
+          const { error: typeError } = await supabase
+            .from("delivery_challans")
+            .update({ challan_type: challanType })
+            .eq("id", challanData.id);
+          if (typeError) {
+            toast({
+              variant: "destructive",
+              title: "Challan type not saved",
+              description: "The challan is saved. Run the Industrial mode step 8 SQL to keep the challan type.",
+            });
+          }
+        }
+
         if (selectedSaleOrderId) {
           for (const item of billableItems) {
             const { data: orderItem } = await supabase
@@ -927,6 +955,7 @@ export default function DeliveryChallanEntry() {
           shippingAddress,
           salesman,
           roundOff,
+          documentTitle: industrialMode.enabled ? challanPrintTitle(challanType) : undefined,
         };
         if (shouldPrint && challanNumber) {
           triggerPrint(challanNumber, savedItems, printSnapshot);
@@ -946,6 +975,7 @@ export default function DeliveryChallanEntry() {
         setFlatDiscountRupees(0);
         setRoundOff(0);
         setSelectedSaleOrderId(null);
+        setChallanType(DEFAULT_CHALLAN_TYPE);
 
         if (currentOrganization?.id) {
           const { data: nextNumber } = await supabase.rpc("generate_challan_number", {
@@ -1125,6 +1155,38 @@ export default function DeliveryChallanEntry() {
               </Select>
             </div>
           </div>
+          {industrialMode.enabled && (
+            <div
+              className="mt-2 flex flex-wrap items-end gap-2.5 rounded-md border border-sky-200 bg-sky-50/60 px-3 py-2"
+              data-testid="delivery-challan-type"
+            >
+              <div className="flex items-center gap-1.5 self-center pr-1 text-[13px] font-bold text-sky-900">
+                <Truck className="h-4 w-4 text-sky-700" />
+                Challan type
+              </div>
+              <div className="w-64">
+                <Label htmlFor="dc-challan-type" className="sr-only">
+                  Challan type
+                </Label>
+                <Select value={challanType} onValueChange={(v) => isChallanType(v) && setChallanType(v)}>
+                  <SelectTrigger id="dc-challan-type" className="h-9 bg-white text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CHALLAN_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="self-center text-xs text-slate-500">
+                Prints as <span className="font-semibold text-slate-700">{challanPrintTitle(challanType)}</span>.{" "}
+                {challanTypeHint(challanType)}
+              </p>
+            </div>
+          )}
         </section>
 
         <EntryBillProductSearchBar
@@ -1539,7 +1601,7 @@ export default function DeliveryChallanEntry() {
             notes={printData.notes}
             salesman={printData.salesman}
             isDcInvoice={true}
-            documentTitle="DELIVERY CHALLAN"
+            documentTitle={printData.documentTitle}
             showGSTBreakdown={false}
             showTaxDetails={false}
             taxType="inclusive"

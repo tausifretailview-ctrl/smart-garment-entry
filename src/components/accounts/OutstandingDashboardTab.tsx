@@ -30,6 +30,8 @@ import { MobileListCard } from "@/components/mobile/MobileListCard";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
 import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
+import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { daysPastDue, dueAgeBucket } from "@/utils/industrialMode";
 
 interface OutstandingDashboardTabProps {
   organizationId: string;
@@ -54,7 +56,41 @@ interface CustomerOutstanding {
   invoiceCount: number;
   oldestDays: number;
   aging: { current: number; d30: number; d60: number; d90: number; d90plus: number };
+  /** Industrial mode: the same dues aged by days past the bill's due date ("current" = not due yet). */
+  dueAging: { current: number; d30: number; d60: number; d90: number; d90plus: number };
+  /** Industrial mode: most days any open bill is past its due date (0 when nothing is overdue). */
+  maxOverdueDays: number;
 }
+
+type AgeBy = "bill" | "due";
+
+const emptyAging = () => ({ current: 0, d30: 0, d60: 0, d90: 0, d90plus: 0 });
+
+/** Bucket names per ageing mode; "bill" keeps the labels this tab always had. */
+const AGE_LABELS: Record<AgeBy, { short: string[]; card: Array<{ label: string; range: string }>; export: string[] }> = {
+  bill: {
+    short: ["0-7d", "8-30d", "31-60d", "61-90d", "90d+"],
+    card: [
+      { label: "Current", range: "0–7 days" },
+      { label: "30 Days", range: "8–30 days" },
+      { label: "60 Days", range: "31–60 days" },
+      { label: "90 Days", range: "61–90 days" },
+      { label: "90+ Days", range: "> 90 days" },
+    ],
+    export: ["Current (0-7d)", "8-30 Days", "31-60 Days", "61-90 Days", "90+ Days"],
+  },
+  due: {
+    short: ["Not due", "1-30d late", "31-60d late", "61-90d late", "90d+ late"],
+    card: [
+      { label: "Not due yet", range: "due date ahead" },
+      { label: "1–30 days", range: "past due date" },
+      { label: "31–60 days", range: "past due date" },
+      { label: "61–90 days", range: "past due date" },
+      { label: "90+ days", range: "past due date" },
+    ],
+    export: ["Not Due", "1-30 Days Overdue", "31-60 Days Overdue", "61-90 Days Overdue", "90+ Days Overdue"],
+  },
+};
 
 type SortField = "name" | "totalOutstanding" | "invoiceCount" | "oldestDays";
 type SortDir = "asc" | "desc";
@@ -67,6 +103,10 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
   const [sortField, setSortField] = useState<SortField>("totalOutstanding");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [minAmount, setMinAmount] = useState<string>("all");
+  const industrialMode = useIndustrialMode();
+  const [ageByChoice, setAgeByChoice] = useState<AgeBy>("bill");
+  const ageBy: AgeBy = industrialMode.enabled ? ageByChoice : "bill";
+  const ageLabels = AGE_LABELS[ageBy];
 
   const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.accountsOutstanding,
@@ -190,7 +230,9 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
             totalOutstanding: 0,
             invoiceCount: 0,
             oldestDays: 0,
-            aging: { current: 0, d30: 0, d60: 0, d90: 0, d90plus: 0 },
+            aging: emptyAging(),
+            dueAging: emptyAging(),
+            maxOverdueDays: 0,
           };
           customerOutstandings.set(sale.customer_id, entry);
         }
@@ -204,6 +246,11 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
         else if (daysOld <= 60) entry.aging.d60 += outstanding;
         else if (daysOld <= 90) entry.aging.d90 += outstanding;
         else entry.aging.d90plus += outstanding;
+
+        const overdueDays = daysPastDue(sale.due_date, sale.sale_date, today);
+        const dueKey = dueAgeBucket(overdueDays);
+        entry.dueAging[dueKey === "notDue" ? "current" : dueKey] += outstanding;
+        entry.maxOverdueDays = Math.max(entry.maxOverdueDays, overdueDays);
       });
 
       // Add opening balances as 90+ day outstanding
@@ -222,13 +269,17 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
             totalOutstanding: 0,
             invoiceCount: 0,
             oldestDays: 999,
-            aging: { current: 0, d30: 0, d60: 0, d90: 0, d90plus: 0 },
+            aging: emptyAging(),
+            dueAging: emptyAging(),
+            maxOverdueDays: 0,
           };
           customerOutstandings.set(c.id, entry);
         }
         entry.totalOutstanding += obOutstanding;
         entry.aging.d90plus += obOutstanding;
         entry.oldestDays = Math.max(entry.oldestDays, 365);
+        entry.dueAging.d90plus += obOutstanding;
+        entry.maxOverdueDays = Math.max(entry.maxOverdueDays, 365);
       });
 
       // Headline balance: authoritative snapshot RPC (matches Payment tab / POS picker).
@@ -265,6 +316,8 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
             d90: 0,
             d90plus: 0,
           },
+          dueAging: agingEntry?.dueAging ?? emptyAging(),
+          maxOverdueDays: agingEntry?.maxOverdueDays ?? 0,
         });
       });
 
@@ -281,7 +334,15 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
     staleTime: 60000,
   });
 
-  const customers = outstandingData || [];
+  const loadedCustomers = outstandingData || [];
+  /** Due-date view reuses the bill-date layout: swap in the due-date buckets and overdue days. */
+  const customers = useMemo(
+    () =>
+      ageBy === "due"
+        ? loadedCustomers.map((c) => ({ ...c, aging: c.dueAging ?? emptyAging(), oldestDays: Math.max(0, c.maxOverdueDays ?? 0) }))
+        : loadedCustomers,
+    [loadedCustomers, ageBy],
+  );
 
   // Compute aging buckets
   const agingBuckets: AgingBucket[] = useMemo(() => {
@@ -294,14 +355,18 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
       if (c.aging.d90 > 0) { totals.d90 += c.aging.d90; counts.d90++; }
       if (c.aging.d90plus > 0) { totals.d90plus += c.aging.d90plus; counts.d90plus++; }
     });
+    const names = ageLabels.card;
     return [
-      { label: "Current", range: "0–7 days", count: counts.current, amount: totals.current, icon: <Clock className="h-5 w-5" />, colorClass: "text-success", bgClass: "bg-success/10 border-success/20" },
-      { label: "30 Days", range: "8–30 days", count: counts.d30, amount: totals.d30, icon: <TrendingUp className="h-5 w-5" />, colorClass: "text-info", bgClass: "bg-info/10 border-info/20" },
-      { label: "60 Days", range: "31–60 days", count: counts.d60, amount: totals.d60, icon: <AlertTriangle className="h-5 w-5" />, colorClass: "text-warning", bgClass: "bg-warning/10 border-warning/20" },
-      { label: "90 Days", range: "61–90 days", count: counts.d90, amount: totals.d90, icon: <AlertCircle className="h-5 w-5" />, colorClass: "text-destructive/80", bgClass: "bg-destructive/5 border-destructive/20" },
-      { label: "90+ Days", range: "> 90 days", count: counts.d90plus, amount: totals.d90plus, icon: <XCircle className="h-5 w-5" />, colorClass: "text-destructive", bgClass: "bg-destructive/10 border-destructive/30" },
+      { label: names[0].label, range: names[0].range, count: counts.current, amount: totals.current, icon: <Clock className="h-5 w-5" />, colorClass: "text-success", bgClass: "bg-success/10 border-success/20" },
+      { label: names[1].label, range: names[1].range, count: counts.d30, amount: totals.d30, icon: <TrendingUp className="h-5 w-5" />, colorClass: "text-info", bgClass: "bg-info/10 border-info/20" },
+      { label: names[2].label, range: names[2].range, count: counts.d60, amount: totals.d60, icon: <AlertTriangle className="h-5 w-5" />, colorClass: "text-warning", bgClass: "bg-warning/10 border-warning/20" },
+      { label: names[3].label, range: names[3].range, count: counts.d90, amount: totals.d90, icon: <AlertCircle className="h-5 w-5" />, colorClass: "text-destructive/80", bgClass: "bg-destructive/5 border-destructive/20" },
+      { label: names[4].label, range: names[4].range, count: counts.d90plus, amount: totals.d90plus, icon: <XCircle className="h-5 w-5" />, colorClass: "text-destructive", bgClass: "bg-destructive/10 border-destructive/30" },
     ];
-  }, [customers]);
+  }, [customers, ageLabels]);
+
+  /** Overdue card: past 30 days of bill age, or anything past its due date. */
+  const overdueBuckets = agingBuckets.slice(ageBy === "due" ? 1 : 2);
 
   const totalOutstanding = customers.reduce((sum, c) => sum + c.totalOutstanding, 0);
   const totalCustomers = customers.length;
@@ -342,6 +407,13 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
   };
 
   const getAgingBadge = (days: number) => {
+    if (ageBy === "due") {
+      if (days <= 0) return <Badge variant="outline" className="bg-success/10 text-success border-success/30 text-xs">Not due</Badge>;
+      if (days <= 30) return <Badge variant="outline" className="bg-info/10 text-info border-info/30 text-xs">{days}d late</Badge>;
+      if (days <= 60) return <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-xs">{days}d late</Badge>;
+      if (days <= 90) return <Badge variant="outline" className="bg-destructive/10 text-destructive/80 border-destructive/30 text-xs">{days}d late</Badge>;
+      return <Badge variant="outline" className="bg-destructive/15 text-destructive border-destructive/40 text-xs font-semibold">90d+ late</Badge>;
+    }
     if (days <= 7) return <Badge variant="outline" className="bg-success/10 text-success border-success/30 text-xs">Current</Badge>;
     if (days <= 30) return <Badge variant="outline" className="bg-info/10 text-info border-info/30 text-xs">30d</Badge>;
     if (days <= 60) return <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-xs">60d</Badge>;
@@ -386,15 +458,15 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
         <Card className="border-0 shadow-md rounded-xl bg-gradient-to-br from-violet-500 to-violet-600">
           <CardContent className="p-3">
             <p className="text-xs font-medium text-white/80 flex items-center gap-1">
-              <AlertTriangle className="h-3.5 w-3.5" /> Overdue (&gt;30 days)
+              <AlertTriangle className="h-3.5 w-3.5" /> {ageBy === "due" ? "Overdue (past due date)" : <>Overdue (&gt;30 days)</>}
             </p>
             <div className="text-2xl font-black text-white tabular-nums mt-0.5">
               ₹{Math.round(
-                agingBuckets.slice(2).reduce((s, b) => s + b.amount, 0)
+                overdueBuckets.reduce((s, b) => s + b.amount, 0)
               ).toLocaleString("en-IN")}
             </div>
             <p className="text-xs text-white/65 mt-0.5">
-              {agingBuckets.slice(2).reduce((s, b) => s + b.count, 0)} customers overdue
+              {overdueBuckets.reduce((s, b) => s + b.count, 0)} customers overdue
             </p>
           </CardContent>
         </Card>
@@ -403,8 +475,40 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
       {/* Aging Buckets */}
       <Card className="rounded-xl border border-slate-200 shadow-sm">
         <CardHeader className="pb-2 px-3 pt-3 border-b border-slate-100 bg-slate-50/50">
-          <CardTitle className="text-sm font-semibold text-slate-800">Aging Analysis</CardTitle>
-          <CardDescription>Outstanding amounts grouped by invoice age</CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <CardTitle className="text-sm font-semibold text-slate-800">Aging Analysis</CardTitle>
+              <CardDescription>
+                {ageBy === "due"
+                  ? "Outstanding amounts grouped by days past the due date (bill date when a bill has no due date)"
+                  : "Outstanding amounts grouped by invoice age"}
+              </CardDescription>
+            </div>
+            {industrialMode.enabled && (
+              <div
+                role="group"
+                aria-label="Age by"
+                className="inline-flex items-center rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-semibold"
+                data-testid="outstanding-age-by"
+              >
+                <span className="px-2 text-slate-500">Age by</span>
+                {(["bill", "due"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    aria-pressed={ageBy === mode}
+                    onClick={() => setAgeByChoice(mode)}
+                    className={cn(
+                      "rounded-md px-2.5 py-1 transition-colors",
+                      ageBy === mode ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100",
+                    )}
+                  >
+                    {mode === "bill" ? "Bill date" : "Due date"}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -498,12 +602,12 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
               { header: "Phone", width: 1, value: (c) => c.phone || "" },
               { header: "Total Outstanding", width: 1.1, align: "right", value: (c) => Math.round(c.totalOutstanding) },
               { header: "Invoice Count", width: 0.8, align: "right", value: (c) => c.invoiceCount },
-              { header: "Oldest Days", width: 0.8, align: "right", value: (c) => c.oldestDays },
-              { header: "Current (0-7d)", width: 0.9, align: "right", value: (c) => Math.round(c.aging.current) },
-              { header: "8-30 Days", width: 0.8, align: "right", value: (c) => Math.round(c.aging.d30) },
-              { header: "31-60 Days", width: 0.8, align: "right", value: (c) => Math.round(c.aging.d60) },
-              { header: "61-90 Days", width: 0.8, align: "right", value: (c) => Math.round(c.aging.d90) },
-              { header: "90+ Days", width: 0.8, align: "right", value: (c) => Math.round(c.aging.d90plus) },
+              { header: ageBy === "due" ? "Most Days Overdue" : "Oldest Days", width: 0.8, align: "right", value: (c) => c.oldestDays },
+              { header: ageLabels.export[0], width: 0.9, align: "right", value: (c) => Math.round(c.aging.current) },
+              { header: ageLabels.export[1], width: 0.8, align: "right", value: (c) => Math.round(c.aging.d30) },
+              { header: ageLabels.export[2], width: 0.8, align: "right", value: (c) => Math.round(c.aging.d60) },
+              { header: ageLabels.export[3], width: 0.8, align: "right", value: (c) => Math.round(c.aging.d90) },
+              { header: ageLabels.export[4], width: 0.8, align: "right", value: (c) => Math.round(c.aging.d90plus) },
             ]}
           />
         }
@@ -568,12 +672,12 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
                       <>
                         <span>{c.invoiceCount} unpaid invoice{c.invoiceCount !== 1 ? "s" : ""}</span>
                         <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-0.5">
-                          {c.aging.current > 0 && <span className="text-success">0-7d: ₹{Math.round(c.aging.current).toLocaleString("en-IN")}</span>}
-                          {c.aging.d30 > 0 && <span className="text-info">8-30d: ₹{Math.round(c.aging.d30).toLocaleString("en-IN")}</span>}
-                          {c.aging.d60 > 0 && <span className="text-warning">31-60d: ₹{Math.round(c.aging.d60).toLocaleString("en-IN")}</span>}
+                          {c.aging.current > 0 && <span className="text-success">{ageLabels.short[0]}: ₹{Math.round(c.aging.current).toLocaleString("en-IN")}</span>}
+                          {c.aging.d30 > 0 && <span className="text-info">{ageLabels.short[1]}: ₹{Math.round(c.aging.d30).toLocaleString("en-IN")}</span>}
+                          {c.aging.d60 > 0 && <span className="text-warning">{ageLabels.short[2]}: ₹{Math.round(c.aging.d60).toLocaleString("en-IN")}</span>}
                           {(c.aging.d90 > 0 || c.aging.d90plus > 0) && (
                             <span className="text-destructive">
-                              61d+: ₹{Math.round(c.aging.d90 + c.aging.d90plus).toLocaleString("en-IN")}
+                              {ageBy === "due" ? "61d+ late" : "61d+"}: ₹{Math.round(c.aging.d90 + c.aging.d90plus).toLocaleString("en-IN")}
                             </span>
                           )}
                         </div>
@@ -597,13 +701,11 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
                     <TableHead className={cn(accountsHistoryThClass, "cursor-pointer select-none text-right")} onClick={() => handleSort("invoiceCount")}>
                       <div className="flex items-center justify-end">Invoices <SortIcon field="invoiceCount" /></div>
                     </TableHead>
-                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>0-7d</TableHead>
-                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>8-30d</TableHead>
-                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>31-60d</TableHead>
-                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>61-90d</TableHead>
-                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>90d+</TableHead>
+                    {ageLabels.short.map((label) => (
+                      <TableHead key={label} className={cn(accountsHistoryThClass, "text-right")}>{label}</TableHead>
+                    ))}
                     <TableHead className={cn(accountsHistoryThClass, "cursor-pointer select-none text-right")} onClick={() => handleSort("oldestDays")}>
-                      <div className="flex items-center justify-end">Oldest <SortIcon field="oldestDays" /></div>
+                      <div className="flex items-center justify-end">{ageBy === "due" ? "Most late" : "Oldest"} <SortIcon field="oldestDays" /></div>
                     </TableHead>
                   </TableRow>
                 </TableHeader>

@@ -2,6 +2,8 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSettings } from "@/hooks/useSettings";
+import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { challanTypeLabel } from "@/utils/industrialMode";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Card } from "@/components/ui/card";
@@ -142,6 +144,19 @@ export default function DeliveryChallanDashboard() {
   const [isConverting, setIsConverting] = useState(false);
   const openCustomerAccount = useOpenCustomerAccount();
   const { data: orgSettings } = useSettings();
+  const industrialMode = useIndustrialMode();
+
+  /** Industrial mode: badge for challans that are not a plain "bill to follow" delivery. */
+  const challanTypeBadge = (challan: { challan_type?: string | null }) => {
+    if (!industrialMode.enabled || !challan.challan_type || challan.challan_type === "sale_delivery") return null;
+    const label = challanTypeLabel(challan.challan_type);
+    if (!label) return null;
+    return (
+      <span className="mt-0.5 inline-block rounded bg-sky-50 px-1.5 py-0.5 text-[11px] font-semibold text-sky-800 ring-1 ring-sky-200">
+        {label}
+      </span>
+    );
+  };
 
   const { data: challansData, isLoading, refetch } = useQuery({
     queryKey: ['delivery-challans', currentOrganization?.id, dateFrom, dateTo, statusFilter],
@@ -508,7 +523,10 @@ export default function DeliveryChallanDashboard() {
                         className="h-11"
                         onContextMenu={(e) => handleRowContextMenu(e, challan)}
                       >
-                        <TableCell className="font-semibold text-teal-800">{challan.challan_number}</TableCell>
+                        <TableCell className="font-semibold text-teal-800">
+                          <div>{challan.challan_number}</div>
+                          {challanTypeBadge(challan)}
+                        </TableCell>
                         <TableCell className="tabular-nums">{format(new Date(challan.challan_date), 'dd/MM/yyyy')}</TableCell>
                         <TableCell>
                           <div>
@@ -587,6 +605,13 @@ export default function DeliveryChallanDashboard() {
             <AlertDialogDescription>
               This will create a Sales Invoice from this delivery challan. GST will be added based on your settings.
               Stock has already been deducted via the challan.
+              {industrialMode.enabled &&
+                ["job_work", "branch_transfer", "repair_return"].includes(convertConfirm?.challan_type ?? "") && (
+                  <span className="mt-2 block font-semibold text-amber-700">
+                    This challan is marked "{challanTypeLabel(convertConfirm?.challan_type)}". These goods usually come back
+                    or stay with you, so they are not normally billed.
+                  </span>
+                )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

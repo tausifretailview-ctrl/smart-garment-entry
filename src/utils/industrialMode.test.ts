@@ -6,6 +6,14 @@ import {
   dueDateFromCreditDays,
   formatCustomerPoRef,
   buildQuotationLostReason,
+  CHALLAN_TYPES,
+  DEFAULT_CHALLAN_TYPE,
+  challanPrintTitle,
+  challanTypeHint,
+  challanTypeLabel,
+  daysPastDue,
+  dueAgeBucket,
+  isChallanType,
   formatAltUnitQty,
   formatFollowUpChip,
   industrialItemToForm,
@@ -286,5 +294,51 @@ describe("item alternate unit and reorder level", () => {
     expect(reorderState(10, 10)).toBe("at");
     expect(reorderState(11, 10)).toBe("ok");
     expect(reorderState(0, null)).toBeNull();
+  });
+});
+
+describe("challan type", () => {
+  it("labels and titles", () => {
+    expect(isChallanType("job_work")).toBe(true);
+    expect(isChallanType("bogus")).toBe(false);
+    expect(challanTypeLabel("supply_on_approval")).toBe("Supply on approval");
+    expect(challanPrintTitle("job_work")).toBe("DELIVERY CHALLAN - JOB WORK");
+    expect(challanPrintTitle(null)).toBe("DELIVERY CHALLAN");
+    expect(challanTypeHint("job_work")).toContain("1 year");
+    expect(challanTypeHint(undefined)).toBe("");
+  });
+
+  it("defaults to a plain delivery and has unique values", () => {
+    expect(isChallanType(DEFAULT_CHALLAN_TYPE)).toBe(true);
+    expect(challanPrintTitle(DEFAULT_CHALLAN_TYPE)).toBe("DELIVERY CHALLAN");
+    expect(new Set(CHALLAN_TYPES.map((t) => t.value)).size).toBe(CHALLAN_TYPES.length);
+  });
+});
+
+describe("ageing by due date", () => {
+  const today = new Date(2026, 10, 1, 23, 30);
+
+  it("counts days past the due date on the local calendar", () => {
+    expect(daysPastDue("2026-10-02", "2026-09-02T10:00:00Z", today)).toBe(30);
+    expect(daysPastDue("2026-11-01", null, today)).toBe(0);
+    expect(daysPastDue("2026-11-15", null, today)).toBe(-14);
+  });
+
+  it("falls back to the bill date", () => {
+    expect(daysPastDue(null, new Date(2026, 9, 22, 11).toISOString(), today)).toBe(10);
+  });
+
+  it("buckets overdue days", () => {
+    expect([-3, 0, 1, 30, 31, 60, 61, 90, 91].map(dueAgeBucket)).toEqual([
+      "notDue",
+      "notDue",
+      "d30",
+      "d30",
+      "d60",
+      "d60",
+      "d90",
+      "d90",
+      "d90plus",
+    ]);
   });
 });
