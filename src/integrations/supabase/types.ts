@@ -6271,6 +6271,8 @@ export type Database = {
       }
       products: {
         Row: {
+          alt_uom?: string | null
+          alt_uom_factor?: number | null
           brand: string | null
           category: string | null
           color: string | null
@@ -6291,6 +6293,7 @@ export type Database = {
           purchase_discount_type: string | null
           purchase_discount_value: number | null
           purchase_gst_percent: number | null
+          reorder_level?: number | null
           requires_imei: boolean
           sale_discount_type: string | null
           sale_discount_value: number | null
@@ -6303,6 +6306,8 @@ export type Database = {
           user_cancelled_at: string | null
         }
         Insert: {
+          alt_uom?: string | null
+          alt_uom_factor?: number | null
           brand?: string | null
           category?: string | null
           color?: string | null
@@ -6323,6 +6328,7 @@ export type Database = {
           purchase_discount_type?: string | null
           purchase_discount_value?: number | null
           purchase_gst_percent?: number | null
+          reorder_level?: number | null
           requires_imei?: boolean
           sale_discount_type?: string | null
           sale_discount_value?: number | null
@@ -6335,6 +6341,8 @@ export type Database = {
           user_cancelled_at?: string | null
         }
         Update: {
+          alt_uom?: string | null
+          alt_uom_factor?: number | null
           brand?: string | null
           category?: string | null
           color?: string | null
@@ -6355,6 +6363,7 @@ export type Database = {
           purchase_discount_type?: string | null
           purchase_discount_value?: number | null
           purchase_gst_percent?: number | null
+          reorder_level?: number | null
           requires_imei?: boolean
           sale_discount_type?: string | null
           sale_discount_value?: number | null

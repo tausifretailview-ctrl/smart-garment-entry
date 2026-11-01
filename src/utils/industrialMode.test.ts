@@ -6,7 +6,11 @@ import {
   dueDateFromCreditDays,
   formatCustomerPoRef,
   buildQuotationLostReason,
+  formatAltUnitQty,
   formatFollowUpChip,
+  industrialItemToForm,
+  parseIndustrialItemForm,
+  reorderState,
   formatSaleTransportLine,
   fromIsoDay,
   quotationDisplayNumber,
@@ -236,5 +240,51 @@ describe("quotation follow-up and revision", () => {
     expect(buildQuotationLostReason("Price too high", " we quoted 455 ")).toBe("Price too high: we quoted 455");
     expect(buildQuotationLostReason("", "Owner changed")).toBe("Owner changed");
     expect(buildQuotationLostReason(" ", " ")).toBeNull();
+  });
+});
+
+describe("item alternate unit and reorder level", () => {
+  it("parses the item form", () => {
+    expect(parseIndustrialItemForm({ alt_uom: "box", alt_uom_factor: "12", reorder_level: "1,200" }, "NOS")).toEqual({
+      alt_uom: "BOX",
+      alt_uom_factor: 12,
+      reorder_level: 1200,
+    });
+    expect(parseIndustrialItemForm({ alt_uom: "", alt_uom_factor: "12", reorder_level: "" }, "NOS")).toEqual({
+      alt_uom: null,
+      alt_uom_factor: null,
+      reorder_level: null,
+    });
+  });
+
+  it("rejects bad values", () => {
+    expect(() => parseIndustrialItemForm({ alt_uom: "NOS", alt_uom_factor: "12", reorder_level: "" }, "NOS")).toThrow();
+    expect(() => parseIndustrialItemForm({ alt_uom: "BOX", alt_uom_factor: "", reorder_level: "" }, "NOS")).toThrow();
+    expect(() => parseIndustrialItemForm({ alt_uom: "BOX", alt_uom_factor: "0", reorder_level: "" }, "NOS")).toThrow();
+    expect(() => parseIndustrialItemForm({ alt_uom: "", alt_uom_factor: "", reorder_level: "-1" }, "NOS")).toThrow();
+  });
+
+  it("round-trips through the form", () => {
+    expect(industrialItemToForm({ alt_uom: "BOX", alt_uom_factor: 12, reorder_level: 50 })).toEqual({
+      alt_uom: "BOX",
+      alt_uom_factor: "12",
+      reorder_level: "50",
+    });
+    expect(industrialItemToForm(null)).toEqual({ alt_uom: "", alt_uom_factor: "", reorder_level: "" });
+  });
+
+  it("shows qty in the alternate unit", () => {
+    expect(formatAltUnitQty(36, "NOS", "BOX", 12)).toBe("3 BOX");
+    expect(formatAltUnitQty(40, "NOS", "BOX", 12)).toBe("3 BOX + 4 NOS");
+    expect(formatAltUnitQty(5, "NOS", "BOX", 12)).toBe("");
+    expect(formatAltUnitQty(25.5, "KG", "BAG", 25)).toBe("1 BAG + 0.5 KG");
+    expect(formatAltUnitQty(40, "NOS", null, 12)).toBe("");
+  });
+
+  it("works out the reorder state", () => {
+    expect(reorderState(4, 10)).toBe("below");
+    expect(reorderState(10, 10)).toBe("at");
+    expect(reorderState(11, 10)).toBe("ok");
+    expect(reorderState(0, null)).toBeNull();
   });
 });
