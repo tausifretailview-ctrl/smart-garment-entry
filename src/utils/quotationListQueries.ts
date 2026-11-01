@@ -37,6 +37,8 @@ export type QuotationListFilters = {
   fromDate?: Date;
   toDate?: Date;
   searchQuery: string;
+  /** Industrial mode: only open quotations whose follow-up is on or before this day (yyyy-MM-dd). */
+  followUpDueBy?: string;
 };
 
 type FilterableQuery = {
@@ -45,6 +47,7 @@ type FilterableQuery = {
   gte: (column: string, value: string) => FilterableQuery;
   lte: (column: string, value: string) => FilterableQuery;
   is: (column: string, value: null) => FilterableQuery;
+  not: (column: string, operator: string, value: string) => FilterableQuery;
 };
 
 function escapeIlikeTerm(raw: string): string {
@@ -90,6 +93,12 @@ export function applyQuotationListFilters<Q extends FilterableQuery>(
     q = q.lte("quotation_date", quotationLocalDayEndIso(filters.toDate)) as Q;
   }
 
+  if (filters.followUpDueBy) {
+    q = q
+      .lte("follow_up_date", filters.followUpDueBy)
+      .not("status", "in", "(confirmed,cancelled)") as Q;
+  }
+
   const term = escapeIlikeTerm(filters.searchQuery);
   if (term) {
     const pattern = `%${term}%`;
@@ -118,9 +127,11 @@ export async function fetchQuotationListPage(
 
   query = applyQuotationListFilters(query, filters);
 
-  const { data, error, count } = await query
-    .order("created_at", { ascending: false })
-    .range(from, to);
+  // Follow-ups due: oldest promise first.
+  const { data, error, count } = await (filters.followUpDueBy
+    ? query.order("follow_up_date", { ascending: true }).order("created_at", { ascending: false })
+    : query.order("created_at", { ascending: false })
+  ).range(from, to);
 
   if (error) throw error;
 

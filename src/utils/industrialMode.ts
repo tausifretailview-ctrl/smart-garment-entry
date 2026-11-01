@@ -334,3 +334,73 @@ export function buildB2BInvoiceRows(
   if (due && (!inv || due.toDateString() !== inv.toDateString())) rows.push(["Due Date", dmyDash(due)]);
   return rows;
 }
+
+/* ------------------------------------------------------------------ */
+/* Quotation follow-up and revision (Industrial mode)                  */
+/* ------------------------------------------------------------------ */
+
+/** "QT/26-27/0042" or "QT/26-27/0042 Rev 2". */
+export function quotationDisplayNumber(number: string, revisionNo: number | null | undefined): string {
+  const rev = Number(revisionNo);
+  return Number.isInteger(rev) && rev > 0 ? `${number} Rev ${rev}` : number;
+}
+
+export type FollowUpState = "overdue" | "today" | "upcoming";
+
+const CLOSED_QUOTATION_STATUSES = new Set(["confirmed", "cancelled"]);
+
+/** Follow-up chip state; null when there is nothing to chase. */
+export function quotationFollowUpState(
+  followUpDate: string | null | undefined,
+  status: string | null | undefined,
+  today: Date = new Date(),
+): FollowUpState | null {
+  if (!followUpDate || !ISO_DATE_RE.test(followUpDate)) return null;
+  if (status && CLOSED_QUOTATION_STATUSES.has(status)) return null;
+  const t = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  if (followUpDate < t) return "overdue";
+  if (followUpDate === t) return "today";
+  return "upcoming";
+}
+
+/** Local calendar day → "yyyy-MM-dd" (no UTC shift). */
+export function toIsoDay(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** "yyyy-MM-dd" → local Date at noon, or null. */
+export function fromIsoDay(v: string | null | undefined): Date | null {
+  return v && ISO_DATE_RE.test(v) ? new Date(Number(v.slice(0, 4)), Number(v.slice(5, 7)) - 1, Number(v.slice(8, 10)), 12) : null;
+}
+
+/** Quick picks for "why did we lose this quotation". Free text is allowed too. */
+export const QUOTATION_LOST_REASONS = [
+  "Price too high",
+  "Went to a competitor",
+  "Delivery time too long",
+  "No response from customer",
+  "Requirement dropped",
+  "Specs did not match",
+] as const;
+
+/** "Price too high" + optional note → "Price too high: asked ₹410, we quoted ₹455" (max 200 chars). */
+export function buildQuotationLostReason(reason: string, note: string): string | null {
+  const r = reason.trim();
+  const n = note.trim();
+  const text = r && n ? `${r}: ${n}` : r || n;
+  return text ? text.slice(0, 200) : null;
+}
+
+/** Short label for the follow-up chip, e.g. "Follow up 28/10 · 4d late". */
+export function formatFollowUpChip(followUpDate: string, state: FollowUpState, today: Date = new Date()): string {
+  const d = fromIsoDay(followUpDate);
+  if (!d) return "";
+  const dm = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+  if (state === "today") return "Follow up today";
+  if (state === "overdue") {
+    const t = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12);
+    const late = Math.round((t.getTime() - d.getTime()) / 86_400_000);
+    return `Follow up ${dm} · ${late}d late`;
+  }
+  return `Follow up ${dm}`;
+}

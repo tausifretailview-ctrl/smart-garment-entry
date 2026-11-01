@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarIcon, Plus, X, Save, FileText, Printer, ChevronDown, ChevronLeft } from "lucide-react";
+import { CalendarIcon, CalendarClock, Plus, X, Save, FileText, Printer, ChevronDown, ChevronLeft } from "lucide-react";
 import { format } from "date-fns";
 import { cn, buildProductDisplayName } from "@/lib/utils";
 import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
@@ -52,6 +52,9 @@ import { INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS } from "@/utils/thermalReceiptPri
 import { waitForPrintReady } from "@/utils/printReady";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { resolveSaleBillFormat, toInvoiceWrapperFormat, type PosBillFormat } from "@/utils/invoicePrintFormat";
+import { Switch } from "@/components/ui/switch";
+import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { fromIsoDay, quotationDisplayNumber, toIsoDay } from "@/utils/industrialMode";
 
 interface LineItem {
   id: string;
@@ -121,6 +124,15 @@ export default function QuotationEntry() {
   const [isSaving, setIsSaving] = useState(false);
   const savingRef = useRef(false);
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null);
+  // Industrial mode: follow-up date ("" or yyyy-MM-dd) and quotation revisions.
+  const industrialMode = useIndustrialMode();
+  const [followUpDate, setFollowUpDate] = useState<string>("");
+  const [followUpOpen, setFollowUpOpen] = useState(false);
+  /** Revision saved on the quotation being edited (0 = first issue). */
+  const [loadedRevisionNo, setLoadedRevisionNo] = useState(0);
+  /** The edited row came back with the step-5 columns (SQL has been run). */
+  const [loadedHasFollowUpColumns, setLoadedHasFollowUpColumns] = useState(false);
+  const [saveAsRevision, setSaveAsRevision] = useState(false);
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
   const [printData, setPrintData] = useState<any>(null);
   const printRef = useRef<HTMLDivElement>(null);
@@ -186,6 +198,7 @@ export default function QuotationEntry() {
     setFlatDiscountPercent(data.flatDiscountPercent || 0);
     setFlatDiscountAmount(data.flatDiscountAmount || 0);
     setRoundOff(data.roundOff || 0);
+    setFollowUpDate(typeof data.followUpDate === "string" ? data.followUpDate : "");
   }, []);
 
   useEffect(() => {
@@ -212,12 +225,13 @@ export default function QuotationEntry() {
         flatDiscountPercent,
         flatDiscountAmount,
         roundOff,
+        followUpDate,
       });
     }
   }, [
     quotationDate, validUntil, lineItems, selectedCustomerId, selectedCustomer,
     termsConditions, notes, shippingAddress, taxType, salesman, invoiceFormat,
-    flatDiscountPercent, flatDiscountAmount, roundOff, editingQuotationId, updateCurrentData,
+    flatDiscountPercent, flatDiscountAmount, roundOff, followUpDate, editingQuotationId, updateCurrentData,
   ]);
 
   useEffect(() => {
@@ -242,6 +256,7 @@ export default function QuotationEntry() {
           flatDiscountPercent,
           flatDiscountAmount,
           roundOff,
+          followUpDate,
         }, false);
       }
       stopAutoSave();
@@ -250,7 +265,7 @@ export default function QuotationEntry() {
     editingQuotationId, startAutoSave, stopAutoSave, location.state?.editQuotationId,
     lineItems, quotationDate, validUntil, selectedCustomerId, selectedCustomer,
     termsConditions, notes, shippingAddress, taxType, salesman, invoiceFormat,
-    flatDiscountPercent, flatDiscountAmount, roundOff, saveDraft,
+    flatDiscountPercent, flatDiscountAmount, roundOff, followUpDate, saveDraft,
   ]);
 
   const { data: settings } = useSettings();
@@ -347,6 +362,12 @@ export default function QuotationEntry() {
       setNotes(quotationData.notes || "");
       setShippingAddress(quotationData.shipping_address || "");
       setSalesman(quotationData.salesman || "");
+      setLoadedHasFollowUpColumns("follow_up_date" in quotationData && "revision_no" in quotationData);
+      setFollowUpDate(typeof quotationData.follow_up_date === "string" ? quotationData.follow_up_date.slice(0, 10) : "");
+      const savedRevision = Number(quotationData.revision_no);
+      setLoadedRevisionNo(Number.isInteger(savedRevision) && savedRevision > 0 ? savedRevision : 0);
+      // Already with the customer: an edit is a new revision unless the user turns it off.
+      setSaveAsRevision(!!quotationData.status && quotationData.status !== "draft");
 
       if (quotationData.customer_id) {
         setSelectedCustomer({
@@ -909,6 +930,27 @@ export default function QuotationEntry() {
       const { error: itemsError } = await supabase.from("quotation_items").insert(quotationItems);
       if (itemsError) throw itemsError;
 
+      // Industrial mode: follow-up date and revision, written on their own so a
+      // shop that has not run the step-5 SQL still saves the quotation.
+      let savedRevisionNo: number | undefined;
+      if (industrialMode.enabled && quotationId && (!editingQuotationId || loadedHasFollowUpColumns)) {
+        const nextRevision = editingQuotationId ? loadedRevisionNo + (saveAsRevision ? 1 : 0) : 0;
+        const { error: followUpError } = await supabase
+          .from("quotations")
+          .update({ follow_up_date: followUpDate || null, revision_no: nextRevision })
+          .eq("id", quotationId)
+          .eq("organization_id", currentOrganization!.id);
+        if (followUpError) {
+          toast({
+            variant: "destructive",
+            title: "Follow-up date not saved",
+            description: "The quotation is saved. Run the Industrial mode step 5 SQL to keep follow-up dates and revisions.",
+          });
+        } else {
+          savedRevisionNo = nextRevision;
+        }
+      }
+
       if (selectedCustomer?.phone && currentOrganization?.id && !editingQuotationId) {
         try {
           const { data: whatsappSettings } = await (supabase as any)
@@ -960,8 +1002,8 @@ export default function QuotationEntry() {
         }
       }
 
-      toast({ title: "Success", description: `Quotation ${quotationNumber} saved` });
-      return { success: true, quotationId };
+      toast({ title: "Success", description: `Quotation ${quotationDisplayNumber(quotationNumber, savedRevisionNo)} saved` });
+      return { success: true, quotationId, revisionNo: savedRevisionNo };
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
       return { success: false };
@@ -999,6 +1041,7 @@ export default function QuotationEntry() {
           gstAmount: totalGST,
           roundOff,
           netAmount,
+          revisionNo: result.revisionNo,
         });
 
         requestAnimationFrame(() => {
@@ -1035,6 +1078,14 @@ export default function QuotationEntry() {
             <span className="border-2 border-black text-black font-mono text-[11px] font-bold px-3 py-1 rounded-md shrink-0">
               {quotationNumber || "NEW"}
             </span>
+            {industrialMode.enabled && editingQuotationId && loadedHasFollowUpColumns && loadedRevisionNo + (saveAsRevision ? 1 : 0) > 0 && (
+              <span
+                className="rounded-md bg-indigo-600 px-2 py-1 font-mono text-[11px] font-bold text-white shrink-0"
+                title={saveAsRevision ? "Saves as a new revision" : "Saves over the current revision"}
+              >
+                Rev {loadedRevisionNo + (saveAsRevision ? 1 : 0)}
+              </span>
+            )}
           </div>
         </div>
       </header>
@@ -1167,6 +1218,92 @@ export default function QuotationEntry() {
                 </SelectContent>
               </Select>
             </div>
+
+            {industrialMode.enabled && (
+              <div>
+                <Label className="text-[13px] font-bold text-black mb-1 block">Follow-up</Label>
+                <Popover open={followUpOpen} onOpenChange={setFollowUpOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal h-10 text-sm border-black/20",
+                        !followUpDate && "text-muted-foreground",
+                      )}
+                    >
+                      <CalendarClock className="mr-2 h-4 w-4 text-indigo-600" />
+                      {fromIsoDay(followUpDate) ? format(fromIsoDay(followUpDate)!, "dd MMM yyyy") : "Set a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <div className="flex gap-1.5 border-b px-3 py-2">
+                      {[
+                        { label: "+2 days", days: 2 },
+                        { label: "+1 week", days: 7 },
+                        { label: "+2 weeks", days: 14 },
+                      ].map((q) => (
+                        <Button
+                          key={q.days}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => {
+                            const d = new Date();
+                            d.setDate(d.getDate() + q.days);
+                            setFollowUpDate(toIsoDay(d));
+                            setFollowUpOpen(false);
+                          }}
+                        >
+                          {q.label}
+                        </Button>
+                      ))}
+                      {followUpDate && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs text-muted-foreground"
+                          onClick={() => {
+                            setFollowUpDate("");
+                            setFollowUpOpen(false);
+                          }}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                    <Calendar
+                      mode="single"
+                      selected={fromIsoDay(followUpDate) ?? undefined}
+                      onSelect={(d) => {
+                        if (!d) return;
+                        setFollowUpDate(toIsoDay(d));
+                        setFollowUpOpen(false);
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+
+            {industrialMode.enabled && editingQuotationId && loadedHasFollowUpColumns && (
+              <div>
+                <Label htmlFor="quotation-new-revision" className="text-[13px] font-bold text-black mb-1 block">
+                  New revision
+                </Label>
+                <div className="flex h-10 items-center gap-2 rounded-md border border-black/20 px-3">
+                  <Switch id="quotation-new-revision" checked={saveAsRevision} onCheckedChange={setSaveAsRevision} />
+                  <span className="text-sm text-slate-600">
+                    {saveAsRevision
+                      ? `Save as Rev ${loadedRevisionNo + 1}`
+                      : loadedRevisionNo > 0
+                        ? `Keep Rev ${loadedRevisionNo}`
+                        : "Keep first issue"}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
@@ -1487,7 +1624,7 @@ export default function QuotationEntry() {
             template={invoiceTemplate}
             format={invoiceWrapperFormat}
             enableWholesaleMode={enableWholesaleMode}
-            billNo={quotationNumber}
+            billNo={quotationDisplayNumber(quotationNumber, printData.revisionNo)}
             date={quotationDate}
             customerName={selectedCustomer?.customer_name || "Walk in Customer"}
             customerAddress={selectedCustomer?.address || ""}

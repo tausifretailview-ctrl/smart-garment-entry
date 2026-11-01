@@ -15,8 +15,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, MessageCircle, CalendarIcon, Download, FilePenLine, Home, RefreshCw, CheckCircle, PauseCircle, XCircle, Receipt } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, MessageCircle, CalendarIcon, Download, FilePenLine, Home, RefreshCw, CheckCircle, PauseCircle, XCircle, Receipt, CalendarClock } from "lucide-react";
 import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import {
+  QUOTATION_LOST_REASONS,
+  buildQuotationLostReason,
+  formatFollowUpChip,
+  quotationDisplayNumber,
+  quotationFollowUpState,
+  toIsoDay,
+} from "@/utils/industrialMode";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   getQuotationStatusConfig,
@@ -74,6 +82,13 @@ import {
   pickDefaultReceivingBankAccount,
 } from "@/utils/organizationBankAccounts";
 
+type QuotationFollowUpInfo = {
+  id: string;
+  follow_up_date: string | null;
+  revision_no: number | null;
+  lost_reason: string | null;
+};
+
 export default function QuotationDashboard() {
   const { toast } = useToast();
   const { navigate } = useOrgNavigation();
@@ -87,11 +102,14 @@ export default function QuotationDashboard() {
   const rowContextMenu = useContextMenu<any>();
 
   const updateQuotationStatus = useMutation({
-    mutationFn: async (vars: { quotationId: string; newStatus: string; quotationNumber?: string }) => {
+    mutationFn: async (vars: { quotationId: string; newStatus: string; quotationNumber?: string; lostReason?: string | null }) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
+      // lost_reason is sent only from the Industrial mode "Mark as lost" dialog.
+      const patch: { status: string; lost_reason?: string | null } = { status: vars.newStatus };
+      if (vars.lostReason !== undefined) patch.lost_reason = vars.lostReason;
       const { error } = await supabase
         .from("quotations")
-        .update({ status: vars.newStatus })
+        .update(patch)
         .eq("id", vars.quotationId)
         .eq("organization_id", currentOrganization.id);
       if (error) throw error;
@@ -145,11 +163,24 @@ export default function QuotationDashboard() {
       if (!orgId) return;
       void queryClient.invalidateQueries({ queryKey: ["quotations-list", orgId] });
       void queryClient.invalidateQueries({ queryKey: ["quotation-summary", orgId] });
+      void queryClient.invalidateQueries({ queryKey: ["quotation-followups", orgId] });
+      void queryClient.invalidateQueries({ queryKey: ["quotation-followups-due", orgId] });
     },
   });
 
+  // Industrial mode: "Cancelled" asks why the quotation was lost.
+  const [lostDialogQuotation, setLostDialogQuotation] = useState<any>(null);
+  const [lostReasonPick, setLostReasonPick] = useState<string>("");
+  const [lostReasonNote, setLostReasonNote] = useState("");
+
   const handleUpdateStatus = (quotation: any, newStatus: string) => {
     if (quotation.status === newStatus || updateQuotationStatus.isPending) return;
+    if (industrialMode.enabled && newStatus === "cancelled") {
+      setLostReasonPick("");
+      setLostReasonNote("");
+      setLostDialogQuotation(quotation);
+      return;
+    }
     updateQuotationStatus.mutate({
       quotationId: quotation.id,
       newStatus,
@@ -178,6 +209,8 @@ export default function QuotationDashboard() {
   const { formatQuotationMessage } = useWhatsAppTemplates();
   const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
   const [toDate, setToDate] = useState<Date | undefined>(undefined);
+  const [followUpDueOnly, setFollowUpDueOnly] = useState(false);
+  const todayIsoDay = toIsoDay(new Date());
 
   const quotationFilterSnapshot = useMemo(
     () => ({
@@ -242,14 +275,15 @@ export default function QuotationDashboard() {
       customerFilter,
       fromDate,
       toDate,
+      followUpDueBy: industrialMode.enabled && followUpDueOnly ? todayIsoDay : undefined,
     }),
-    [searchQuery, statusFilter, customerFilter, fromDate, toDate],
+    [searchQuery, statusFilter, customerFilter, fromDate, toDate, industrialMode.enabled, followUpDueOnly, todayIsoDay],
   );
 
   useEffect(() => {
     if (isDashboardFilterRestoring()) return;
     setCurrentPage(1);
-  }, [searchQuery, statusFilter, customerFilter, fromDate, toDate]);
+  }, [searchQuery, statusFilter, customerFilter, fromDate, toDate, followUpDueOnly]);
 
   const invalidateQuotationQueries = useCallback(() => {
     const orgId = currentOrganization?.id;
@@ -509,6 +543,86 @@ export default function QuotationDashboard() {
 
   const paginatedQuotations = listPageData?.rows ?? [];
   const totalCount = listPageData?.totalCount ?? 0;
+
+  // Industrial mode: follow-up date, revision and lost reason for the visible
+  // rows only. Kept out of the list select so shops without the step-5 SQL
+  // (and every retail shop) load exactly as before.
+  const visibleQuotationIds = useMemo(
+    () => paginatedQuotations.map((q: any) => String(q.id)),
+    [paginatedQuotations],
+  );
+  const { data: followUpById = {} } = useQuery({
+    queryKey: ["quotation-followups", currentOrganization?.id, visibleQuotationIds],
+    queryFn: async (): Promise<Record<string, QuotationFollowUpInfo>> => {
+      const { data, error } = await supabase
+        .from("quotations")
+        .select("id, follow_up_date, revision_no, lost_reason")
+        .eq("organization_id", currentOrganization!.id)
+        .in("id", visibleQuotationIds);
+      if (error) return {};
+      const rows = (data ?? []) as unknown as QuotationFollowUpInfo[];
+      return Object.fromEntries(rows.map((r) => [r.id, r]));
+    },
+    enabled: industrialMode.enabled && !!currentOrganization?.id && visibleQuotationIds.length > 0,
+    placeholderData: (previous) => previous,
+    staleTime: STALE_LIVE,
+  });
+  const { data: followUpsDueCount = 0 } = useQuery({
+    queryKey: ["quotation-followups-due", currentOrganization?.id, todayIsoDay],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("quotations")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", currentOrganization!.id)
+        .is("deleted_at", null)
+        .lte("follow_up_date", todayIsoDay)
+        .not("status", "in", "(confirmed,cancelled)");
+      if (error) return 0;
+      return count ?? 0;
+    },
+    enabled: industrialMode.enabled && !!currentOrganization?.id,
+    staleTime: 60_000,
+  });
+
+  const renderFollowUpLine = (quotation: any) => {
+    if (!industrialMode.enabled) return null;
+    const info = followUpById[quotation.id];
+    if (!info) return null;
+    if (quotation.status === "cancelled" && info.lost_reason) {
+      return (
+        <div className="mt-1 max-w-[220px] truncate text-xs text-pink-700" title={info.lost_reason}>
+          Lost: {info.lost_reason}
+        </div>
+      );
+    }
+    const state = quotationFollowUpState(info.follow_up_date, quotation.status);
+    if (!state || !info.follow_up_date) return null;
+    return (
+      <div
+        className={cn(
+          "mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+          state === "overdue" && "bg-red-50 text-red-700 ring-1 ring-red-200",
+          state === "today" && "bg-amber-50 text-amber-800 ring-1 ring-amber-200",
+          state === "upcoming" && "bg-slate-100 text-slate-600",
+        )}
+      >
+        <CalendarClock className="h-3 w-3" />
+        {formatFollowUpChip(info.follow_up_date, state)}
+      </div>
+    );
+  };
+
+  const confirmMarkLost = () => {
+    const quotation = lostDialogQuotation;
+    if (!quotation) return;
+    setLostDialogQuotation(null);
+    updateQuotationStatus.mutate({
+      quotationId: quotation.id,
+      newStatus: "cancelled",
+      quotationNumber: quotation.quotation_number,
+      lostReason: buildQuotationLostReason(lostReasonPick, lostReasonNote),
+    });
+  };
   const totalPages = Math.max(1, Math.ceil(totalCount / QUOTATION_LIST_PAGE_SIZE));
 
   useEffect(() => {
@@ -744,6 +858,32 @@ export default function QuotationDashboard() {
               ))}
             </SelectContent>
           </Select>
+          {industrialMode.enabled && (
+            <Button
+              variant="outline"
+              size="sm"
+              aria-pressed={followUpDueOnly}
+              onClick={() => setFollowUpDueOnly((v) => !v)}
+              className={cn(
+                "h-9 gap-1.5 text-sm",
+                followUpDueOnly
+                  ? "border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700 hover:text-white"
+                  : "border-slate-200 bg-slate-50 hover:bg-white",
+              )}
+              title="Open quotations with a follow-up due today or earlier"
+            >
+              <CalendarClock className="h-4 w-4" />
+              Follow-ups due
+              <span
+                className={cn(
+                  "rounded-full px-1.5 text-xs font-bold tabular-nums",
+                  followUpDueOnly ? "bg-white/20" : followUpsDueCount > 0 ? "bg-red-500 text-white" : "bg-slate-200 text-slate-600",
+                )}
+              >
+                {followUpsDueCount}
+              </span>
+            </Button>
+          )}
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[130px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
               <SelectValue placeholder="Status" />
@@ -807,7 +947,14 @@ export default function QuotationDashboard() {
                         {expandedRows.has(quotation.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </Button>
                     </TableCell>
-                    <TableCell className="font-semibold text-teal-800">{quotation.quotation_number}</TableCell>
+                    <TableCell className="font-semibold text-teal-800">
+                      {quotation.quotation_number}
+                      {industrialMode.enabled && Number(followUpById[quotation.id]?.revision_no) > 0 && (
+                        <span className="ml-1.5 rounded bg-indigo-50 px-1.5 py-0.5 align-middle font-mono text-[11px] font-bold text-indigo-700 ring-1 ring-indigo-200">
+                          Rev {followUpById[quotation.id]?.revision_no}
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell className="tabular-nums">{format(new Date(quotation.quotation_date), 'dd/MM/yyyy')}</TableCell>
                     <TableCell className="text-[15px]">
                       <div>
@@ -824,7 +971,10 @@ export default function QuotationDashboard() {
                       <div className="text-sm text-muted-foreground">{quotation.customer_phone}</div>
                     </TableCell>
                     <TableCell className="font-semibold tabular-nums">₹{quotation.net_amount?.toFixed(2)}</TableCell>
-                    <TableCell>{renderStatusCell(quotation)}</TableCell>
+                    <TableCell>
+                      {renderStatusCell(quotation)}
+                      {renderFollowUpLine(quotation)}
+                    </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" disabled={isRowBusy} onClick={() => void handleWhatsAppShare(quotation)} title="WhatsApp">
@@ -927,6 +1077,62 @@ export default function QuotationDashboard() {
       </div>
 
       {/* Delete Dialog */}
+      <AlertDialog open={!!lostDialogQuotation} onOpenChange={(open) => !open && setLostDialogQuotation(null)}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark {lostDialogQuotation?.quotation_number} as lost?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The quotation moves to Cancelled. Pick why it was lost so the reasons show up later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-1.5">
+              {QUOTATION_LOST_REASONS.map((reason) => (
+                <button
+                  key={reason}
+                  type="button"
+                  aria-pressed={lostReasonPick === reason}
+                  onClick={() => setLostReasonPick((cur) => (cur === reason ? "" : reason))}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    lostReasonPick === reason
+                      ? "border-pink-600 bg-pink-600 text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                  )}
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+            <div>
+              <Label htmlFor="quotation-lost-note" className="mb-1 block text-xs font-semibold text-slate-600">
+                Note (optional)
+              </Label>
+              <Input
+                id="quotation-lost-note"
+                value={lostReasonNote}
+                maxLength={150}
+                onChange={(e) => setLostReasonNote(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    confirmMarkLost();
+                  }
+                }}
+                placeholder="e.g. They took ₹410 from another vendor"
+                className="no-uppercase"
+              />
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep open</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmMarkLost} className="bg-pink-600 hover:bg-pink-700">
+              Mark as lost
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={!!quotationToDelete} onOpenChange={() => setQuotationToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1083,7 +1289,8 @@ function PrintQuotationDialog({
     email: settings?.email_id,
     gstNumber: settings?.gst_number,
     logoUrl: settings?.bill_barcode_settings?.logo_url,
-    quotationNumber: quotation.quotation_number,
+    // revision_no is only ever written in Industrial mode, so retail prints are unchanged.
+    quotationNumber: quotationDisplayNumber(quotation.quotation_number, quotation.revision_no),
     quotationDate: new Date(quotation.quotation_date),
     validUntil: quotation.valid_until ? new Date(quotation.valid_until) : undefined,
     customerName: quotation.customer_name,
@@ -1207,7 +1414,7 @@ function PrintQuotationDialog({
           {selectedFormat === 'thermal' ? (
             <ThermalPrint80mm
               ref={printRef}
-              billNo={quotation.quotation_number}
+              billNo={quotationDisplayNumber(quotation.quotation_number, quotation.revision_no)}
               date={new Date(quotation.quotation_date)}
               customerName={quotation.customer_name}
               customerPhone={quotation.customer_phone}
