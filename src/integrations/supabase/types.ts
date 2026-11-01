@@ -3933,6 +3933,39 @@ export type Database = {
           },
         ]
       }
+      gl_auto_posting_orgs: {
+        Row: {
+          enabled_at: string
+          enabled_by: string | null
+          organization_id: string
+        }
+        Insert: {
+          enabled_at?: string
+          enabled_by?: string | null
+          organization_id: string
+        }
+        Update: {
+          enabled_at?: string
+          enabled_by?: string | null
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gl_auto_posting_orgs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gl_auto_posting_orgs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       import_templates: {
         Row: {
           created_at: string | null
@@ -4058,10 +4091,12 @@ export type Database = {
       }
       journal_entries: {
         Row: {
+          bank_account_id: string | null
           created_at: string
           date: string
           description: string | null
           id: string
+          is_reversed: boolean
           organization_id: string
           reference_id: string | null
           reference_type: string
@@ -4070,10 +4105,12 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          bank_account_id?: string | null
           created_at?: string
           date: string
           description?: string | null
           id?: string
+          is_reversed?: boolean
           organization_id: string
           reference_id?: string | null
           reference_type: string
@@ -4082,10 +4119,12 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          bank_account_id?: string | null
           created_at?: string
           date?: string
           description?: string | null
           id?: string
+          is_reversed?: boolean
           organization_id?: string
           reference_id?: string | null
           reference_type?: string
@@ -4094,6 +4133,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "journal_entries_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "organization_bank_accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "journal_entries_organization_id_fkey"
             columns: ["organization_id"]
@@ -12894,6 +12940,30 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: Json
       }
+      get_bank_account_statement: {
+        Args: {
+          p_bank_account_id: string
+          p_from_date: string
+          p_org_id: string
+          p_to_date: string
+        }
+        Returns: {
+          bank_account_id: string
+          created_at: string
+          credit_amount: number
+          debit_amount: number
+          description: string
+          doc_number: string
+          entry_date: string
+          journal_entry_id: string
+          line_seq: number
+          party_name: string
+          payment_method: string
+          reference_id: string
+          reference_type: string
+          running_balance: number
+        }[]
+      }
       get_brand_performance: {
         Args: { p_end_date?: string; p_org_id: string; p_start_date?: string }
         Returns: {
@@ -13789,6 +13859,46 @@ export type Database = {
           conversation_id: string
           unread_count: number
         }[]
+      }
+      gl_auto_posting_on: { Args: { p_org: string }; Returns: boolean }
+      gl_books_closed_before: { Args: { p_org: string }; Returns: string }
+      gl_disable_auto_postings: {
+        Args: { p_organization_id: string }
+        Returns: undefined
+      }
+      gl_enable_auto_postings: {
+        Args: { p_organization_id: string }
+        Returns: Json
+      }
+      gl_ensure_account: {
+        Args: {
+          p_code: string
+          p_group: string
+          p_name: string
+          p_org: string
+          p_type: string
+        }
+        Returns: string
+      }
+      gl_post_balance_adjustment: {
+        Args: { p_adjustment_id: string }
+        Returns: undefined
+      }
+      gl_post_party_openings: {
+        Args: { p_ids: string[]; p_party_type: string }
+        Returns: number
+      }
+      gl_post_stock_day: {
+        Args: { p_day: string; p_org: string }
+        Returns: undefined
+      }
+      gl_stock_day_ref: {
+        Args: { p_day: string; p_kind: string; p_org: string }
+        Returns: string
+      }
+      gl_stock_movement_kind: {
+        Args: { p_notes: string; p_type: string }
+        Returns: string
       }
       hard_delete_purchase_bill: {
         Args: { p_bill_id: string; p_user_id: string }
