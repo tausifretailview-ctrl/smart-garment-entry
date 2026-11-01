@@ -6,7 +6,10 @@ import { computeSaleLineRevenue, sumLines, type ProfitLine } from "./netProfitAn
 import {
   NPA_KPI_PARITY_TOLERANCE,
   NPA_NET_PROFIT_CAPTION,
+  NPA_PROFIT_AFTER_SR_CAPTION,
   STORED_NET_CAPTION,
+  dashboardProfit,
+  emptyNetProfitKpis,
   npaTimestampBounds,
   netProfitKpisFromTotals,
   parseNetProfitKpis,
@@ -141,6 +144,7 @@ function sqlPortKpis(
     .reduce((s, r) => s + Math.abs(r.line_total), 0);
   const gross_profit = net_sales - total_cogs;
   return {
+    ...emptyNetProfitKpis(),
     gross_sales,
     discounts,
     round_off,
@@ -422,6 +426,62 @@ describe("parseNetProfitKpis", () => {
     });
     expect(kpis.net_sales).toBe(90);
     expect(kpis.invoice_count).toBe(3);
+  });
+});
+
+describe("dashboardProfit (S/R Adjusted)", () => {
+  // DEMO 1 Nov 2026: ₹1,240 − ₹42 disc = ₹1,198; ₹798 return (cost ₹700) → net ₹400, profit ₹50.
+  const demo = parseNetProfitKpis({
+    gross_sales: 1240,
+    discounts: 42,
+    net_sales: 1198,
+    return_amount: 798,
+    total_cogs: 1050,
+    gross_profit: 148,
+    margin_percent: 12.35,
+    invoice_count: 1,
+    sr_adjusted: true,
+    return_cogs: 700,
+    amount_only_returns: 0,
+    net_sales_after_sr: 400,
+    total_cogs_after_sr: 350,
+    gross_profit_after_sr: 50,
+    margin_after_sr: 12.5,
+  });
+
+  it("shows profit after sale returns when the RPC sends it", () => {
+    const view = dashboardProfit(demo);
+    expect(view.profit).toBe(50);
+    expect(view.marginPercent).toBe(12.5);
+    expect(view.hasSales).toBe(true);
+    expect(view.caption).toBe(NPA_PROFIT_AFTER_SR_CAPTION);
+  });
+
+  it("falls back to the before-returns profit until the SQL is applied", () => {
+    const old = parseNetProfitKpis({ net_sales: 1198, total_cogs: 1050, gross_profit: 148, margin_percent: 12.35 });
+    expect(old.sr_adjusted).toBe(false);
+    const view = dashboardProfit(old);
+    expect(view.profit).toBe(148);
+    expect(view.caption).toBe(NPA_NET_PROFIT_CAPTION);
+  });
+
+  it("is zero with no data", () => {
+    expect(dashboardProfit(null).profit).toBe(0);
+  });
+});
+
+describe("get_net_profit_kpis after S/R migration", () => {
+  const sql = readFileSync(
+    join(here, "../../supabase/migrations/20270320120000_net_profit_kpis_after_sr.sql"),
+    "utf8",
+  );
+
+  it("adds returned-goods cost and amount-only returns, keeping old fields", () => {
+    expect(sql).toContain("CREATE OR REPLACE FUNCTION public.get_net_profit_kpis");
+    expect(sql).toContain("'gross_profit_after_sr', sa.net_after_sr - sa.cogs_after_sr");
+    expect(sql).toContain("'gross_profit', st.net_sales - st.total_cogs");
+    expect(sql).toContain("return_cogs_totals");
+    expect(sql).toContain("amount_only_returns");
   });
 });
 

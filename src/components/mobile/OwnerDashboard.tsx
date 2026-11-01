@@ -14,10 +14,9 @@ import {
 import { format, subDays, formatDistanceToNow, startOfMonth, endOfMonth } from "date-fns";
 import { formatLastFetchedLabel } from "@/utils/formatLastFetched";
 import {
-  NPA_MARGIN_CAPTION,
-  NPA_NET_PROFIT_CAPTION,
   NET_PROFIT_KPI_QUERY_HEAD,
   STORED_NET_CAPTION,
+  dashboardProfit,
   fetchNetProfitKpis,
 } from "@/utils/netProfitKpis";
 import { fetchErpDashboardStatsAfterSr } from "@/utils/saleReturnAdjustTotal";
@@ -394,10 +393,11 @@ export const OwnerDashboard = () => {
   const salesCount = dashStats?.invoice_count ?? 0;
   const totalPurchase = dashStats?.total_purchase ?? 0;
   const purchaseCount = dashStats?.purchase_count ?? 0;
-  const grossProfit = npaKpis?.gross_profit ?? 0;
+  // After sale returns (same as Net Profit Analysis "S/R Adjusted").
+  const profitView = dashboardProfit(npaKpis);
+  const grossProfit = profitView.profit;
   const cashCollection = dashStats?.cash_collection ?? 0;
-  const profitMarginPct =
-    npaKpis && npaKpis.net_sales > 0 ? npaKpis.margin_percent.toFixed(1) : "0.0";
+  const profitMarginPct = profitView.hasSales ? profitView.marginPercent.toFixed(1) : "0.0";
   const profitLoading = dashLoading || npaKpisLoading;
 
   const periodIsMonth = theme === "premium" && heroPeriod === "month";
@@ -440,7 +440,7 @@ export const OwnerDashboard = () => {
     {
       label: periodProfitLabel,
       value: grossProfit,
-      sub: `${NPA_NET_PROFIT_CAPTION} · ${profitMarginPct}% ${NPA_MARGIN_CAPTION}`,
+      sub: `${profitView.caption} · ${profitMarginPct}% ${profitView.marginCaption}`,
       icon: TrendingUp,
       gradient: "bg-gradient-to-br from-primary/15 via-primary/8 to-card",
       iconBg: "bg-primary/20",
@@ -578,7 +578,7 @@ export const OwnerDashboard = () => {
                 Gross profit
               </p>
               <p className="mt-0.5 text-[9px] font-medium leading-tight text-[var(--ez-shell-muted)]">
-                {NPA_NET_PROFIT_CAPTION}
+                {profitView.caption}
               </p>
               <p
                 className={cn(
@@ -795,7 +795,7 @@ export const OwnerDashboard = () => {
               </div>
               <div>
                 <p className="text-[10px] uppercase tracking-wider text-white/50">Profit</p>
-                <p className="text-[9px] text-white/40">{NPA_NET_PROFIT_CAPTION}</p>
+                <p className="text-[9px] text-white/40">{profitView.caption}</p>
                 <p
                   className={cn(
                     "text-xl font-bold tabular-nums mt-0.5",

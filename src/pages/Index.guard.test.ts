@@ -6,10 +6,11 @@ import { describe, expect, it } from "vitest";
 const here = dirname(fileURLToPath(import.meta.url));
 
 describe("Index profit cards", () => {
-  it("labels stored-net vs NPA-net and reads profit from get_net_profit_kpis", () => {
+  it("labels stored-net vs profit after S/R and reads profit from get_net_profit_kpis", () => {
     const src = readFileSync(join(here, "Index.tsx"), "utf8");
     expect(src).toContain("STORED_NET_CAPTION");
-    expect(src).toContain("NPA_NET_PROFIT_CAPTION");
+    expect(src).toContain("dashboardProfit(displayedNpaKpis)");
+    expect(src).not.toMatch(/displayedNpaKpis\?\.gross_profit/);
     expect(src).toContain("fetchNetProfitKpis");
     expect(src).not.toMatch(/displayedDashStats\?\.gross_profit/);
   });

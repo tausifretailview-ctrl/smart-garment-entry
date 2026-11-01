@@ -17,9 +17,9 @@ import {
 import { fetchCustomerSegmentCounts, type CustomerSegmentCounts } from "@/utils/customerSegments";
 import { fetchTotalCustomerCount } from "@/utils/salePartyCustomerMaster";
 import {
-  NPA_NET_PROFIT_CAPTION,
   NET_PROFIT_KPI_QUERY_HEAD,
   STORED_NET_CAPTION,
+  dashboardProfit,
   fetchNetProfitKpis,
 } from "@/utils/netProfitKpis";
 import { fetchErpDashboardStatsAfterSr } from "@/utils/saleReturnAdjustTotal";
@@ -587,7 +587,9 @@ const DesktopDashboard = () => {
   const suppliersCount = displayedDashStats?.supplier_count || 0;
   const stockData = displayedDashStats?.total_stock_qty || 0;
   const stockValue = displayedDashStats?.total_stock_value || 0;
-  const profitData = displayedNpaKpis?.gross_profit ?? 0;
+  // After sale returns (same as Total Sales tile and Net Profit Analysis "S/R Adjusted").
+  const profitView = dashboardProfit(displayedNpaKpis);
+  const profitData = profitView.profit;
   const npaKpisReady = displayedNpaKpis != null;
   const profitLoading = metricsLoadRequested && npaKpisFetching && npaKpisReady;
   const receivablesData = { total: displayedDashStats?.total_receivables || 0 };
@@ -1238,8 +1240,8 @@ const DesktopDashboard = () => {
                 accentColor="bg-green-600"
                 prefetchPath={canViewNetProfit ? "net-profit-analysis" : "daily-cashier-report"}
                 onClick={() => navigate(canViewNetProfit ? "/net-profit-analysis" : "/daily-cashier-report")}
-                tooltip="NPA net (before returns) minus qty-weighted purchase COGS. Same spec as Net Profit Analysis totals. Not stored net after S/R."
-                caption={NPA_NET_PROFIT_CAPTION}
+                tooltip="Net sale after sale returns minus purchase cost. Returned goods' cost goes back to stock. Same as Net Profit Analysis with S/R Adjusted."
+                caption={profitView.caption}
                 isCurrency
                 placeholder={showPlaceholders || !npaKpisReady}
                 loading={profitLoading}
