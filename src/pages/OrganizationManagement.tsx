@@ -25,6 +25,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchOrganizationLoginHistory, formatOrgLoginAt } from "@/utils/orgLoginAudit";
 import { DC_USER_ORG_ROLE, DC_USER_ROLE_OPTION } from "@/constants/dcUserPermissionsPreset";
 import { applyDcUserPreset, clearDcUserFlag, fetchDcOnlyModeReady, fetchDcUserIds } from "@/utils/dcUserRole";
+import { formatDateDMY } from "@/lib/dateDisplay";
 
 type OrgRole = "admin" | "manager" | "user";
 /** Role picker value: an org role, or "dc_user" (manager + DC User rights). */
@@ -930,7 +931,7 @@ export default function OrganizationManagement() {
                             </Badge>
                           )}
                           <span className="text-xs text-muted-foreground">
-                            Joined {new Date(member.created_at).toLocaleDateString()}
+                            Joined {formatDateDMY(member.created_at)}
                           </span>
                         </div>
                       </div>

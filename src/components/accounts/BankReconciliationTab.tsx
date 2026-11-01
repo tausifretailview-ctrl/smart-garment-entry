@@ -194,7 +194,7 @@ export function BankReconciliationTab({ organizationId, visitedTabs }: BankRecon
                   className={cn("w-full justify-start text-left font-normal", !statementDate && "text-muted-foreground")}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {statementDate ? format(statementDate, "PPP") : "Pick date"}
+                  {statementDate ? format(statementDate, "dd MMM yyyy") : "Pick date"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">

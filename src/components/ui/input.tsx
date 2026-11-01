@@ -1,9 +1,15 @@
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { DateInput } from "@/components/ui/date-input";
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
   ({ className, type, onChange, ...props }, ref) => {
+    // Native date inputs show the browser language's order (often mm/dd/yyyy);
+    // DateInput always shows dd/mm/yyyy with the same value/onChange contract.
+    if (type === "date") {
+      return <DateInput ref={ref} className={className} onChange={onChange} {...props} />;
+    }
     const shouldUppercase = (!type || type === "text") && !className?.includes("no-uppercase");
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

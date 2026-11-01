@@ -15,6 +15,7 @@ import { AlertTriangle, RefreshCw, ShieldCheck, Loader2 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AdjustmentDriftPanel } from "@/components/AdjustmentDriftPanel";
 import { InvariantDigestPanel } from "@/components/InvariantDigestPanel";
+import { formatDateDMY, formatDateTimeDMY } from "@/lib/dateDisplay";
 
 type DriftRow = {
   id: string;
@@ -200,7 +201,7 @@ export default function PlatformDataIntegrity() {
             <CardContent><div className="text-2xl font-bold tabular-nums text-destructive">₹{inr(summary.rupees)}</div></CardContent></Card>
           <Card><CardHeader className="pb-1"><CardTitle className="text-xs text-muted-foreground">Last run</CardTitle></CardHeader>
             <CardContent>
-              <div className="text-sm tabular-nums">{lastRun?.run_at ? new Date(lastRun.run_at).toLocaleString() : "—"}</div>
+              <div className="text-sm tabular-nums">{lastRun?.run_at ? formatDateTimeDMY(lastRun.run_at) : "—"}</div>
               <div className="text-xs text-muted-foreground">
                 {lastRun ? `${lastRun.drifts_found} drifts · ${lastRun.duration_ms}ms` : "no run recorded"}
               </div>
@@ -280,7 +281,7 @@ export default function PlatformDataIntegrity() {
                       </TableCell>
                       <TableCell className="text-xs">{r.drift_type}</TableCell>
                       <TableCell>{severityBadge(r.severity)}</TableCell>
-                      <TableCell className="text-xs">{new Date(r.detected_at).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-xs">{formatDateDMY(r.detected_at)}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="sm" onClick={() => setInvestigate(r)}>Investigate</Button>
                         <Button variant="ghost" size="sm" onClick={() => setResolveRow(r)}>Resolve</Button>
@@ -392,7 +393,7 @@ function InvestigateDialog({
                         <TableCell>{v.payment_method}</TableCell>
                         <TableCell className="text-right tabular-nums">₹{inr(v.total_amount)}</TableCell>
                         <TableCell className="text-right tabular-nums">₹{inr(v.discount_amount)}</TableCell>
-                        <TableCell className="text-xs">{v.deleted_at ? new Date(v.deleted_at).toLocaleDateString() : ""}</TableCell>
+                        <TableCell className="text-xs">{v.deleted_at ? formatDateDMY(v.deleted_at) : ""}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

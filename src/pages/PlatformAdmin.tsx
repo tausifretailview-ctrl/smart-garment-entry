@@ -38,6 +38,7 @@ import { PlatformWhatsAppLinkAlerts } from "@/components/PlatformWhatsAppLinkAle
 import { CloudUsageWidget } from "@/components/dashboard/CloudUsageWidget";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { formatDateDMY, formatDateTimeDMY } from "@/lib/dateDisplay";
 
 const WHATSAPP_SITE_URL = ((import.meta.env.VITE_WHATSAPP_SITE_URL as string | undefined)?.trim() || "").replace(/\/+$/, "");
 
@@ -110,7 +111,7 @@ const AuditLogSection = () => {
     const csvContent = [
       ["Date", "User", "Action", "Entity Type", "Entity ID"].join(","),
       ...auditLogs.map(log => [
-        new Date(log.created_at || "").toLocaleString(),
+        formatDateTimeDMY(log.created_at || ""),
         log.user_email || "System",
         log.action,
         log.entity_type,
@@ -171,7 +172,7 @@ const AuditLogSection = () => {
               {auditLogs.map((log) => (
                 <TableRow key={log.id}>
                   <TableCell className="text-xs">
-                    {new Date(log.created_at || "").toLocaleString()}
+                    {formatDateTimeDMY(log.created_at || "")}
                   </TableCell>
                   <TableCell className="text-sm">{log.user_email || "System"}</TableCell>
                   <TableCell>
@@ -1318,7 +1319,7 @@ export default function PlatformAdmin() {
                         </div>
                       </CardTitle>
                       <CardDescription className="flex items-center justify-between">
-                        <span>Created {new Date(org.created_at).toLocaleDateString()}</span>
+                        <span>Created {formatDateDMY(org.created_at)}</span>
                         <Badge variant="outline" className="text-xs">{org.subscription_tier}</Badge>
                       </CardDescription>
                     </CardHeader>

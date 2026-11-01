@@ -499,7 +499,7 @@ export function AddAdvanceBookingDialog({
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {advanceDate ? format(advanceDate, "PPP") : <span>Pick a date</span>}
+                  {advanceDate ? format(advanceDate, "dd MMM yyyy") : <span>Pick a date</span>}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">

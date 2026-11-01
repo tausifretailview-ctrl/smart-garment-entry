@@ -195,7 +195,9 @@ import {
   INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
 } from "@/utils/thermalReceiptPrintDocument";
 import { buildPublicInvoiceViewUrl } from "@/utils/publicInvoiceLink";
-import { localDayBounds, todayLocalYmd, saleDateIsoIstForDay } from "@/lib/localDayBounds";
+import { localDayBounds, todayLocalYmd, saleDateIsoIstForDay, istCalendarYmd } from "@/lib/localDayBounds";
+import { istYmdOfTimestamp, posPickerDayFromSaleDate, samePickerDay } from "@/lib/posInvoiceDate";
+import { ymdToDdMmYyyy } from "@/lib/dateDisplay";
 import { syncFinanceDiscountVoucher } from "@/utils/financeDiscountVoucher";
 import {
   readPersistedLastPosHint,
@@ -1194,6 +1196,13 @@ export default function POSSales() {
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   // Optional backdated POS invoice date (only used when the admin setting is ON).
   const [posInvoiceDate, setPosInvoiceDate] = useState<Date>(new Date());
+  // Day of the saved bill opened for edit (null = new bill). The picker shows this day
+  // while editing so a payment-button re-save never silently moves an old bill to today.
+  const loadedBillDayRef = useRef<Date | null>(null);
+  // Picker value from before an edit started, restored when the shop goes back to a new bill.
+  const newBillPickerDateRef = useRef<Date | null>(null);
+  // Latest full-save handler, so "Save Changes" can re-save the bill when its date changed.
+  const saveBillForDateChangeRef = useRef<(() => Promise<void>) | null>(null);
   const [invoiceSearchInput, setInvoiceSearchInput] = useState("");
   const [showMixPaymentDialog, setShowMixPaymentDialog] = useState(false);
   const [showCreditCustomerRequiredDialog, setShowCreditCustomerRequiredDialog] = useState(false);
@@ -1663,6 +1672,17 @@ export default function POSSales() {
     return () => window.removeEventListener('focus', onWindowFocus);
   }, [isIOS, location.pathname, focusBarcodeScanInput]);
 
+  /** Point the invoice-date picker at the opened bill's own day (kept until a new bill starts). */
+  const showLoadedBillDate = (sale: { sale_date?: string | null; created_at?: string | null }) => {
+    const day = posPickerDayFromSaleDate(sale.sale_date ?? sale.created_at);
+    if (!day) return;
+    loadedBillDayRef.current = day;
+    setPosInvoiceDate((prev) => {
+      if (!newBillPickerDateRef.current) newBillPickerDateRef.current = prev;
+      return day;
+    });
+  };
+
   const loadSaleForEdit = async (saleId: string) => {
     isInitializingEditRef.current = true;
     hasManuallyAddedNewItemRef.current = false;
@@ -1688,6 +1708,7 @@ export default function POSSales() {
       setUseSecondFirm(loadedPrintFirm === "second");
 
       // Populate form with sale data
+      if (!isHeld) showLoadedBillDate(sale);
       setCurrentSaleId(saleId);
       setCurrentInvoiceNumber(sale.sale_number);
       setCustomerId(sale.customer_id || "");
@@ -2275,12 +2296,30 @@ export default function POSSales() {
       hasManuallyAddedNewItemRef.current = false;
       isInitializingEditRef.current = false;
       setFooterLoadedInvoiceTime(null);
+      loadedBillDayRef.current = null;
+      if (newBillPickerDateRef.current) {
+        setPosInvoiceDate(newBillPickerDateRef.current);
+        newBillPickerDateRef.current = null;
+      }
     }
   }, [currentSaleId, setIsEditing]);
 
   // Save customer, salesman, notes, and a changed pending credit-note (S/R) adjust.
   const handleSaveMetadataChanges = useCallback(async () => {
     if (!currentSaleId || !currentOrganization?.id) return;
+
+    // Invoice date changed in the picker: Save Changes alone only updates customer /
+    // salesman / notes, so re-save the whole bill (same path as the payment buttons)
+    // so the bill, its ledger and its payment move to the new day together.
+    if (
+      posAllowDateChange &&
+      !isHeldSale &&
+      loadedBillDayRef.current &&
+      !samePickerDay(posInvoiceDate, loadedBillDayRef.current)
+    ) {
+      await saveBillForDateChangeRef.current?.();
+      return;
+    }
     
     setIsSavingChanges(true);
     try {
@@ -2338,7 +2377,7 @@ export default function POSSales() {
     } finally {
       setIsSavingChanges(false);
     }
-  }, [currentSaleId, currentOrganization?.id, customerId, customerName, customerPhone, selectedSalesman, saleNotes, saleReturnAdjust, isHeldSale, user?.id, toast, queryClient, setIsSavingChanges]);
+  }, [currentSaleId, currentOrganization?.id, customerId, customerName, customerPhone, selectedSalesman, saleNotes, saleReturnAdjust, isHeldSale, user?.id, toast, queryClient, setIsSavingChanges, posAllowDateChange, posInvoiceDate]);
 
   // Register save changes handler
   useEffect(() => {
@@ -4870,6 +4909,15 @@ export default function POSSales() {
     setShowCreditCustomerRequiredDialog(true);
   };
 
+  /** Bill saved on a day other than today: say where it went, since the Daily list won't show it. */
+  const announceOtherDayBill = (result: { sale_date?: string | null; sale_number?: string | null } | null | undefined) => {
+    const ymd = istYmdOfTimestamp(result?.sale_date);
+    if (!ymd || ymd === istCalendarYmd()) return;
+    toast.info(`Bill ${result?.sale_number || ""} saved on ${ymdToDdMmYyyy(ymd)}`, {
+      description: "POS Dashboard lists it under that date. Search the bill number to find it from any day.",
+    });
+  };
+
   // Handle save sale
   const handleSaveSale = async (forcePaymentMethod?: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later') => {
     // Same-bill exchange with refund due: force Mix so shop chooses cash refund vs CN.
@@ -4927,6 +4975,7 @@ export default function POSSales() {
       : await saveSale(saleData, effectiveMethod, undefined, "pos", buildPosRuntimeOpts());
     
     if (result) {
+      announceOtherDayBill(result);
       // Save financer details if provided
       if (financerDetails?.financer_name) {
         await saveFinancerDetails(result.id, currentOrganization?.id || '', financerDetails);
@@ -5121,6 +5170,8 @@ export default function POSSales() {
     return true;
   };
 
+  saveBillForDateChangeRef.current = () => handleSaveSale();
+
   const handlePaymentAndPrint = async (method: 'cash' | 'card' | 'upi' | 'pay_later') => {
     // Ref-based lock prevents duplicate saves from rapid keyboard + click combos
     // (isSaving is React state and only updates on next render — too slow for rapid inputs)
@@ -5232,6 +5283,7 @@ export default function POSSales() {
     paymentLockRef.current = false;
 
     if (result) {
+      announceOtherDayBill(result);
       // Save financer details if provided
       if (financerDetails?.financer_name) {
         await saveFinancerDetails(result.id, currentOrganization?.id || '', financerDetails);
@@ -5510,6 +5562,7 @@ export default function POSSales() {
     posSaveMark("save_sale_total");
     
     if (result) {
+      announceOtherDayBill(result);
       // Save financer details if provided
       if (financerDetails?.financer_name) {
         await saveFinancerDetails(result.id, currentOrganization?.id || '', financerDetails);
@@ -6396,6 +6449,7 @@ export default function POSSales() {
         ? normalizePrintFirm(sale.print_firm)
         : await fetchSalePrintFirm(sale.id);
     setUseSecondFirm(navPrintFirm === "second");
+    if (!isHoldLikeBill(sale)) showLoadedBillDate(sale);
     setCurrentSaleId(sale.id);
     setCurrentInvoiceNumber(sale.sale_number);
     isInitializingEditRef.current = false;

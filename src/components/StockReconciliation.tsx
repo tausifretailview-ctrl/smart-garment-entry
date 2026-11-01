@@ -10,6 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Loader2, Search, CheckCircle, AlertTriangle, RefreshCw, RotateCcw, Package, Activity, Clock, ExternalLink } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { formatDateDMY, formatDateTimeDMY } from "@/lib/dateDisplay";
 
 interface Discrepancy {
   variant_id: string;
@@ -317,7 +318,7 @@ export const StockReconciliation = () => {
               <p className="text-sm text-muted-foreground">Last Reconciliation</p>
               {health.isLoading ? <Skeleton className="h-6 w-24" /> : (
                 <p className="text-sm font-medium">
-                  {health.lastReconciliation ? new Date(health.lastReconciliation).toLocaleDateString() : 'Never'}
+                  {health.lastReconciliation ? formatDateDMY(health.lastReconciliation) : 'Never'}
                 </p>
               )}
             </div>
@@ -401,7 +402,7 @@ export const StockReconciliation = () => {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-medium text-slate-800">Orphan purchase stock</p>
               <p className="text-xs text-muted-foreground">
-                Last scanned: {orphanScanTime.toLocaleString()}
+                Last scanned: {formatDateTimeDMY(orphanScanTime)}
               </p>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -444,7 +445,7 @@ export const StockReconciliation = () => {
 
         {lastScanTime && (
           <p className="text-sm text-muted-foreground">
-            Last scanned: {lastScanTime.toLocaleString()}
+            Last scanned: {formatDateTimeDMY(lastScanTime)}
           </p>
         )}
 

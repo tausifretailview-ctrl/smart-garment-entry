@@ -114,7 +114,7 @@ export default function Profile() {
             <div>
               <label className="text-sm font-medium text-muted-foreground">Account Created</label>
               <p className="text-lg">
-                {user?.created_at ? new Date(user.created_at).toLocaleDateString('en-US', {
+                {user?.created_at ? new Date(user.created_at).toLocaleDateString('en-IN', {
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric'

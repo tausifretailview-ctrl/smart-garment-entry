@@ -220,6 +220,7 @@ import {
   resolvePosDashboardPurchaseCodeEnabled,
   type PosPurchaseCodeSettings,
 } from "@/utils/purchaseCodeEncoder";
+import { formatDateDMY } from "@/lib/dateDisplay";
 
 interface SaleItem {
   id: string;
@@ -4725,7 +4726,7 @@ const POSDashboard = () => {
                                                 <TableCell className="px-2 py-1">
                                                   <Badge variant="destructive" className="text-xs px-1.5 py-0">{ret.return_number || "-"}</Badge>
                                                 </TableCell>
-                                                <TableCell className="px-2 py-1 text-sm">{new Date(ret.return_date).toLocaleDateString()}</TableCell>
+                                                <TableCell className="px-2 py-1 text-sm">{formatDateDMY(ret.return_date)}</TableCell>
                                                 <TableCell className="px-2 py-1 text-sm">{ret.customer_name?.toUpperCase()}</TableCell>
                                                 <TableCell className="px-2 py-1 text-sm text-right font-medium text-red-600 tabular-nums">
                                                   ₹{Math.round(ret.net_amount).toLocaleString('en-IN')}
