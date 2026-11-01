@@ -2978,6 +2978,7 @@ export type Database = {
       delivery_challans: {
         Row: {
           challan_date: string
+          challan_type?: string | null
           challan_number: string
           converted_to_invoice_id: string | null
           created_at: string
@@ -3007,6 +3008,7 @@ export type Database = {
         }
         Insert: {
           challan_date?: string
+          challan_type?: string | null
           challan_number: string
           converted_to_invoice_id?: string | null
           created_at?: string
@@ -3036,6 +3038,7 @@ export type Database = {
         }
         Update: {
           challan_date?: string
+          challan_type?: string | null
           challan_number?: string
           converted_to_invoice_id?: string | null
           created_at?: string

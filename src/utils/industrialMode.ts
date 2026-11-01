@@ -495,3 +495,101 @@ export function reorderState(stockQty: number, reorderLevel: number | null | und
   if (stockQty === level) return "at";
   return "ok";
 }
+
+/* ------------------------------------------------------------------ */
+/* Delivery challan type (Industrial mode)                             */
+/* ------------------------------------------------------------------ */
+
+/** Why the goods move on a challan (CGST Rule 55 reasons, plus the everyday ones). */
+export const CHALLAN_TYPES = [
+  {
+    value: "sale_delivery",
+    label: "Delivery (bill to follow)",
+    printTitle: "DELIVERY CHALLAN",
+    hint: "Goods go now, the tax invoice follows.",
+  },
+  {
+    value: "job_work",
+    label: "Sent for job work",
+    printTitle: "DELIVERY CHALLAN - JOB WORK",
+    hint: "Inputs must come back within 1 year, capital goods within 3 years.",
+  },
+  {
+    value: "supply_on_approval",
+    label: "Supply on approval",
+    printTitle: "DELIVERY CHALLAN - ON APPROVAL",
+    hint: "Raise the tax invoice when the buyer accepts, or within 6 months.",
+  },
+  {
+    value: "branch_transfer",
+    label: "Branch / stock transfer",
+    printTitle: "DELIVERY CHALLAN - STOCK TRANSFER",
+    hint: "Own godown or branch on the same GSTIN. Another GSTIN needs a tax invoice.",
+  },
+  {
+    value: "repair_return",
+    label: "Repair / replacement",
+    printTitle: "DELIVERY CHALLAN - REPAIR / REPLACEMENT",
+    hint: "Repaired or replacement goods going back to the customer.",
+  },
+  {
+    value: "others",
+    label: "Others (exhibition, sample)",
+    printTitle: "DELIVERY CHALLAN",
+    hint: "Exhibition, samples or goods sent for testing.",
+  },
+] as const;
+
+export const DEFAULT_CHALLAN_TYPE: ChallanType = "sale_delivery";
+
+export type ChallanType = (typeof CHALLAN_TYPES)[number]["value"];
+
+export function isChallanType(v: unknown): v is ChallanType {
+  return typeof v === "string" && CHALLAN_TYPES.some((t) => t.value === v);
+}
+
+export function challanTypeLabel(v: string | null | undefined): string {
+  return CHALLAN_TYPES.find((t) => t.value === v)?.label ?? "";
+}
+
+export function challanTypeHint(v: string | null | undefined): string {
+  return CHALLAN_TYPES.find((t) => t.value === v)?.hint ?? "";
+}
+
+/** Print heading for a challan; plain "DELIVERY CHALLAN" when no type is set. */
+export function challanPrintTitle(v: string | null | undefined): string {
+  return CHALLAN_TYPES.find((t) => t.value === v)?.printTitle ?? "DELIVERY CHALLAN";
+}
+
+/* ------------------------------------------------------------------ */
+/* Receivables ageing by due date (Industrial mode)                    */
+/* ------------------------------------------------------------------ */
+
+export type DueAgeKey = "notDue" | "d30" | "d60" | "d90" | "d90plus";
+
+/**
+ * Days past the due date on the shop's calendar (negative = not due yet).
+ * Falls back to the bill date when the bill has no due date.
+ */
+export function daysPastDue(
+  dueDate: string | null | undefined,
+  saleDate: string | null | undefined,
+  today: Date = new Date(),
+): number {
+  let due = fromIsoDay(dueDate ? dueDate.slice(0, 10) : null);
+  if (!due && saleDate) {
+    const d = new Date(saleDate);
+    if (!Number.isNaN(d.getTime())) due = fromIsoDay(toIsoDay(d));
+  }
+  if (!due) return 0;
+  const t = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12);
+  return Math.round((t.getTime() - due.getTime()) / 86_400_000);
+}
+
+export function dueAgeBucket(daysOverdue: number): DueAgeKey {
+  if (daysOverdue <= 0) return "notDue";
+  if (daysOverdue <= 30) return "d30";
+  if (daysOverdue <= 60) return "d60";
+  if (daysOverdue <= 90) return "d90";
+  return "d90plus";
+}
