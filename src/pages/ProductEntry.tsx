@@ -47,6 +47,15 @@ import { getRequiresImeiFormDefault } from "@/utils/productRequiresImei";
 import { ensureFreshGeneratedBarcode, insertGeneratedProductVariant, isBarcodeCollisionError } from "@/utils/barcodeCollisionGuard";
 import { syncPurchaseItemBarcodesForSku } from "@/utils/alignPurchaseLineBarcode";
 import { UOM_OPTIONS, DEFAULT_UOM } from "@/constants/uom";
+import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { IndustrialItemFields } from "@/components/products/IndustrialItemFields";
+import {
+  EMPTY_INDUSTRIAL_ITEM_FORM,
+  industrialItemToForm,
+  parseIndustrialItemForm,
+  type IndustrialItemDetails,
+  type IndustrialItemForm,
+} from "@/utils/industrialMode";
 import {
   resolveGarmentGstForLine,
   isGarmentGstAutoBumped,
@@ -132,6 +141,11 @@ const ProductEntry = () => {
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   /** Name the product had when opened for edit — the name check runs only if it changes. */
   const loadedProductNameRef = useRef<string>("");
+  // Industrial mode: alternate unit + reorder level (saved on their own after the product).
+  const industrialMode = useIndustrialMode();
+  const [industrialItemForm, setIndustrialItemForm] = useState<IndustrialItemForm>(EMPTY_INDUSTRIAL_ITEM_FORM);
+  /** The edited product came back with the step-7 columns (SQL has been run). */
+  const [loadedHasItemColumns, setLoadedHasItemColumns] = useState(false);
   const [fieldSettings, setFieldSettings] = useState<any>(null);
   const [showMrp, setShowMrp] = useState(false);
   const [garmentGstSettings, setGarmentGstSettings] = useState<GarmentGstRuleSettings>({});
@@ -337,6 +351,7 @@ const ProductEntry = () => {
         default_sale_price: product.default_sale_price || 0,
         default_mrp: undefined,
       }));
+      setIndustrialItemForm(industrialItemToForm(product));
 
       // Recalculate markup
       const purPrice = product.default_pur_price || 0;
@@ -781,6 +796,8 @@ const ProductEntry = () => {
         setPricingDiscPercent(
           pricingSaleDiscPercentInputValue((product as any).pricing_sale_disc_percent),
         );
+        setLoadedHasItemColumns("reorder_level" in product && "alt_uom" in product);
+        setIndustrialItemForm(industrialItemToForm(product));
 
         // Set image preview if exists
         if (product.image_url) {
@@ -1286,8 +1303,42 @@ const ProductEntry = () => {
     }
   };
 
+  // Industrial mode: written on its own so a shop that has not run the step-7
+  // SQL still saves products; a failure here never undoes the product save.
+  const saveIndustrialItemDetails = async (productId: string, details: IndustrialItemDetails) => {
+    if (!currentOrganization?.id) return;
+    const { error } = await supabase
+      .from("products")
+      .update(details)
+      .eq("id", productId)
+      .eq("organization_id", currentOrganization.id);
+    if (error) {
+      toast({
+        title: "Units & reorder not saved",
+        description: "The product is saved. Run the Industrial mode step 7 SQL to keep alternate unit and reorder level.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleSave = async () => {
     if (!validateForm()) return;
+
+    let industrialItem: IndustrialItemDetails | null = null;
+    if (industrialMode.enabled && (!editingProductId || loadedHasItemColumns)) {
+      let parsed: IndustrialItemDetails | Error;
+      try {
+        parsed = parseIndustrialItemForm(industrialItemForm, formData.uom || DEFAULT_UOM);
+      } catch (e) {
+        parsed = e instanceof Error ? e : new Error("Alternate unit or reorder level is not valid");
+      }
+      if (parsed instanceof Error) {
+        toast({ title: "Check units & reorder", description: parsed.message, variant: "destructive" });
+        return;
+      }
+      // A new item with nothing filled in has nothing to write.
+      industrialItem = !editingProductId && !parsed.alt_uom && parsed.reorder_level === null ? null : parsed;
+    }
 
     // Validate barcode uniqueness across database
     const barcodesValid = await validateBarcodeUniqueness();
@@ -1392,6 +1443,7 @@ const ProductEntry = () => {
 
         if (productError) throw productError;
         productData = data;
+        if (industrialItem && productData?.id) await saveIndustrialItemDetails(productData.id, industrialItem);
 
         // For updates, separate existing variants (with ID) from new variants
         if (variants.length > 0) {
@@ -1622,6 +1674,7 @@ const ProductEntry = () => {
 
         if (productError) throw productError;
         productData = data;
+        if (industrialItem && productData?.id) await saveIndustrialItemDetails(productData.id, industrialItem);
 
         // Insert variants using manual check-then-insert pattern
         // This handles NULL color comparison properly with expression-based unique index
@@ -2606,6 +2659,14 @@ const ProductEntry = () => {
                   </SelectContent>
                 </Select>
               </div>
+
+              {industrialMode.enabled && (!editingProductId || loadedHasItemColumns) && (
+                <IndustrialItemFields
+                  value={industrialItemForm}
+                  onChange={setIndustrialItemForm}
+                  baseUom={formData.uom || DEFAULT_UOM}
+                />
+              )}
 
               {/* ── 💰 Pricing & Tax ─────────────────────────── */}
               <div className="col-span-full flex items-center gap-2 pt-1">

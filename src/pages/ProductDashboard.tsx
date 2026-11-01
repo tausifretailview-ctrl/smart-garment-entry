@@ -34,6 +34,8 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2, Barcode, RefreshCw, Eye, Edit, ShoppingCart, History, Ban, Merge, Boxes, Tags, TrendingDown, TrendingUp, AlertTriangle, Columns3 } from "lucide-react";
+import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { ReorderLevelDialog } from "@/components/products/ReorderLevelDialog";
 import { cn } from "@/lib/utils";
 import { prefetchTabPage } from "@/lib/tabPageRegistry";
 import {
@@ -181,6 +183,8 @@ function ColorLabelRow({ labels }: { labels: string[] }) {
 
 const ProductDashboard = () => {
   useNavPerfPage(PERF_PATH);
+  const industrialMode = useIndustrialMode();
+  const [showReorderLevels, setShowReorderLevels] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { navigate } = useOrgNavigation();
@@ -1899,6 +1903,28 @@ const ProductDashboard = () => {
               </span>
             )}
             <div id="erp-toolbar-portal-product" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
+            {industrialMode.enabled && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 border-red-200 text-sm text-red-700 hover:bg-red-50 shrink-0"
+                onClick={() => setShowReorderLevels(true)}
+              >
+                <TrendingDown className="h-4 w-4" />
+                Below reorder level
+              </Button>
+            )}
+            {industrialMode.enabled && (
+              <ReorderLevelDialog
+                open={showReorderLevels}
+                onOpenChange={setShowReorderLevels}
+                organizationId={currentOrganization?.id}
+                onOpenProduct={(productId) => {
+                  setShowReorderLevels(false);
+                  navigate(`/product-entry?id=${productId}`);
+                }}
+              />
+            )}
             <Button
               variant="outline"
               size="sm"

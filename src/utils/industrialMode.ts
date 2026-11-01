@@ -404,3 +404,94 @@ export function formatFollowUpChip(followUpDate: string, state: FollowUpState, t
   }
   return `Follow up ${dm}`;
 }
+
+/* ------------------------------------------------------------------ */
+/* Item: alternate unit and reorder level (Industrial mode)            */
+/* ------------------------------------------------------------------ */
+
+export type IndustrialItemDetails = {
+  alt_uom: string | null;
+  alt_uom_factor: number | null;
+  reorder_level: number | null;
+};
+
+export type IndustrialItemForm = {
+  alt_uom: string;
+  alt_uom_factor: string;
+  reorder_level: string;
+};
+
+export const EMPTY_INDUSTRIAL_ITEM_FORM: IndustrialItemForm = { alt_uom: "", alt_uom_factor: "", reorder_level: "" };
+
+function numText(v: unknown): string {
+  const n = Number(v);
+  return v === null || v === undefined || v === "" || !Number.isFinite(n) ? "" : String(n);
+}
+
+export function industrialItemToForm(raw: unknown): IndustrialItemForm {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  return {
+    alt_uom: typeof r.alt_uom === "string" ? r.alt_uom : "",
+    alt_uom_factor: numText(r.alt_uom_factor),
+    reorder_level: numText(r.reorder_level),
+  };
+}
+
+/** Validates the item form. Throws a user-facing message on bad input. */
+export function parseIndustrialItemForm(form: IndustrialItemForm, baseUom: string): IndustrialItemDetails {
+  const alt = form.alt_uom.trim().toUpperCase();
+  const factorText = form.alt_uom_factor.replace(/,/g, "").trim();
+  const reorderText = form.reorder_level.replace(/,/g, "").trim();
+
+  let alt_uom: string | null = null;
+  let alt_uom_factor: number | null = null;
+  if (alt) {
+    if (alt === (baseUom || "").trim().toUpperCase()) throw new Error("Alternate unit must be different from the main unit");
+    const f = Number(factorText);
+    if (!factorText || !Number.isFinite(f) || f <= 0) throw new Error(`Enter how many ${baseUom || "units"} make 1 ${alt}`);
+    if (f > 100000) throw new Error("Alternate unit conversion is too large");
+    alt_uom = alt;
+    alt_uom_factor = Math.round(f * 10000) / 10000;
+  }
+
+  let reorder_level: number | null = null;
+  if (reorderText) {
+    const n = Number(reorderText);
+    if (!Number.isFinite(n) || n < 0) throw new Error("Reorder level must be 0 or more");
+    reorder_level = Math.round(n * 1000) / 1000;
+  }
+  return { alt_uom, alt_uom_factor, reorder_level };
+}
+
+function trimQty(n: number): string {
+  return Number.isInteger(n) ? n.toLocaleString("en-IN") : n.toLocaleString("en-IN", { maximumFractionDigits: 3 });
+}
+
+/**
+ * "36 NOS" → "3 BOX"; "40 NOS" → "3 BOX + 4 NOS". Empty when the item has no
+ * alternate unit or the qty is under one alternate unit.
+ */
+export function formatAltUnitQty(
+  qty: number,
+  baseUom: string,
+  altUom: string | null | undefined,
+  factor: number | null | undefined,
+): string {
+  const f = Number(factor);
+  if (!altUom || !Number.isFinite(f) || f <= 0 || !Number.isFinite(qty) || qty <= 0) return "";
+  const whole = Math.floor((qty + 1e-9) / f);
+  if (whole < 1) return "";
+  const rest = Math.round((qty - whole * f) * 1000) / 1000;
+  return rest > 0 ? `${trimQty(whole)} ${altUom} + ${trimQty(rest)} ${baseUom}` : `${trimQty(whole)} ${altUom}`;
+}
+
+export type ReorderState = "below" | "at" | "ok";
+
+/** Below = stock under the reorder level; at = exactly on it. */
+export function reorderState(stockQty: number, reorderLevel: number | null | undefined): ReorderState | null {
+  if (reorderLevel === null || reorderLevel === undefined || !Number.isFinite(Number(reorderLevel))) return null;
+  const level = Number(reorderLevel);
+  if (stockQty < level) return "below";
+  if (stockQty === level) return "at";
+  return "ok";
+}
