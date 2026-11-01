@@ -94,9 +94,12 @@ export function parseCustomerCreditTermsInput(input: {
   };
 }
 
-/** Bill date + credit days (local calendar days). */
+/**
+ * Bill date + credit days (local calendar days). Returned at local noon: Sale Invoice saves
+ * `due_date` via toISOString(), and local midnight in India is the previous day in UTC.
+ */
 export function dueDateFromCreditDays(billDate: Date, creditDays: number | null | undefined): Date {
-  const d = new Date(billDate.getFullYear(), billDate.getMonth(), billDate.getDate());
+  const d = new Date(billDate.getFullYear(), billDate.getMonth(), billDate.getDate(), 12);
   const days = Number(creditDays);
   if (Number.isFinite(days) && days > 0) d.setDate(d.getDate() + Math.floor(days));
   return d;
@@ -150,4 +153,146 @@ export function checkCreditLimit(input: CreditLimitCheckInput): CreditLimitCheck
 
 export function formatInr(n: number): string {
   return `₹${Math.round(n).toLocaleString("en-IN")}`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Sale bill B2B details (Industrial mode): stored in sales.b2b_details */
+/* ------------------------------------------------------------------ */
+
+export type TransportMode = "road" | "rail" | "air" | "ship";
+
+export const TRANSPORT_MODE_LABEL: Record<TransportMode, string> = {
+  road: "Road",
+  rail: "Rail",
+  air: "Air",
+  ship: "Ship",
+};
+
+export interface SaleB2BDetails {
+  customer_po_no?: string;
+  /** yyyy-MM-dd */
+  customer_po_date?: string;
+  transporter_name?: string;
+  /** Transporter GSTIN / TRANSIN (15 characters) for the e-way bill. */
+  transporter_id?: string;
+  transport_mode?: TransportMode;
+  vehicle_no?: string;
+  /** LR / RR / AWB / docket number. */
+  lr_no?: string;
+  /** yyyy-MM-dd */
+  lr_date?: string;
+  distance_km?: number;
+}
+
+export type SaleB2BDetailsForm = {
+  customer_po_no: string;
+  customer_po_date: string;
+  transporter_name: string;
+  transporter_id: string;
+  transport_mode: TransportMode;
+  vehicle_no: string;
+  lr_no: string;
+  lr_date: string;
+  distance_km: string;
+};
+
+export const EMPTY_SALE_B2B_FORM: SaleB2BDetailsForm = {
+  customer_po_no: "",
+  customer_po_date: "",
+  transporter_name: "",
+  transporter_id: "",
+  transport_mode: "road",
+  vehicle_no: "",
+  lr_no: "",
+  lr_date: "",
+  distance_km: "",
+};
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MODES: TransportMode[] = ["road", "rail", "air", "ship"];
+
+/** Vehicle numbers are matched by the e-way bill portal without spaces or dashes. */
+export function normalizeVehicleNo(raw: string): string {
+  return raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+/** Saved row value → form (tolerates null / old shapes). */
+export function saleB2BToForm(raw: unknown): SaleB2BDetailsForm {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === "string" ? v : v == null ? "" : String(v));
+  const mode = str(r.transport_mode) as TransportMode;
+  return {
+    customer_po_no: str(r.customer_po_no),
+    customer_po_date: ISO_DATE_RE.test(str(r.customer_po_date)) ? str(r.customer_po_date) : "",
+    transporter_name: str(r.transporter_name),
+    transporter_id: str(r.transporter_id),
+    transport_mode: MODES.includes(mode) ? mode : "road",
+    vehicle_no: str(r.vehicle_no),
+    lr_no: str(r.lr_no),
+    lr_date: ISO_DATE_RE.test(str(r.lr_date)) ? str(r.lr_date) : "",
+    distance_km: r.distance_km == null || r.distance_km === "" ? "" : str(r.distance_km),
+  };
+}
+
+/**
+ * Form → row value. Empty fields are left out; an all-empty form saves NULL.
+ * Throws a plain-language error on bad input.
+ */
+export function parseSaleB2BForm(form: SaleB2BDetailsForm): SaleB2BDetails | null {
+  const out: SaleB2BDetails = {};
+  const t = (v: string) => v.trim();
+  if (t(form.customer_po_no)) out.customer_po_no = t(form.customer_po_no).slice(0, 40);
+  if (t(form.customer_po_date)) {
+    if (!ISO_DATE_RE.test(t(form.customer_po_date))) throw new Error("Customer PO date is not a valid date");
+    out.customer_po_date = t(form.customer_po_date);
+  }
+  if (t(form.transporter_name)) out.transporter_name = t(form.transporter_name).slice(0, 80);
+  const tid = t(form.transporter_id).toUpperCase().replace(/\s/g, "");
+  if (tid) {
+    if (!/^[0-9A-Z]{15}$/.test(tid)) throw new Error("Transporter ID must be the 15-character GSTIN / TRANSIN");
+    out.transporter_id = tid;
+  }
+  const vehicle = normalizeVehicleNo(form.vehicle_no);
+  if (vehicle) {
+    if (vehicle.length < 4 || vehicle.length > 15) throw new Error("Vehicle number looks wrong (e.g. MH04AB1234)");
+    out.vehicle_no = vehicle;
+  }
+  if (t(form.lr_no)) out.lr_no = t(form.lr_no).slice(0, 30);
+  if (t(form.lr_date)) {
+    if (!ISO_DATE_RE.test(t(form.lr_date))) throw new Error("LR date is not a valid date");
+    out.lr_date = t(form.lr_date);
+  }
+  if (t(form.distance_km)) {
+    const n = Number(t(form.distance_km));
+    if (!Number.isInteger(n) || n < 0 || n > 4000) throw new Error("Distance must be whole km from 0 to 4000");
+    out.distance_km = n;
+  }
+  if (Object.keys(out).length === 0) return null;
+  // Mode only means something once there is transport to describe.
+  if (out.transporter_name || out.transporter_id || out.vehicle_no || out.lr_no || out.distance_km != null) {
+    out.transport_mode = MODES.includes(form.transport_mode) ? form.transport_mode : "road";
+  }
+  return out;
+}
+
+const dmy = (iso?: string) => (iso && ISO_DATE_RE.test(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : "");
+
+/** One printable transport line for invoice templates that have a "Transport" slot. */
+export function formatSaleTransportLine(d: SaleB2BDetails | null | undefined, fallback = ""): string {
+  if (!d) return fallback;
+  const parts: string[] = [];
+  const name = d.transporter_name || fallback;
+  if (name) parts.push(d.transporter_id ? `${name} (${d.transporter_id})` : name);
+  else if (d.transporter_id) parts.push(d.transporter_id);
+  if (d.transport_mode && d.transport_mode !== "road") parts.push(TRANSPORT_MODE_LABEL[d.transport_mode]);
+  if (d.vehicle_no) parts.push(`Vehicle ${d.vehicle_no}`);
+  if (d.lr_no) parts.push(`LR ${d.lr_no}${d.lr_date ? ` dt ${dmy(d.lr_date)}` : ""}`);
+  if (d.distance_km != null && d.distance_km > 0) parts.push(`${d.distance_km} km`);
+  return parts.join(" · ");
+}
+
+/** "PO-7781 dt 28/10/2026" or "". */
+export function formatCustomerPoRef(d: SaleB2BDetails | null | undefined): string {
+  if (!d?.customer_po_no) return "";
+  return `${d.customer_po_no}${d.customer_po_date ? ` dt ${dmy(d.customer_po_date)}` : ""}`;
 }

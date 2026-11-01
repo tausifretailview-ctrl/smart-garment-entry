@@ -8288,6 +8288,7 @@ export type Database = {
         Row: {
           ack_date: string | null
           ack_no: string | null
+          b2b_details?: Json | null
           cancelled_at: string | null
           cancelled_by: string | null
           cancelled_reason: string | null
@@ -8357,6 +8358,7 @@ export type Database = {
         Insert: {
           ack_date?: string | null
           ack_no?: string | null
+          b2b_details?: Json | null
           cancelled_at?: string | null
           cancelled_by?: string | null
           cancelled_reason?: string | null
@@ -8426,6 +8428,7 @@ export type Database = {
         Update: {
           ack_date?: string | null
           ack_no?: string | null
+          b2b_details?: Json | null
           cancelled_at?: string | null
           cancelled_by?: string | null
           cancelled_reason?: string | null
