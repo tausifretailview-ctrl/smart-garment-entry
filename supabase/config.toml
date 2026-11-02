@@ -18,6 +18,9 @@ verify_jwt = false
 [functions.einvoice-note]
 verify_jwt = false
 
+[functions.eway-bill]
+verify_jwt = false
+
 [functions.ai-assistant]
 verify_jwt = false
 

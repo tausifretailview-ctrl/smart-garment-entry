@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-11-02",
-  "count": 912,
-  "fileCount": 930,
+  "count": 913,
+  "fileCount": 931,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -915,7 +915,8 @@
     "20270325120000",
     "20270326120000",
     "20270327120000",
-    "20270328120000"
+    "20270328120000",
+    "20270329120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1847,7 +1848,8 @@
     "20270325120000_industrial_item_alt_unit_reorder.sql",
     "20270326120000_industrial_delivery_challan_type.sql",
     "20270327120000_industrial_sales_debit_note.sql",
-    "20270328120000_industrial_sale_return_einvoice.sql"
+    "20270328120000_industrial_sale_return_einvoice.sql",
+    "20270329120000_industrial_eway_bills.sql"
   ],
   "duplicateVersions": [
     {

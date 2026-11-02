@@ -45,7 +45,7 @@ import { SkeletonMobileListRows, SkeletonTableRows } from "@/components/skeleton
 import { SALES_INVOICE_TABLE_SKELETON_COLUMNS } from "@/components/skeletons/dashboardSkeletonPresets";
 import { QuietRefreshBar, useQuietRefreshActive } from "@/components/QuietRefreshBar";
 
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap, FileDown, Lock, X, Plus, RefreshCw, Copy, Ban, Eye, MoreHorizontal, FileSpreadsheet, User, Phone, AlertTriangle, Receipt } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap, FileDown, Lock, X, Plus, RefreshCw, Copy, Ban, Eye, MoreHorizontal, FileSpreadsheet, User, Phone, AlertTriangle, Receipt, Truck } from "lucide-react";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
@@ -74,6 +74,9 @@ import { useToast } from "@/hooks/use-toast";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { EInvoicePrint } from "@/components/EInvoicePrint";
+import { SaleEwayBillDialog } from "@/components/ewaybill/SaleEwayBillDialog";
+import { useSaleEwayBills } from "@/hooks/useSaleEwayBills";
+import { formatEwbNo, formatIstDateTime } from "@/utils/ewayBill";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import {
   resolveSaleBillFormat,
@@ -1098,6 +1101,18 @@ export default function SalesInvoiceDashboard() {
     [exportIrnOn, paginatedInvoices],
   );
   const pageSupplyTypes = useSaleSupplyTypes(currentOrganization?.id, pageSaleIds, exportIrnOn);
+  // Industrial mode, Phase 2 step 4: e-way bill from the IRN (truck button on e-invoiced bills).
+  // The list rows carry no IRN, so the hook reads it for this page; other shops make no query.
+  const pageEwb = useSaleEwayBills(currentOrganization?.id, pageSaleIds, exportIrnOn);
+  const [ewbInvoice, setEwbInvoice] = useState<any | null>(null);
+  const ewbButtonFor = (invoice: { id?: string }) => {
+    if (!exportIrnOn) return null;
+    const irnState = pageEwb.irns.get(String(invoice.id ?? ""));
+    if (!irnState || irnState.status !== "generated") return null;
+    const ewb = pageEwb.rows.get(String(invoice.id ?? ""));
+    const on = ewb?.status === "active";
+    return { on, title: on ? `E-way bill ${formatEwbNo(ewb!.ewb_no)}` : "Generate e-way bill" };
+  };
   /** E-invoice buttons: registered buyers, plus export bills (buyer abroad has no GSTIN). */
   const canEInvoice = (invoice: { id?: string; customers?: { gst_number?: string | null } | null }) =>
     !!invoice.customers?.gst_number || (exportIrnOn && pageSupplyTypes.has(String(invoice.id ?? "")));
@@ -3523,7 +3538,12 @@ export default function SalesInvoiceDashboard() {
     setIsDownloadingEInvoice(invoice.id);
     // Ensure sale_items are loaded for the print component
     const invoiceWithItems = await ensureSaleItems(invoice);
-    setEInvoiceToPrint(invoiceWithItems);
+    const ewbForPrint = exportIrnOn ? pageEwb.rows.get(String(invoice.id)) : undefined;
+    setEInvoiceToPrint(
+      ewbForPrint?.status === "active"
+        ? { ...invoiceWithItems, ewb_number: formatEwbNo(ewbForPrint.ewb_no), ewb_date: formatIstDateTime(ewbForPrint.ewb_date) }
+        : invoiceWithItems,
+    );
 
     // Wait for the component to render
     setTimeout(async () => {
@@ -4576,6 +4596,14 @@ export default function SalesInvoiceDashboard() {
                                     )}
                                   </>
                                 )}
+                                {(() => {
+                                  const ewbBtn = ewbButtonFor(invoice);
+                                  return ewbBtn ? (
+                                    <Button variant="ghost" size="icon" onClick={() => setEwbInvoice(invoice)} title={ewbBtn.title} className={ewbBtn.on ? "text-teal-600" : "text-slate-400 hover:text-teal-600"}>
+                                      <Truck className="h-4 w-4" />
+                                    </Button>
+                                  ) : null;
+                                })()}
                                 {invoice.payment_status !== 'completed' && (
                                   <Button variant="ghost" size="icon" onClick={() => openPaymentDialog(invoice)} title="Record Payment">
                                     <IndianRupee className="h-4 w-4 text-purple-600" />
@@ -4688,6 +4716,14 @@ export default function SalesInvoiceDashboard() {
                                             <FileDown className="h-4 w-4 mr-2 text-teal-600" /> Download E-Invoice
                                           </DropdownMenuItem>
                                         )}
+                                        {(() => {
+                                          const ewbBtn = ewbButtonFor(invoice);
+                                          return ewbBtn ? (
+                                            <DropdownMenuItem onClick={() => setEwbInvoice(invoice)}>
+                                              <Truck className="h-4 w-4 mr-2 text-teal-600" /> {ewbBtn.on ? ewbBtn.title : "Generate E-Way Bill"}
+                                            </DropdownMenuItem>
+                                          ) : null;
+                                        })()}
                                       </>
                                     )}
                                     <DropdownMenuSeparator />
@@ -5543,6 +5579,33 @@ export default function SalesInvoiceDashboard() {
           saleId={selectedInvoiceForHistory?.id}
           organizationId={currentOrganization?.id}
         />
+
+        {exportIrnOn && currentOrganization?.id ? (
+          <SaleEwayBillDialog
+            open={!!ewbInvoice}
+            onOpenChange={(v) => {
+              if (!v) setEwbInvoice(null);
+            }}
+            organizationId={currentOrganization.id}
+            sale={
+              ewbInvoice
+                ? {
+                    id: String(ewbInvoice.id),
+                    sale_number: String(ewbInvoice.sale_number ?? ""),
+                    sale_date: String(ewbInvoice.sale_date ?? ""),
+                    net_amount: Number(ewbInvoice.net_amount ?? 0),
+                    customer_name: ewbInvoice.customer_name ?? null,
+                    irn: pageEwb.irns.get(String(ewbInvoice.id))?.irn ?? null,
+                    einvoice_status: pageEwb.irns.get(String(ewbInvoice.id))?.status ?? null,
+                    einvoice_test_mode: pageEwb.irns.get(String(ewbInvoice.id))?.testMode ?? null,
+                  }
+                : null
+            }
+            ewayBill={ewbInvoice ? pageEwb.rows.get(String(ewbInvoice.id)) ?? null : null}
+            missingSql={pageEwb.missingSql}
+            onChanged={() => void pageEwb.refetch()}
+          />
+        ) : null}
 
         {/* Hidden E-Invoice Print Component for PDF Generation */}
         {eInvoiceToPrint && (
