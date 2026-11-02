@@ -305,6 +305,12 @@ export function buildNoteEInvoicePayload(note: NoteInput, seller: NoteParty, buy
   return { ok: true, payload };
 }
 
+/** The first problem stopping an IRN, or null (the app's pre-check; no union narrowing needed). */
+export function noteEInvoiceProblem(note: NoteInput, seller: NoteParty, buyer: NoteParty): string | null {
+  const r = buildNoteEInvoicePayload(note, seller, buyer);
+  return r.ok === true ? null : (r as { error: string }).error;
+}
+
 /* ------------------------------------------------------------------ */
 /* Stored debit note (sales.debit_note_details) to a NoteInput          */
 /* ------------------------------------------------------------------ */

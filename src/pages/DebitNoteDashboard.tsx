@@ -48,8 +48,8 @@ import {
   parseDebitNoteDetails,
 } from "@/utils/debitNote";
 import {
-  buildNoteEInvoicePayload,
   debitNoteToNoteInput,
+  noteEInvoiceProblem,
   type NoteParty,
 } from "../../supabase/functions/_shared/einvoiceNote";
 
@@ -188,8 +188,7 @@ export default function DebitNoteDashboard() {
   const irnPrecheck = (n: DebitNoteRow) => () => {
     const input = debitNoteToNoteInput(n, n.debit_note_details);
     if (!input) return "This debit note has no GST lines saved. Open and save it again.";
-    const built = buildNoteEInvoicePayload(input, seller, buyerOf(n));
-    return built.ok ? null : built.error;
+    return noteEInvoiceProblem(input, seller, buyerOf(n));
   };
 
   const openNew = () => {

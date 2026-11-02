@@ -6,6 +6,7 @@ import {
   irnCancelHoursLeft,
   irnReportingWindow,
   IRP_DOC_NO_PATTERN,
+  noteEInvoiceProblem,
   parseIrpDateTime,
   perioneErrorText,
   type NoteInput,
@@ -213,5 +214,12 @@ describe("PeriOne replies", () => {
     expect(IRP_DOC_NO_PATTERN.test("DN/26-27/1")).toBe(true);
     expect(IRP_DOC_NO_PATTERN.test("0DN/1")).toBe(false);
     expect(IRP_DOC_NO_PATTERN.test("DN/2026-2027/12345")).toBe(false);
+  });
+});
+
+describe("noteEInvoiceProblem", () => {
+  it("returns the first problem or null", () => {
+    expect(noteEInvoiceProblem(freightNote(), seller, buyerMh)).toBeNull();
+    expect(noteEInvoiceProblem(freightNote(), seller, { ...buyerMh, gstin: "" })).toContain("no GSTIN");
   });
 });
