@@ -71,6 +71,9 @@ let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
 const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { useSaleReturnIrn } from "@/hooks/useSaleReturnIrn";
+import { SaleReturnIrnCell } from "@/components/einvoice/SaleReturnIrnCell";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
 import { MobileListCard, MobileListCardSkeleton } from "@/components/mobile/MobileListCard";
@@ -272,7 +275,7 @@ export default function SaleReturnDashboard() {
       {
         label: "Edit Return",
         icon: Pencil,
-        onClick: () => navigate(`/sale-return-entry/${ret.id}`),
+        onClick: () => openReturnEdit(ret),
       },
       {
         label: "Adjust Credit Note",
@@ -746,6 +749,35 @@ export default function SaleReturnDashboard() {
     [pageReturns, registerById],
   );
 
+  // Industrial mode, Phase 2 step 2b: credit note IRN. Off (no column, no query) for every other shop.
+  const industrialMode = useIndustrialMode();
+  const einvoiceSettingsForIrn = (saleSettings as unknown as { einvoice_settings?: Record<string, unknown> } | null)?.einvoice_settings;
+  const irnColumn = industrialMode.enabled && einvoiceSettingsForIrn?.enabled === true;
+  const irnReturnIds = useMemo(() => (irnColumn ? returns.map((r) => r.id) : []), [irnColumn, returns]);
+  const saleReturnIrn = useSaleReturnIrn(currentOrganization?.id, irnReturnIds, irnColumn);
+  const irnSeller = useMemo(
+    () => ({
+      gstin: String(einvoiceSettingsForIrn?.seller_gstin || businessDetails?.gst_number || ""),
+      name: businessDetails?.business_name || currentOrganization?.name || "",
+      address: businessDetails?.address || "",
+      phone: businessDetails?.mobile_number,
+    }),
+    [einvoiceSettingsForIrn?.seller_gstin, businessDetails, currentOrganization?.name],
+  );
+  const irnLockedToast = (number: string | null | undefined, what: string) =>
+    toast({
+      variant: "destructive",
+      title: "IRN generated",
+      description: `${number || "This return"} is reported to the GST portal as a credit note, so it can't be ${what}. Cancel its IRN first (within 24 hours).`,
+    });
+  const openReturnEdit = (ret: SaleReturn) => {
+    if (saleReturnIrn.isLocked(ret.id)) {
+      irnLockedToast(ret.return_number, "changed");
+      return;
+    }
+    navigate(`/sale-return-entry/${ret.id}`);
+  };
+
   const { data: summaryData } = useQuery({
     queryKey: [
       "sale-returns-summary", currentOrganization?.id, debouncedSearch, fromDate, toDate, statusFilter,
@@ -982,6 +1014,13 @@ export default function SaleReturnDashboard() {
 
   const handleDelete = async () => {
     if (!returnToDelete) return;
+    if (saleReturnIrn.isLocked(returnToDelete)) {
+      const locked = returns.find((r) => r.id === returnToDelete);
+      irnLockedToast(locked?.return_number, "deleted");
+      setDeleteDialogOpen(false);
+      setReturnToDelete(null);
+      return;
+    }
 
     const ret: any = (returns as any[])?.find?.((r: any) => r.id === returnToDelete);
     const success = await softDelete("sale_returns", returnToDelete);
@@ -1486,7 +1525,7 @@ export default function SaleReturnDashboard() {
                     <>
                       <button
                         type="button"
-                        onClick={() => navigate(`/sale-return-entry/${ret.id}`)}
+                        onClick={() => openReturnEdit(ret)}
                         className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-blue-600 active:bg-blue-50 touch-manipulation"
                       >
                         <Pencil className="h-3.5 w-3.5" />
@@ -1782,6 +1821,7 @@ export default function SaleReturnDashboard() {
                       {columnSettings.adjInvoice && <col className="w-[8.5rem]" />}
                       <col className="w-[8.5rem]" />
                       <col className="w-[5.75rem]" />
+                      {irnColumn && <col className="w-[8.5rem]" />}
                       <col className="w-[8rem]" />
                     </colgroup>
                     <TableHeader className="!static">
@@ -1811,6 +1851,9 @@ export default function SaleReturnDashboard() {
                         )}
                         <TableHead className="text-right font-semibold whitespace-nowrap">Redeemed</TableHead>
                         <TableHead className="font-semibold text-left whitespace-nowrap">Settlement</TableHead>
+                        {irnColumn && (
+                          <TableHead className="font-semibold text-left whitespace-nowrap print:hidden">E-invoice</TableHead>
+                        )}
                         <TableHead className="text-right font-semibold print:hidden px-1">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1964,12 +2007,25 @@ export default function SaleReturnDashboard() {
                             </Badge>
                           )}
                         </TableCell>
+                        {irnColumn && currentOrganization?.id && (
+                          <TableCell className="print:hidden" onClick={(e) => e.stopPropagation()}>
+                            <SaleReturnIrnCell
+                              ret={ret}
+                              state={saleReturnIrn.rows?.get(ret.id)}
+                              missingSql={saleReturnIrn.missingSql}
+                              organizationId={currentOrganization.id}
+                              testMode={einvoiceSettingsForIrn?.test_mode !== false}
+                              seller={irnSeller}
+                              onChanged={saleReturnIrn.refresh}
+                            />
+                          </TableCell>
+                        )}
                         <TableCell className="text-right print:hidden">
                           <div className="flex justify-end gap-1">
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => navigate(`/sale-return-entry/${ret.id}`)}
+                              onClick={() => openReturnEdit(ret)}
                               title="Edit Return"
                             >
                               <Pencil className="h-4 w-4 text-blue-600" />
@@ -2046,7 +2102,7 @@ export default function SaleReturnDashboard() {
                       </TableRow>
                       {expandedRows.has(ret.id) && loadedItems[ret.id] && (
                         <TableRow>
-                          <TableCell colSpan={tableColSpan} className="bg-muted/50">
+                          <TableCell colSpan={tableColSpan + (irnColumn ? 1 : 0)} className="bg-muted/50">
                             <div className="p-4">
                               <h4 className="font-medium mb-2">Return Items:</h4>
                               <Table>
@@ -2115,7 +2171,7 @@ export default function SaleReturnDashboard() {
                         ₹{Math.round(totalValue).toLocaleString("en-IN")}
                       </TableCell>
                       <TableCell
-                        colSpan={5 + (columnSettings.adjInvoice ? 1 : 0)}
+                        colSpan={5 + (columnSettings.adjInvoice ? 1 : 0) + (irnColumn ? 1 : 0)}
                         className="print:[display:none]"
                       />
                     </TableRow>

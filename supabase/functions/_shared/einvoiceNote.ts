@@ -366,6 +366,88 @@ export function debitNoteToNoteInput(
 }
 
 /* ------------------------------------------------------------------ */
+/* Sale return (credit note) to a NoteInput                             */
+/* ------------------------------------------------------------------ */
+
+export interface SaleReturnForNote {
+  return_number: string | null;
+  return_date: string;
+  net_amount: number | null;
+  gross_amount: number | null;
+  gst_amount: number | null;
+  original_sale_number: string | null;
+  notes?: string | null;
+}
+
+export interface SaleReturnItemForNote {
+  product_name: string | null;
+  hsn_code: string | null;
+  quantity: number | null;
+  line_total: number | null;
+  gst_percent: number | null;
+  is_dc_item?: boolean | null;
+  deleted_at?: string | null;
+}
+
+/**
+ * A sale return saves tax-inclusive lines (net = gross) or tax-exclusive ones (net = gross + GST);
+ * the row does not store which, so it is read from the totals.
+ */
+export function saleReturnTaxInclusive(ret: Pick<SaleReturnForNote, "net_amount" | "gross_amount" | "gst_amount">): boolean {
+  const gst = num(ret.gst_amount);
+  if (gst <= 0) return true;
+  const net = num(ret.net_amount);
+  const gross = num(ret.gross_amount);
+  return Math.abs(net - gross) <= Math.abs(net - (gross + gst));
+}
+
+/**
+ * NoteInput (CRN) for a saved sale return. Challan (DC) lines carry no GST and are left out.
+ * The place of supply follows the GSTINs, so the caller passes interState from them.
+ */
+export function saleReturnToNoteInput(
+  ret: SaleReturnForNote,
+  items: SaleReturnItemForNote[],
+  opts: { interState: boolean; originalSaleDate: string | null },
+): NoteInput | null {
+  const live = items.filter((i) => !i.deleted_at && !i.is_dc_item);
+  if (live.length === 0) return null;
+  const inclusive = saleReturnTaxInclusive(ret);
+  const lines: NoteLineInput[] = live.map((i) => {
+    const total = num(i.line_total);
+    const rate = num(i.gst_percent);
+    const taxable = inclusive ? round2(total / (1 + rate / 100)) : round2(total);
+    const gstAmount = inclusive ? round2(total - taxable) : round2((total * rate) / 100);
+    const qty = num(i.quantity) || 1;
+    return {
+      description: String(i.product_name ?? ""),
+      hsn: String(i.hsn_code ?? "").trim(),
+      qty,
+      rate: round3(taxable / qty),
+      taxable,
+      gstPercent: rate,
+      gstAmount,
+      unit: "PCS",
+    };
+  });
+  const lineSum = round2(lines.reduce((s, l) => s + l.taxable + l.gstAmount, 0));
+  // With challan lines mixed in, the saved total also holds them: report the GST lines only.
+  const netAmount = live.length === items.filter((i) => !i.deleted_at).length ? num(ret.net_amount) : lineSum;
+  return {
+    docType: "CRN",
+    number: String(ret.return_number ?? ""),
+    date: String(ret.return_date ?? "").slice(0, 10),
+    interState: opts.interState,
+    netAmount,
+    lines,
+    remarks: String(ret.notes ?? "").trim() || "Goods returned",
+    againstInvoice: ret.original_sale_number
+      ? { number: String(ret.original_sale_number), date: opts.originalSaleDate }
+      : null,
+  };
+}
+
+/* ------------------------------------------------------------------ */
 /* Time limits                                                          */
 /* ------------------------------------------------------------------ */
 

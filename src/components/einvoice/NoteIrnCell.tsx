@@ -29,14 +29,16 @@ export type NoteIrnState = {
 };
 
 type Props = {
-  kind: "debit";
+  kind: "debit" | "credit";
   note: NoteIrnState;
   organizationId: string;
   /** Sandbox or live, from Settings > Sale > E-Invoice Settings. */
   testMode: boolean;
   /** First problem found on this device before calling the IRP, or null. */
-  precheck: () => string | null;
+  precheck: () => string | null | Promise<string | null>;
   onChanged: () => void;
+  /** Shown as "Print e-invoice" while the IRN is active (pages whose own print button can't). */
+  onPrint?: () => void | Promise<void>;
 };
 
 function ddmm(iso: string): string {
@@ -44,7 +46,7 @@ function ddmm(iso: string): string {
 }
 
 /** IRN state of one note in a list: get, see or cancel its IRN, with the 30-day reminder. */
-export function NoteIrnCell({ kind, note, organizationId, testMode, precheck, onChanged }: Props) {
+export function NoteIrnCell({ kind, note, organizationId, testMode, precheck, onChanged, onPrint }: Props) {
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -84,13 +86,15 @@ export function NoteIrnCell({ kind, note, organizationId, testMode, precheck, on
 
   const generate = async () => {
     if (busy) return;
-    const problem = precheck();
-    if (problem) {
-      toast({ variant: "destructive", title: "Fix this before the IRN", description: problem });
-      return;
-    }
     setBusy(true);
+    let called = false;
     try {
+      const problem = await precheck();
+      if (problem) {
+        toast({ variant: "destructive", title: "Fix this before the IRN", description: problem });
+        return;
+      }
+      called = true;
       const res = await call({ action: "generate" });
       if (res.success) {
         toast({
@@ -104,7 +108,17 @@ export function NoteIrnCell({ kind, note, organizationId, testMode, precheck, on
       }
     } finally {
       setBusy(false);
-      onChanged();
+      if (called) onChanged();
+    }
+  };
+
+  const print = async () => {
+    if (!onPrint || busy) return;
+    setBusy(true);
+    try {
+      await onPrint();
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -141,6 +155,17 @@ export function NoteIrnCell({ kind, note, organizationId, testMode, precheck, on
           {note.testMode ? <span className="font-medium text-amber-600">· sandbox</span> : null}
         </span>
         {note.ackNo ? <span className="text-[11px] tabular-nums text-slate-400">Ack {note.ackNo}</span> : null}
+        {onPrint ? (
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-700 hover:underline"
+            onClick={() => void print()}
+            disabled={busy}
+          >
+            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+            Print e-invoice
+          </button>
+        ) : null}
         {hoursLeft > 0 ? (
           <button
             type="button"
