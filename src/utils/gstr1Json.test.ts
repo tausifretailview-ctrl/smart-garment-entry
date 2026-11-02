@@ -9,6 +9,7 @@ import {
   isValidHsn,
   portalDate,
   uqcForUnit,
+  zeroRatedSupplyOf,
   type Gstr1Bill,
   type Gstr1Input,
 } from "./gstr1Json";
@@ -315,5 +316,89 @@ describe("buildGstr1Json", () => {
     expect(r.errors.map((e) => e.code)).toEqual(["period"]);
     expect(r.json).toBeNull();
     expect(buildGstr1Json(input({})).warnings.map((w) => w.code)).toEqual(["empty"]);
+  });
+});
+
+describe("export and SEZ bills (Industrial mode)", () => {
+  // SEZ unit in Maharashtra: same state as the shop, still IGST.
+  const SEZ = MAH;
+
+  it("puts exports in EXP and SEZ bills in B2B as SEWP / SEWOP, all IGST and out of nil-rated", () => {
+    const r = buildGstr1Json(
+      input({
+        bills: [
+          bill({ id: "e1", number: "EXP/26-27/1", billValue: 11800, taxType: "exclusive", supplyType: "EXPWP",
+            exportDetails: { portCode: "innsa1", shipBillNo: "1234567", shipBillDate: "2026-10-07" },
+            lines: [{ hsn: "6204", rate: 18, qty: 10, value: 10000, uom: "pcs", productName: "Dress" }] }),
+          bill({ id: "e2", number: "EXP/26-27/2", billValue: 50000, taxType: "exclusive", supplyType: "EXPWOP",
+            lines: [{ hsn: "6204", rate: 0, qty: 50, value: 50000, uom: "pcs", productName: "Dress" }] }),
+          bill({ id: "s1", number: "INV/26-27/5", gstin: SEZ, billValue: 1180, taxType: "exclusive", supplyType: "SEZWP",
+            lines: [{ hsn: "6109", rate: 18, qty: 2, value: 1000, uom: "pcs", productName: "T-Shirt" }] }),
+          bill({ id: "s2", number: "INV/26-27/6", gstin: SEZ, billValue: 2000, taxType: "exclusive", supplyType: "SEZWOP",
+            lines: [{ hsn: "6109", rate: 0, qty: 4, value: 2000, uom: "pcs", productName: "T-Shirt" }] }),
+        ],
+      }),
+    );
+    expect(r.errors).toEqual([]);
+    const json = r.json!;
+    expect(json.exp).toEqual([
+      { exp_typ: "WPAY", inv: [{ inum: "EXP/26-27/1", idt: "05-10-2026", val: 11800, sbpcode: "INNSA1", sbnum: 1234567, sbdt: "07-10-2026",
+        itms: [{ rt: 18, txval: 10000, iamt: 1800, csamt: 0 }] }] },
+      { exp_typ: "WOPAY", inv: [{ inum: "EXP/26-27/2", idt: "05-10-2026", val: 50000, itms: [{ rt: 0, txval: 50000, iamt: 0, csamt: 0 }] }] },
+    ]);
+    expect(json.b2b).toHaveLength(1);
+    expect(json.b2b[0].ctin).toBe(SEZ);
+    expect(json.b2b[0].inv.map((i) => [i.inum, i.inv_typ, i.pos])).toEqual([
+      ["INV/26-27/5", "SEWP", "27"],
+      ["INV/26-27/6", "SEWOP", "27"],
+    ]);
+    expect(json.b2b[0].inv[0].itms[0].itm_det).toEqual({ rt: 18, txval: 1000, iamt: 180, camt: 0, samt: 0, csamt: 0 });
+    expect(json.b2b[0].inv[1].itms[0].itm_det).toEqual({ rt: 0, txval: 2000, iamt: 0, camt: 0, samt: 0, csamt: 0 });
+    expect(json.nil).toBeUndefined();
+    expect(json.b2cs).toEqual([]);
+    // Export HSN goes to the B2C tab, SEZ to B2B; IGST only.
+    expect(json.hsn.hsn_b2c.map((h) => [h.hsn_sc, h.rt, h.txval, h.iamt, h.camt])).toEqual([
+      ["6204", 0, 50000, 0, 0],
+      ["6204", 18, 10000, 1800, 0],
+    ]);
+    expect(json.hsn.hsn_b2b.map((h) => [h.hsn_sc, h.rt, h.txval, h.iamt, h.camt])).toEqual([
+      ["6109", 0, 2000, 0, 0],
+      ["6109", 18, 1000, 180, 0],
+    ]);
+    expect(r.summary).toMatchObject({ b2bInvoices: 2, sezInvoices: 2, expInvoices: 2, taxable: 63000, tax: 1980 });
+    expect(r.warnings.map((w) => w.code)).toEqual(["shipping_bill"]);
+  });
+
+  it("leaves the file unchanged for shops without export / SEZ bills", () => {
+    const r = buildGstr1Json(input({ bills: [bill({})] }));
+    expect(r.json).not.toHaveProperty("exp");
+    expect(r.summary).toMatchObject({ expInvoices: 0, sezInvoices: 0 });
+    expect(zeroRatedSupplyOf({ supplyType: null })).toBeNull();
+    expect(zeroRatedSupplyOf({ supplyType: "B2B" as never })).toBeNull();
+    expect(zeroRatedSupplyOf({ supplyType: "EXPWOP" })).toBe("EXPWOP");
+  });
+
+  it("stops on an SEZ bill without GSTIN or an LUT bill that charged GST", () => {
+    const r = buildGstr1Json(
+      input({
+        bills: [
+          bill({ id: "s", number: "INV/26-27/7", supplyType: "SEZWP" }),
+          bill({ id: "e", number: "EXP/26-27/3", supplyType: "EXPWOP" }),
+        ],
+      }),
+    );
+    expect(r.errors.map((e) => e.code)).toEqual(["sez_gstin", "lut_tax"]);
+    expect(r.json).toBeNull();
+  });
+
+  it("leaves out shipping bill details the portal would reject", () => {
+    const r = buildGstr1Json(
+      input({
+        bills: [bill({ number: "EXP/26-27/4", supplyType: "EXPWP", exportDetails: { portCode: "INNSA", shipBillNo: "SB-12", shipBillDate: "2026-10-07" } })],
+      }),
+    );
+    expect(r.errors).toEqual([]);
+    expect(r.json!.exp![0].inv[0]).not.toHaveProperty("sbnum");
+    expect(r.warnings.find((w) => w.code === "shipping_bill")?.refs).toEqual(["EXP/26-27/4"]);
   });
 });

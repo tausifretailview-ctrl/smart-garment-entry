@@ -51,6 +51,10 @@ import { allDcDocumentIds, saleReturnAmountsWithoutDc, withoutDcLines } from "@/
 import { buildGstr1Json, type Gstr1Bill, type Gstr1Build, type Gstr1Input, type Gstr1Issue } from "@/utils/gstr1Json";
 import { debitNoteGstr1Lines, debitNoteTaxHeads, isDebitNoteSale } from "@/utils/debitNote";
 import { fetchDebitNoteDetailsByIds, fetchPeriodDebitNoteTaxHeads } from "@/utils/debitNoteData";
+import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { computeGstSetOff } from "@/utils/gstAnalysis";
+import { gstr1SupplyOf } from "@/utils/zeroRatedSupplies";
+import { fetchPeriodZeroRatedOutward } from "@/utils/zeroRatedSuppliesData";
 import { resolveGstFilingPrefs, type GstFilingScheme } from "@/utils/gstReadiness";
 import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -206,6 +210,8 @@ interface GSTR1Data {
   cdnr: any[];
   cdnur: any[];
   hsn: any[];
+  /** Export bills (Industrial mode); absent for other shops. */
+  exp?: any[];
   summary: {
     totalInvoices: number;
     totalTaxableValue: number;
@@ -244,6 +250,8 @@ interface GSTR3BSummary {
     cgst: number;
     sgst: number;
   };
+  /** 3.1(b) export / SEZ bills (Industrial mode), included in outwardSupplies. */
+  zeroRated?: { taxable: number; igst: number; count: number };
 }
 
 interface HSNSummary {
@@ -262,6 +270,8 @@ interface HSNSummary {
 const GSTReports = () => {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+  // Industrial mode: export / SEZ bills are zero-rated IGST. Other shops run the old queries.
+  const industrial = useIndustrialMode().enabled;
   const { orgNavigate } = useOrgNavigation();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -439,7 +449,7 @@ const GSTReports = () => {
           .select(`
             id, sale_number, sale_date, sale_type, customer_name, net_amount, gross_amount, discount_amount, tax_type,
             payment_status, payment_method, is_cancelled, customer_id, customers(gst_number, address)
-          `)
+          ` + (industrial ? ", b2b_details" : ""))
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
           .eq("is_cancelled", false)
@@ -496,6 +506,8 @@ const GSTReports = () => {
 
       // B2B - Sales to registered dealers
       const b2b: any[] = [];
+      /** Export bills (Industrial mode): their own EXP table, never B2CS. */
+      const exp: any[] = [];
       const b2bInvalidGstin: GSTR1Data["b2bInvalidGstin"] = [];
       // FIX G2: B2CS aggregated by rate (not per-invoice)
       const b2csMap = new Map<string, { rate: number; taxableValue: number; cgst: number; sgst: number; igst: number }>();
@@ -511,11 +523,15 @@ const GSTReports = () => {
         const customerGSTIN = String((sale.customers as any)?.gst_number || "").trim().toUpperCase();
         const items = saleItemsMap.get(String(sale.id)) || [];
         const isB2B = customerGSTIN.length === 15;
-        if (customerGSTIN && !isB2B) {
+        // Export / SEZ bill (Industrial mode): zero-rated, always IGST.
+        const zeroSupply = industrial ? gstr1SupplyOf((sale as { b2b_details?: unknown }).b2b_details) : null;
+        const exportBill = zeroSupply?.exportDetails != null;
+        // An export buyer has no Indian GSTIN ("URP" or blank): not a GSTIN problem.
+        if (customerGSTIN && !isB2B && !exportBill) {
           b2bInvalidGstin.push({ invoiceNo: sale.sale_number, partyName: sale.customer_name, gstin: customerGSTIN });
         }
         // FIX G1: Inter-state detection
-        const interState = isInterState(businessGSTIN, customerGSTIN);
+        const interState = zeroSupply != null || isInterState(businessGSTIN, customerGSTIN);
         const taxType = resolveReportTaxType(
           (sale as { tax_type?: string | null }).tax_type,
           (sale as { sale_type?: string | null }).sale_type,
@@ -587,9 +603,24 @@ const GSTReports = () => {
             uom: productUnits.get(String(item.product_id)),
             productName: item.product_name,
           })),
+          ...(zeroSupply ? { supplyType: zeroSupply.supplyType, exportDetails: zeroSupply.exportDetails } : {}),
         });
 
-        if (isB2B) {
+        if (exportBill) {
+          const sb = zeroSupply?.exportDetails;
+          exp.push({
+            exportType: zeroSupply?.supplyType === "EXPWOP" ? "Without IGST (LUT)" : "With IGST",
+            partyName: sale.customer_name,
+            invoiceNo: sale.sale_number,
+            invoiceDate: format(new Date(sale.sale_date), "dd-MM-yyyy"),
+            invoiceValue,
+            taxableValue,
+            igst: saleGstAmount,
+            portCode: sb?.portCode || "",
+            shippingBillNo: sb?.shipBillNo || "",
+            shippingBillDate: sb?.shipBillDate ? format(new Date(sb.shipBillDate), "dd-MM-yyyy") : "",
+          });
+        } else if (isB2B) {
           b2b.push({
             gstin: customerGSTIN,
             partyName: sale.customer_name,
@@ -815,6 +846,7 @@ const GSTReports = () => {
         cdnr,
         cdnur,
         hsn: hsnRows,
+        ...(exp.length > 0 ? { exp } : {}),
         summary: {
           totalInvoices: gstSales.length,
           totalTaxableValue,
@@ -896,6 +928,10 @@ const GSTReports = () => {
       const netOutwardTaxable = outwardTaxable - returnTaxable + debitNoteHeads.taxable;
       const netOutwardGST = outwardGST - returnGST + debitNoteHeads.gst;
 
+      // 3.1(b) Export / SEZ bills (Industrial mode): their GST is IGST, not CGST / SGST.
+      const zeroRated = industrial ? await fetchPeriodZeroRatedOutward(currentOrganization.id, fromDate, toDate) : null;
+      const zeroRatedIgst = zeroRated && zeroRated.count > 0 ? zeroRated.igst : 0;
+
       // Fetch purchases
       const { data: purchaseData } = await supabase
         .from("purchase_bills")
@@ -911,9 +947,9 @@ const GSTReports = () => {
 
       // FIX G6+G7: ITC cross-utilization
       // For now, treat all outward as intra-state split (CGST/SGST) since RPC doesn't distinguish
-      const liabilityIGST = 0; // RPC doesn't separate inter/intra yet
-      const liabilityCGST = netOutwardGST / 2;
-      const liabilitySGST = netOutwardGST / 2;
+      const liabilityIGST = zeroRatedIgst; // RPC doesn't separate inter/intra yet; export / SEZ IGST only
+      const liabilityCGST = (netOutwardGST - zeroRatedIgst) / 2;
+      const liabilitySGST = (netOutwardGST - zeroRatedIgst) / 2;
 
       const itcIGST = 0; // purchases don't have inter-state split from this query
       const itcCGST = inwardGST / 2;
@@ -936,12 +972,20 @@ const GSTReports = () => {
       const payableSGST = Math.max(0, sgstAfterIGST - itcSGST);
       const carryForwardSGST = Math.max(0, itcSGST - sgstAfterIGST);
 
+      // With IGST to pay on exports, CGST / SGST credit may pay it too (s.49, Rule 88A).
+      const zeroSetOff = zeroRatedIgst > 0
+        ? computeGstSetOff(
+            { igst: liabilityIGST, cgst: liabilityCGST, sgst: liabilitySGST },
+            { igst: itcIGST, cgst: itcCGST, sgst: itcSGST },
+          )
+        : null;
+
       setGstr3bData({
         outwardSupplies: {
           taxable: netOutwardTaxable,
-          igst: 0,
-          cgst: netOutwardGST / 2,
-          sgst: netOutwardGST / 2
+          igst: liabilityIGST,
+          cgst: liabilityCGST,
+          sgst: liabilitySGST
         },
         inwardSupplies: {
           taxable: inwardTaxable,
@@ -954,16 +998,21 @@ const GSTReports = () => {
           cgst: itcCGST,
           sgst: itcSGST
         },
-        netTaxPayable: {
-          igst: payableIGST,
-          cgst: payableCGST,
-          sgst: payableSGST
-        },
-        itcCarryForward: {
-          igst: 0,
-          cgst: carryForwardCGST,
-          sgst: carryForwardSGST
-        }
+        netTaxPayable: zeroSetOff
+          ? zeroSetOff.cash
+          : {
+              igst: payableIGST,
+              cgst: payableCGST,
+              sgst: payableSGST
+            },
+        itcCarryForward: zeroSetOff
+          ? zeroSetOff.carryForward
+          : {
+              igst: 0,
+              cgst: carryForwardCGST,
+              sgst: carryForwardSGST
+            },
+        ...(zeroRated && zeroRated.count > 0 ? { zeroRated } : {}),
       });
 
       toast({ title: "Success", description: "GSTR-3B summary generated" });
@@ -1223,6 +1272,14 @@ const GSTReports = () => {
         Amount: data.netTaxPayable.igst + data.netTaxPayable.cgst + data.netTaxPayable.sgst,
       },
     ];
+    if (data.zeroRated) {
+      rows.splice(
+        5,
+        0,
+        { Section: "3.1(b) Zero-rated: export / SEZ (included above)", Label: "Taxable Value", Amount: data.zeroRated.taxable },
+        { Section: "3.1(b) Zero-rated: export / SEZ (included above)", Label: "IGST", Amount: data.zeroRated.igst },
+      );
+    }
     if (data.itcCarryForward) {
       rows.push(
         { Section: "ITC Carry Forward", Label: "IGST", Amount: data.itcCarryForward.igst },
@@ -1248,6 +1305,7 @@ const GSTReports = () => {
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.b2cs), "B2CS");
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.cdnr), "CDNR");
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.cdnur), "CDNUR");
+      if (gstr1Data.exp?.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.exp), "EXP");
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gstr1Data.hsn), "HSN");
       XLSX.writeFile(wb, `GSTR1_${format(new Date(fromDate), "MMM-yyyy")}.xlsx`);
     } catch (error) {
@@ -1582,6 +1640,9 @@ const GSTReports = () => {
                 <TabsTrigger value="b2cs" className={INSIGHTS_SUB_TAB_TRIGGER}>B2CS ({gstr1Data.b2cs.length})</TabsTrigger>
                 <TabsTrigger value="cdnr" className={INSIGHTS_SUB_TAB_TRIGGER}>CDNR ({gstr1Data.cdnr.length})</TabsTrigger>
                 <TabsTrigger value="cdnur" className={INSIGHTS_SUB_TAB_TRIGGER}>CDNUR ({gstr1Data.cdnur.length})</TabsTrigger>
+                {gstr1Data.exp && gstr1Data.exp.length > 0 && (
+                  <TabsTrigger value="exp" className={INSIGHTS_SUB_TAB_TRIGGER}>EXP ({gstr1Data.exp.length})</TabsTrigger>
+                )}
               </TabsList>
               <TabsContent value="b2b" className="mt-0">
                 <ScrollArea className="h-[300px] rounded-md border border-slate-200">
@@ -1615,6 +1676,42 @@ const GSTReports = () => {
                   </Table>
                 </ScrollArea>
               </TabsContent>
+              {gstr1Data.exp && gstr1Data.exp.length > 0 && (
+                <TabsContent value="exp" className="mt-0">
+                  <ScrollArea className="h-[300px] rounded-md border border-slate-200">
+                    <Table>
+                      <InsightsTableHeader>
+                        <InsightsStaticTh label="Export Type" />
+                        <InsightsStaticTh label="Party Name" />
+                        <InsightsStaticTh label="Invoice No" />
+                        <InsightsStaticTh label="Date" />
+                        <InsightsStaticTh label="Port" />
+                        <InsightsStaticTh label="Shipping Bill" />
+                        <InsightsStaticTh label="Taxable" className="text-right" />
+                        <InsightsStaticTh label="IGST" className="text-right" />
+                        <InsightsStaticTh label="Total" className="text-right" />
+                      </InsightsTableHeader>
+                      <TableBody>
+                        {gstr1Data.exp.map((row, idx) => (
+                          <TableRow key={idx} className={INSIGHTS_BODY_ROW}>
+                            <TableCell className={INSIGHTS_BODY_CELL}>{row.exportType}</TableCell>
+                            <TableCell className={INSIGHTS_BODY_CELL}>{row.partyName}</TableCell>
+                            <TableCell className={INSIGHTS_BODY_CELL}>{row.invoiceNo}</TableCell>
+                            <TableCell className={INSIGHTS_BODY_CELL}>{row.invoiceDate}</TableCell>
+                            <TableCell className={cn(INSIGHTS_BODY_CELL, "font-mono text-xs")}>{row.portCode || "—"}</TableCell>
+                            <TableCell className={INSIGHTS_BODY_CELL}>
+                              {row.shippingBillNo ? `${row.shippingBillNo}${row.shippingBillDate ? ` dt ${row.shippingBillDate}` : ""}` : "—"}
+                            </TableCell>
+                            <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.taxableValue)}</TableCell>
+                            <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.igst)}</TableCell>
+                            <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-medium")}>{formatCurrency(row.invoiceValue)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                </TabsContent>
+              )}
               <TabsContent value="b2cs" className="mt-0">
                 <ScrollArea className="h-[300px] rounded-md border border-slate-200">
                   <Table>
@@ -1811,6 +1908,19 @@ const GSTReports = () => {
               </div>
             </div>
 
+            {gstr3bData.zeroRated && (
+              <div className="space-y-2 border-t border-slate-100 pt-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-2">
+                  <Badge variant="outline" className="h-5 px-1.5 text-[10px] border-sky-200 text-sky-700">3.1(b)</Badge>
+                  Zero-rated: export / SEZ ({gstr3bData.zeroRated.count} bill{gstr3bData.zeroRated.count === 1 ? "" : "s"}, included above)
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <InsightsKpiCard label="Taxable Value" value={gstr3bData.zeroRated.taxable} valueFormat="inr" tone="positive" />
+                  <InsightsKpiCard label="IGST" value={gstr3bData.zeroRated.igst} valueFormat="inr" tone="neutral" />
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2 border-t border-slate-100 pt-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-2">
                 <Badge variant="outline" className="h-5 px-1.5 text-[10px] border-slate-200">4</Badge>
@@ -1976,6 +2086,8 @@ const GSTReports = () => {
                   ["B2CS rows", gstr1Check.summary.b2csRows],
                   ["Credit notes", gstr1Check.summary.cdnrNotes + gstr1Check.summary.cdnurNotes - gstr1Check.summary.debitNotes],
                   ...(gstr1Check.summary.debitNotes > 0 ? [["Debit notes", gstr1Check.summary.debitNotes]] : []),
+                  ...(gstr1Check.summary.expInvoices > 0 ? [["Export bills", gstr1Check.summary.expInvoices]] : []),
+                  ...(gstr1Check.summary.sezInvoices > 0 ? [["SEZ bills (in B2B)", gstr1Check.summary.sezInvoices]] : []),
                   ["HSN rows", gstr1Check.summary.hsnRows],
                   ["Bill series", gstr1Check.summary.docSeries],
                   ["Taxable", formatCurrency(gstr1Check.summary.taxable)],

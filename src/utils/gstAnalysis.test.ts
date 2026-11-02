@@ -44,6 +44,18 @@ describe("saleDocTaxes", () => {
     expect(round2(doc.igst)).toBe(180);
     expect(doc.cgst).toBe(0);
   });
+
+  it("charges IGST on an export / SEZ bill even to a same-state buyer, and marks it zero-rated", () => {
+    const lines = [{ line_total: 1180, gst_percent: 18 }];
+    const sez = saleDocTaxes(head({ gstin: "27AAPFU0939F1ZV" }), lines, "inclusive", SHOP, { zeroRated: true });
+    expect(sez.interState).toBe(true);
+    expect(sez.zeroRated).toBe(true);
+    expect(round2(sez.igst)).toBe(180);
+    expect(sez.cgst + sez.sgst).toBe(0);
+    const regular = saleDocTaxes(head({ gstin: "27AAPFU0939F1ZV" }), lines, "inclusive", SHOP);
+    expect(regular.interState).toBe(false);
+    expect(regular).not.toHaveProperty("zeroRated");
+  });
 });
 
 describe("saleReturnDocTaxes", () => {

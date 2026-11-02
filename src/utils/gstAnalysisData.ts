@@ -24,6 +24,7 @@ import {
   saleReturnDocTaxes,
   type GstDocRow,
 } from "@/utils/gstAnalysis";
+import { saleSupplyTypeOf } from "@/utils/industrialMode";
 
 const db = supabase as any;
 const PAGE = 1000;
@@ -83,7 +84,17 @@ export type GstAnalysisData = {
   dcLeftOut: { sales: number; saleReturns: number; purchases: number; purchaseReturns: number };
 };
 
-export async function loadGstAnalysis(orgId: string, fromYmd: string, toYmd: string): Promise<GstAnalysisData> {
+/**
+ * `industrial`: Industrial mode is on, so export / SEZ bills (sales.b2b_details) are read and
+ * counted as zero-rated IGST. Other shops run exactly the old queries.
+ */
+export async function loadGstAnalysis(
+  orgId: string,
+  fromYmd: string,
+  toYmd: string,
+  opts: { industrial?: boolean } = {},
+): Promise<GstAnalysisData> {
+  const industrial = opts.industrial === true;
   const { data: settings } = await db
     .from("settings")
     .select("gst_number, sale_settings")
@@ -104,7 +115,10 @@ export async function loadGstAnalysis(orgId: string, fromYmd: string, toYmd: str
       allPages<any>((from, to) =>
         db
           .from("sales")
-          .select("id, sale_number, sale_date, sale_type, customer_name, net_amount, tax_type, payment_status, payment_method, is_cancelled, customers(gst_number)")
+          .select(
+            "id, sale_number, sale_date, sale_type, customer_name, net_amount, tax_type, payment_status, payment_method, is_cancelled, customers(gst_number)" +
+              (industrial ? ", b2b_details" : ""),
+          )
           .eq("organization_id", orgId)
           .is("deleted_at", null)
           .eq("is_cancelled", false)
@@ -200,6 +214,7 @@ export async function loadGstAnalysis(orgId: string, fromYmd: string, toYmd: str
         saleItemsBySale.get(String(s.id)) || [],
         isDebitNoteSale(s) ? "exclusive" : saleTaxType(s.tax_type, s.sale_type),
         shopGstin,
+        industrial && saleSupplyTypeOf(s.b2b_details) !== "B2B" ? { zeroRated: true } : undefined,
       ),
     );
 
