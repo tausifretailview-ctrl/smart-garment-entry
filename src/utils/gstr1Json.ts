@@ -2,7 +2,7 @@
  * GSTR-1 JSON in the GST portal's Offline Tool format, built in the browser from the
  * bills the GST Reports page already loaded.
  *
- * Tables written: B2B (4), B2CL (5), B2CS (7), Nil-rated (8), CDNR / CDNUR (9B),
+ * Tables written: B2B (4), B2CL (5), Exports (6A), B2CS (7), Nil-rated (8), CDNR / CDNUR (9B),
  * HSN summary split B2B / B2C (12, May 2025 format) and Documents issued (13).
  * Amendment tables (B2BA, CDNRA, …) are not written: corrections to a filed month are
  * made on the portal.
@@ -16,6 +16,9 @@
  * - Debit notes (Industrial mode, sale_type debit_note) follow the same routes with note type "D"
  *   and add to tax instead of reducing it; they are numbered as their own series in Table 13.
  * - 0% lines on a GST bill, and No-GST bills, are reported as nil-rated (Table 8).
+ * - Export and SEZ bills (Industrial mode, `supplyType` on the bill) are zero-rated and always IGST:
+ *   exports go to the EXP table (6A, with / without payment), SEZ bills to B2B as SEWP / SEWOP.
+ *   Their 0% (under LUT) lines stay in those tables, not in nil-rated.
  */
 import { round2, splitLineValue } from "@/utils/gstAnalysis";
 import { extractStateCode, isInterState, type GstTaxType } from "@/utils/gstRegisterUtils";
@@ -32,6 +35,16 @@ export type Gstr1Line = {
   productName?: string | null;
 };
 
+/** Zero-rated supply of a bill (Industrial mode). Left out for a regular bill. */
+export type Gstr1SupplyType = "SEZWP" | "SEZWOP" | "EXPWP" | "EXPWOP";
+
+export type Gstr1ExportDetails = {
+  shipBillNo?: string | null;
+  /** yyyy-mm-dd */
+  shipBillDate?: string | null;
+  portCode?: string | null;
+};
+
 export type Gstr1Bill = {
   id: string;
   number: string;
@@ -45,6 +58,10 @@ export type Gstr1Bill = {
   /** Two-digit place-of-supply state code when known; else the shop's state. */
   posStateCode?: string | null;
   lines: Gstr1Line[];
+  /** Export / SEZ bill (Industrial mode). */
+  supplyType?: Gstr1SupplyType | null;
+  /** Export bill: shipping bill details as saved on the bill. */
+  exportDetails?: Gstr1ExportDetails | null;
 };
 
 /** Sale return = credit note; a debit note uses the same shape. */
@@ -80,6 +97,9 @@ export type Gstr1Issue = {
     | "negative_hsn"
     | "nil_rated"
     | "unknown_uqc"
+    | "sez_gstin"
+    | "lut_tax"
+    | "shipping_bill"
     | "empty";
   message: string;
   /** Bill numbers / product names this issue is about (first few). */
@@ -96,6 +116,8 @@ export type Gstr1Json = {
   b2b: Array<{ ctin: string; inv: Gstr1Invoice[] }>;
   b2cl: Array<{ pos: string; inv: Gstr1Invoice[] }>;
   b2cs: Array<{ sply_ty: "INTRA" | "INTER"; rt: number; typ: "OE"; pos: string; txval: number; iamt: number; camt: number; samt: number; csamt: number }>;
+  /** Exports (Table 6A); written only when the period has export bills. */
+  exp?: Array<{ exp_typ: "WPAY" | "WOPAY"; inv: Gstr1ExportInvoice[] }>;
   nil?: { inv: Array<{ sply_ty: "INTRB2B" | "INTRAB2B" | "INTRB2C" | "INTRAB2C"; nil_amt: number; expt_amt: number; ngsup_amt: number }> };
   cdnr: Array<{ ctin: string; nt: Gstr1CreditNote[] }>;
   cdnur: Array<Gstr1CreditNote & { typ: "B2CL" }>;
@@ -104,7 +126,16 @@ export type Gstr1Json = {
 };
 
 export type Gstr1Item = { num: number; itm_det: { rt: number; txval: number; iamt: number; camt: number; samt: number; csamt: number } };
-export type Gstr1Invoice = { inum: string; idt: string; val: number; pos: string; rchrg: "N"; inv_typ: "R"; itms: Gstr1Item[] };
+export type Gstr1Invoice = { inum: string; idt: string; val: number; pos: string; rchrg: "N"; inv_typ: "R" | "SEWP" | "SEWOP"; itms: Gstr1Item[] };
+export type Gstr1ExportInvoice = {
+  inum: string;
+  idt: string;
+  val: number;
+  sbpcode?: string;
+  sbnum?: number;
+  sbdt?: string;
+  itms: Array<{ rt: number; txval: number; iamt: number; csamt: number }>;
+};
 export type Gstr1CreditNote = { ntty: "C" | "D"; nt_num: string; nt_dt: string; pos: string; rchrg: "N"; inv_typ: "R"; val: number; itms: Gstr1Item[] };
 export type Gstr1HsnRow = { num: number; hsn_sc: string; desc: string; uqc: string; qty: number; rt: number; txval: number; iamt: number; camt: number; samt: number; csamt: number };
 
@@ -122,6 +153,10 @@ export type Gstr1Build = {
     cdnurNotes: number;
     /** How many of the CDNR / CDNUR notes are debit notes (note type D). */
     debitNotes: number;
+    /** Export bills (EXP table). */
+    expInvoices: number;
+    /** SEZ bills (in B2B as SEWP / SEWOP). */
+    sezInvoices: number;
     hsnRows: number;
     docSeries: number;
     taxable: number;
@@ -254,9 +289,10 @@ function addRate(map: Map<number, RateHeads>, rate: number, taxable: number, gst
   map.set(rate, row);
 }
 
-function itemsFromRates(map: Map<number, RateHeads>): Gstr1Item[] {
+/** `allowZero`: a zero-rated bill under LUT reports its 0% lines in its own table. */
+function itemsFromRates(map: Map<number, RateHeads>, allowZero = false): Gstr1Item[] {
   return [...map.values()]
-    .filter((r) => r.rt > 0 && Math.abs(r.txval) >= 0.005)
+    .filter((r) => (allowZero ? r.rt >= 0 : r.rt > 0) && Math.abs(r.txval) >= 0.005)
     .sort((a, b) => a.rt - b.rt)
     .map((r, i) => ({
       num: i + 1,
@@ -265,6 +301,14 @@ function itemsFromRates(map: Map<number, RateHeads>): Gstr1Item[] {
 }
 
 type HsnAcc = Gstr1HsnRow & { names: Map<string, number> };
+
+const ZERO_RATED_TYPES: readonly Gstr1SupplyType[] = ["SEZWP", "SEZWOP", "EXPWP", "EXPWOP"];
+
+/** The bill's export / SEZ supply, or null for a regular bill. */
+export function zeroRatedSupplyOf(bill: Pick<Gstr1Bill, "supplyType">): Gstr1SupplyType | null {
+  const t = bill.supplyType;
+  return t && (ZERO_RATED_TYPES as readonly string[]).includes(t) ? t : null;
+}
 
 function pushRefs(issues: Gstr1Issue[], code: Gstr1Issue["code"], message: string, refs: string[]) {
   if (refs.length === 0) return;
@@ -294,6 +338,10 @@ export function buildGstr1Json(input: Gstr1Input): Gstr1Build {
   const badHsnProducts: string[] = [];
   const unknownUnits: string[] = [];
   const nilBills: string[] = [];
+  const sezNoGstinBills: string[] = [];
+  const lutTaxBills: string[] = [];
+  const noShippingBills: string[] = [];
+  const badShippingBills: string[] = [];
 
   const b2bMap = new Map<string, Gstr1Invoice[]>();
   const b2clMap = new Map<string, Gstr1Invoice[]>();
@@ -303,6 +351,7 @@ export function buildGstr1Json(input: Gstr1Input): Gstr1Build {
   const hsnB2b = new Map<string, HsnAcc>();
   const hsnB2c = new Map<string, HsnAcc>();
   const nil = { INTRB2B: 0, INTRAB2B: 0, INTRB2C: 0, INTRAB2C: 0 };
+  const expMap = new Map<"WPAY" | "WOPAY", Gstr1ExportInvoice[]>();
 
   const classify = (doc: Gstr1Bill) => {
     const gstin = String(doc.gstin || "").trim().toUpperCase();
@@ -345,7 +394,7 @@ export function buildGstr1Json(input: Gstr1Input): Gstr1Build {
   };
 
   /** Rate-wise split of one document; HSN rows and nil amounts are written as a side effect. */
-  const rateSplit = (doc: Gstr1Bill, registered: boolean, inter: boolean, sign: number) => {
+  const rateSplit = (doc: Gstr1Bill, registered: boolean, inter: boolean, sign: number, zeroRated = false) => {
     const rates = new Map<number, RateHeads>();
     let nilAmount = 0;
     for (const line of doc.lines) {
@@ -360,7 +409,7 @@ export function buildGstr1Json(input: Gstr1Input): Gstr1Build {
       } else if (!isValidHsn(hsn)) {
         badHsnProducts.push(`${name}: ${hsn}`);
       }
-      if (rate <= 0) {
+      if (rate <= 0 && !zeroRated) {
         nilAmount += sign * taxable;
       } else {
         addRate(rates, rate, taxable, gst, inter, sign);
@@ -375,7 +424,71 @@ export function buildGstr1Json(input: Gstr1Input): Gstr1Build {
     return rates;
   };
 
+  /** Shipping bill fields of an export invoice: all three, or none (the portal wants them together). */
+  const shippingFields = (bill: Gstr1Bill): Pick<Gstr1ExportInvoice, "sbpcode" | "sbnum" | "sbdt"> => {
+    const d = bill.exportDetails || {};
+    const port = String(d.portCode || "").trim().toUpperCase();
+    const sbNo = String(d.shipBillNo || "").trim();
+    const sbDt = String(d.shipBillDate || "").trim();
+    if (!port && !sbNo && !sbDt) {
+      noShippingBills.push(bill.number);
+      return {};
+    }
+    if (/^[A-Z0-9]{6}$/.test(port) && /^\d{3,7}$/.test(sbNo) && /^\d{4}-\d{2}-\d{2}$/.test(sbDt)) {
+      return { sbpcode: port, sbnum: Number(sbNo), sbdt: portalDate(sbDt) };
+    }
+    badShippingBills.push(bill.number);
+    return {};
+  };
+
+  /** Export bill → EXP; SEZ bill → B2B as SEWP / SEWOP. Always IGST. */
+  const addZeroRatedBill = (bill: Gstr1Bill, supply: Gstr1SupplyType) => {
+    const exportBill = supply === "EXPWP" || supply === "EXPWOP";
+    const withoutTax = supply === "EXPWOP" || supply === "SEZWOP";
+    if (!isValidDocNumber(bill.number)) badNumbers.push(bill.number || "(blank)");
+    const gstin = String(bill.gstin || "").trim().toUpperCase();
+    if (!exportBill && !isValidGstin(gstin)) {
+      sezNoGstinBills.push(bill.number);
+      return;
+    }
+    // Export lines count as unregistered (HSN B2C); SEZ lines as registered (HSN B2B).
+    const rates = rateSplit(bill, !exportBill, true, 1, true);
+    if (withoutTax && [...rates.values()].some((r) => Math.abs(r.iamt) >= 0.005)) lutTaxBills.push(bill.number);
+    const itms = itemsFromRates(rates, true);
+    if (itms.length === 0) return;
+    if (exportBill) {
+      const typ = withoutTax ? "WOPAY" : "WPAY";
+      const list = expMap.get(typ) || [];
+      list.push({
+        inum: bill.number,
+        idt: portalDate(bill.date),
+        val: round2(bill.billValue),
+        ...shippingFields(bill),
+        itms: itms.map((it) => ({ rt: it.itm_det.rt, txval: it.itm_det.txval, iamt: it.itm_det.iamt, csamt: 0 })),
+      });
+      expMap.set(typ, list);
+      return;
+    }
+    const inv: Gstr1Invoice = {
+      inum: bill.number,
+      idt: portalDate(bill.date),
+      val: round2(bill.billValue),
+      pos: extractStateCode(gstin) || shopState,
+      rchrg: "N",
+      inv_typ: withoutTax ? "SEWOP" : "SEWP",
+      itms,
+    };
+    const list = b2bMap.get(gstin) || [];
+    list.push(inv);
+    b2bMap.set(gstin, list);
+  };
+
   for (const bill of input.bills) {
+    const supply = zeroRatedSupplyOf(bill);
+    if (supply) {
+      addZeroRatedBill(bill, supply);
+      continue;
+    }
     const { gstin, registered, inter, pos } = classify(bill);
     const rates = rateSplit(bill, registered, inter, 1);
     const itms = itemsFromRates(rates);
@@ -462,6 +575,10 @@ export function buildGstr1Json(input: Gstr1Input): Gstr1Build {
   pushRefs(errors, "bad_hsn", "HSN must be 4, 6 or 8 digits (SAC 6 digits)", badHsnProducts);
   pushRefs(warnings, "unknown_uqc", "Product unit not in the GST unit list; reported as OTH", unknownUnits);
   pushRefs(warnings, "nil_rated", "0% / No-GST amounts reported as nil-rated (Table 8). If they are exempt goods, move them on the portal", nilBills);
+  pushRefs(errors, "sez_gstin", "SEZ bills need the SEZ unit's valid GSTIN on the customer", sezNoGstinBills);
+  pushRefs(errors, "lut_tax", "Export / SEZ bills under LUT carry GST on their lines: set GST 0% on the bill, or change the supply to \"with IGST\"", lutTaxBills);
+  pushRefs(warnings, "shipping_bill", "Export bills without shipping bill details: add them on the portal once the shipping bill is issued", noShippingBills);
+  pushRefs(warnings, "shipping_bill", "Shipping bill details left out of the file: the portal wants a 6-character port code, a 3–7 digit shipping bill number and its date", badShippingBills);
 
   const b2cs = [...b2csMap.values()]
     .flatMap((bucket) =>
@@ -548,6 +665,9 @@ export function buildGstr1Json(input: Gstr1Input): Gstr1Build {
   const b2b = [...b2bMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([ctin, inv]) => ({ ctin, inv }));
   const b2cl = [...b2clMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([pos, inv]) => ({ pos, inv }));
   const cdnr = [...cdnrMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([ctin, nt]) => ({ ctin, nt }));
+  const exp = (["WPAY", "WOPAY"] as const)
+    .filter((typ) => (expMap.get(typ) || []).length > 0)
+    .map((typ) => ({ exp_typ: typ, inv: expMap.get(typ) || [] }));
   const nilRows = (Object.keys(nil) as Array<keyof typeof nil>)
     .filter((k) => Math.abs(nil[k]) >= 0.005)
     .map((k) => ({ sply_ty: k, nil_amt: round2(nil[k]), expt_amt: 0, ngsup_amt: 0 }));
@@ -559,6 +679,8 @@ export function buildGstr1Json(input: Gstr1Input): Gstr1Build {
     cdnrNotes: cdnr.reduce((n, c) => n + c.nt.length, 0),
     cdnurNotes: cdnur.length,
     debitNotes: cdnr.reduce((n, c) => n + c.nt.filter((x) => x.ntty === "D").length, 0) + cdnur.filter((x) => x.ntty === "D").length,
+    expInvoices: exp.reduce((n, e) => n + e.inv.length, 0),
+    sezInvoices: b2b.reduce((n, c) => n + c.inv.filter((i) => i.inv_typ !== "R").length, 0),
     hsnRows: hsn_b2b.length + hsn_b2c.length,
     docSeries: invoiceSeries.length + noteSeries.length + debitSeries.length,
     taxable: 0,
@@ -574,13 +696,21 @@ export function buildGstr1Json(input: Gstr1Input): Gstr1Build {
     summary.taxable += r.txval;
     summary.tax += r.iamt + r.camt + r.samt;
   });
+  exp.forEach((e) =>
+    e.inv.forEach((i) =>
+      i.itms.forEach((it) => {
+        summary.taxable += it.txval;
+        summary.tax += it.iamt;
+      }),
+    ),
+  );
   // Credit notes reduce the period's tax; debit notes add to it.
   cdnr.forEach((c) => c.nt.forEach((n) => n.itms.forEach((it) => addItem(it, n.ntty === "D" ? 1 : -1))));
   cdnur.forEach((n) => n.itms.forEach((it) => addItem(it, n.ntty === "D" ? 1 : -1)));
   summary.taxable = round2(summary.taxable);
   summary.tax = round2(summary.tax);
 
-  if (summary.b2bInvoices + summary.b2clInvoices + summary.b2csRows + summary.cdnrNotes + summary.cdnurNotes + nilRows.length === 0) {
+  if (summary.b2bInvoices + summary.b2clInvoices + summary.b2csRows + summary.expInvoices + summary.cdnrNotes + summary.cdnurNotes + nilRows.length === 0) {
     warnings.push({ code: "empty", message: "No GST sales in this period. A NIL GSTR-1 is filed on the portal directly; no file is needed." });
   }
 
@@ -595,6 +725,7 @@ export function buildGstr1Json(input: Gstr1Input): Gstr1Build {
           b2b,
           b2cl,
           b2cs,
+          ...(exp.length ? { exp } : {}),
           ...(nilRows.length ? { nil: { inv: nilRows } } : {}),
           cdnr,
           cdnur,

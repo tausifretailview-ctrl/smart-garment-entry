@@ -5,6 +5,7 @@ import { AlertTriangle, ArrowLeft, Calculator, Info, RefreshCw } from "lucide-re
 import { cn } from "@/lib/utils";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useIndustrialMode } from "@/hooks/useIndustrialMode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -344,9 +345,11 @@ const GSTAnalysis = () => {
   };
 
   const validRange = !!fromDate && !!toDate && fromDate <= toDate;
+  // Industrial mode: export / SEZ bills are read as zero-rated IGST. Other shops run the old queries.
+  const industrial = useIndustrialMode().enabled;
   const query = useQuery({
-    queryKey: ["gst-analysis", orgId, fromDate, toDate],
-    queryFn: () => loadGstAnalysis(orgId!, fromDate, toDate),
+    queryKey: ["gst-analysis", orgId, fromDate, toDate, industrial],
+    queryFn: () => loadGstAnalysis(orgId!, fromDate, toDate, { industrial }),
     enabled: !!orgId && validRange,
     staleTime: 60_000,
   });
@@ -388,7 +391,10 @@ const GSTAnalysis = () => {
     const netItc = subtractHeads(itcBills, itcReversed);
     const credit = addHeads(netItc, openingHeads);
     const setOff = computeGstSetOff(liability, credit);
-    const nilRated = sumByRate(sales).filter((r) => r.rate === 0).reduce((s, r) => s + r.taxable, 0)
+    // Export / SEZ bills under LUT are zero-rated (3.1(b)), not nil-rated, even at 0%.
+    const zeroRatedSales = sales.filter((d) => d.zeroRated);
+    const zeroRated = sumRows(zeroRatedSales);
+    const nilRated = sumByRate(sales.filter((d) => !d.zeroRated)).filter((r) => r.rate === 0).reduce((s, r) => s + r.taxable, 0)
       - sumByRate(saleReturns).filter((r) => r.rate === 0).reduce((s, r) => s + r.taxable, 0);
 
     return {
@@ -413,6 +419,8 @@ const GSTAnalysis = () => {
         credit,
         setOff,
         nilRated,
+        zeroRated,
+        zeroRatedCount: zeroRatedSales.length,
         outputByRate: netByRate(sumByRate(sales), sumByRate(saleReturns)),
         itcByRate: netByRate(sumByRate(claimPurchases), sumByRate(claimPurchaseReturns)),
         claimPurchaseCount: claimPurchases.length,
@@ -702,6 +710,9 @@ const GSTAnalysis = () => {
                           { label: "Sales (outward taxable supplies)", t: a.final.salesTotal.taxable, h: a.final.salesTotal },
                           { label: "Less: sale returns / credit notes", t: -a.final.saleReturnsTotal.taxable, h: subtractHeads(emptyHeads(), a.final.saleReturnsTotal), neg: true },
                           { label: "3.1(a) Net outward taxable supplies", t: a.final.salesTotal.taxable - a.final.saleReturnsTotal.taxable, h: a.final.liability, bold: true },
+                          ...(a.final.zeroRatedCount > 0
+                            ? [{ label: `3.1(b) of which zero-rated: export / SEZ (${count(a.final.zeroRatedCount)} bills)`, t: a.final.zeroRated.taxable, h: a.final.zeroRated, neg: false, bold: false }]
+                            : []),
                           { label: "3.1(c) of which nil-rated (0%) sales", t: a.final.nilRated, h: emptyHeads() },
                           { label: `ITC on purchase bills (${count(a.final.claimPurchaseCount)} bills)`, t: a.final.itcBills.taxable, h: a.final.itcBills },
                           { label: "Less: purchase returns / debit notes", t: -a.final.itcReversed.taxable, h: subtractHeads(emptyHeads(), a.final.itcReversed), neg: true },

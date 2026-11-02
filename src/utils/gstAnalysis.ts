@@ -26,6 +26,8 @@ export type GstDocRow = GstHeads & {
   /** Bill amount as saved (incl. GST, round off, charges). */
   billValue: number;
   rates: GstRateRow[];
+  /** Export / SEZ sale bill (Industrial mode): zero-rated, always IGST. */
+  zeroRated?: boolean;
 };
 
 export const emptyHeads = (): GstHeads => ({ igst: 0, cgst: 0, sgst: 0 });
@@ -106,8 +108,11 @@ export function saleDocTaxes(
   lines: ReadonlyArray<{ line_total?: number | null; discount_share?: number | null; gst_percent?: number | null }>,
   taxType: GstTaxType,
   shopGstin: string,
+  opts?: { zeroRated?: boolean },
 ): GstDocRow {
-  const base = docBase(header, shopGstin);
+  const zeroRated = opts?.zeroRated === true;
+  // Export / SEZ supplies are inter-state (IGST Act s.7(5), s.16) wherever the buyer is.
+  const base = zeroRated ? { ...docBase(header, shopGstin), interState: true, zeroRated: true } : docBase(header, shopGstin);
   const map = new Map<number, GstRateRow>();
   for (const l of lines) {
     const value = (Number(l.line_total) || 0) - (Number(l.discount_share) || 0);
