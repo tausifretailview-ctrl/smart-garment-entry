@@ -323,6 +323,9 @@ export function HeaderMenubar({
             {industrialOn && can("sales_invoice_dashboard") && (
               <MenubarItem onClick={() => orgNavigate("/debit-notes")}>Debit Notes</MenubarItem>
             )}
+            {industrialOn && can("sales_invoice_dashboard") && (
+              <MenubarItem onClick={() => orgNavigate("/eway-bills")}>E-Way Bills</MenubarItem>
+            )}
             {can("discount_scheme_dashboard") && (
               <MenubarItem
                 {...tabPrefetchProps("discount-scheme-dashboard")}

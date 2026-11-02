@@ -38,6 +38,7 @@ const getCurrentPageName = (path: string): string => {
     'sale-order-entry': 'Sale Order Entry',
     'delivery-challan-entry': 'Delivery Challan',
     'debit-notes': 'Debit Notes',
+    'eway-bills': 'E-Way Bills',
     'settings': 'Settings',
     'gst-reports': 'GST Reports',
     'gst-analysis': 'GST Analysis',

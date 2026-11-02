@@ -227,3 +227,266 @@ export function ewbValidity(row: Pick<EwayBillRow, "status" | "valid_till">, now
   if (hours <= 0) return { label: `Expired ${formatIstDateTime(row.valid_till)}`, tone: "expired" };
   return { label: `Valid till ${formatIstDateTime(row.valid_till)}`, tone: hours <= 8 ? "soon" : "ok" };
 }
+
+/* ------------------------------------------------------------------ */
+/* Register and alerts (Phase 2 step 5a)                                */
+/* ------------------------------------------------------------------ */
+
+const HOUR_MS = 3_600_000;
+/** The portal lets an e-way bill be extended from 8 hours before to 8 hours after it lapses. */
+export const EWB_EXTEND_WINDOW_HOURS = 8;
+/** An e-way bill can be cancelled within 24 hours of being made. */
+export const EWB_CANCEL_HOURS = 24;
+/** Part A without a vehicle (Part B) lapses after 15 days. */
+export const EWB_PART_A_DAYS = 15;
+
+/** The sale bill an e-way bill belongs to, as the register reads it. */
+export type EwbRegisterSale = {
+  id: string;
+  sale_number: string;
+  sale_date: string;
+  customer_id: string | null;
+  customer_name: string | null;
+  net_amount: number | null;
+  irn: string | null;
+  einvoice_status: string | null;
+  einvoice_test_mode: boolean | null;
+};
+
+export type EwayBillRegisterRow = EwayBillRow & {
+  doc_no: string | null;
+  doc_date: string | null;
+  irn: string | null;
+  generated_via: string | null;
+  created_at: string | null;
+  sales: EwbRegisterSale | null;
+};
+
+const REGISTER_COLS = `${EWB_COLS}, doc_no, doc_date, irn, generated_via, sales:sale_id (id, sale_number, sale_date, customer_id, customer_name, net_amount, irn, einvoice_status, einvoice_test_mode)`;
+
+/** Start and end of an India date range as instants, for timestamptz filters. */
+export function istDayRange(fromIso: string, toIso: string): { start: string; end: string } {
+  const start = new Date(`${fromIso.slice(0, 10)}T00:00:00+05:30`).toISOString();
+  const end = new Date(`${toIso.slice(0, 10)}T23:59:59.999+05:30`).toISOString();
+  return { start, end };
+}
+
+/** E-way bills made between two India dates, newest first (Industrial mode register). */
+export async function fetchEwayBillRegister(
+  organizationId: string,
+  fromIso: string,
+  toIso: string,
+): Promise<{ rows: EwayBillRegisterRow[]; missingSql: boolean }> {
+  const { start, end } = istDayRange(fromIso, toIso);
+  const { data, error } = await supabase
+    .from("eway_bills")
+    .select(REGISTER_COLS)
+    .eq("organization_id", organizationId)
+    .gte("ewb_date", start)
+    .lte("ewb_date", end)
+    .order("ewb_date", { ascending: false })
+    .limit(2000);
+  if (error) {
+    if (isMissingEwayBillTable(error.message)) return { rows: [], missingSql: true };
+    throw error;
+  }
+  return { rows: (data ?? []) as unknown as EwayBillRegisterRow[], missingSql: false };
+}
+
+export type EwbAlertKind = "soon" | "extend" | "partA";
+
+type AlertFields = Pick<EwayBillRow, "status" | "valid_till" | "ewb_date"> & { created_at?: string | null };
+
+/**
+ * What needs doing on an active e-way bill now:
+ * soon: lapses within 8 hours (extend it on the portal if the goods are still moving);
+ * extend: lapsed within the last 8 hours, so it can still be extended;
+ * partA: no vehicle yet (Part A only), within its 15 days.
+ */
+export function ewbAlertKind(row: AlertFields, now = new Date()): EwbAlertKind | null {
+  if (row.status !== "active") return null;
+  const t = now.getTime();
+  const till = row.valid_till ? Date.parse(row.valid_till) : NaN;
+  if (!Number.isFinite(till)) {
+    const made = Date.parse(String(row.ewb_date || row.created_at || ""));
+    return Number.isFinite(made) && t - made <= EWB_PART_A_DAYS * 24 * HOUR_MS ? "partA" : null;
+  }
+  const hours = (till - t) / HOUR_MS;
+  if (hours > 0 && hours <= EWB_EXTEND_WINDOW_HOURS) return "soon";
+  if (hours <= 0 && hours > -EWB_EXTEND_WINDOW_HOURS) return "extend";
+  return null;
+}
+
+export type EwbAlertSummary = {
+  soon: number;
+  extend: number;
+  partA: number;
+  total: number;
+  /** Earliest validity among the "soon" ones. */
+  nextExpiry: string | null;
+};
+
+export function summarizeEwbAlerts(rows: AlertFields[], now = new Date()): EwbAlertSummary {
+  const out: EwbAlertSummary = { soon: 0, extend: 0, partA: 0, total: 0, nextExpiry: null };
+  for (const r of rows) {
+    const kind = ewbAlertKind(r, now);
+    if (!kind) continue;
+    out[kind] += 1;
+    out.total += 1;
+    if (kind === "soon" && r.valid_till && (!out.nextExpiry || Date.parse(r.valid_till) < Date.parse(out.nextExpiry))) {
+      out.nextExpiry = r.valid_till;
+    }
+  }
+  return out;
+}
+
+/** Last moment the portal accepts an extension: 8 hours after it lapses. */
+export function ewbExtendUntil(validTill: string | null | undefined): string | null {
+  const ms = validTill ? Date.parse(validTill) : NaN;
+  return Number.isFinite(ms) ? new Date(ms + EWB_EXTEND_WINDOW_HOURS * HOUR_MS).toISOString() : null;
+}
+
+/** Last moment it can be cancelled: 24 hours after it was made; null once that has passed. */
+export function ewbCancelUntil(row: Pick<EwayBillRow, "status" | "ewb_date">, now = new Date()): string | null {
+  if (row.status !== "active") return null;
+  const made = row.ewb_date ? Date.parse(row.ewb_date) : NaN;
+  if (!Number.isFinite(made)) return null;
+  const until = made + EWB_CANCEL_HOURS * HOUR_MS;
+  return until > now.getTime() ? new Date(until).toISOString() : null;
+}
+
+/** Active e-way bills that need doing something now, with the bill they belong to. */
+export async function fetchEwayBillAlerts(
+  organizationId: string,
+  now = new Date(),
+): Promise<{ rows: EwayBillRegisterRow[]; missingSql: boolean }> {
+  const t = now.getTime();
+  const near = supabase
+    .from("eway_bills")
+    .select(REGISTER_COLS)
+    .eq("organization_id", organizationId)
+    .eq("status", "active")
+    .gte("valid_till", new Date(t - EWB_EXTEND_WINDOW_HOURS * HOUR_MS).toISOString())
+    .lte("valid_till", new Date(t + EWB_EXTEND_WINDOW_HOURS * HOUR_MS).toISOString())
+    .order("valid_till", { ascending: true })
+    .limit(200);
+  const partA = supabase
+    .from("eway_bills")
+    .select(REGISTER_COLS)
+    .eq("organization_id", organizationId)
+    .eq("status", "active")
+    .is("valid_till", null)
+    .gte("ewb_date", new Date(t - EWB_PART_A_DAYS * 24 * HOUR_MS).toISOString())
+    .order("ewb_date", { ascending: true })
+    .limit(200);
+  const [a, b] = await Promise.all([near, partA]);
+  const error = a.error ?? b.error;
+  if (error) {
+    if (isMissingEwayBillTable(error.message)) return { rows: [], missingSql: true };
+    throw error;
+  }
+  const rows = [...(a.data ?? []), ...(b.data ?? [])] as unknown as EwayBillRegisterRow[];
+  return { rows, missingSql: false };
+}
+
+/* ------------------------------------------------------------------ */
+/* Register Excel and print helpers                                     */
+/* ------------------------------------------------------------------ */
+
+const MODE_NAME: Record<string, string> = { "1": "Road", "2": "Rail", "3": "Air", "4": "Ship", road: "Road", rail: "Rail", air: "Air", ship: "Ship" };
+
+/** "Road", "Rail"…, from the saved mode (code or word). */
+export function ewbModeName(mode: string | null | undefined): string {
+  return MODE_NAME[String(mode ?? "").trim().toLowerCase()] ?? "";
+}
+
+/** dd/mm/yyyy from a yyyy-mm-dd date or ISO instant (date part as written). */
+export function ewbDdMmYyyy(d: string | null | undefined): string {
+  const s = String(d ?? "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : "";
+}
+
+/** One row per e-way bill for the register's Excel file. */
+export function ewbRegisterExcelRows(rows: EwayBillRegisterRow[], now = new Date()): Record<string, string | number>[] {
+  return rows.map((r) => {
+    const v = ewbValidity(r, now);
+    return {
+      "EWB No": r.ewb_no,
+      "EWB Date": formatIstDateTime(r.ewb_date),
+      "Valid Till": formatIstDateTime(r.valid_till),
+      Status: v.label,
+      "Bill No": r.sales?.sale_number || r.doc_no || "",
+      "Bill Date": ewbDdMmYyyy(r.sales?.sale_date || r.doc_date),
+      Customer: r.sales?.customer_name || "",
+      Value: Math.round(Number(r.sales?.net_amount ?? 0)),
+      Mode: ewbModeName(r.trans_mode),
+      "Vehicle No": r.vehicle_no || "",
+      "Transporter ID": r.transporter_id || "",
+      Transporter: r.transporter_name || "",
+      "LR / Doc No": r.trans_doc_no || "",
+      "LR / Doc Date": ewbDdMmYyyy(r.trans_doc_date),
+      "Distance km": Number(r.distance_km ?? 0) || "",
+      Sandbox: r.test_mode ? "Yes" : "No",
+    };
+  });
+}
+
+/** HSN codes on the bill, highest value first (the e-way bill shows the main one first). */
+export function ewbHsnSummary(items: Array<{ hsn_code?: string | null; line_total?: number | null }>): string[] {
+  const byHsn = new Map<string, number>();
+  for (const it of items) {
+    const hsn = String(it.hsn_code ?? "").replace(/\s+/g, "");
+    if (!hsn) continue;
+    byHsn.set(hsn, (byHsn.get(hsn) ?? 0) + Number(it.line_total ?? 0));
+  }
+  return Array.from(byHsn.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([hsn]) => hsn);
+}
+
+/** Town and PIN code from a one-line address ("…, Bhiwandi 421302" → Bhiwandi, 421302). */
+export function ewbPlaceOf(address: string | null | undefined): { place: string; pin: string } {
+  const a = String(address ?? "").replace(/\s+/g, " ").trim();
+  const pin = a.match(/\b\d{6}\b/)?.[0] ?? "";
+  const parts = a
+    .split(",")
+    .map((p) => p.replace(/\b\d{6}\b/, "").replace(/[-–\s]+$/, "").trim())
+    .filter((p) => p.length > 0);
+  return { place: parts[parts.length - 1] ?? "", pin };
+}
+
+export type EwbRegisterView = "all" | "active" | "soon" | "extend" | "partA" | "expired" | "cancelled";
+
+const VIEWS: EwbRegisterView[] = ["all", "active", "soon", "extend", "partA", "expired", "cancelled"];
+
+export function parseEwbRegisterView(v: string | null | undefined): EwbRegisterView {
+  return (VIEWS as string[]).includes(String(v)) ? (v as EwbRegisterView) : "all";
+}
+
+/** Views that follow the live alerts (any date) rather than the date range. */
+export function isEwbAlertView(v: EwbRegisterView): v is EwbAlertKind {
+  return v === "soon" || v === "extend" || v === "partA";
+}
+
+/** Does this e-way bill belong in the register view? */
+export function ewbInRegisterView(row: AlertFields, view: EwbRegisterView, now = new Date()): boolean {
+  if (view === "all") return true;
+  if (isEwbAlertView(view)) return ewbAlertKind(row, now) === view;
+  const tone = ewbValidity(row, now).tone;
+  if (view === "active") return tone === "ok" || tone === "soon";
+  return tone === view;
+}
+
+/** Search over EWB number (spaces ignored), bill, customer, vehicle, transporter and LR. */
+export function ewbMatchesSearch(row: EwayBillRegisterRow, q: string): boolean {
+  const s = q.trim().toLowerCase();
+  if (!s) return true;
+  const digits = s.replace(/\s+/g, "");
+  if (/^\d{3,}$/.test(digits) && row.ewb_no.includes(digits)) return true;
+  // Vehicle numbers are saved without spaces or dashes, so "MH 04 AB" finds MH04AB1234.
+  const vehicle = s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (vehicle.length >= 3 && String(row.vehicle_no ?? "").includes(vehicle)) return true;
+  return [row.sales?.sale_number, row.doc_no, row.sales?.customer_name, row.transporter_name, row.transporter_id, row.trans_doc_no]
+    .filter(Boolean)
+    .some((v) => String(v).toLowerCase().includes(s));
+}

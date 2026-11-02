@@ -75,6 +75,7 @@ import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { EInvoicePrint } from "@/components/EInvoicePrint";
 import { SaleEwayBillDialog } from "@/components/ewaybill/SaleEwayBillDialog";
+import { EwayBillAlertStrip } from "@/components/ewaybill/EwayBillAlertStrip";
 import { useSaleEwayBills } from "@/hooks/useSaleEwayBills";
 import { formatEwbNo, formatIstDateTime } from "@/utils/ewayBill";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
@@ -4140,6 +4141,16 @@ export default function SalesInvoiceDashboard() {
           </div>
           )
         )}
+
+        {exportIrnOn ? (
+          // Industrial mode, Phase 2 step 5a: e-way bills that lapse soon or have no vehicle.
+          <EwayBillAlertStrip
+            organizationId={currentOrganization?.id}
+            enabled={exportIrnOn}
+            dismissible
+            onShow={(kind) => navigate(`/eway-bills?view=${kind}`)}
+          />
+        ) : null}
 
         <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm p-0">
             <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5 overflow-x-auto">

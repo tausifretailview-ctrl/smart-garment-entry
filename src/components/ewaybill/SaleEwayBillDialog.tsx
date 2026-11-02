@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, Info, Loader2, RefreshCw, Truck } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, CheckCircle2, Info, Loader2, Printer, RefreshCw, Truck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useEwayBillPrinter } from "@/hooks/useEwayBillPrinter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,6 +14,9 @@ import {
   EMPTY_PORT_FORM,
   ewbFormFromB2b,
   ewbPortInput,
+  ewbAlertKind,
+  ewbCancelUntil,
+  ewbExtendUntil,
   ewbTransportInput,
   ewbValidity,
   formatEwbNo,
@@ -74,6 +78,8 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
   const [port, setPort] = useState<EwbPortForm>(EMPTY_PORT_FORM);
   const [problem, setProblem] = useState<{ field: EwbProblemField | null; error: string } | null>(null);
   const [busy, setBusy] = useState<"generate" | "sync" | null>(null);
+  const printer = useEwayBillPrinter(organizationId);
+  const queryClient = useQueryClient();
 
   // The bill's B2B details (transport, export) are read here so the list query stays as it is.
   const { data: b2b, isLoading: b2bLoading } = useQuery({
@@ -118,7 +124,7 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
 
   const days = useMemo(() => ewbValidityDays(ewbDistance(form.distanceKm), form.vehicleType), [form.distanceKm, form.vehicleType]);
 
-  if (!sale) return null;
+  if (!sale) return printer.printNode;
   const active = ewayBill && ewayBill.status === "active" ? ewayBill : null;
   const testMode = sale.einvoice_test_mode ?? null;
   const belowLimit = Number(sale.net_amount ?? 0) <= EWB_VALUE_LIMIT;
@@ -166,13 +172,21 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
     } finally {
       setBusy(null);
       onChanged();
+      // The register and the lapse alerts read the same table.
+      void queryClient.invalidateQueries({ queryKey: ["eway-bill-alerts", organizationId] });
+      void queryClient.invalidateQueries({ queryKey: ["eway-bill-register", organizationId] });
     }
   };
 
   const bad = (f: EwbProblemField) => (problem?.field === f ? "border-red-400 ring-1 ring-red-200" : "");
   const validity = active ? ewbValidity(active) : null;
+  const alertKind = active ? ewbAlertKind(active) : null;
+  const extendUntil = active ? ewbExtendUntil(active.valid_till) : null;
+  const cancelUntil = active ? ewbCancelUntil(active) : null;
 
   return (
+    <>
+    {printer.printNode}
     <Dialog open={open} onOpenChange={(v) => !busy && onOpenChange(v)}>
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
@@ -255,10 +269,41 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
               ) : null}
               {active.distance_km ? <div>Distance: <span className="font-medium text-slate-800">{active.distance_km} km</span></div> : null}
             </div>
-            <p className="mt-3 flex items-start gap-1.5 text-[11px] text-slate-500">
-              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              To change the vehicle, extend or cancel it, use the e-way bill portal for now.
-            </p>
+            {alertKind === "extend" && extendUntil ? (
+              <p className="mt-3 flex items-start gap-1.5 rounded-md bg-red-50 px-2 py-1.5 text-[11px] font-medium text-red-700">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                Lapsed. If the goods are still on the way, extend it on the e-way bill portal by {formatIstDateTime(extendUntil)}.
+              </p>
+            ) : alertKind === "soon" ? (
+              <p className="mt-3 flex items-start gap-1.5 rounded-md bg-amber-50 px-2 py-1.5 text-[11px] font-medium text-amber-800">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                Lapses within 8 hours. If the goods won't reach in time, extend it on the e-way bill portal.
+              </p>
+            ) : alertKind === "partA" ? (
+              <p className="mt-3 flex items-start gap-1.5 rounded-md bg-sky-50 px-2 py-1.5 text-[11px] font-medium text-sky-800">
+                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                No vehicle yet. Add it on the e-way bill portal before the goods move.
+              </p>
+            ) : null}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="flex items-start gap-1.5 text-[11px] text-slate-500">
+                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {cancelUntil
+                  ? `Vehicle change, extend and cancel (till ${formatIstDateTime(cancelUntil)}) are on the e-way bill portal for now.`
+                  : "Vehicle change and extend are on the e-way bill portal for now."}
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1.5 border-emerald-200 bg-white text-xs text-emerald-800 hover:bg-emerald-50"
+                onClick={() => void printer.print(active)}
+                disabled={printer.printingId === active.id}
+              >
+                {printer.printingId === active.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
+                Print e-way bill
+              </Button>
+            </div>
           </div>
         ) : (
           <div className={cn("grid gap-4", (!hasIrn || missingSql) && "pointer-events-none opacity-60")}>
@@ -463,5 +508,6 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
