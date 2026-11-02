@@ -109,6 +109,7 @@ import {
   writeProductEntryUnsavedDraft,
   type ProductEntryUnsavedDraft,
 } from "@/utils/productEntryUnsavedDraft";
+import { expandRowsIntoPieces, isPerPieceBarcodeEnabled, isPerPieceMeasuredUom } from "@/utils/purchasePerPieceBarcode";
 
 type ProductType = 'goods' | 'service' | 'combo';
 
@@ -765,6 +766,8 @@ export const ProductEntryDialog = ({
   const [creatingSizeGroup, setCreatingSizeGroup] = useState(false);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [rollWiseMtrEnabled, setRollWiseMtrEnabled] = useState(false);
+  /** Settings > Purchase: every piece of a size row gets its own barcode (purchase only). */
+  const [perPieceBarcodeEnabled, setPerPieceBarcodeEnabled] = useState(false);
   const [colorRollLengths, setColorRollLengths] = useState<Record<string, string>>({});
   const [disabledSizes, setDisabledSizes] = useState<Set<string>>(new Set());
   const [customSizes, setCustomSizes] = useState<string[]>([]);
@@ -1992,6 +1995,7 @@ export const ProductEntryDialog = ({
           setShowDiscountFields(purchaseSettings.product_entry_discount_enabled || false);
           setCursorAfterStyle(purchaseSettings.cursor_after_style || "pur_price");
           setRollWiseMtrEnabled(purchaseSettings.roll_wise_mtr_entry || false);
+          setPerPieceBarcodeEnabled(isPerPieceBarcodeEnabled(purchaseSettings));
         }
       }
     } catch (err: unknown) {
@@ -2579,6 +2583,32 @@ export const ProductEntryDialog = ({
       variantsToCreate = variantsToCreate.map((v) => ({ ...v, mrp: null }));
     }
 
+    // Settings > Purchase "Individual barcode for every piece": S = 2 becomes two
+    // qty-1 rows, each saved as its own variant with its own generated barcode.
+    // A scanned/typed (supplier) barcode stays on one row — it is printed on the goods.
+    if (
+      perPieceBarcodeEnabled &&
+      createdInPurchase === true &&
+      hideOpeningQty &&
+      isAutoBarcode &&
+      !masterOnly &&
+      formData.product_type !== "service" &&
+      !(mobileERPMode?.enabled && formData.requires_imei) &&
+      !isPerPieceMeasuredUom(formData.uom)
+    ) {
+      variantsToCreate = expandRowsIntoPieces(
+        variantsToCreate,
+        (v) => v.purchase_qty,
+        (v) => !String(v.barcode || "").trim() || v.barcode_source === "generated",
+        (v, index) => {
+          const piece = { ...v, purchase_qty: 1 };
+          if (index === 0) return piece;
+          const { barcode_source: _drop, ...rest } = piece;
+          return { ...(rest as ProductVariant), barcode: "" };
+        },
+      ).rows;
+    }
+
     if (variantsToCreate.length > 0) {
       // Sale Order master create has no barcode column on the size chips.
       // Fill any blank barcode here so the checked sizes are real variants.
@@ -2842,9 +2872,12 @@ export const ProductEntryDialog = ({
       // Prefer qty from the pre-insert payload so accessory Unit-N → collapsed "None"
       // rows still carry the summed purchase_qty (UI rows won't match by size).
       const variantsWithQty = insertedVariants.map((iv: any) => {
-        const fromPrepared = variantsToCreate.find(
-          (v) => v.size === iv.size && (v.color || "") === (iv.color || ""),
-        );
+        // Per-piece barcodes put several rows on one size/colour: match by barcode first.
+        const fromPrepared =
+          variantsToCreate.find((v) => String(v.barcode || "").trim() === String(iv.barcode || "").trim()) ??
+          variantsToCreate.find(
+            (v) => v.size === iv.size && (v.color || "") === (iv.color || ""),
+          );
         const matchingVariant = variants.find(
           (v) => v.size === iv.size && (v.color || "") === (iv.color || ""),
         );

@@ -219,6 +219,12 @@ import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngine
 import { formatMobileErpSizeCell } from "@/utils/retailErpWhatsAppProductLabel";
 import { pricesForTypedMrp } from "@/utils/sizeGridNewSizePrices";
 import {
+  expandRowsIntoPieces,
+  isPerPieceBarcodeEnabled,
+  isPerPieceMeasuredUom,
+  PER_PIECE_BARCODE_MAX_PIECES,
+} from "@/utils/purchasePerPieceBarcode";
+import {
   deletedPurchaseLinesMessage,
   findDeletedPurchaseLines,
   retargetDeletedPurchaseLines,
@@ -2344,6 +2350,7 @@ const PurchaseEntry = () => {
   const autoFocusSearch = (settings?.purchase_settings as any)?.auto_focus_search || false;
   const sizeGridReviewMode = (settings?.purchase_settings as any)?.size_grid_review_mode || false;
   const rollWiseMtrEntry = (settings?.purchase_settings as any)?.roll_wise_mtr_entry || false;
+  const perPieceBarcodeEnabled = isPerPieceBarcodeEnabled(settings?.purchase_settings);
   
   const focusSearchBar = useCallback(() => {
     if (autoFocusSearch) {
@@ -4525,6 +4532,40 @@ const PurchaseEntry = () => {
   ) => {
     const gridProduct = productOverride ?? selectedProduct;
     const imeiScans: { tempId: string; qty: number; item: LineItem }[] = [];
+    // Settings > Purchase "Individual barcode for every piece": S = 2 → two qty-1
+    // lines, each on its own new SKU + barcode (new size → created per piece; existing
+    // generated SKU → forked per piece below). IMEI units, measured UOMs and a
+    // supplier/universal barcode are left as one line.
+    if (
+      perPieceBarcodeEnabled &&
+      isAutoBarcode &&
+      !isPerPieceMeasuredUom((gridProduct as any)?.uom)
+    ) {
+      const expanded = expandRowsIntoPieces(
+        items,
+        (item) => item.qty,
+        ({ variant }) =>
+          !productRequiresImei(
+            { requires_imei: variant.requires_imei ?? (gridProduct as any)?.requires_imei },
+            mobileERPSettings,
+          ) &&
+          !String(variant.externalBarcode || "").trim() &&
+          (variant.isCustomSize ||
+            !!newColor ||
+            !shouldReuseExistingBarcodeOnPurchaseSelect({
+              barcode_source: variant.barcode_source,
+              barcode: variant.barcode,
+            })),
+        (item) => ({ ...item, qty: 1 }),
+      );
+      items = expanded.rows;
+      if (expanded.skippedTooMany > 0) {
+        toast({
+          title: "Some sizes kept on one barcode",
+          description: `Over ${PER_PIECE_BARCODE_MAX_PIECES} pieces in one size: that size was added as one line with one barcode.`,
+        });
+      }
+    }
     for (const { variant, qty } of items) {
       // Serialised (IMEI) product: each unit gets its own scanned IMEI variant —
       // do not reuse the existing unit's variant (and IMEI) for the new units.
