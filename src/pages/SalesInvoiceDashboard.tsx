@@ -3538,7 +3538,16 @@ export default function SalesInvoiceDashboard() {
 
     setIsDownloadingEInvoice(invoice.id);
     // Ensure sale_items are loaded for the print component
-    const invoiceWithItems = await ensureSaleItems(invoice);
+    let invoiceWithItems = await ensureSaleItems(invoice);
+    // The list select leaves out the long QR text; read it (and ack fields) for this one bill.
+    if (!invoiceWithItems.einvoice_qr_code) {
+      const { data: einv } = await supabase
+        .from('sales')
+        .select('irn, ack_no, ack_date, einvoice_qr_code')
+        .eq('id', invoice.id)
+        .maybeSingle();
+      if (einv) invoiceWithItems = { ...invoiceWithItems, ...einv };
+    }
     const ewbForPrint = exportIrnOn ? pageEwb.rows.get(String(invoice.id)) : undefined;
     setEInvoiceToPrint(
       ewbForPrint?.status === "active"
