@@ -2464,7 +2464,10 @@ export type Database = {
           address: string | null
           anniversary: string | null
           birthday: string | null
+          contact_person: string | null
           created_at: string | null
+          credit_days: number | null
+          credit_limit: number | null
           customer_name: string
           deleted_at: string | null
           deleted_by: string | null
@@ -2474,6 +2477,7 @@ export type Database = {
           id: string
           opening_balance: number | null
           organization_id: string
+          pan_number: string | null
           phone: string | null
           points_balance: number | null
           points_redeemed: number | null
@@ -2491,7 +2495,10 @@ export type Database = {
           address?: string | null
           anniversary?: string | null
           birthday?: string | null
+          contact_person?: string | null
           created_at?: string | null
+          credit_days?: number | null
+          credit_limit?: number | null
           customer_name: string
           deleted_at?: string | null
           deleted_by?: string | null
@@ -2501,6 +2508,7 @@ export type Database = {
           id?: string
           opening_balance?: number | null
           organization_id: string
+          pan_number?: string | null
           phone?: string | null
           points_balance?: number | null
           points_redeemed?: number | null
@@ -2518,7 +2526,10 @@ export type Database = {
           address?: string | null
           anniversary?: string | null
           birthday?: string | null
+          contact_person?: string | null
           created_at?: string | null
+          credit_days?: number | null
+          credit_limit?: number | null
           customer_name?: string
           deleted_at?: string | null
           deleted_by?: string | null
@@ -2528,6 +2539,7 @@ export type Database = {
           id?: string
           opening_balance?: number | null
           organization_id?: string
+          pan_number?: string | null
           phone?: string | null
           points_balance?: number | null
           points_redeemed?: number | null
@@ -2978,8 +2990,8 @@ export type Database = {
       delivery_challans: {
         Row: {
           challan_date: string
-          challan_type?: string | null
           challan_number: string
+          challan_type: string | null
           converted_to_invoice_id: string | null
           created_at: string
           created_by: string | null
@@ -3008,8 +3020,8 @@ export type Database = {
         }
         Insert: {
           challan_date?: string
-          challan_type?: string | null
           challan_number: string
+          challan_type?: string | null
           converted_to_invoice_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -3038,8 +3050,8 @@ export type Database = {
         }
         Update: {
           challan_date?: string
-          challan_type?: string | null
           challan_number?: string
+          challan_type?: string | null
           converted_to_invoice_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -6274,8 +6286,8 @@ export type Database = {
       }
       products: {
         Row: {
-          alt_uom?: string | null
-          alt_uom_factor?: number | null
+          alt_uom: string | null
+          alt_uom_factor: number | null
           brand: string | null
           category: string | null
           color: string | null
@@ -6296,7 +6308,7 @@ export type Database = {
           purchase_discount_type: string | null
           purchase_discount_value: number | null
           purchase_gst_percent: number | null
-          reorder_level?: number | null
+          reorder_level: number | null
           requires_imei: boolean
           sale_discount_type: string | null
           sale_discount_value: number | null
@@ -7485,17 +7497,17 @@ export type Database = {
           discount_amount: number
           flat_discount_amount: number
           flat_discount_percent: number
-          follow_up_date?: string | null
+          follow_up_date: string | null
           gross_amount: number
           gst_amount: number
           id: string
-          lost_reason?: string | null
+          lost_reason: string | null
           net_amount: number
           notes: string | null
           organization_id: string
           quotation_date: string
           quotation_number: string
-          revision_no?: number | null
+          revision_no: number | null
           round_off: number
           salesman: string | null
           shipping_address: string | null
@@ -7950,8 +7962,8 @@ export type Database = {
           customer_id: string | null
           customer_name: string
           customer_phone: string | null
-          customer_po_date?: string | null
-          customer_po_no?: string | null
+          customer_po_date: string | null
+          customer_po_no: string | null
           deleted_at: string | null
           deleted_by: string | null
           discount_amount: number
@@ -8339,7 +8351,7 @@ export type Database = {
         Row: {
           ack_date: string | null
           ack_no: string | null
-          b2b_details?: Json | null
+          b2b_details: Json | null
           cancelled_at: string | null
           cancelled_by: string | null
           cancelled_reason: string | null
@@ -8355,7 +8367,7 @@ export type Database = {
           customer_id: string | null
           customer_name: string
           customer_phone: string | null
-          debit_note_details?: Json | null
+          debit_note_details: Json | null
           deleted_at: string | null
           deleted_by: string | null
           delivery_status: string | null
