@@ -280,6 +280,38 @@ describe("saleReturnToNoteInput", () => {
       saleReturnToNoteInput(ret, [{ ...items[0], is_dc_item: true }], { interState: false, originalSaleDate: null }),
     ).toBeNull();
   });
+
+  it("sends a return of an export bill as EXPWP to the overseas buyer, and of an SEZ bill as IGST", () => {
+    const abroad: NoteParty = { gstin: "", name: "Gulf Pipes LLC", address: "Jebel Ali, Dubai" };
+    const exp = saleReturnToNoteInput(ret, items, {
+      interState: true,
+      originalSaleDate: "2026-10-28",
+      originalB2bDetails: { supply_type: "EXPWP", port_code: "INNSA1", country_code: "AE", currency: "USD", ship_bill_no: "1234567" },
+    });
+    expect(exp?.supplyType).toBe("EXPWP");
+    expect(exp?.exportDetails).toEqual({ portCode: "INNSA1", countryCode: "AE", currency: "USD" });
+    const r = exp ? buildNoteEInvoicePayload(exp, seller, abroad) : null;
+    expect(r?.ok).toBe(true);
+    if (r && r.ok) {
+      expect(r.payload.TranDtls.SupTyp).toBe("EXPWP");
+      expect(r.payload.DocDtls.Typ).toBe("CRN");
+      expect(r.payload.BuyerDtls).toMatchObject({ Gstin: "URP", Stcd: "96", Pos: "96" });
+      expect(r.payload.ValDtls).toMatchObject({ AssVal: 2000, IgstVal: 360, CgstVal: 0, TotInvVal: 2360 });
+      expect(r.payload.ExpDtls).toEqual({ Port: "INNSA1", CntCode: "AE", ForCur: "USD" });
+    }
+    // Same-state SEZ unit: still IGST.
+    const sez = saleReturnToNoteInput(ret, items, { interState: false, originalSaleDate: null, originalB2bDetails: { supply_type: "SEZWP" } });
+    expect(sez?.supplyType).toBe("SEZWP");
+    expect(sez?.exportDetails).toBeUndefined();
+    const s = sez ? buildNoteEInvoicePayload(sez, seller, buyerMh) : null;
+    expect(s?.ok).toBe(true);
+    if (s && s.ok) expect(s.payload.ValDtls).toMatchObject({ IgstVal: 360, CgstVal: 0 });
+    // Under LUT a return must not carry GST either.
+    const lut = saleReturnToNoteInput(ret, items, { interState: true, originalSaleDate: null, originalB2bDetails: { supply_type: "EXPWOP" } });
+    expect(lut ? noteEInvoiceProblem(lut, seller, abroad) : null).toContain("LUT");
+    // A regular bill adds nothing.
+    expect(saleReturnToNoteInput(ret, items, { interState: false, originalSaleDate: null, originalB2bDetails: { po_number: "PO-9" } })).not.toHaveProperty("supplyType");
+  });
 });
 
 const exportBill = (patch: Partial<NoteInput> = {}): NoteInput => ({

@@ -133,8 +133,12 @@ export function saleReturnDocTaxes(
   lines: ReadonlyArray<{ line_total?: number | null; gst_percent?: number | null }>,
   taxType: GstTaxType,
   shopGstin: string,
+  opts?: { zeroRated?: boolean },
 ): GstDocRow {
-  const base = docBase(header, shopGstin);
+  // A return of an export / SEZ bill is zero-rated IGST, like the bill.
+  const base = opts?.zeroRated === true
+    ? { ...docBase(header, shopGstin), interState: true, zeroRated: true }
+    : docBase(header, shopGstin);
   const split = lines.map((l) => {
     const rate = taxType === "no_gst" ? 0 : Number(l.gst_percent) || 0;
     return { rate, ...splitLineValue(Number(l.line_total) || 0, rate, taxType) };

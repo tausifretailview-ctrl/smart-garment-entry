@@ -54,7 +54,7 @@ import { fetchDebitNoteDetailsByIds, fetchPeriodDebitNoteTaxHeads } from "@/util
 import { useIndustrialMode } from "@/hooks/useIndustrialMode";
 import { computeGstSetOff } from "@/utils/gstAnalysis";
 import { gstr1SupplyOf } from "@/utils/zeroRatedSupplies";
-import { fetchPeriodZeroRatedOutward } from "@/utils/zeroRatedSuppliesData";
+import { fetchPeriodZeroRatedOutward, fetchSupplyTypesBySaleNumber } from "@/utils/zeroRatedSuppliesData";
 import { resolveGstFilingPrefs, type GstFilingScheme } from "@/utils/gstReadiness";
 import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -251,7 +251,7 @@ interface GSTR3BSummary {
     sgst: number;
   };
   /** 3.1(b) export / SEZ bills (Industrial mode), included in outwardSupplies. */
-  zeroRated?: { taxable: number; igst: number; count: number };
+  zeroRated?: { taxable: number; igst: number; count: number; returns?: number };
 }
 
 interface HSNSummary {
@@ -704,6 +704,16 @@ const GSTReports = () => {
 
       const { returns: gstSaleReturns, linesByReturn: returnLinesByReturn } =
         await saleReturnsWithoutDcAndLines(saleReturnsWithGstin);
+      // Industrial mode: returns of export / SEZ bills follow their bill (IGST, EXP / SEZ notes). No query for other shops.
+      const returnSupply = industrial
+        ? await fetchSupplyTypesBySaleNumber(currentOrganization.id, gstSaleReturns.map((r) => r.original_sale_number))
+        : null;
+      const returnSupplyOf = (ret: { original_sale_number?: string | null }) =>
+        returnSupply?.get(String(ret.original_sale_number || "").trim()) ?? null;
+      const noteHeads = (ret: { gst_amount?: number | null; original_sale_number?: string | null }) => {
+        const gst = ret.gst_amount || 0;
+        return returnSupplyOf(ret) ? { cgst: 0, sgst: 0, igst: gst } : { cgst: gst / 2, sgst: gst / 2, igst: 0 };
+      };
 
       const cdnr = gstSaleReturns
         .filter(ret => (ret.customers as any)?.gst_number)
@@ -716,9 +726,7 @@ const GSTReports = () => {
           originalInvoice: ret.original_sale_number || "",
           noteValue: ret.net_amount,
           taxableValue: ret.net_amount - (ret.gst_amount || 0),
-          cgst: (ret.gst_amount || 0) / 2,
-          sgst: (ret.gst_amount || 0) / 2,
-          igst: 0
+          ...noteHeads(ret),
         }));
 
       // CDNUR - Unregistered (B2C) customer credit/debit notes
@@ -732,9 +740,7 @@ const GSTReports = () => {
           originalInvoice: ret.original_sale_number || "",
           noteValue: ret.net_amount,
           taxableValue: ret.net_amount - (ret.gst_amount || 0),
-          cgst: (ret.gst_amount || 0) / 2,
-          sgst: (ret.gst_amount || 0) / 2,
-          igst: 0,
+          ...noteHeads(ret),
         }));
 
       // Debit notes: CDNR (registered buyer) / CDNUR rows with note type D, and their lines in the HSN summary.
@@ -822,6 +828,7 @@ const GSTReports = () => {
             uom: productUnits.get(String(l.product_id)) ?? returnUnits.get(String(l.product_id)),
             productName: l.product_name,
           })),
+          ...(returnSupplyOf(ret) ? { supplyType: returnSupplyOf(ret) } : {}),
         })),
         debitNotes,
         documents: {
@@ -904,7 +911,8 @@ const GSTReports = () => {
       // FIX G4: Deduct sale returns from outward supplies
       const { data: saleReturnsData } = await supabase
         .from("sale_returns")
-        .select("id, net_amount, gst_amount")
+        // Industrial mode also reads the bill number, to find returns of export / SEZ bills.
+        .select((industrial ? "id, net_amount, gst_amount, original_sale_number" : "id, net_amount, gst_amount") as "id, net_amount, gst_amount")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .gte("return_date", fromDate)
@@ -928,9 +936,22 @@ const GSTReports = () => {
       const netOutwardTaxable = outwardTaxable - returnTaxable + debitNoteHeads.taxable;
       const netOutwardGST = outwardGST - returnGST + debitNoteHeads.gst;
 
-      // 3.1(b) Export / SEZ bills (Industrial mode): their GST is IGST, not CGST / SGST.
-      const zeroRated = industrial ? await fetchPeriodZeroRatedOutward(currentOrganization.id, fromDate, toDate) : null;
-      const zeroRatedIgst = zeroRated && zeroRated.count > 0 ? zeroRated.igst : 0;
+      // 3.1(b) Export / SEZ bills (Industrial mode), less their returns: their GST is IGST, not CGST / SGST.
+      const zeroRatedBills = industrial ? await fetchPeriodZeroRatedOutward(currentOrganization.id, fromDate, toDate) : null;
+      const billNumberOf = (r: object) => String((r as { original_sale_number?: string | null }).original_sale_number || "").trim();
+      const zeroReturnBills = industrial
+        ? await fetchSupplyTypesBySaleNumber(currentOrganization.id, gstSaleReturns.map(billNumberOf))
+        : null;
+      const zeroReturns = zeroReturnBills ? gstSaleReturns.filter((r) => zeroReturnBills.has(billNumberOf(r))) : [];
+      const zeroRated = zeroRatedBills && (zeroRatedBills.count > 0 || zeroReturns.length > 0)
+        ? {
+            taxable: zeroRatedBills.taxable - zeroReturns.reduce((s, r) => s + ((r.net_amount || 0) - (r.gst_amount || 0)), 0),
+            igst: zeroRatedBills.igst - zeroReturns.reduce((s, r) => s + (r.gst_amount || 0), 0),
+            count: zeroRatedBills.count,
+            returns: zeroReturns.length,
+          }
+        : null;
+      const zeroRatedIgst = zeroRated ? zeroRated.igst : 0;
 
       // Fetch purchases
       const { data: purchaseData } = await supabase
@@ -1012,7 +1033,7 @@ const GSTReports = () => {
               cgst: carryForwardCGST,
               sgst: carryForwardSGST
             },
-        ...(zeroRated && zeroRated.count > 0 ? { zeroRated } : {}),
+        ...(zeroRated ? { zeroRated } : {}),
       });
 
       toast({ title: "Success", description: "GSTR-3B summary generated" });
@@ -1912,7 +1933,8 @@ const GSTReports = () => {
               <div className="space-y-2 border-t border-slate-100 pt-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-2">
                   <Badge variant="outline" className="h-5 px-1.5 text-[10px] border-sky-200 text-sky-700">3.1(b)</Badge>
-                  Zero-rated: export / SEZ ({gstr3bData.zeroRated.count} bill{gstr3bData.zeroRated.count === 1 ? "" : "s"}, included above)
+                  Zero-rated: export / SEZ ({gstr3bData.zeroRated.count} bill{gstr3bData.zeroRated.count === 1 ? "" : "s"}
+                  {gstr3bData.zeroRated.returns ? `, less ${gstr3bData.zeroRated.returns} return${gstr3bData.zeroRated.returns === 1 ? "" : "s"}` : ""}, included above)
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <InsightsKpiCard label="Taxable Value" value={gstr3bData.zeroRated.taxable} valueFormat="inr" tone="positive" />

@@ -64,6 +64,13 @@ describe("saleReturnDocTaxes", () => {
     expect(round2(doc.cgst + doc.sgst)).toBe(45);
     expect(round2(doc.taxable)).toBe(900);
   });
+
+  it("takes a return of an export / SEZ bill off IGST", () => {
+    const doc = saleReturnDocTaxes({ ...head(), headerGst: 0 }, [{ line_total: 1180, gst_percent: 18 }], "inclusive", SHOP, { zeroRated: true });
+    expect(doc.zeroRated).toBe(true);
+    expect(round2(doc.igst)).toBe(180);
+    expect(doc.cgst + doc.sgst).toBe(0);
+  });
 });
 
 describe("purchaseDocTaxes", () => {

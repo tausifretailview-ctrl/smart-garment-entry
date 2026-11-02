@@ -302,7 +302,7 @@ export function buildNoteEInvoicePayload(note: NoteInput, seller: NoteParty, buy
       return {
         ok: false,
         code: "LUT_TAX",
-        error: `Under LUT / bond the bill can't charge GST, but ${row.toLowerCase()} has ₹${gst} GST. Set GST 0% on every line, or pick the "with IGST" supply type.`,
+        error: `Under LUT / bond the ${word} can't charge GST, but ${row.toLowerCase()} has ₹${gst} GST. Set GST 0% on every line, or pick the "with IGST" supply type on the bill.`,
       };
     }
     const half = round2(gst / 2);
@@ -498,7 +498,12 @@ export function saleReturnTaxInclusive(ret: Pick<SaleReturnForNote, "net_amount"
 export function saleReturnToNoteInput(
   ret: SaleReturnForNote,
   items: SaleReturnItemForNote[],
-  opts: { interState: boolean; originalSaleDate: string | null },
+  opts: {
+    interState: boolean;
+    originalSaleDate: string | null;
+    /** sales.b2b_details of the original bill: a return of an export / SEZ bill is reported the same way. */
+    originalB2bDetails?: unknown;
+  },
 ): NoteInput | null {
   const live = items.filter((i) => !i.deleted_at && !i.is_dc_item);
   if (live.length === 0) return null;
@@ -534,6 +539,20 @@ export function saleReturnToNoteInput(
     againstInvoice: ret.original_sale_number
       ? { number: String(ret.original_sale_number), date: opts.originalSaleDate }
       : null,
+    ...returnSupplyFields(opts.originalB2bDetails),
+  };
+}
+
+/** Supply type of a return of an export / SEZ bill; export: port, country and currency of the bill. */
+function returnSupplyFields(b2bDetails: unknown): Pick<NoteInput, "supplyType" | "exportDetails"> {
+  const supplyType = irpSupplyTypeOf(b2bDetails);
+  if (supplyType === "B2B") return {};
+  if (!isExportSupplyType(supplyType)) return { supplyType };
+  const d = b2bDetails as Record<string, unknown>;
+  const text = (v: unknown) => (typeof v === "string" ? v : null);
+  return {
+    supplyType,
+    exportDetails: { portCode: text(d.port_code), countryCode: text(d.country_code), currency: text(d.currency) },
   };
 }
 

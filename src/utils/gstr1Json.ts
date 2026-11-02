@@ -18,7 +18,8 @@
  * - 0% lines on a GST bill, and No-GST bills, are reported as nil-rated (Table 8).
  * - Export and SEZ bills (Industrial mode, `supplyType` on the bill) are zero-rated and always IGST:
  *   exports go to the EXP table (6A, with / without payment), SEZ bills to B2B as SEWP / SEWOP.
- *   Their 0% (under LUT) lines stay in those tables, not in nil-rated.
+ *   Their 0% (under LUT) lines stay in those tables, not in nil-rated. A credit note against such a
+ *   bill (`supplyType` of the original bill) goes to CDNUR as EXPWP / EXPWOP, or to CDNR as SEWP / SEWOP.
  */
 import { round2, splitLineValue } from "@/utils/gstAnalysis";
 import { extractStateCode, isInterState, type GstTaxType } from "@/utils/gstRegisterUtils";
@@ -64,7 +65,7 @@ export type Gstr1Bill = {
   exportDetails?: Gstr1ExportDetails | null;
 };
 
-/** Sale return = credit note; a debit note uses the same shape. */
+/** Sale return = credit note; a debit note uses the same shape. `supplyType` is the original bill's. */
 export type Gstr1Note = Gstr1Bill;
 
 export type Gstr1Document = { number: string; cancelled: boolean };
@@ -120,7 +121,7 @@ export type Gstr1Json = {
   exp?: Array<{ exp_typ: "WPAY" | "WOPAY"; inv: Gstr1ExportInvoice[] }>;
   nil?: { inv: Array<{ sply_ty: "INTRB2B" | "INTRAB2B" | "INTRB2C" | "INTRAB2C"; nil_amt: number; expt_amt: number; ngsup_amt: number }> };
   cdnr: Array<{ ctin: string; nt: Gstr1CreditNote[] }>;
-  cdnur: Array<Gstr1CreditNote & { typ: "B2CL" }>;
+  cdnur: Gstr1UnregisteredNote[];
   hsn: { hsn_b2b: Gstr1HsnRow[]; hsn_b2c: Gstr1HsnRow[] };
   doc_issue: { doc_det: Array<{ doc_num: number; docs: Array<{ num: number; from: string; to: string; totnum: number; cancel: number; net_issue: number }> }> };
 };
@@ -136,7 +137,11 @@ export type Gstr1ExportInvoice = {
   sbdt?: string;
   itms: Array<{ rt: number; txval: number; iamt: number; csamt: number }>;
 };
-export type Gstr1CreditNote = { ntty: "C" | "D"; nt_num: string; nt_dt: string; pos: string; rchrg: "N"; inv_typ: "R"; val: number; itms: Gstr1Item[] };
+export type Gstr1CreditNote = { ntty: "C" | "D"; nt_num: string; nt_dt: string; pos: string; rchrg: "N"; inv_typ: "R" | "SEWP" | "SEWOP"; val: number; itms: Gstr1Item[] };
+/** CDNUR row: a large inter-state retail note (B2CL), or a note against an export bill (no place of supply). */
+export type Gstr1UnregisteredNote =
+  | (Gstr1CreditNote & { typ: "B2CL" })
+  | { typ: "EXPWP" | "EXPWOP"; ntty: "C" | "D"; nt_num: string; nt_dt: string; val: number; itms: Gstr1Item[] };
 export type Gstr1HsnRow = { num: number; hsn_sc: string; desc: string; uqc: string; qty: number; rt: number; txval: number; iamt: number; camt: number; samt: number; csamt: number };
 
 export type Gstr1Build = {
@@ -347,7 +352,7 @@ export function buildGstr1Json(input: Gstr1Input): Gstr1Build {
   const b2clMap = new Map<string, Gstr1Invoice[]>();
   const b2csMap = new Map<string, { sply_ty: "INTRA" | "INTER"; pos: string; rates: Map<number, RateHeads> }>();
   const cdnrMap = new Map<string, Gstr1CreditNote[]>();
-  const cdnur: Array<Gstr1CreditNote & { typ: "B2CL" }> = [];
+  const cdnur: Gstr1UnregisteredNote[] = [];
   const hsnB2b = new Map<string, HsnAcc>();
   const hsnB2c = new Map<string, HsnAcc>();
   const nil = { INTRB2B: 0, INTRAB2B: 0, INTRB2C: 0, INTRAB2C: 0 };
@@ -511,7 +516,39 @@ export function buildGstr1Json(input: Gstr1Input): Gstr1Build {
     }
   }
 
+  /** Credit note against an export bill → CDNUR (EXPWP / EXPWOP); against an SEZ bill → CDNR (SEWP / SEWOP). IGST. */
+  const addZeroRatedNote = (note: Gstr1Note, supply: Gstr1SupplyType) => {
+    const exportNote = supply === "EXPWP" || supply === "EXPWOP";
+    const withoutTax = supply === "EXPWOP" || supply === "SEZWOP";
+    if (!isValidDocNumber(note.number)) badNumbers.push(note.number || "(blank)");
+    const gstin = String(note.gstin || "").trim().toUpperCase();
+    if (!exportNote && !isValidGstin(gstin)) {
+      sezNoGstinBills.push(note.number);
+      return;
+    }
+    const rates = rateSplit(note, !exportNote, true, -1, true);
+    // The note carries positive amounts; the sign above only nets the HSN summary.
+    const positive = new Map<number, RateHeads>();
+    rates.forEach((r, rate) => positive.set(rate, { rt: rate, txval: -r.txval, iamt: -r.iamt, camt: -r.camt, samt: -r.samt }));
+    if (withoutTax && [...positive.values()].some((r) => Math.abs(r.iamt) >= 0.005)) lutTaxBills.push(note.number);
+    const itms = itemsFromRates(positive, true);
+    if (itms.length === 0) return;
+    const base = { ntty: "C" as const, nt_num: note.number, nt_dt: portalDate(note.date), val: round2(note.billValue), itms };
+    if (exportNote) {
+      cdnur.push({ typ: supply === "EXPWOP" ? "EXPWOP" : "EXPWP", ...base });
+      return;
+    }
+    const list = cdnrMap.get(gstin) || [];
+    list.push({ ...base, pos: extractStateCode(gstin) || shopState, rchrg: "N", inv_typ: withoutTax ? "SEWOP" : "SEWP" });
+    cdnrMap.set(gstin, list);
+  };
+
   for (const note of input.notes) {
+    const zeroSupply = zeroRatedSupplyOf(note);
+    if (zeroSupply) {
+      addZeroRatedNote(note, zeroSupply);
+      continue;
+    }
     const { gstin, registered, inter, pos } = classify(note);
     if (registered) {
       const rates = rateSplit(note, true, inter, -1);
@@ -575,8 +612,8 @@ export function buildGstr1Json(input: Gstr1Input): Gstr1Build {
   pushRefs(errors, "bad_hsn", "HSN must be 4, 6 or 8 digits (SAC 6 digits)", badHsnProducts);
   pushRefs(warnings, "unknown_uqc", "Product unit not in the GST unit list; reported as OTH", unknownUnits);
   pushRefs(warnings, "nil_rated", "0% / No-GST amounts reported as nil-rated (Table 8). If they are exempt goods, move them on the portal", nilBills);
-  pushRefs(errors, "sez_gstin", "SEZ bills need the SEZ unit's valid GSTIN on the customer", sezNoGstinBills);
-  pushRefs(errors, "lut_tax", "Export / SEZ bills under LUT carry GST on their lines: set GST 0% on the bill, or change the supply to \"with IGST\"", lutTaxBills);
+  pushRefs(errors, "sez_gstin", "SEZ bills and their returns need the SEZ unit's valid GSTIN on the customer", sezNoGstinBills);
+  pushRefs(errors, "lut_tax", "Export / SEZ bills or returns under LUT carry GST on their lines: set GST 0%, or change the bill's supply to \"with IGST\"", lutTaxBills);
   pushRefs(warnings, "shipping_bill", "Export bills without shipping bill details: add them on the portal once the shipping bill is issued", noShippingBills);
   pushRefs(warnings, "shipping_bill", "Shipping bill details left out of the file: the portal wants a 6-character port code, a 3–7 digit shipping bill number and its date", badShippingBills);
 
