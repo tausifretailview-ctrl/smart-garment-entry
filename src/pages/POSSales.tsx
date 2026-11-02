@@ -4299,10 +4299,14 @@ export default function POSSales() {
   // Same-bill exchange: allow S/R above bill (excess → Mix refund/CN).
   // Also treat live S/R > bill as exchange so we don't wipe credit after a line delete
   // when sameBillReturnGross was not set (manual entry / restored cart).
-  /** Admin / manager may record a customer's old (never entered) sale return from POS. */
-  const canRecordManualSr = organizationRole === "admin" || organizationRole === "manager";
+  // Any POS user may record a customer's old (never entered) sale return from S/R Adj
+  // (old credit-note balance, or a return taken at the other shop): it is saved as an
+  // amount-only sale return + credit note (visible in Sale Returns), then used on the bill.
+  // Typed S/R above the bill is an exchange only for walk-in or a return saved from this
+  // bill's S/R dialog (sameBillReturnGross). For a named customer a typed amount is old
+  // credit and is capped to the bill, so it can never save unbacked.
   const isSameBillExchangeSr =
-    sameBillReturnGross > 0.005 || saleReturnAdjust > maxSrFromBill + 0.005;
+    sameBillReturnGross > 0.005 || (!customerId && saleReturnAdjust > maxSrFromBill + 0.005);
   const maxSrAllowed = isSameBillExchangeSr
     ? Math.max(
         Math.round(Math.max(sameBillReturnGross, saleReturnAdjust) * 100) / 100,
@@ -4599,6 +4603,7 @@ export default function POSSales() {
   const [creditApplyFailure, setCreditApplyFailure] = useState<{
     saleId: string;
     customerId: string;
+    customerName: string;
     amount: number;
     idempotencyKey: string;
     message: string;
@@ -4633,6 +4638,7 @@ export default function POSSales() {
     setCreditApplyFailure({
       saleId: result.id,
       customerId: customerIdForCredit,
+      customerName: customerName || "Customer",
       amount: Number(result.creditApplyAmount || 0),
       idempotencyKey,
       message: result.creditApplyError,
@@ -4644,6 +4650,29 @@ export default function POSSales() {
 
   const retryFailedCreditApply = async () => {
     if (!creditApplyFailure || creditApplyFailure.amount <= 0.01) return;
+    // S/R typed by hand with no saved return behind it (old CN balance / other shop's
+    // return): record the missing part as an old sale return first, then apply.
+    if (currentOrganization?.id) {
+      try {
+        const { total } = await getAvailableCN(supabase, creditApplyFailure.customerId, currentOrganization.id, {
+          includeUnlinkedAdjusted: true,
+        });
+        const shortfall = manualSrShortfall(creditApplyFailure.amount, total);
+        if (shortfall > 0) {
+          const created = await createManualSaleReturnCredit(supabase, {
+            organizationId: currentOrganization.id,
+            customerId: creditApplyFailure.customerId,
+            customerName: creditApplyFailure.customerName,
+            amount: shortfall,
+          });
+          toast.info(`Old sale return ${created.returnNumber} recorded for ₹${formatINR2(shortfall)}`);
+        }
+      } catch (err) {
+        console.error("Manual S/R credit on retry failed:", err);
+        toast.error(err instanceof Error ? err.message : "Could not record the old sale return");
+        return;
+      }
+    }
     const retry = await applyCredit(
       creditApplyFailure.customerId,
       creditApplyFailure.saleId,
@@ -5156,17 +5185,17 @@ export default function POSSales() {
   const blockUnbackedSaleReturnAdjust = (): boolean => {
     if (!customerId || currentSaleId || isSameBillExchangeSr) return false;
     const requested = Math.min(Math.max(0, saleReturnAdjust), maxSrFromBill);
+    if (saleReturnAdjust > requested + 0.01) {
+      // Typed S/R above the bill (e.g. a line was deleted after typing): cap it first.
+      setSaleReturnAdjust(requested);
+      toast.warning(
+        `S/R Adj reduced to the bill amount ₹${requested.toLocaleString("en-IN", { maximumFractionDigits: 2 })}. Check and press pay again.`,
+      );
+      return true;
+    }
     const shortfall = manualSrShortfall(requested, availableSrCredit);
     if (shortfall <= 0) return false;
-    if (canRecordManualSr) {
-      setManualSrPrompt({ requested, shortfall });
-    } else {
-      toast.error(
-        availableSrCredit > 0.01
-          ? `S/R Adj is more than this customer's saved return credit (₹${formatINR2(availableSrCredit)}). Ask an admin or manager to record the old return.`
-          : "No saved Sale Return credit for this customer. Ask an admin or manager to record the old return, or clear S/R Adj.",
-      );
-    }
+    setManualSrPrompt({ requested, shortfall });
     return true;
   };
 
@@ -9165,7 +9194,7 @@ export default function POSSales() {
                       if (!Number.isFinite(n)) return;
                       // Allow typing above bill; clamp on blur to maxSrAllowed (exchange vs pre-existing).
                       setSaleReturnAdjust(Math.max(0, n));
-                      if (n > maxSrFromBill + 0.005) {
+                      if (!customerId && n > maxSrFromBill + 0.005) {
                         setSameBillReturnGross((prev) => Math.max(prev, n));
                       }
                     }}
@@ -9179,31 +9208,32 @@ export default function POSSales() {
                       }
                       // Keep exchange / over-bill S/R — never wipe when return exceeds bill
                       // (blur often fires when clicking delete on a cart line).
-                      if (requested > maxSrFromBill + 0.005 || sameBillReturnGross > 0.005) {
+                      if (
+                        sameBillReturnGross > 0.005 ||
+                        (!customerId && requested > maxSrFromBill + 0.005)
+                      ) {
                         setSameBillReturnGross((prev) => Math.max(prev, requested));
                         setSaleReturnAdjust(requested);
                         return;
                       }
-                      // Customer's old return that was never entered: admin / manager can
+                      // Named customer: typed old credit is capped to this bill.
+                      const forBill = customerId ? Math.min(requested, maxSrFromBill) : requested;
+                      if (customerId && requested > forBill + 0.01) {
+                        toast.warning(
+                          `Only ₹${forBill.toLocaleString("en-IN", { maximumFractionDigits: 2 })} of S/R can be adjusted on this bill`,
+                        );
+                        setSaleReturnAdjust(forBill);
+                      }
+                      // Customer's old return that was never entered (old CN balance / other shop):
                       // record it now (amount-only sale return + credit note), then it is used here.
                       const manualShortfall = customerId
-                        ? manualSrShortfall(Math.min(requested, maxSrFromBill), availableSrCredit)
+                        ? manualSrShortfall(forBill, availableSrCredit)
                         : 0;
-                      if (manualShortfall > 0 && canRecordManualSr) {
-                        setManualSrPrompt({ requested: Math.min(requested, maxSrFromBill), shortfall: manualShortfall });
+                      if (manualShortfall > 0) {
+                        setManualSrPrompt({ requested: forBill, shortfall: manualShortfall });
                         return;
                       }
-                      if (
-                        customerId &&
-                        availableSrCredit <= 0.01 &&
-                        requested > 0.01
-                      ) {
-                        toast.warning("No pending Sale Return credit for this customer. Ask an admin or manager to record the old return.");
-                        setSaleReturnAdjust(0);
-                        setSameBillReturnGross(0);
-                        return;
-                      }
-                      clampSaleReturnAdjust(requested);
+                      clampSaleReturnAdjust(forBill);
                     }}
                   />
                   {customerId && pendingSaleReturnCredits.length > 0 && (
