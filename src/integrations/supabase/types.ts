@@ -3464,7 +3464,6 @@ export type Database = {
       }
       eway_bills: {
         Row: {
-          challan_id: string | null
           created_at: string
           created_by: string | null
           distance_km: number | null
@@ -3477,11 +3476,8 @@ export type Database = {
           id: string
           irn: string | null
           organization_id: string
-          purchase_return_id: string | null
           sale_id: string | null
           status: string
-          sub_supply_desc: string | null
-          sub_supply_type: string | null
           test_mode: boolean
           trans_doc_date: string | null
           trans_doc_no: string | null
@@ -3494,7 +3490,6 @@ export type Database = {
           vehicle_type: string | null
         }
         Insert: {
-          challan_id?: string | null
           created_at?: string
           created_by?: string | null
           distance_km?: number | null
@@ -3507,11 +3502,8 @@ export type Database = {
           id?: string
           irn?: string | null
           organization_id: string
-          purchase_return_id?: string | null
           sale_id?: string | null
           status?: string
-          sub_supply_desc?: string | null
-          sub_supply_type?: string | null
           test_mode?: boolean
           trans_doc_date?: string | null
           trans_doc_no?: string | null
@@ -3524,7 +3516,6 @@ export type Database = {
           vehicle_type?: string | null
         }
         Update: {
-          challan_id?: string | null
           created_at?: string
           created_by?: string | null
           distance_km?: number | null
@@ -3537,11 +3528,8 @@ export type Database = {
           id?: string
           irn?: string | null
           organization_id?: string
-          purchase_return_id?: string | null
           sale_id?: string | null
           status?: string
-          sub_supply_desc?: string | null
-          sub_supply_type?: string | null
           test_mode?: boolean
           trans_doc_date?: string | null
           trans_doc_no?: string | null
@@ -3555,13 +3543,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "eway_bills_challan_id_fkey"
-            columns: ["challan_id"]
-            isOneToOne: false
-            referencedRelation: "delivery_challans"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "eway_bills_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -3569,17 +3550,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "eway_bills_purchase_return_id_fkey"
-            columns: ["purchase_return_id"]
+            foreignKeyName: "eway_bills_organization_id_fkey"
+            columns: ["organization_id"]
             isOneToOne: false
-            referencedRelation: "purchase_returns"
-            referencedColumns: ["id"]
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "eway_bills_sale_id_fkey"
             columns: ["sale_id"]
             isOneToOne: false
             referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eway_bills_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales_with_customer"
             referencedColumns: ["id"]
           },
         ]
