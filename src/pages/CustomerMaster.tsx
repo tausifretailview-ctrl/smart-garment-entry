@@ -1847,7 +1847,7 @@ const CustomerMaster = () => {
 
         {/* All existing dialogs */}
         <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
-          <DialogContent>
+          <DialogContent className="max-h-[90dvh] overflow-y-auto p-5 sm:p-8">
             <DialogHeader>
               <DialogTitle>{editingCustomer ? "Edit Customer" : "Add New Customer"}</DialogTitle>
             </DialogHeader>
@@ -2110,12 +2110,12 @@ const CustomerMaster = () => {
                     Add Customer
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-lg">
+                <DialogContent className="w-[96vw] sm:max-w-4xl max-h-[92dvh] overflow-y-auto gap-3 p-5 sm:p-6">
                   <DialogHeader>
                     <DialogTitle>{editingCustomer ? "Edit Customer" : "Add New Customer"}</DialogTitle>
                   </DialogHeader>
                   <form onSubmit={handleSubmit} className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <div>
                         <Label htmlFor="phone" className="text-xs">Mobile Number</Label>
                         <Input id="phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} autoFocus placeholder="Optional" className="h-9" />
@@ -2124,8 +2124,6 @@ const CustomerMaster = () => {
                         <Label htmlFor="customer_name" className="text-xs">Customer Name</Label>
                         <Input id="customer_name" value={formData.customer_name} onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })} placeholder="Optional" className="h-9" />
                       </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
                       <div>
                         <Label htmlFor="email" className="text-xs">Email</Label>
                         <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="h-9" />
@@ -2143,7 +2141,7 @@ const CustomerMaster = () => {
                     {industrialMode.enabled && (
                       <CustomerCreditTermsFields value={creditTermsForm} onChange={setCreditTermsForm} compact idPrefix="ct" />
                     )}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                       <div>
                         <Label htmlFor="birthday" className="text-xs">Birthday</Label>
                         <Input id="birthday" type="date" value={formData.birthday} onChange={(e) => setFormData({ ...formData, birthday: e.target.value })} className="h-9" />
@@ -2152,13 +2150,6 @@ const CustomerMaster = () => {
                         <Label htmlFor="anniversary" className="text-xs">Anniversary</Label>
                         <Input id="anniversary" type="date" value={formData.anniversary} onChange={(e) => setFormData({ ...formData, anniversary: e.target.value })} className="h-9" />
                       </div>
-                    </div>
-                    <div
-                      className={cn(
-                        "grid gap-3",
-                        enablePointsSystem ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3",
-                      )}
-                    >
                       <div>
                         <Label htmlFor="opening_balance" className="text-xs">Opening Balance (₹)</Label>
                         <Input id="opening_balance" type="number" step="0.01" value={formData.opening_balance} onChange={(e) => setFormData({ ...formData, opening_balance: e.target.value })} placeholder="Receivable" className="h-9" />
