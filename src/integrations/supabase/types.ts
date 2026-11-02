@@ -3462,6 +3462,102 @@ export type Database = {
           },
         ]
       }
+      eway_bills: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          distance_km: number | null
+          doc_date: string | null
+          doc_no: string | null
+          doc_type: string
+          ewb_date: string | null
+          ewb_no: string
+          generated_via: string
+          id: string
+          irn: string | null
+          organization_id: string
+          sale_id: string | null
+          status: string
+          test_mode: boolean
+          trans_doc_date: string | null
+          trans_doc_no: string | null
+          trans_mode: string | null
+          transporter_id: string | null
+          transporter_name: string | null
+          updated_at: string
+          valid_till: string | null
+          vehicle_no: string | null
+          vehicle_type: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          distance_km?: number | null
+          doc_date?: string | null
+          doc_no?: string | null
+          doc_type?: string
+          ewb_date?: string | null
+          ewb_no: string
+          generated_via?: string
+          id?: string
+          irn?: string | null
+          organization_id: string
+          sale_id?: string | null
+          status?: string
+          test_mode?: boolean
+          trans_doc_date?: string | null
+          trans_doc_no?: string | null
+          trans_mode?: string | null
+          transporter_id?: string | null
+          transporter_name?: string | null
+          updated_at?: string
+          valid_till?: string | null
+          vehicle_no?: string | null
+          vehicle_type?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          distance_km?: number | null
+          doc_date?: string | null
+          doc_no?: string | null
+          doc_type?: string
+          ewb_date?: string | null
+          ewb_no?: string
+          generated_via?: string
+          id?: string
+          irn?: string | null
+          organization_id?: string
+          sale_id?: string | null
+          status?: string
+          test_mode?: boolean
+          trans_doc_date?: string | null
+          trans_doc_no?: string | null
+          trans_mode?: string | null
+          transporter_id?: string | null
+          transporter_name?: string | null
+          updated_at?: string
+          valid_till?: string | null
+          vehicle_no?: string | null
+          vehicle_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eway_bills_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eway_bills_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expense_categories: {
         Row: {
           created_at: string | null

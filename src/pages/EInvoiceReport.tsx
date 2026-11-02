@@ -8,6 +8,9 @@ import { useSettings } from "@/hooks/useSettings";
 import { useIndustrialMode } from "@/hooks/useIndustrialMode";
 import { isExportSupply, saleSupplyShortLabel, saleSupplyTypeOf } from "@/utils/industrialMode";
 import { invokeSaleEInvoice } from "@/utils/saleEInvoiceRoute";
+import { useEwayBillsForSales } from "@/hooks/useSaleEwayBills";
+import { ewbValidity, formatEwbNo } from "@/utils/ewayBill";
+import { SaleEwayBillDialog } from "@/components/ewaybill/SaleEwayBillDialog";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -21,7 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ERPTable } from "@/components/erp-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, subDays } from "date-fns";
-import { Search, FileSpreadsheet, Loader2, RefreshCw, CheckCircle2, AlertTriangle, Clock, XCircle, Shield, Zap } from "lucide-react";
+import { Search, FileSpreadsheet, Loader2, RefreshCw, CheckCircle2, AlertTriangle, Clock, XCircle, Shield, Zap, Truck } from "lucide-react";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
@@ -60,6 +63,8 @@ type EInvoiceRecord = {
   } | null;
   /** Read only with Industrial mode on (export / SEZ supply type). */
   b2b_details?: unknown;
+  /** Read only with Industrial mode on (e-way bill environment). */
+  einvoice_test_mode?: boolean | null;
 };
 
 const getEffectiveStatus = (invoice: EInvoiceRecord): Exclude<StatusFilter, 'all'> => {
@@ -163,7 +168,7 @@ export default function EInvoiceReport() {
       const baseSelect = 'id, sale_number, sale_date, created_at, cancelled_at, customer_name, customer_phone, net_amount, irn, ack_no, ack_date, einvoice_status, einvoice_error, einvoice_qr_code, is_cancelled, customers:customer_id (gst_number)';
       const { data, error } = await supabase
         .from('sales')
-        .select(industrialIrn ? `${baseSelect}, b2b_details` : baseSelect)
+        .select(industrialIrn ? `${baseSelect}, b2b_details, einvoice_test_mode` : baseSelect)
         .eq('organization_id', currentOrganization.id)
         .in('sale_type', ['invoice', 'pos'])
         .is('deleted_at', null)
@@ -209,6 +214,14 @@ export default function EInvoiceReport() {
 
     return filtered;
   }, [periodInvoices, statusFilter, searchQuery]);
+
+  // Industrial mode, Phase 2 step 4: e-way bill of each bill with an active IRN.
+  const ewbSaleIds = useMemo(
+    () => (industrialIrn ? filteredInvoices.filter((i) => i.irn && i.einvoice_status === 'generated').map((i) => i.id) : []),
+    [industrialIrn, filteredInvoices],
+  );
+  const ewb = useEwayBillsForSales(currentOrganization?.id, ewbSaleIds, industrialIrn);
+  const [ewbInvoice, setEwbInvoice] = useState<EInvoiceRecord | null>(null);
 
   const summary = useMemo(() => {
     if (!periodInvoices.length) return { total: 0, generated: 0, pending: 0, failed: 0, cancelled: 0 };
@@ -261,6 +274,9 @@ export default function EInvoiceReport() {
       'Ack No': inv.ack_no || '',
       'Ack Date': inv.ack_date ? format(new Date(inv.ack_date), 'dd/MM/yyyy HH:mm') : '',
       'Status': getStatusLabel(inv),
+      ...(industrialIrn
+        ? { 'E-Way Bill No': ewb.rows.get(inv.id)?.status === 'active' ? ewb.rows.get(inv.id)!.ewb_no : '' }
+        : {}),
       'Error': inv.einvoice_error || '',
     }));
     const XLSX = await loadXlsx();
@@ -346,6 +362,34 @@ export default function EInvoiceReport() {
       cell: ({ row }) => <span className="text-xs">{row.original.ack_no || '-'}</span>,
       size: 120,
     },
+    ...(industrialIrn
+      ? [
+          {
+            id: 'ewb',
+            header: 'E-way bill',
+            cell: ({ row }) => {
+              const inv = row.original as EInvoiceRecord;
+              if (!inv.irn || inv.einvoice_status !== 'generated') return <span className="text-muted-foreground text-xs">-</span>;
+              const bill = ewb.rows.get(inv.id);
+              if (bill?.status === 'active') {
+                const v = ewbValidity(bill);
+                return (
+                  <button type="button" onClick={() => setEwbInvoice(inv)} className="text-left">
+                    <span className="block font-mono text-xs font-semibold text-teal-700 hover:underline">{formatEwbNo(bill.ewb_no)}</span>
+                    <span className={`block text-[11px] ${v.tone === 'expired' ? 'text-red-600' : v.tone === 'ok' ? 'text-slate-500' : 'text-amber-700'}`}>{v.label}</span>
+                  </button>
+                );
+              }
+              return (
+                <Button variant="outline" size="sm" className="h-7 gap-1 border-teal-200 text-teal-700 hover:bg-teal-50" onClick={() => setEwbInvoice(inv)}>
+                  <Truck className="h-3 w-3" /> Get EWB
+                </Button>
+              );
+            },
+            size: 150,
+          } as ColumnDef<any, any>,
+        ]
+      : []),
     {
       id: 'error',
       header: 'Error',
@@ -410,7 +454,7 @@ export default function EInvoiceReport() {
       },
       size: 120,
     },
-  ], [settings, currentOrganization, industrialIrn]);
+  ], [settings, currentOrganization, industrialIrn, ewb.rows]);
 
   const einvoiceKpiItems = useMemo((): ReportKpiItem[] => [
     {
@@ -528,6 +572,33 @@ export default function EInvoiceReport() {
           </Button>
         )}
       </div>
+
+      {industrialIrn && currentOrganization?.id ? (
+        <SaleEwayBillDialog
+          open={!!ewbInvoice}
+          onOpenChange={(v) => {
+            if (!v) setEwbInvoice(null);
+          }}
+          organizationId={currentOrganization.id}
+          sale={
+            ewbInvoice
+              ? {
+                  id: ewbInvoice.id,
+                  sale_number: String(ewbInvoice.sale_number ?? ''),
+                  sale_date: String(ewbInvoice.sale_date ?? ''),
+                  net_amount: ewbInvoice.net_amount,
+                  customer_name: ewbInvoice.customer_name,
+                  irn: ewbInvoice.irn,
+                  einvoice_status: ewbInvoice.einvoice_status,
+                  einvoice_test_mode: ewbInvoice.einvoice_test_mode ?? null,
+                }
+              : null
+          }
+          ewayBill={ewbInvoice ? ewb.rows.get(ewbInvoice.id) ?? null : null}
+          missingSql={ewb.missingSql}
+          onChanged={() => void ewb.refetch()}
+        />
+      ) : null}
 
       {/* Table */}
       <ERPTable
