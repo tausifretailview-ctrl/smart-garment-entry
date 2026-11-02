@@ -176,7 +176,8 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
       } else if (action === "sync" && res.code === "NOT_FOUND") {
         toast({ title: "No e-way bill yet", description: res.error });
       } else {
-        setProblem({ field: res.field ?? null, error: res.error || "The IRP did not accept it" });
+        // generate / sync only report the IRN form's fields.
+        setProblem({ field: (res.field as EwbProblemField | undefined) ?? null, error: res.error || "The IRP did not accept it" });
       }
     } finally {
       setBusy(null);
