@@ -103,8 +103,12 @@ import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
-import { PaymentReceiptPrint } from "@/components/PaymentReceiptPrint";
-import { getPaymentReceiptPrintPageStyle } from "@/utils/paymentReceiptPrintConfig";
+import { PaymentReceiptPrint, usePaymentReceiptDialogClassName } from "@/components/PaymentReceiptPrint";
+import {
+  getPaymentReceiptPrintPageStyle,
+  PAYMENT_RECEIPT_DIALOG_BODY_CLASS,
+  PAYMENT_RECEIPT_DIALOG_FOOTER_CLASS,
+} from "@/utils/paymentReceiptPrintConfig";
 import { mapSaleFinancerDetailsForInvoice } from "@/utils/saleFinancerDetailsForInvoice";
 import {
   AlertDialog,
@@ -567,6 +571,7 @@ export default function SalesInvoiceDashboard() {
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
+  const receiptDialogClassName = usePaymentReceiptDialogClassName();
   const openCustomerAccount = useOpenCustomerAccount();
 
   // Invoice history dialog state
@@ -5486,7 +5491,7 @@ export default function SalesInvoiceDashboard() {
 
         {/* Payment Receipt Dialog */}
         <Dialog open={showReceiptDialog} onOpenChange={setShowReceiptDialog}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className={receiptDialogClassName}>
             <DialogHeader>
               <DialogTitle>Payment Receipt</DialogTitle>
               <DialogDescription>
@@ -5498,11 +5503,11 @@ export default function SalesInvoiceDashboard() {
               <PaymentReceiptPrint ref={receiptRef} receiptData={receiptData} />
             </div>
             
-            <div className="border rounded-lg p-4 bg-gray-50 overflow-auto">
+            <div className={PAYMENT_RECEIPT_DIALOG_BODY_CLASS}>
               <PaymentReceiptPrint receiptData={receiptData} preview />
             </div>
 
-            <DialogFooter className="gap-2">
+            <DialogFooter className={PAYMENT_RECEIPT_DIALOG_FOOTER_CLASS}>
               <Button variant="outline" onClick={() => setShowReceiptDialog(false)}>
                 Close
               </Button>

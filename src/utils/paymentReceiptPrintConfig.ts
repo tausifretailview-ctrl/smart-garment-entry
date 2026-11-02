@@ -175,3 +175,22 @@ export function getPaymentReceiptPrintPageStyle(
     }
   `;
 }
+
+/**
+ * Classes for the "Payment Receipt" preview dialog: narrow for thermal
+ * receipts, wide for A4/A5, never taller than the screen. Pair with
+ * PAYMENT_RECEIPT_DIALOG_BODY_CLASS on the preview box so only the receipt
+ * scrolls and the Close / Print / WhatsApp buttons stay visible.
+ */
+export function paymentReceiptDialogClassName(isThermal: boolean): string {
+  return [
+    "flex max-h-[92vh] flex-col gap-3 overflow-hidden p-5 sm:p-6",
+    isThermal ? "max-w-[480px]" : "max-w-4xl",
+  ].join(" ");
+}
+
+export const PAYMENT_RECEIPT_DIALOG_BODY_CLASS =
+  "min-h-0 flex-1 overflow-auto rounded-lg border bg-gray-50 p-3";
+
+export const PAYMENT_RECEIPT_DIALOG_FOOTER_CLASS =
+  "shrink-0 flex-wrap gap-2 sm:space-x-0";

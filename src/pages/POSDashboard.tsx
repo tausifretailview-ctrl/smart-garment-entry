@@ -91,7 +91,7 @@ const loadHtml2Canvas = (): Promise<typeof html2canvasType> =>
   (html2canvasPromise ??= import("html2canvas").then((m) => m.default));
 
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
-import { PaymentReceiptPrint } from "@/components/PaymentReceiptPrint";
+import { PaymentReceiptPrint, usePaymentReceiptDialogClassName } from "@/components/PaymentReceiptPrint";
 import { MixReceiptInputs } from "@/components/MixReceiptInputs";
 import {
   EMPTY_MIX_RECEIPT_AMOUNTS,
@@ -104,7 +104,11 @@ import {
   type MixReceiptLeg,
   type MixReceiptMethod,
 } from "@/utils/mixReceiptSplit";
-import { getPaymentReceiptPrintPageStyle } from "@/utils/paymentReceiptPrintConfig";
+import {
+  getPaymentReceiptPrintPageStyle,
+  PAYMENT_RECEIPT_DIALOG_BODY_CLASS,
+  PAYMENT_RECEIPT_DIALOG_FOOTER_CLASS,
+} from "@/utils/paymentReceiptPrintConfig";
 import { mapSaleFinancerDetailsForInvoice } from "@/utils/saleFinancerDetailsForInvoice";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -702,6 +706,7 @@ const POSDashboard = () => {
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
+  const receiptDialogClassName = usePaymentReceiptDialogClassName();
   
   const openCustomerAccount = useOpenCustomerAccount();
   // E-Invoice state
@@ -5347,7 +5352,7 @@ const POSDashboard = () => {
 
       {/* Payment Receipt Dialog */}
       <Dialog open={showReceiptDialog} onOpenChange={setShowReceiptDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className={receiptDialogClassName}>
           <DialogHeader>
             <DialogTitle>Payment Receipt</DialogTitle>
             <DialogDescription>
@@ -5359,11 +5364,11 @@ const POSDashboard = () => {
             <PaymentReceiptPrint ref={receiptRef} receiptData={receiptData} />
           </div>
           
-          <div className="border rounded-lg p-4 bg-gray-50 overflow-auto">
+          <div className={PAYMENT_RECEIPT_DIALOG_BODY_CLASS}>
             <PaymentReceiptPrint receiptData={receiptData} preview />
           </div>
 
-          <DialogFooter className="gap-2">
+          <DialogFooter className={PAYMENT_RECEIPT_DIALOG_FOOTER_CLASS}>
             <Button variant="outline" onClick={() => setShowReceiptDialog(false)}>
               Close
             </Button>

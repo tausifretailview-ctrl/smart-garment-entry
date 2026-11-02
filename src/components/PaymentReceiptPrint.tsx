@@ -7,6 +7,7 @@ import {
   paymentReceiptPrintRootClassName,
   resolvePaymentReceiptCompanyDetails,
   resolvePaymentReceiptPrintLayout,
+  paymentReceiptDialogClassName,
   type OrgSettingsForPaymentReceipt,
   type PaymentReceiptCompanyDetails,
 } from "@/utils/paymentReceiptPrintConfig";
@@ -80,3 +81,15 @@ export const PaymentReceiptPrint = forwardRef<HTMLDivElement, PaymentReceiptPrin
 );
 
 PaymentReceiptPrint.displayName = "PaymentReceiptPrint";
+
+/** Dialog size for the receipt preview, based on the org's receipt format. */
+export function usePaymentReceiptDialogClassName(): string {
+  const { data: orgSettings } = useSettings();
+  return useMemo(
+    () =>
+      paymentReceiptDialogClassName(
+        resolvePaymentReceiptPrintLayout(orgSettings as OrgSettingsForPaymentReceipt | null).isThermal,
+      ),
+    [orgSettings],
+  );
+}

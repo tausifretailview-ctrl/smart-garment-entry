@@ -60,8 +60,11 @@ import {
 } from "@/utils/invoiceOverpaymentGuard";
 import { confirmSupplierOverpaymentIfNeeded } from "@/utils/supplierOverpaymentGuard";
 import { invalidateMoneyViewsAfterMutation } from "@/utils/moneyViewFreshnessInvalidation";
-import { PaymentReceiptPrint } from "@/components/PaymentReceiptPrint";
-import { getPaymentReceiptPrintPageStyle } from "@/utils/paymentReceiptPrintConfig";
+import { PaymentReceiptPrint, usePaymentReceiptDialogClassName } from "@/components/PaymentReceiptPrint";
+import {
+  getPaymentReceiptPrintPageStyle,
+  PAYMENT_RECEIPT_DIALOG_BODY_CLASS,
+} from "@/utils/paymentReceiptPrintConfig";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { AdaptiveCustomerPicker } from "@/components/mobile/AdaptiveCustomerPicker";
 import { AdaptiveSupplierPicker } from "@/components/mobile/AdaptiveSupplierPicker";
@@ -94,6 +97,7 @@ export const FloatingPayments = ({ open, onOpenChange }: FloatingPaymentsProps) 
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
+  const receiptDialogClassName = usePaymentReceiptDialogClassName();
 
   const { data: settings } = useSettings();
 
@@ -139,12 +143,14 @@ export const FloatingPayments = ({ open, onOpenChange }: FloatingPaymentsProps) 
         {/* Receipt Print Dialog */}
         {showReceipt && receiptData && (
           <Dialog open={showReceipt} onOpenChange={setShowReceipt}>
-            <DialogContent className="max-w-lg max-h-[90vh] overflow-auto">
+            <DialogContent className={receiptDialogClassName}>
               <DialogHeader>
                 <DialogTitle>Payment Receipt</DialogTitle>
               </DialogHeader>
-              <PaymentReceiptPrint ref={receiptRef} receiptData={receiptData} preview />
-              <div className="flex gap-2 justify-end mt-2">
+              <div className={PAYMENT_RECEIPT_DIALOG_BODY_CLASS}>
+                <PaymentReceiptPrint ref={receiptRef} receiptData={receiptData} preview />
+              </div>
+              <div className="flex shrink-0 justify-end gap-2">
                 <Button size="sm" variant="outline" onClick={() => {
                   if (!receiptData?.customerPhone) { toast.error("No phone number"); return; }
                   const fmt = (n: number) => Math.round(n).toLocaleString("en-IN");
