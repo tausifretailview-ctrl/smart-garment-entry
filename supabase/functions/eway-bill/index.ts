@@ -1,8 +1,9 @@
 // E-way bills (EWB). Industrial mode, Phase 2 step 4: the e-way bill of a sale bill
 // from its e-invoice (IRN), through PeriOne's e-invoice API on the shop's existing
 // e-invoice login: GENERATE_EWAYBILL, and GETEWAYBILLIRN to read back one the IRP
-// already holds. Saved in public.eway_bills. Shops without Industrial mode are refused
-// before anything is read. generate-einvoice, cancel-einvoice and einvoice-note are
+// already holds. Saved in public.eway_bills. Shops whose E-Way Bill switch (Settings >
+// Sale > E-Invoice) is off are refused before anything is read; Industrial mode shops
+// have it on by default. generate-einvoice, cancel-einvoice and einvoice-note are
 // not touched.
 // Step 5b: vehicle update (Part B), cancel and extend, through PeriOne's e-way bill API
 // (/ewaybillapi/v1.03), which has its own client id / secret and EWB username / password.
@@ -20,6 +21,7 @@ import {
   ewbApiValidUpto,
   ewbDistance,
   ewbReplyInfo,
+  ewayBillEnabled,
   isEwbTransportMode,
   type EwbExtendInput,
   type EwbPortAddress,
@@ -221,7 +223,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!membership) return json({ success: false, error: 'Forbidden' }, 403);
 
-    // Industrial mode only: the Platform Admin feature and the shop's own switch.
+    // E-Way Bill switch (Settings > Sale > E-Invoice) with e-invoicing on; Industrial mode shops have it on by default.
     const [{ data: org }, { data: settingsData }] = await Promise.all([
       supabase.from('organizations').select('enabled_features').eq('id', organizationId).maybeSingle(),
       supabase.from('settings').select('gst_number, sale_settings').eq('organization_id', organizationId).maybeSingle(),
@@ -229,8 +231,13 @@ Deno.serve(async (req) => {
     const features = Array.isArray(org?.enabled_features) ? org.enabled_features : [];
     // deno-lint-ignore no-explicit-any
     const saleSettings = ((settingsData?.sale_settings as Record<string, any>) || {});
-    if (!features.includes('industrial_mode') || saleSettings?.industrial_mode?.enabled !== true) {
-      return json({ success: false, code: 'NOT_INDUSTRIAL', error: 'E-way bills need Industrial mode (Settings > Sale).' }, 403);
+    const industrialOn = features.includes('industrial_mode') && saleSettings?.industrial_mode?.enabled === true;
+    if (!ewayBillEnabled(saleSettings.einvoice_settings, industrialOn)) {
+      return json({
+        success: false,
+        code: 'EWB_OFF',
+        error: 'E-way bills are off. Turn on E-Invoice and E-Way Bill in Settings > Sale.',
+      }, 403);
     }
 
     if (!isIrnAction) {

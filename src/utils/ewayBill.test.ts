@@ -14,6 +14,8 @@ import {
   ewbDistance,
   ewbReplyInfo,
   ewbValidityDays,
+  ewayBillEnabled,
+  ewayBillSwitchOn,
 } from "../../supabase/functions/_shared/ewayBill";
 import {
   ewbAlertKind,
@@ -445,5 +447,27 @@ describe("e-way bill API: vehicle, cancel, extend (Phase 2 step 5b)", () => {
     );
     expect(ewbApiErrorText({ status_cd: "0", error: { message: "Invalid vehicle number" } }, "Failed")).toBe("Invalid vehicle number");
     expect(ewbApiErrorText({}, "Failed")).toBe("Failed");
+  });
+});
+
+describe("E-Way Bill switch (Settings > Sale > E-Invoice)", () => {
+  it("is off for normal shops until they turn it on", () => {
+    expect(ewayBillSwitchOn(undefined, false)).toBe(false);
+    expect(ewayBillSwitchOn({ enabled: true }, false)).toBe(false);
+    expect(ewayBillSwitchOn({ enabled: true, ewb_enabled: true }, false)).toBe(true);
+  });
+
+  it("stays on for Industrial mode shops unless they turn it off", () => {
+    expect(ewayBillSwitchOn({ enabled: true }, true)).toBe(true);
+    expect(ewayBillSwitchOn({ enabled: true, ewb_enabled: false }, true)).toBe(false);
+  });
+
+  it("needs E-Invoice on, since the e-way bill is made from the IRN", () => {
+    expect(ewayBillEnabled({ enabled: true, ewb_enabled: true }, false)).toBe(true);
+    expect(ewayBillEnabled({ enabled: false, ewb_enabled: true }, false)).toBe(false);
+    expect(ewayBillEnabled({ ewb_enabled: true }, true)).toBe(false);
+    expect(ewayBillEnabled({ enabled: true }, true)).toBe(true);
+    expect(ewayBillEnabled(null, true)).toBe(false);
+    expect(ewayBillEnabled({ enabled: "yes", ewb_enabled: "yes" }, false)).toBe(false);
   });
 });

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { isExportSupply, saleSupplyShortLabel, type SaleB2BDetails } from "@/utils/industrialMode";
 import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { useEwayBillOn } from "@/hooks/useEwayBillOn";
 import { useSaleSupplyTypes } from "@/hooks/useSaleSupplyTypes";
 import { invokeSaleEInvoice } from "@/utils/saleEInvoiceRoute";
 import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
@@ -1097,17 +1098,21 @@ export default function SalesInvoiceDashboard() {
   const exportIrnOn =
     industrialMode.enabled &&
     ((settings?.sale_settings as unknown as { einvoice_settings?: { enabled?: boolean } } | null)?.einvoice_settings?.enabled ?? false);
+  // E-way bill from the IRN (truck button on e-invoiced bills): any shop with E-Invoice and the
+  // E-Way Bill switch on in Settings > Sale. Other shops make no e-way bill query.
+  const ewbOn = useEwayBillOn();
   const pageSaleIds = useMemo(
-    () => (exportIrnOn ? (paginatedInvoices as Array<{ id?: string }>).map((i) => String(i.id ?? "")).filter(Boolean) : []),
-    [exportIrnOn, paginatedInvoices],
+    () =>
+      exportIrnOn || ewbOn
+        ? (paginatedInvoices as Array<{ id?: string }>).map((i) => String(i.id ?? "")).filter(Boolean)
+        : [],
+    [exportIrnOn, ewbOn, paginatedInvoices],
   );
   const pageSupplyTypes = useSaleSupplyTypes(currentOrganization?.id, pageSaleIds, exportIrnOn);
-  // Industrial mode, Phase 2 step 4: e-way bill from the IRN (truck button on e-invoiced bills).
-  // The list rows carry no IRN, so the hook reads it for this page; other shops make no query.
-  const pageEwb = useSaleEwayBills(currentOrganization?.id, pageSaleIds, exportIrnOn);
+  const pageEwb = useSaleEwayBills(currentOrganization?.id, pageSaleIds, ewbOn);
   const [ewbInvoice, setEwbInvoice] = useState<any | null>(null);
   const ewbButtonFor = (invoice: { id?: string }) => {
-    if (!exportIrnOn) return null;
+    if (!ewbOn) return null;
     const irnState = pageEwb.irns.get(String(invoice.id ?? ""));
     if (!irnState || irnState.status !== "generated") return null;
     const ewb = pageEwb.rows.get(String(invoice.id ?? ""));
@@ -3548,7 +3553,7 @@ export default function SalesInvoiceDashboard() {
         .maybeSingle();
       if (einv) invoiceWithItems = { ...invoiceWithItems, ...einv };
     }
-    const ewbForPrint = exportIrnOn ? pageEwb.rows.get(String(invoice.id)) : undefined;
+    const ewbForPrint = ewbOn ? pageEwb.rows.get(String(invoice.id)) : undefined;
     setEInvoiceToPrint(
       ewbForPrint?.status === "active"
         ? { ...invoiceWithItems, ewb_number: formatEwbNo(ewbForPrint.ewb_no), ewb_date: formatIstDateTime(ewbForPrint.ewb_date) }
@@ -4151,11 +4156,11 @@ export default function SalesInvoiceDashboard() {
           )
         )}
 
-        {exportIrnOn ? (
-          // Industrial mode, Phase 2 step 5a: e-way bills that lapse soon or have no vehicle.
+        {ewbOn ? (
+          // E-way bills that lapse soon or have no vehicle (E-Way Bill switch on).
           <EwayBillAlertStrip
             organizationId={currentOrganization?.id}
-            enabled={exportIrnOn}
+            enabled={ewbOn}
             dismissible
             onShow={(kind) => navigate(`/eway-bills?view=${kind}`)}
           />
@@ -5600,7 +5605,7 @@ export default function SalesInvoiceDashboard() {
           organizationId={currentOrganization?.id}
         />
 
-        {exportIrnOn && currentOrganization?.id ? (
+        {ewbOn && currentOrganization?.id ? (
           <SaleEwayBillDialog
             open={!!ewbInvoice}
             onOpenChange={(v) => {

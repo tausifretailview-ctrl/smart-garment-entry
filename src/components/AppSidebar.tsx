@@ -68,6 +68,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
 import { useManufacturerERP } from "@/hooks/useManufacturerERP";
 import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { useEwayBillOn } from "@/hooks/useEwayBillOn";
 import { isBulkWhatsAppEnabled } from "@/utils/whatsappFeatureSwitches";
 import { useChat } from "@/contexts/ChatContext";
 import {
@@ -142,6 +143,7 @@ export function AppSidebar() {
   const { data: orgSettings } = useSettings();
   const manufacturerErpOn = useManufacturerERP().enabled;
   const industrialOn = useIndustrialMode().enabled;
+  const ewayBillOn = useEwayBillOn();
   const bulkWhatsAppOn = isBulkWhatsAppEnabled((orgSettings as { sale_settings?: unknown } | null)?.sale_settings);
   const enablePointsSystem = !!(orgSettings as { sale_settings?: { enable_points_system?: boolean } } | null)
     ?.sale_settings?.enable_points_system;
@@ -748,7 +750,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {industrialOn && (isAdminPermissions || hasMenuAccess("sales_invoice_dashboard")) && (
+                        {ewayBillOn && (isAdminPermissions || hasMenuAccess("sales_invoice_dashboard")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/eway-bills")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
                               <NavLink to="/eway-bills" className="flex items-center gap-2 group">

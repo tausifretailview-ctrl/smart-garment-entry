@@ -9,7 +9,7 @@ import { useManufacturerERPAvailable } from "@/hooks/useManufacturerERP";
 import { useIndustrialModeAvailable } from "@/hooks/useIndustrialMode";
 import { IndustrialModeSettingsCard } from "@/components/settings/IndustrialModeSettingsCard";
 import type { IndustrialModeConfig } from "@/utils/industrialMode";
-import { EwayBillApiSettings } from "@/components/ewaybill/EwayBillApiSettings";
+import { EwayBillSettingsSection } from "@/components/ewaybill/EwayBillSettingsSection";
 import { DEFAULT_MANUFACTURER_ERP, type ManufacturerERPConfig } from "@/utils/manufacturing";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, BarChart2, Factory } from "lucide-react";
@@ -245,7 +245,9 @@ interface EInvoiceSettings {
   api_password?: string;   // Password
   api_client_id?: string;  // Client ID
   api_client_secret?: string; // Client Secret
-  // E-way bill API (Industrial mode, Phase 2 step 5b): separate PeriOne keys
+  /** E-Way Bill switch (any shop). Unset: on for Industrial mode shops, off for the rest. */
+  ewb_enabled?: boolean;
+  // E-way bill API: separate PeriOne keys (vehicle / extend / cancel)
   ewb_api_client_id?: string;
   ewb_api_client_secret?: string;
   ewb_api_username?: string;
@@ -4810,26 +4812,25 @@ export default function Settings() {
                         )}
                       </div>
 
-                      {industrialModeAvailable && settings.sale_settings?.industrial_mode?.enabled === true && (
-                        <div className="mt-4">
-                          <EwayBillApiSettings
-                            organizationId={currentOrganization?.id}
-                            value={settings.sale_settings?.einvoice_settings}
-                            onChange={(patch) =>
-                              setSettings({
-                                ...settings,
-                                sale_settings: {
-                                  ...settings.sale_settings,
-                                  einvoice_settings: {
-                                    ...settings.sale_settings?.einvoice_settings,
-                                    ...patch,
-                                  } as any,
-                                },
-                              })
-                            }
-                          />
-                        </div>
-                      )}
+                      <div className="mt-4">
+                        <EwayBillSettingsSection
+                          organizationId={currentOrganization?.id}
+                          value={settings.sale_settings?.einvoice_settings}
+                          industrialOn={industrialModeAvailable && settings.sale_settings?.industrial_mode?.enabled === true}
+                          onChange={(patch) =>
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                einvoice_settings: {
+                                  ...settings.sale_settings?.einvoice_settings,
+                                  ...patch,
+                                } as any,
+                              },
+                            })
+                          }
+                        />
+                      </div>
 
                       <div className="mt-4 p-3 bg-muted/50 rounded-lg text-sm">
                         <p className="font-medium text-muted-foreground mb-1">⚠️ Important Notes:</p>

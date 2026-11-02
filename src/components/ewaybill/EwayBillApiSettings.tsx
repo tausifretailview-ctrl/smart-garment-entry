@@ -13,9 +13,9 @@ type Props = {
 };
 
 /**
- * Industrial mode, Phase 2 step 5b: PeriOne's e-way bill API keys, used to add or change
- * the vehicle, cancel and extend e-way bills. Different from the e-invoice keys; the API
- * email and GSTIN above are shared.
+ * PeriOne's e-way bill API keys (optional), used to add or change the vehicle, cancel and
+ * extend e-way bills. Different from the e-invoice keys; the API email and GSTIN above are
+ * shared. Making an e-way bill from the IRN needs only the e-invoice login.
  */
 export function EwayBillApiSettings({ organizationId, value, onChange }: Props) {
   const [showSecret, setShowSecret] = useState(false);
@@ -41,11 +41,12 @@ export function EwayBillApiSettings({ organizationId, value, onChange }: Props) 
       <div>
         <h4 className="flex items-center gap-2 font-medium">
           <Truck className="h-4 w-4 text-teal-700" />
-          E-way bill API (PeriOne)
+          E-way bill API keys (PeriOne, optional)
         </h4>
         <p className="mt-1 text-xs text-muted-foreground">
-          PeriOne gives separate keys for e-way bills. With them, you can add or change the vehicle, cancel and extend
-          e-way bills from Ezzy ERP. The API email and GSTIN above are used too.
+          Making an e-way bill from the e-invoice needs no extra keys. To add or change the vehicle, extend or cancel
+          from Ezzy ERP, add the separate e-way bill keys PeriOne gives you. Without them, do those on the e-way bill
+          portal. The API email and GSTIN above are used too.
         </p>
       </div>
 

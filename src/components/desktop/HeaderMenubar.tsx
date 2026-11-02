@@ -28,6 +28,7 @@ import { prefetchCriticalEntryChunks, prefetchTabPage } from "@/lib/tabPageRegis
 import { useSettings } from "@/hooks/useSettings";
 import { useManufacturerERP } from "@/hooks/useManufacturerERP";
 import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { useEwayBillOn } from "@/hooks/useEwayBillOn";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { isBulkWhatsAppEnabled } from "@/utils/whatsappFeatureSwitches";
 
@@ -68,6 +69,7 @@ export function HeaderMenubar({
   const showManufacturing =
     useManufacturerERP().enabled && (organizationRole === "admin" || organizationRole === "manager");
   const industrialOn = useIndustrialMode().enabled;
+  const ewayBillOn = useEwayBillOn();
   const bulkWhatsAppOn = isBulkWhatsAppEnabled((orgSettings as { sale_settings?: unknown } | null)?.sale_settings);
   const showFile =
     can("pos_sales") ||
@@ -323,7 +325,7 @@ export function HeaderMenubar({
             {industrialOn && can("sales_invoice_dashboard") && (
               <MenubarItem onClick={() => orgNavigate("/debit-notes")}>Debit Notes</MenubarItem>
             )}
-            {industrialOn && can("sales_invoice_dashboard") && (
+            {ewayBillOn && can("sales_invoice_dashboard") && (
               <MenubarItem onClick={() => orgNavigate("/eway-bills")}>E-Way Bills</MenubarItem>
             )}
             {can("discount_scheme_dashboard") && (
