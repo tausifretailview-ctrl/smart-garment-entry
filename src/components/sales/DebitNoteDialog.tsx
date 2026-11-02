@@ -56,6 +56,14 @@ export type DebitNoteRow = {
   payment_status: string | null;
   notes: string | null;
   debit_note_details: unknown;
+  /** E-invoice state (Phase 2 step 2); only the Debit Notes list reads these. */
+  irn?: string | null;
+  ack_no?: string | null;
+  ack_date?: string | null;
+  einvoice_status?: string | null;
+  einvoice_error?: string | null;
+  einvoice_test_mode?: boolean | null;
+  customers?: { gst_number: string | null; address: string | null } | null;
 };
 
 type Party = {

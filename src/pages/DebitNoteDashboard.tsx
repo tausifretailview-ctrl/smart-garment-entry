@@ -36,6 +36,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { DebitNoteDialog, type DebitNoteRow } from "@/components/sales/DebitNoteDialog";
+import { NoteIrnCell } from "@/components/einvoice/NoteIrnCell";
+import { NoteEInvoicePrint } from "@/components/einvoice/NoteEInvoicePrint";
 import { cn } from "@/lib/utils";
 import {
   DEBIT_NOTE_SALE_TYPE,
@@ -45,14 +47,27 @@ import {
   debitNoteReasonLabel,
   parseDebitNoteDetails,
 } from "@/utils/debitNote";
+import {
+  buildNoteEInvoicePayload,
+  debitNoteToNoteInput,
+  type NoteParty,
+} from "../../supabase/functions/_shared/einvoiceNote";
 
 const DN_COLUMNS =
-  "id, sale_number, sale_date, customer_id, customer_name, customer_phone, customer_address, net_amount, gross_amount, round_off, paid_amount, payment_status, notes, debit_note_details";
+  "id, sale_number, sale_date, customer_id, customer_name, customer_phone, customer_address, net_amount, gross_amount, round_off, paid_amount, payment_status, notes, debit_note_details, irn, ack_no, ack_date, einvoice_status, einvoice_error, einvoice_test_mode, customers:customer_id (gst_number, address)";
 
 type PrintData = {
   row: DebitNoteRow;
   gstin: string;
+  /** Signed QR text when the note prints as an e-invoice (active IRN). */
+  irnQr: string | null;
+  irnMode: boolean;
 };
+
+/** IRN generated and not cancelled: the note is reported and must not change. */
+function irnActive(row: Pick<DebitNoteRow, "irn" | "einvoice_status">): boolean {
+  return !!row.irn && row.einvoice_status === "generated";
+}
 
 function inr0(n: number): string {
   return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
@@ -138,12 +153,62 @@ export default function DebitNoteDashboard() {
     return { count: notes.length, total, gst, open, openCount };
   }, [notes]);
 
+  const einvoiceSettings = (settings as { sale_settings?: { einvoice_settings?: Record<string, unknown> } } | null)
+    ?.sale_settings?.einvoice_settings;
+  const einvoiceOn = einvoiceSettings?.enabled === true;
+  const einvoiceTestMode = einvoiceSettings?.test_mode !== false;
+  const biz = settings as {
+    business_name?: string | null;
+    address?: string | null;
+    mobile_number?: string | null;
+    email_id?: string | null;
+    gst_number?: string | null;
+  } | null;
+  const seller: NoteParty = useMemo(
+    () => ({
+      gstin: String(einvoiceSettings?.seller_gstin || biz?.gst_number || ""),
+      name: biz?.business_name || currentOrganization?.name || "",
+      address: biz?.address || "",
+      phone: biz?.mobile_number,
+      email: biz?.email_id,
+    }),
+    [einvoiceSettings?.seller_gstin, biz?.gst_number, biz?.business_name, biz?.address, biz?.mobile_number, biz?.email_id, currentOrganization?.name],
+  );
+  const buyerOf = (n: DebitNoteRow): NoteParty => ({
+    gstin: String(n.customers?.gst_number || "").trim().toUpperCase(),
+    name: n.customer_name,
+    address: n.customer_address || n.customers?.address || "",
+    phone: n.customer_phone,
+  });
+  const irnPending = useMemo(
+    () => (einvoiceOn ? notes.filter((n) => !n.irn && String(n.customers?.gst_number || "").trim()).length : 0),
+    [notes, einvoiceOn],
+  );
+  /** Same checks the e-invoice service runs, so a missing HSN or PIN shows at once. */
+  const irnPrecheck = (n: DebitNoteRow) => () => {
+    const input = debitNoteToNoteInput(n, n.debit_note_details);
+    if (!input) return "This debit note has no GST lines saved. Open and save it again.";
+    const built = buildNoteEInvoicePayload(input, seller, buyerOf(n));
+    return built.ok ? null : built.error;
+  };
+
   const openNew = () => {
     setEditing(null);
     setDialogOpen(true);
   };
 
+  const irnLockedToast = (row: DebitNoteRow, what: string) =>
+    toast({
+      variant: "destructive",
+      title: "IRN generated",
+      description: `${row.sale_number} is reported to the GST portal, so it can't be ${what}. Cancel its IRN first (within 24 hours), or raise a credit note.`,
+    });
+
   const openEdit = (row: DebitNoteRow) => {
+    if (irnActive(row)) {
+      irnLockedToast(row, "changed");
+      return;
+    }
     setEditing(row);
     setDialogOpen(true);
   };
@@ -200,12 +265,19 @@ export default function DebitNoteDashboard() {
   const printNote = useCallback(
     async (row: DebitNoteRow) => {
       setPrintingId(row.id);
-      let gstin = "";
-      if (row.customer_id) {
+      let gstin = String(row.customers?.gst_number || "");
+      if (!gstin && row.customer_id) {
         const { data } = await supabase.from("customers").select("gst_number").eq("id", row.customer_id).maybeSingle();
         gstin = (data?.gst_number as string | null) ?? "";
       }
-      setPrintData({ row, gstin });
+      // A reported note prints as the e-invoice copy (IRN + signed QR); the QR is read only here, not in the list.
+      const irnMode = irnActive(row);
+      let irnQr: string | null = null;
+      if (irnMode) {
+        const { data } = await supabase.from("sales").select("einvoice_qr_code").eq("id", row.id).maybeSingle();
+        irnQr = (data?.einvoice_qr_code as string | null) ?? null;
+      }
+      setPrintData({ row, gstin, irnQr, irnMode });
       requestAnimationFrame(() => {
         waitForPrintReady(printRef, () => handlePrintRef.current(), { maxWait: 8000 });
       });
@@ -217,6 +289,11 @@ export default function DebitNoteDashboard() {
 
   const confirmDelete = async () => {
     if (!toDelete || deleting) return;
+    if (irnActive(toDelete)) {
+      irnLockedToast(toDelete, "deleted");
+      setToDelete(null);
+      return;
+    }
     if (Number(toDelete.paid_amount || 0) > 0) {
       toast({
         variant: "destructive",
@@ -295,7 +372,7 @@ export default function DebitNoteDashboard() {
         <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4 lg:gap-3">
           <ErpDashboardKpiCard
             title="Debit Notes"
-            subtitle="In date range"
+            subtitle={irnPending > 0 ? `${irnPending} need IRN` : "In date range"}
             value={kpi.count.toLocaleString("en-IN")}
             shellClass="bg-sky-50 border-sky-200/70 hover:bg-sky-100/80"
             valueClass="text-sky-800"
@@ -382,6 +459,7 @@ export default function DebitNoteDashboard() {
                     <TableHead className="text-right">GST</TableHead>
                     <TableHead className="text-right">Total</TableHead>
                     <TableHead className="w-[110px]">Status</TableHead>
+                    {einvoiceOn ? <TableHead className="w-[150px]">E-invoice</TableHead> : null}
                     <TableHead className="w-[120px] text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -427,6 +505,29 @@ export default function DebitNoteDashboard() {
                             <Badge className="border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-50">Unpaid</Badge>
                           )}
                         </TableCell>
+                        {einvoiceOn ? (
+                          <TableCell>
+                            <NoteIrnCell
+                              kind="debit"
+                              note={{
+                                id: n.id,
+                                number: n.sale_number,
+                                date: String(n.sale_date).slice(0, 10),
+                                irn: n.irn ?? null,
+                                ackNo: n.ack_no ?? null,
+                                ackDate: n.ack_date ?? null,
+                                status: n.einvoice_status ?? null,
+                                error: n.einvoice_error ?? null,
+                                testMode: n.einvoice_test_mode ?? null,
+                                buyerGstin: String(n.customers?.gst_number || "").trim(),
+                              }}
+                              organizationId={orgId}
+                              testMode={einvoiceTestMode}
+                              precheck={irnPrecheck(n)}
+                              onChanged={() => void queryClient.invalidateQueries({ queryKey: ["debit-notes", orgId] })}
+                            />
+                          </TableCell>
+                        ) : null}
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             <Button
@@ -452,7 +553,7 @@ export default function DebitNoteDashboard() {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-slate-400 hover:text-red-600"
-                              onClick={() => setToDelete(n)}
+                              onClick={() => (irnActive(n) ? irnLockedToast(n, "deleted") : setToDelete(n))}
                               aria-label={`Delete ${n.sale_number}`}
                             >
                               <Trash2 className="h-4 w-4" />
@@ -508,7 +609,46 @@ export default function DebitNoteDashboard() {
       </AlertDialog>
 
       <div className="invoice-print-source-screen">
-        {printData && printDetails ? (
+        {printData && printDetails && printData.irnMode ? (
+          <NoteEInvoicePrint
+            ref={printRef}
+            title="DEBIT NOTE"
+            number={printData.row.sale_number}
+            date={String(printData.row.sale_date).slice(0, 10)}
+            seller={{
+              name: seller.name,
+              address: seller.address,
+              gstin: String(seller.gstin).toUpperCase(),
+              phone: seller.phone ?? undefined,
+              email: seller.email ?? undefined,
+            }}
+            buyer={{
+              name: printData.row.customer_name,
+              address: printData.row.customer_address || printData.row.customers?.address || null,
+              gstin: printData.gstin.toUpperCase(),
+              phone: printData.row.customer_phone,
+            }}
+            against={{ number: printDetails.against_sale_number, date: printDetails.against_sale_date }}
+            reason={`${debitNoteReasonLabel(printDetails.reason)}${printDetails.reason_note ? ` - ${printDetails.reason_note}` : ""}`}
+            notes={printData.row.notes}
+            interState={printDetails.inter_state}
+            lines={printDetails.lines.map((l) => ({
+              description: l.description,
+              hsn: l.hsn,
+              qty: l.qty,
+              rate: l.rate,
+              taxable: l.taxable,
+              gstPercent: l.gst_percent,
+              gstAmount: l.gst_amount,
+            }))}
+            net={Number(printData.row.net_amount || 0)}
+            irn={printData.row.irn ?? ""}
+            ackNo={printData.row.ack_no}
+            ackDate={printData.row.ack_date}
+            qrText={printData.irnQr}
+            testMode={printData.row.einvoice_test_mode}
+          />
+        ) : printData && printDetails ? (
           <InvoiceWrapper
             ref={printRef}
             billNo={printData.row.sale_number}
