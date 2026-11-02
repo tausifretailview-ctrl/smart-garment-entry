@@ -135,8 +135,10 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
         exportPort: ewbPortInput(port),
         isExport,
       });
-      if (!built.ok) {
-        setProblem({ field: built.field, error: built.error });
+      if (built.ok === false) {
+        // The app's tsconfig is not strict, so the union is not narrowed here.
+        const fail = built as { field: EwbProblemField; error: string };
+        setProblem({ field: fail.field, error: fail.error });
         return;
       }
     }
