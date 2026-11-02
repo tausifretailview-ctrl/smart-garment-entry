@@ -28,6 +28,7 @@ type Props = {
 const WHAT_YOU_GET = [
   "Truck button on the Sales Invoice list: make the e-way bill of a bill in one step",
   "Bills with an e-invoice get it from the IRN; bills without one get it from the bill itself",
+  "Delivery challans too: job work, own branch, supply on approval and others",
   "E-Way Bills register under Sales, with alerts before an e-way bill lapses",
   "A4 e-way bill print with barcode for the driver",
 ];

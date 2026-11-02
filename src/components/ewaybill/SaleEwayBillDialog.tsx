@@ -1,37 +1,38 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, Info, Loader2, Printer, RefreshCw, Truck } from "lucide-react";
+import { AlertTriangle, Info, Loader2, RefreshCw, Truck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/hooks/useSettings";
 import { useEwayBillPrinter } from "@/hooks/useEwayBillPrinter";
-import { EwayBillActions } from "@/components/ewaybill/EwayBillActions";
+import {
+  EWB_STATES,
+  EwbActiveCard,
+  EwbShipToFields,
+  EwbTransportFields,
+  ewbField,
+  ewbLabel,
+  type EwbShipToForm,
+} from "@/components/ewaybill/EwbFormParts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { GSTIN_STATE_NAMES } from "@/utils/gstRegisterUtils";
 import {
   EMPTY_PORT_FORM,
   ewbFormFromB2b,
   ewbPortInput,
-  ewbAlertKind,
   ewbApiKeysSet,
-  ewbCancelUntil,
-  ewbExtendUntil,
   ewbSellerPlace,
   ewbTransportInput,
-  ewbValidity,
   formatEwbNo,
-  formatIstDateTime,
   invokeEwayBill,
   type EwayBillRow,
   type EwbPortForm,
   type EwbTransportForm,
 } from "@/utils/ewayBill";
 import {
-  EWB_MODE_LABEL,
   EWB_VALUE_LIMIT,
   buildEwbByIrnPayload,
   ewbDistance,
@@ -39,7 +40,6 @@ import {
   ewbValidityDays,
   type EwbDirectField,
   type EwbProblemField,
-  type EwbTransportMode,
 } from "../../../supabase/functions/_shared/ewayBill";
 import { indiaTodayIso, irpSupplyTypeOf, isExportSupplyType } from "../../../supabase/functions/_shared/einvoiceNote";
 
@@ -64,18 +64,11 @@ type Props = {
   onChanged: () => void;
 };
 
-const MODES: EwbTransportMode[] = ["road", "rail", "air", "ship"];
 const GSTIN_RE = /^[0-9]{2}[0-9A-Z]{13}$/;
-
-/** Where the goods go (direct e-way bill): starts from the buyer's address and GSTIN. */
-type ShipToForm = { pin: string; place: string; stateCode: string };
-const field = "h-9 text-sm bg-white";
-const label = "text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1 block";
-const STATES = Object.entries(GSTIN_STATE_NAMES).sort((a, b) => a[1].localeCompare(b[1]));
-
-function docLabel(mode: EwbTransportMode): string {
-  return mode === "rail" ? "RR no" : mode === "air" ? "AWB no" : mode === "ship" ? "Bill of lading no" : "LR / docket no";
-}
+type ShipToForm = EwbShipToForm;
+const field = ewbField;
+const label = ewbLabel;
+const STATES = EWB_STATES;
 
 function inr(n: number | null | undefined): string {
   return `₹${Math.round(Number(n ?? 0)).toLocaleString("en-IN")}`;
@@ -244,10 +237,6 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
   };
 
   const bad = (f: EwbProblemField | EwbDirectField) => (problem?.field === f ? "border-red-400 ring-1 ring-red-200" : "");
-  const validity = active ? ewbValidity(active) : null;
-  const alertKind = active ? ewbAlertKind(active) : null;
-  const extendUntil = active ? ewbExtendUntil(active.valid_till) : null;
-  const cancelUntil = active ? ewbCancelUntil(active) : null;
 
   return (
     <>
@@ -313,71 +302,14 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
         ) : null}
 
         {active ? (
-          <div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">
-              <CheckCircle2 className="h-4 w-4" /> E-way bill
-            </div>
-            <div className="mt-1 font-mono text-2xl font-semibold tracking-wider text-slate-900">{formatEwbNo(active.ewb_no)}</div>
-            <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-slate-600 sm:grid-cols-2">
-              <div>Made: <span className="font-medium text-slate-800">{formatIstDateTime(active.ewb_date) || "—"}</span></div>
-              <div>
-                <span
-                  className={cn(
-                    "font-medium",
-                    validity?.tone === "expired" ? "text-red-600" : validity?.tone === "soon" || validity?.tone === "partA" ? "text-amber-700" : "text-emerald-700",
-                  )}
-                >
-                  {validity?.label}
-                </span>
-              </div>
-              {active.vehicle_no ? <div>Vehicle: <span className="font-mono font-medium text-slate-800">{active.vehicle_no}</span></div> : null}
-              {active.transporter_name || active.transporter_id ? (
-                <div className="truncate">
-                  Transporter: <span className="font-medium text-slate-800">{active.transporter_name || active.transporter_id}</span>
-                </div>
-              ) : null}
-              {active.distance_km ? <div>Distance: <span className="font-medium text-slate-800">{active.distance_km} km</span></div> : null}
-            </div>
-            {alertKind === "extend" && extendUntil ? (
-              <p className="mt-3 flex items-start gap-1.5 rounded-md bg-red-50 px-2 py-1.5 text-[11px] font-medium text-red-700">
-                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                Lapsed. If the goods are still on the way, extend it by {formatIstDateTime(extendUntil)}.
-              </p>
-            ) : alertKind === "soon" ? (
-              <p className="mt-3 flex items-start gap-1.5 rounded-md bg-amber-50 px-2 py-1.5 text-[11px] font-medium text-amber-800">
-                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                Lapses within 8 hours. If the goods won't reach in time, extend it.
-              </p>
-            ) : alertKind === "partA" ? (
-              <p className="mt-3 flex items-start gap-1.5 rounded-md bg-sky-50 px-2 py-1.5 text-[11px] font-medium text-sky-800">
-                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                No vehicle yet. Add it before the goods move.
-              </p>
-            ) : null}
-            <EwayBillActions
-              key={active.id}
-              organizationId={organizationId}
-              ewb={active}
-              docDate={String(sale.sale_date ?? "").slice(0, 10) || null}
-              onDone={afterChange}
-            />
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[11px] text-slate-400">
-                {cancelUntil ? `Can be cancelled till ${formatIstDateTime(cancelUntil)}.` : "Cancel window (24 hours) has passed."}
-              </p>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5 border-emerald-200 bg-white text-xs text-emerald-800 hover:bg-emerald-50"
-                onClick={() => void printer.print(active)}
-                disabled={printer.printingId === active.id}
-              >
-                {printer.printingId === active.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
-                Print e-way bill
-              </Button>
-            </div>
-          </div>
+          <EwbActiveCard
+            organizationId={organizationId}
+            active={active}
+            docDate={String(sale.sale_date ?? "").slice(0, 10) || null}
+            onDone={afterChange}
+            onPrint={() => void printer.print(active)}
+            printing={printer.printingId === active.id}
+          />
         ) : (
           <div className="grid gap-4">
             {direct && needsIrn ? (
@@ -401,156 +333,15 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
               </div>
             ) : null}
 
-            <div>
-              <span className={label}>Mode</span>
-              <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
-                {MODES.map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => set({ mode: m })}
-                    className={cn(
-                      "rounded-md px-3.5 py-1.5 text-xs font-semibold transition-colors",
-                      form.mode === m ? "bg-white text-teal-700 shadow-sm" : "text-slate-500 hover:text-slate-800",
-                    )}
-                  >
-                    {EWB_MODE_LABEL[m]}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div>
-                <label htmlFor="ewb-distance" className={label}>Distance km</label>
-                <Input
-                  id="ewb-distance"
-                  inputMode="numeric"
-                  className={cn(field, "tabular-nums", bad("distance"))}
-                  value={form.distanceKm}
-                  onChange={(e) => set({ distanceKm: e.target.value.replace(/[^0-9]/g, "").slice(0, 4) })}
-                  placeholder="Auto from PIN codes"
-                />
-                <p className="mt-1 text-[11px] text-slate-400">
-                  {days ? `Valid about ${days} day${days > 1 ? "s" : ""} (to midnight)` : "Blank: the IRP works it out"}
-                </p>
-              </div>
-              {form.mode === "road" ? (
-                <>
-                  <div>
-                    <label htmlFor="ewb-vehicle" className={label}>Vehicle no</label>
-                    <Input
-                      id="ewb-vehicle"
-                      className={cn(field, "uppercase font-mono text-[13px]", bad("vehicle"))}
-                      value={form.vehicleNo}
-                      onChange={(e) => set({ vehicleNo: e.target.value.toUpperCase() })}
-                      placeholder="MH04AB1234"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="ewb-vtype" className={label}>Vehicle type</label>
-                    <Select value={form.vehicleType} onValueChange={(v) => set({ vehicleType: v === "O" ? "O" : "R" })}>
-                      <SelectTrigger id="ewb-vtype" className={field}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="z-[60]">
-                        <SelectItem value="R">Regular</SelectItem>
-                        <SelectItem value="O">Over-dimensional cargo</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              ) : null}
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label htmlFor="ewb-transporter-id" className={label}>Transporter ID</label>
-                <Input
-                  id="ewb-transporter-id"
-                  className={cn(field, "uppercase font-mono text-[13px]", bad("transporter"))}
-                  value={form.transporterId}
-                  onChange={(e) => set({ transporterId: e.target.value.toUpperCase().replace(/\s/g, "").slice(0, 15) })}
-                  placeholder="GSTIN / TRANSIN"
-                />
-              </div>
-              <div>
-                <label htmlFor="ewb-transporter" className={label}>Transporter name</label>
-                <Input
-                  id="ewb-transporter"
-                  className={cn(field, "no-uppercase")}
-                  value={form.transporterName}
-                  onChange={(e) => set({ transporterName: e.target.value })}
-                  placeholder="VRL Logistics"
-                />
-              </div>
-              <div>
-                <label htmlFor="ewb-doc" className={label}>{docLabel(form.mode)}</label>
-                <Input
-                  id="ewb-doc"
-                  className={cn(field, bad("transDoc"))}
-                  value={form.transDocNo}
-                  onChange={(e) => set({ transDocNo: e.target.value })}
-                  placeholder={form.mode === "road" ? "Optional" : "Needed"}
-                />
-              </div>
-              <div>
-                <label htmlFor="ewb-doc-date" className={label}>{form.mode === "road" ? "LR date" : "Document date"}</label>
-                <Input
-                  id="ewb-doc-date"
-                  type="date"
-                  className={cn(field, bad("transDocDate"))}
-                  value={form.transDocDate}
-                  onChange={(e) => set({ transDocDate: e.target.value })}
-                />
-              </div>
-            </div>
+            <EwbTransportFields form={form} set={set} bad={bad} days={days} />
 
             {direct ? (
-              <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
-                <div className="mb-2 text-xs font-semibold text-slate-700">Goods go to</div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <div>
-                    <label htmlFor="ewb-to-place" className={label}>Town</label>
-                    <Input
-                      id="ewb-to-place"
-                      className={cn(field, "no-uppercase", bad("toPlace"))}
-                      value={shipTo.place}
-                      onChange={(e) => setS({ place: e.target.value })}
-                      placeholder="Surat"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="ewb-to-pin" className={label}>PIN</label>
-                    <Input
-                      id="ewb-to-pin"
-                      inputMode="numeric"
-                      className={cn(field, "tabular-nums", bad("toPin"))}
-                      value={shipTo.pin}
-                      onChange={(e) => setS({ pin: e.target.value.replace(/[^0-9]/g, "").slice(0, 6) })}
-                      placeholder="395002"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="ewb-to-state" className={label}>State</label>
-                    <Select value={shipTo.stateCode} onValueChange={(v) => setS({ stateCode: v })}>
-                      <SelectTrigger id="ewb-to-state" className={cn(field, bad("toState"))}>
-                        <SelectValue placeholder="State" />
-                      </SelectTrigger>
-                      <SelectContent className="z-[60] max-h-72">
-                        {STATES.map(([code, name]) => (
-                          <SelectItem key={code} value={code}>
-                            {code} {name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <p className="mt-1.5 text-[11px] text-slate-400">
-                  From the buyer's address. GST is IGST when this state differs from your shop's state.
-                </p>
-              </div>
+              <EwbShipToFields
+                shipTo={shipTo}
+                setS={setS}
+                bad={bad}
+                hint="From the buyer's address. GST is IGST when this state differs from your shop's state."
+              />
             ) : null}
 
             {isExport && !direct ? (

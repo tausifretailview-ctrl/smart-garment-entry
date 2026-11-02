@@ -48,6 +48,9 @@ import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { cn } from "@/lib/utils";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { postSaleJournalInBackground } from "@/utils/accounting/journalService";
+import { useEwayBillOn } from "@/hooks/useEwayBillOn";
+import { ChallanEwayBillDialog, type EwbChallanInfo } from "@/components/ewaybill/ChallanEwayBillDialog";
+import { fetchEwayBillsForChallans, formatEwbNo } from "@/utils/ewayBill";
 
 export default function DeliveryChallanDashboard() {
   const { toast } = useToast();
@@ -65,6 +68,12 @@ export default function DeliveryChallanDashboard() {
       label: "Edit",
       icon: Edit,
       onClick: () => navigate("/delivery-challan-entry", { state: { challanData: challan } }),
+    },
+    {
+      label: "E-way bill",
+      icon: Truck,
+      onClick: () => setEwbChallan(challan),
+      hidden: !ewbOn,
     },
     {
       label: "Convert to Invoice",
@@ -145,6 +154,9 @@ export default function DeliveryChallanDashboard() {
   const openCustomerAccount = useOpenCustomerAccount();
   const { data: orgSettings } = useSettings();
   const industrialMode = useIndustrialMode();
+  // E-Way Bill switch (Settings > Sale): off makes no e-way bill query and shows no truck button.
+  const ewbOn = useEwayBillOn();
+  const [ewbChallan, setEwbChallan] = useState<any | null>(null);
 
   /** Industrial mode: badge for challans that are not a plain "bill to follow" delivery. */
   const challanTypeBadge = (challan: { challan_type?: string | null }) => {
@@ -197,6 +209,30 @@ export default function DeliveryChallanDashboard() {
       challan.customer_phone?.includes(query)
     );
   });
+
+  // E-way bills of the challans in this period (step 6b), only with the E-Way Bill switch on.
+  const challanIdsKey = useMemo(
+    () => (ewbOn ? (challansData || []).map((c: any) => String(c.id)).sort().join(",") : ""),
+    [ewbOn, challansData],
+  );
+  const { data: challanEwb, refetch: refetchChallanEwb } = useQuery({
+    queryKey: ["challan-eway-bills", currentOrganization?.id ?? "", challanIdsKey],
+    queryFn: () => fetchEwayBillsForChallans(currentOrganization!.id, challanIdsKey.split(",")),
+    enabled: ewbOn && !!currentOrganization?.id && challanIdsKey.length > 0,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const ewbOfChallan = (id: string) => challanEwb?.rows.get(String(id)) ?? null;
+  const ewbChallanInfo: EwbChallanInfo | null = ewbChallan
+    ? {
+        id: String(ewbChallan.id),
+        challan_number: String(ewbChallan.challan_number ?? ""),
+        challan_date: String(ewbChallan.challan_date ?? ""),
+        challan_type: ewbChallan.challan_type ?? null,
+        net_amount: ewbChallan.net_amount ?? null,
+        customer_name: ewbChallan.customer_name ?? null,
+      }
+    : null;
 
   const handleDelete = async (challanId: string) => {
     try {
@@ -560,6 +596,21 @@ export default function DeliveryChallanDashboard() {
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
+                            {ewbOn ? (() => {
+                              const ewb = ewbOfChallan(challan.id);
+                              const on = ewb?.status === "active";
+                              return (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className={cn("h-8 w-8", on ? "text-teal-600" : "text-slate-400 hover:text-teal-600")}
+                                  onClick={() => setEwbChallan(challan)}
+                                  title={on ? `E-way bill ${formatEwbNo(ewb!.ewb_no)}` : "Generate e-way bill"}
+                                >
+                                  <Truck className="h-4 w-4" />
+                                </Button>
+                              );
+                            })() : null}
                             {challan.status === 'pending' && (
                               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setConvertConfirm(challan)} title="Convert to Invoice">
                                 <ArrowRight className="h-4 w-4" />
@@ -622,6 +673,20 @@ export default function DeliveryChallanDashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {ewbOn && currentOrganization?.id ? (
+        <ChallanEwayBillDialog
+          open={!!ewbChallan}
+          onOpenChange={(o) => {
+            if (!o) setEwbChallan(null);
+          }}
+          organizationId={currentOrganization.id}
+          challan={ewbChallanInfo}
+          ewayBill={ewbChallan ? ewbOfChallan(ewbChallan.id) : null}
+          missingSql={!!challanEwb?.missingSql}
+          onChanged={() => void refetchChallanEwb()}
+        />
+      ) : null}
 
       {isDesktop && (
         <DesktopContextMenu

@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-11-02",
-  "count": 915,
-  "fileCount": 933,
+  "count": 916,
+  "fileCount": 934,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -918,7 +918,8 @@
     "20270328120000",
     "20270329120000",
     "20270330120000",
-    "20270331120000"
+    "20270331120000",
+    "20270401120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1853,7 +1854,8 @@
     "20270328120000_industrial_sale_return_einvoice.sql",
     "20270329120000_industrial_eway_bills.sql",
     "20270330120000_new_org_per_piece_barcode_default.sql",
-    "20270331120000_amazon_stock_sync.sql"
+    "20270331120000_amazon_stock_sync.sql",
+    "20270401120000_eway_bill_challans.sql"
   ],
   "duplicateVersions": [
     {
