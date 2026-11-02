@@ -2,11 +2,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { getEdgeFunctionErrorMessage } from "@/utils/edgeFunctionError";
 import { saleB2BToForm } from "@/utils/industrialMode";
 import {
+  EWB_VALUE_LIMIT,
   ewayBillEnabled,
   ewayBillSwitchOn,
   isEwbTransportMode,
   type EwbApiField,
+  type EwbDirectField,
   type EwbExtendInput,
+  type EwbShipTo,
   type EwbPortAddress,
   type EwbProblemField,
   type EwbTransportInput,
@@ -15,7 +18,7 @@ import {
   type EwbVehicleUpdateInput,
 } from "../../supabase/functions/_shared/ewayBill";
 
-export { ewayBillEnabled, ewayBillSwitchOn };
+export { EWB_VALUE_LIMIT, ewayBillEnabled, ewayBillSwitchOn };
 
 /**
  * Industrial mode, Phase 2 step 4: e-way bills of sale bills, made from their IRN
@@ -60,7 +63,7 @@ export type SaleEwbState = {
   missingSql: boolean;
 };
 
-/** IRN and e-way bill of each given sale bill (Industrial mode only). */
+/** IRN and e-way bill of each given sale bill (E-Way Bill switch on). */
 export async function fetchSaleEwayBills(organizationId: string, saleIds: string[]): Promise<SaleEwbState> {
   const irns = new Map<string, SaleIrnState>();
   const unique = Array.from(new Set(saleIds.filter(Boolean)));
@@ -81,7 +84,8 @@ export async function fetchSaleEwayBills(organizationId: string, saleIds: string
       });
     }
   }
-  const ewb = await fetchEwayBillsForSales(organizationId, Array.from(irns.keys()));
+  // Every bill on the page: bills without an IRN can have a direct e-way bill (step 6a).
+  const ewb = await fetchEwayBillsForSales(organizationId, unique);
   return { rows: ewb.rows, irns, missingSql: ewb.missingSql };
 }
 
@@ -178,7 +182,7 @@ export type EwbReply = {
   success: boolean;
   error?: string;
   code?: string;
-  field?: EwbProblemField | EwbApiField;
+  field?: EwbProblemField | EwbApiField | EwbDirectField;
   ewbNo?: string;
   ewbDate?: string;
   validTill?: string;
@@ -188,8 +192,11 @@ export type EwbReply = {
 };
 
 export async function invokeEwayBill(body: {
-  /** generate / sync: from the bill's IRN. test / vehicle / cancel / extend: e-way bill API (step 5b). */
-  action: "generate" | "sync" | "test" | "vehicle" | "cancel" | "extend";
+  /**
+   * generate / sync: from the bill's IRN. test / vehicle / cancel / extend: e-way bill API (step 5b).
+   * direct: a bill without an e-invoice, on the e-way bill API (step 6a).
+   */
+  action: "generate" | "sync" | "test" | "vehicle" | "cancel" | "extend" | "direct";
   saleId?: string;
   ewayBillId?: string;
   organizationId: string;
@@ -198,6 +205,7 @@ export async function invokeEwayBill(body: {
   vehicle?: EwbVehicleUpdateInput;
   cancel?: { reasonCode: number | string; remark?: string | null };
   extend?: EwbExtendInput;
+  shipTo?: EwbShipTo;
 }): Promise<EwbReply> {
   const { data, error } = await supabase.functions.invoke("eway-bill", { body });
   if (error) {

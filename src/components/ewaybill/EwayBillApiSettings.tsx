@@ -9,15 +9,17 @@ type Props = {
   organizationId: string | undefined;
   /** The shop's E-Invoice Settings (the e-way bill keys sit beside the e-invoice ones). */
   value: EwbApiKeys | null | undefined;
+  /** E-Invoice on: the e-invoice login can make e-way bills from the IRN, so these keys are optional. */
+  einvoiceOn?: boolean;
   onChange: (patch: EwbApiKeys) => void;
 };
 
 /**
- * PeriOne's e-way bill API keys (optional), used to add or change the vehicle, cancel and
- * extend e-way bills. Different from the e-invoice keys; the API email and GSTIN above are
- * shared. Making an e-way bill from the IRN needs only the e-invoice login.
+ * PeriOne's e-way bill API keys: direct e-way bills (bills without an e-invoice), and adding or
+ * changing the vehicle, cancel and extend. Different from the e-invoice keys; the API email and
+ * GSTIN are shared. Making an e-way bill from the IRN needs only the e-invoice login.
  */
-export function EwayBillApiSettings({ organizationId, value, onChange }: Props) {
+export function EwayBillApiSettings({ organizationId, value, einvoiceOn = false, onChange }: Props) {
   const [showSecret, setShowSecret] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -41,12 +43,12 @@ export function EwayBillApiSettings({ organizationId, value, onChange }: Props) 
       <div>
         <h4 className="flex items-center gap-2 font-medium">
           <Truck className="h-4 w-4 text-teal-700" />
-          E-way bill API keys (PeriOne, optional)
+          E-way bill API keys (PeriOne{einvoiceOn ? ", optional" : ""})
         </h4>
         <p className="mt-1 text-xs text-muted-foreground">
-          Making an e-way bill from the e-invoice needs no extra keys. To add or change the vehicle, extend or cancel
-          from Ezzy ERP, add the separate e-way bill keys PeriOne gives you. Without them, do those on the e-way bill
-          portal. The API email and GSTIN above are used too.
+          {einvoiceOn
+            ? "Making an e-way bill from the e-invoice needs no extra keys. For bills without an e-invoice, and to add or change the vehicle, extend or cancel from Ezzy ERP, add the separate e-way bill keys PeriOne gives you. The API email and GSTIN above are used too."
+            : "PeriOne gives these keys for e-way bills. They make the e-way bill of a bill, add or change the vehicle, extend and cancel, all from Ezzy ERP. The API email above is used too."}
         </p>
       </div>
 

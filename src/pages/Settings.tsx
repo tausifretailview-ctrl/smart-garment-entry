@@ -12,7 +12,7 @@ import type { IndustrialModeConfig } from "@/utils/industrialMode";
 import { EwayBillSettingsSection } from "@/components/ewaybill/EwayBillSettingsSection";
 import { DEFAULT_MANUFACTURER_ERP, type ManufacturerERPConfig } from "@/utils/manufacturing";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, BarChart2, Factory } from "lucide-react";
+import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, BarChart2, Factory, Truck } from "lucide-react";
 import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { SaleInvoiceFormatBackupDialog } from "@/components/settings/SaleInvoiceFormatBackupDialog";
 import { InvoiceTemplateSelectItems } from "@/components/settings/InvoiceTemplateSelectItems";
@@ -4812,26 +4812,6 @@ export default function Settings() {
                         )}
                       </div>
 
-                      <div className="mt-4">
-                        <EwayBillSettingsSection
-                          organizationId={currentOrganization?.id}
-                          value={settings.sale_settings?.einvoice_settings}
-                          industrialOn={industrialModeAvailable && settings.sale_settings?.industrial_mode?.enabled === true}
-                          onChange={(patch) =>
-                            setSettings({
-                              ...settings,
-                              sale_settings: {
-                                ...settings.sale_settings,
-                                einvoice_settings: {
-                                  ...settings.sale_settings?.einvoice_settings,
-                                  ...patch,
-                                } as any,
-                              },
-                            })
-                          }
-                        />
-                      </div>
-
                       <div className="mt-4 p-3 bg-muted/50 rounded-lg text-sm">
                         <p className="font-medium text-muted-foreground mb-1">⚠️ Important Notes:</p>
                         <ul className="list-disc list-inside space-y-1 text-muted-foreground text-xs">
@@ -4845,6 +4825,32 @@ export default function Settings() {
                       </div>
                     </div>
                   )}
+                </div>
+
+                {/* E-Way Bill Section (any shop; with or without E-Invoice) */}
+                <div className="space-y-4 pt-6 border-t">
+                  <div className="flex items-center gap-2">
+                    <Truck className="h-5 w-5 text-primary" />
+                    <h3 className="text-lg font-semibold">E-Way Bill</h3>
+                  </div>
+                  <EwayBillSettingsSection
+                    organizationId={currentOrganization?.id}
+                    value={settings.sale_settings?.einvoice_settings}
+                    einvoiceOn={settings.sale_settings?.einvoice_settings?.enabled === true}
+                    industrialOn={industrialModeAvailable && settings.sale_settings?.industrial_mode?.enabled === true}
+                    onChange={(patch) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          einvoice_settings: {
+                            ...settings.sale_settings?.einvoice_settings,
+                            ...patch,
+                          } as any,
+                        },
+                      })
+                    }
+                  />
                 </div>
 
                 {/* Customer Points System */}

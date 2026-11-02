@@ -107,27 +107,31 @@ export function ewbDistance(v: number | string | null | undefined): number | nul
   return n;
 }
 
-/**
- * The GENERATE_EWAYBILL request for one IRN, after the IRP's own checks:
- * road needs a vehicle number, rail / air / ship need the LR / RR / AWB number and date.
- * With only the transporter's GSTIN / TRANSIN it is Part A only (vehicle added later).
- * Empty values are left out: PeriOne rejects empty strings.
- */
-export function buildEwbByIrnPayload(opts: {
-  irn: string | null | undefined;
-  /** Bill date, yyyy-mm-dd. */
-  docDate: string;
-  /** India date today, yyyy-mm-dd. */
-  today: string;
-  transport: EwbTransportInput;
-  /** Export bills only. */
-  exportPort?: EwbPortAddress | null;
-  isExport?: boolean;
-}): EwbPayloadResult {
-  const irn = String(opts.irn ?? "").trim();
-  if (irn.length !== 64) return { ok: false, field: "irn", error: "This bill has no IRN yet. Generate its e-invoice first." };
+export type EwbTransportPart = {
+  mode: EwbTransportMode;
+  /** 0 lets the system work it out from the two PIN codes. */
+  distance: number;
+  transporterId: string;
+  /** "" when shorter than 3 characters (left out). */
+  transporterName: string;
+  vehicleNo: string;
+  vehicleType: EwbVehicleType;
+  transDocNo: string;
+  /** yyyy-mm-dd or "". */
+  transDocDate: string;
+  /** Vehicle (road) or RR / AWB / bill of lading (other modes) given; false: Part A only. */
+  partB: boolean;
+};
 
-  const t = opts.transport;
+/**
+ * The transport half of an e-way bill, after the portal's own checks: road needs a vehicle
+ * number, rail / air / ship need the LR / RR / AWB number and date. With only the
+ * transporter's GSTIN / TRANSIN it is Part A only (vehicle added later).
+ */
+export function ewbTransportPart(
+  t: EwbTransportInput,
+  dates: { docDate: string; today: string },
+): { ok: true; part: EwbTransportPart } | { ok: false; field: EwbProblemField; error: string } {
   const mode: EwbTransportMode = isEwbTransportMode(t.mode) ? t.mode : "road";
   const distance = ewbDistance(t.distanceKm);
   if (distance === null) {
@@ -151,10 +155,10 @@ export function buildEwbByIrnPayload(opts: {
   if (transDocDate && !ISO_DATE.test(transDocDate)) {
     return { ok: false, field: "transDocDate", error: "Transport document date is not a date." };
   }
-  if (transDocDate && ISO_DATE.test(opts.docDate) && transDocDate < opts.docDate) {
+  if (transDocDate && ISO_DATE.test(dates.docDate) && transDocDate < dates.docDate) {
     return { ok: false, field: "transDocDate", error: "Transport document date can't be before the bill date." };
   }
-  if (transDocDate && ISO_DATE.test(opts.today) && transDocDate > opts.today) {
+  if (transDocDate && ISO_DATE.test(dates.today) && transDocDate > dates.today) {
     return { ok: false, field: "transDocDate", error: "Transport document date can't be in the future." };
   }
   if (transDocNo && !transDocDate) {
@@ -176,19 +180,60 @@ export function buildEwbByIrnPayload(opts: {
         error: `${EWB_MODE_LABEL[mode]}: give the ${mode === "rail" ? "RR" : mode === "air" ? "AWB" : "bill of lading"} number and date, or the transporter's GSTIN / TRANSIN.`,
       };
   }
+  return {
+    ok: true,
+    part: {
+      mode,
+      distance,
+      transporterId,
+      transporterName: transporterName.length >= 3 ? transporterName : "",
+      vehicleNo,
+      vehicleType: t.vehicleType === "O" ? "O" : "R",
+      transDocNo,
+      transDocDate,
+      partB,
+    },
+  };
+}
 
-  const payload: EwbByIrnPayload = { Irn: irn, Distance: distance };
-  if (transporterId) payload.TransId = transporterId;
-  if (transporterName.length >= 3) payload.TransName = transporterName;
+/**
+ * The GENERATE_EWAYBILL request for one IRN, after the IRP's own checks (see ewbTransportPart).
+ * Empty values are left out: PeriOne rejects empty strings.
+ */
+export function buildEwbByIrnPayload(opts: {
+  irn: string | null | undefined;
+  /** Bill date, yyyy-mm-dd. */
+  docDate: string;
+  /** India date today, yyyy-mm-dd. */
+  today: string;
+  transport: EwbTransportInput;
+  /** Export bills only. */
+  exportPort?: EwbPortAddress | null;
+  isExport?: boolean;
+}): EwbPayloadResult {
+  const irn = String(opts.irn ?? "").trim();
+  if (irn.length !== 64) return { ok: false, field: "irn", error: "This bill has no IRN yet. Generate its e-invoice first." };
+
+  const checked = ewbTransportPart(opts.transport, { docDate: opts.docDate, today: opts.today });
+  if (checked.ok === false) {
+    const bad = checked as { field: EwbProblemField; error: string };
+    return { ok: false, field: bad.field, error: bad.error };
+  }
+  const t = (checked as { part: EwbTransportPart }).part;
+  const partB = t.partB;
+
+  const payload: EwbByIrnPayload = { Irn: irn, Distance: t.distance };
+  if (t.transporterId) payload.TransId = t.transporterId;
+  if (t.transporterName) payload.TransName = t.transporterName;
   if (partB) {
-    payload.TransMode = EWB_MODE_CODE[mode];
-    if (transDocNo) {
-      payload.TransDocNo = transDocNo;
-      payload.TransDocDt = ddmmyyyy(transDocDate);
+    payload.TransMode = EWB_MODE_CODE[t.mode];
+    if (t.transDocNo) {
+      payload.TransDocNo = t.transDocNo;
+      payload.TransDocDt = ddmmyyyy(t.transDocDate);
     }
-    if (vehicleNo) {
-      payload.VehNo = vehicleNo;
-      payload.VehType = t.vehicleType === "O" ? "O" : "R";
+    if (t.vehicleNo) {
+      payload.VehNo = t.vehicleNo;
+      payload.VehType = t.vehicleType;
     }
   }
 
@@ -584,6 +629,7 @@ const EWB_ERROR_TEXT: Record<string, string> = {
   "312": "This e-way bill was not made by this GSTIN, or it is already cancelled.",
   "315": "Its validity has lapsed, so it can't be cancelled.",
   "316": "It has been verified by an officer, so it can't be cancelled.",
+  "604": "This bill number already has an e-way bill (made earlier or on the portal). Look it up on the e-way bill portal.",
 };
 
 /** A readable reason from a refused e-way bill API reply. */
@@ -641,17 +687,373 @@ export function ewbApiValidUpto(data: Record<string, unknown> | null): string | 
 }
 
 /**
- * The shop's E-Way Bill switch (Settings > Sale > E-Invoice, einvoice_settings.ewb_enabled).
- * Any shop can turn it on. A shop in Industrial mode that never touched it keeps e-way bills
- * on, as it had them before the switch existed.
+ * The shop's E-Way Bill switch (Settings > Sale > E-Way Bill, einvoice_settings.ewb_enabled).
+ * Any shop can turn it on, with or without E-Invoice. A shop in Industrial mode with E-Invoice
+ * on that never touched it keeps e-way bills on, as it had them before the switch existed.
  */
 export function ewayBillSwitchOn(einvoiceSettings: unknown, industrialOn: boolean): boolean {
-  const v = (einvoiceSettings as { ewb_enabled?: unknown } | null | undefined)?.ewb_enabled;
-  return typeof v === "boolean" ? v : industrialOn;
+  const s = einvoiceSettings as { ewb_enabled?: unknown; enabled?: unknown } | null | undefined;
+  return typeof s?.ewb_enabled === "boolean" ? s.ewb_enabled : industrialOn && s?.enabled === true;
 }
 
-/** E-way bills work only when e-invoicing is on (they are made from the IRN) and the switch is on. */
+/**
+ * E-way bills are on for the shop. Bills with an e-invoice get theirs from the IRN (e-invoice
+ * login); bills without one get a direct e-way bill (PeriOne's e-way bill keys).
+ */
 export function ewayBillEnabled(einvoiceSettings: unknown, industrialOn: boolean): boolean {
-  const enabled = (einvoiceSettings as { enabled?: unknown } | null | undefined)?.enabled === true;
-  return enabled && ewayBillSwitchOn(einvoiceSettings, industrialOn);
+  return ewayBillSwitchOn(einvoiceSettings, industrialOn);
+}
+
+/* ------------------------------------------------------------------ */
+/* Direct e-way bill (Phase 2 step 6): a bill with no e-invoice, made  */
+/* through the e-way bill API (genewaybill, NIC v1.03).                */
+/* ------------------------------------------------------------------ */
+
+export type EwbDirectLine = {
+  description: string;
+  hsn: string;
+  qty: number;
+  /** UQC, e.g. PCS. */
+  unit: string;
+  taxable: number;
+  gstPercent: number;
+  gstAmount: number;
+};
+
+export type EwbDirectParty = {
+  gstin?: string | null;
+  name: string | null;
+  address: string | null;
+};
+
+/** Where the goods go: needed when the address has no PIN, or the buyer has no GSTIN (its state). */
+export type EwbShipTo = {
+  pin?: string | number | null;
+  place?: string | null;
+  /** GST state code, 2 digits. */
+  stateCode?: string | number | null;
+};
+
+export type EwbDirectField = EwbProblemField | "seller" | "docNo" | "docDate" | "toPin" | "toPlace" | "toState" | "lines" | "total";
+
+export type EwbDirectItem = {
+  productName: string;
+  productDesc: string;
+  hsnCode: number;
+  quantity: number;
+  qtyUnit: string;
+  cgstRate: number;
+  sgstRate: number;
+  igstRate: number;
+  cessRate: number;
+  cessNonadvol: number;
+  taxableAmount: number;
+};
+
+export type EwbDirectPayload = {
+  supplyType: "O";
+  subSupplyType: string;
+  docType: "INV";
+  docNo: string;
+  docDate: string;
+  fromGstin: string;
+  fromTrdName: string;
+  fromAddr1: string;
+  fromAddr2?: string;
+  fromPlace: string;
+  fromPincode: number;
+  actFromStateCode: number;
+  fromStateCode: number;
+  toGstin: string;
+  toTrdName: string;
+  toAddr1: string;
+  toAddr2?: string;
+  toPlace: string;
+  toPincode: number;
+  actToStateCode: number;
+  toStateCode: number;
+  transactionType: number;
+  otherValue: number;
+  totalValue: number;
+  cgstValue: number;
+  sgstValue: number;
+  igstValue: number;
+  cessValue: number;
+  cessNonAdvolValue: number;
+  totInvValue: number;
+  transDistance: string;
+  transMode?: string;
+  transporterId?: string;
+  transporterName?: string;
+  transDocNo?: string;
+  transDocDate?: string;
+  vehicleNo?: string;
+  vehicleType?: EwbVehicleType;
+  itemList: EwbDirectItem[];
+};
+
+export type EwbDirectResult =
+  | { ok: true; payload: EwbDirectPayload; partAOnly: boolean; interState: boolean }
+  | { ok: false; field: EwbDirectField; error: string };
+
+const GSTIN = /^[0-9]{2}[0-9A-Z]{13}$/;
+/** Document number on the e-way bill: up to 16 letters, digits, / or -. */
+const EWB_DOC_NO = /^[A-Za-z0-9/-]{1,16}$/;
+/** The e-way bill takes at most this many item lines. */
+export const EWB_MAX_ITEMS = 250;
+
+const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+const r3 = (n: number) => Math.round((n + Number.EPSILON) * 1000) / 1000;
+const numOf = (v: unknown): number => {
+  const n = typeof v === "number" ? v : Number(String(v ?? "").replace(/,/g, "").trim());
+  return Number.isFinite(n) ? n : 0;
+};
+
+/** First 6-digit run in an address as a PIN code (100000-999999), else null. */
+export function ewbPinIn(address: string | null | undefined): number | null {
+  const m = String(address ?? "").match(/(?:^|\D)(\d{6})(?!\d)/);
+  const pin = m ? parseInt(m[1], 10) : NaN;
+  return pin >= 100000 && pin <= 999999 ? pin : null;
+}
+
+/** Town of an address: the last comma part without its PIN, 3 to 50 characters, or "". */
+export function ewbTownIn(address: string | null | undefined): string {
+  const parts = String(address ?? "")
+    .split(/[,\n]/)
+    .map((p) => p.replace(/\d{6}/g, "").replace(/[^A-Za-z0-9 .()/-]/g, " ").replace(/\s+/g, " ").replace(/^[\s.-]+|[\s.-]+$/g, ""))
+    .filter((p) => p.length >= 3);
+  const last = parts[parts.length - 1] ?? "";
+  return last.slice(0, 50);
+}
+
+function addrLines(address: string | null | undefined, fallback: string): { a1: string; a2: string } {
+  const flat = String(address ?? "").replace(/\s+/g, " ").trim();
+  const a1 = (flat.slice(0, 120).trim() || fallback).slice(0, 120);
+  const a2 = flat.slice(120, 240).trim();
+  return { a1: a1.length >= 1 ? a1 : fallback, a2 };
+}
+
+/**
+ * genewaybill request for a sale bill without an e-invoice, or the first problem to fix.
+ * Lines are grouped by HSN, GST rate and unit (the e-way bill shows goods by HSN). Service
+ * lines (SAC 99…) are not goods: their value goes into other value. The difference to the
+ * bill's saved total (freight, round off) goes into other value too, so totals match exactly.
+ */
+export function buildDirectEwbPayload(opts: {
+  docNo: string | null | undefined;
+  /** Bill date, yyyy-mm-dd. */
+  docDate: string;
+  /** India date today, yyyy-mm-dd. */
+  today: string;
+  seller: EwbDirectParty;
+  buyer: EwbDirectParty;
+  shipTo?: EwbShipTo | null;
+  lines: EwbDirectLine[];
+  /** The bill total as saved. */
+  netAmount: number;
+  transport: EwbTransportInput;
+}): EwbDirectResult {
+  const docNo = String(opts.docNo ?? "").trim();
+  if (!EWB_DOC_NO.test(docNo)) {
+    return { ok: false, field: "docNo", error: `Bill number ${docNo || "(blank)"} can't go on an e-way bill: it takes up to 16 letters, digits, / and -.` };
+  }
+  const docDate = String(opts.docDate ?? "").slice(0, 10);
+  if (!ISO_DATE.test(docDate)) return { ok: false, field: "docDate", error: "The bill has no date." };
+  if (ISO_DATE.test(opts.today) && docDate > opts.today) {
+    return { ok: false, field: "docDate", error: "The bill date is in the future. An e-way bill can't be made for it yet." };
+  }
+
+  const sellerGstin = String(opts.seller.gstin ?? "").trim().toUpperCase();
+  if (!GSTIN.test(sellerGstin)) {
+    return { ok: false, field: "seller", error: "Shop GSTIN missing or wrong. Fix it in Settings > Business Details." };
+  }
+  const fromPin = ewbPinIn(opts.seller.address);
+  if (!fromPin) {
+    return { ok: false, field: "seller", error: "Shop PIN code missing. Add the 6-digit PIN to the address in Settings > Business Details." };
+  }
+  const fromState = Number(sellerGstin.slice(0, 2));
+  const fromPlace = ewbTownIn(opts.seller.address);
+  if (fromPlace.length < 3) {
+    return { ok: false, field: "seller", error: "Shop town missing. End the address in Settings > Business Details with the town, e.g. \"..., Surat 395003\"." };
+  }
+
+  const rawBuyerGstin = String(opts.buyer.gstin ?? "").trim().toUpperCase();
+  const registered = GSTIN.test(rawBuyerGstin);
+  if (registered && rawBuyerGstin === sellerGstin) {
+    return { ok: false, field: "seller", error: "Customer GSTIN is the same as the shop GSTIN." };
+  }
+  const toGstin = registered ? rawBuyerGstin : "URP";
+  const ship = opts.shipTo ?? {};
+  const shipState = String(ship.stateCode ?? "").trim() ? stateNumber(ship.stateCode) : null;
+  if (String(ship.stateCode ?? "").trim() && shipState === null) {
+    return { ok: false, field: "toState", error: "Pick the state the goods go to." };
+  }
+  // Billing state: the buyer's GSTIN; a buyer without one is billed in the state the goods go to.
+  const toState = registered ? Number(rawBuyerGstin.slice(0, 2)) : shipState ?? fromState;
+  const actToState = shipState ?? toState;
+  const pinRaw = String(ship.pin ?? "").trim();
+  const toPin = pinRaw ? Number(pinRaw) : ewbPinIn(opts.buyer.address);
+  if (!toPin || !Number.isInteger(toPin) || toPin < 100000 || toPin > 999999) {
+    return { ok: false, field: "toPin", error: "Give the 6-digit PIN code where the goods go." };
+  }
+  const toPlace = String(ship.place ?? "").replace(/\s+/g, " ").trim().slice(0, 50) || ewbTownIn(opts.buyer.address);
+  if (toPlace.length < 3 || !PLACE.test(toPlace)) {
+    return { ok: false, field: "toPlace", error: "Give the town the goods go to (3 to 50 letters)." };
+  }
+
+  // Goods lines, grouped by HSN + rate + unit.
+  type Group = { names: string[]; hsn: string; unit: string; rate: number; qty: number; taxable: number; gst: number };
+  const groups = new Map<string, Group>();
+  let serviceValue = 0;
+  for (const [i, l] of opts.lines.entries()) {
+    const hsn = String(l.hsn ?? "").trim();
+    const taxable = numOf(l.taxable);
+    const gst = numOf(l.gstAmount);
+    if (taxable <= 0) continue;
+    if (!/^\d{4}$|^\d{6}$|^\d{8}$/.test(hsn)) {
+      return {
+        ok: false,
+        field: "lines",
+        error: `Line ${i + 1} (${String(l.description ?? "").trim() || "item"}) needs an HSN code of 4, 6 or 8 digits${hsn ? ` (it has ${hsn})` : ""}. Add it in the product master or the bill.`,
+      };
+    }
+    if (hsn.startsWith("99")) {
+      serviceValue += taxable + gst;
+      continue;
+    }
+    const rate = numOf(l.gstPercent);
+    const unit = String(l.unit ?? "").trim().toUpperCase() || "PCS";
+    const key = `${hsn}|${rate}|${unit}`;
+    const g = groups.get(key) ?? { names: [], hsn, unit, rate, qty: 0, taxable: 0, gst: 0 };
+    const name = String(l.description ?? "").replace(/\s+/g, " ").trim();
+    if (name && !g.names.includes(name)) g.names.push(name);
+    g.qty += numOf(l.qty) || 0;
+    g.taxable += taxable;
+    g.gst += gst;
+    groups.set(key, g);
+  }
+  if (groups.size === 0) {
+    return {
+      ok: false,
+      field: "lines",
+      error: serviceValue > 0 ? "This bill has only services. An e-way bill is for goods." : "This bill has no lines with a value.",
+    };
+  }
+  if (groups.size > EWB_MAX_ITEMS) {
+    return { ok: false, field: "lines", error: `This bill has ${groups.size} HSN / rate groups. An e-way bill takes at most ${EWB_MAX_ITEMS}.` };
+  }
+
+  const interState = fromState !== toState;
+  const itemList: EwbDirectItem[] = [];
+  let totalValue = 0;
+  let cgstValue = 0;
+  let sgstValue = 0;
+  let igstValue = 0;
+  for (const g of groups.values()) {
+    const taxable = r2(g.taxable);
+    const gst = r2(g.gst);
+    const first = g.names[0] || `HSN ${g.hsn}`;
+    const name = g.names.length > 1 ? `${first.slice(0, 85)} and ${g.names.length - 1} more` : first.slice(0, 100);
+    itemList.push({
+      productName: name.padEnd(3, "."),
+      productDesc: g.names.join(", ").slice(0, 100) || name,
+      hsnCode: Number(g.hsn),
+      quantity: r3(g.qty) || 1,
+      qtyUnit: g.unit,
+      cgstRate: interState ? 0 : g.rate / 2,
+      sgstRate: interState ? 0 : g.rate / 2,
+      igstRate: interState ? g.rate : 0,
+      cessRate: 0,
+      cessNonadvol: 0,
+      taxableAmount: taxable,
+    });
+    totalValue += taxable;
+    if (interState) igstValue += gst;
+    else {
+      cgstValue += r2(gst / 2);
+      sgstValue += r2(gst / 2);
+    }
+  }
+  totalValue = r2(totalValue);
+  cgstValue = r2(cgstValue);
+  sgstValue = r2(sgstValue);
+  igstValue = r2(igstValue);
+  const net = r2(numOf(opts.netAmount));
+  const otherValue = r2(net - (totalValue + cgstValue + sgstValue + igstValue));
+  if (otherValue < -100) {
+    return { ok: false, field: "total", error: `The bill total ₹${net} is less than its lines. Open and save the bill again.` };
+  }
+
+  const checked = ewbTransportPart(opts.transport, { docDate, today: opts.today });
+  if (checked.ok === false) {
+    const bad = checked as { field: EwbProblemField; error: string };
+    return { ok: false, field: bad.field, error: bad.error };
+  }
+  const t = (checked as { part: EwbTransportPart }).part;
+
+  const from = addrLines(opts.seller.address, fromPlace);
+  const to = addrLines(opts.buyer.address, toPlace);
+  const sellerName = String(opts.seller.name ?? "").replace(/\s+/g, " ").trim().slice(0, 100) || sellerGstin;
+  const buyerName = String(opts.buyer.name ?? "").replace(/\s+/g, " ").trim().slice(0, 100) || "Customer";
+
+  const payload: EwbDirectPayload = {
+    supplyType: "O",
+    subSupplyType: "1",
+    docType: "INV",
+    docNo,
+    docDate: ddmmyyyy(docDate),
+    fromGstin: sellerGstin,
+    fromTrdName: sellerName,
+    fromAddr1: from.a1,
+    ...(from.a2 ? { fromAddr2: from.a2 } : {}),
+    fromPlace,
+    fromPincode: fromPin,
+    actFromStateCode: fromState,
+    fromStateCode: fromState,
+    toGstin,
+    toTrdName: buyerName,
+    toAddr1: to.a1,
+    ...(to.a2 ? { toAddr2: to.a2 } : {}),
+    toPlace,
+    toPincode: toPin,
+    actToStateCode: actToState,
+    toStateCode: toState,
+    transactionType: 1,
+    otherValue,
+    totalValue,
+    cgstValue,
+    sgstValue,
+    igstValue,
+    cessValue: 0,
+    cessNonAdvolValue: 0,
+    totInvValue: net,
+    transDistance: String(t.distance),
+    itemList,
+  };
+  if (t.transporterId) payload.transporterId = t.transporterId;
+  if (t.transporterName) payload.transporterName = t.transporterName;
+  if (t.partB) {
+    payload.transMode = EWB_MODE_CODE[t.mode];
+    if (t.transDocNo) {
+      payload.transDocNo = t.transDocNo;
+      payload.transDocDate = ddmmyyyy(t.transDocDate);
+    }
+    if (t.vehicleNo) {
+      payload.vehicleNo = t.vehicleNo;
+      payload.vehicleType = t.vehicleType;
+    }
+  }
+  return { ok: true, payload, partAOnly: !t.partB, interState };
+}
+
+/** Number, date and validity from an accepted genewaybill reply, or null. */
+export function ewbGenReplyInfo(data: Record<string, unknown> | null): { ewbNo: string; ewbDate: string | null; validTill: string | null } | null {
+  if (!data) return null;
+  const ewbNo = String(data.ewayBillNo ?? data.ewbNo ?? data.EwbNo ?? "").replace(/\D/g, "");
+  if (!/^\d{12}$/.test(ewbNo)) return null;
+  return {
+    ewbNo,
+    ewbDate: parseEwbApiDateTime(data.ewayBillDate ?? data.ewbDate ?? data.EwbDt ?? null),
+    validTill: parseEwbApiDateTime(data.validUpto ?? data.ValidUpto ?? data.EwbValidTill ?? null),
+  };
 }

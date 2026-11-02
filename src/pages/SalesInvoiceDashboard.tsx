@@ -78,7 +78,7 @@ import { EInvoicePrint } from "@/components/EInvoicePrint";
 import { SaleEwayBillDialog } from "@/components/ewaybill/SaleEwayBillDialog";
 import { EwayBillAlertStrip } from "@/components/ewaybill/EwayBillAlertStrip";
 import { useSaleEwayBills } from "@/hooks/useSaleEwayBills";
-import { formatEwbNo, formatIstDateTime } from "@/utils/ewayBill";
+import { EWB_VALUE_LIMIT, formatEwbNo, formatIstDateTime } from "@/utils/ewayBill";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import {
   resolveSaleBillFormat,
@@ -1100,9 +1100,9 @@ export default function SalesInvoiceDashboard() {
   ]);
   // Industrial mode, Phase 2 step 3: export / SEZ bills on this page (their IRN goes through einvoice-note).
   const industrialMode = useIndustrialMode();
-  const exportIrnOn =
-    industrialMode.enabled &&
-    ((settings?.sale_settings as unknown as { einvoice_settings?: { enabled?: boolean } } | null)?.einvoice_settings?.enabled ?? false);
+  const einvoiceSwitchOn =
+    (settings?.sale_settings as unknown as { einvoice_settings?: { enabled?: boolean } } | null)?.einvoice_settings?.enabled ?? false;
+  const exportIrnOn = industrialMode.enabled && einvoiceSwitchOn;
   // E-way bill from the IRN (truck button on e-invoiced bills): any shop with E-Invoice and the
   // E-Way Bill switch on in Settings > Sale. Other shops make no e-way bill query.
   const ewbOn = useEwayBillOn();
@@ -1116,13 +1116,25 @@ export default function SalesInvoiceDashboard() {
   const pageSupplyTypes = useSaleSupplyTypes(currentOrganization?.id, pageSaleIds, exportIrnOn);
   const pageEwb = useSaleEwayBills(currentOrganization?.id, pageSaleIds, ewbOn);
   const [ewbInvoice, setEwbInvoice] = useState<any | null>(null);
-  const ewbButtonFor = (invoice: { id?: string }) => {
+  /**
+   * Truck button: bills with an IRN (from the IRN), and bills without one (direct e-way bill). B2B bills
+   * of an e-invoice shop wait for their IRN. In the row, a bill without one shows it only above the
+   * ₹50,000 limit or once it has an e-way bill; the menu shows it on every bill.
+   */
+  const ewbButtonFor = (
+    invoice: { id?: string; is_cancelled?: boolean | null; net_amount?: number | null; customers?: { gst_number?: string | null } | null },
+    inMenu = false,
+  ) => {
     if (!ewbOn) return null;
-    const irnState = pageEwb.irns.get(String(invoice.id ?? ""));
-    if (!irnState || irnState.status !== "generated") return null;
-    const ewb = pageEwb.rows.get(String(invoice.id ?? ""));
+    const id = String(invoice.id ?? "");
+    const ewb = pageEwb.rows.get(id);
     const on = ewb?.status === "active";
-    return { on, title: on ? `E-way bill ${formatEwbNo(ewb!.ewb_no)}` : "Generate e-way bill" };
+    const title = on ? `E-way bill ${formatEwbNo(ewb!.ewb_no)}` : "Generate e-way bill";
+    if (on || pageEwb.irns.get(id)?.status === "generated") return { on, title };
+    if (invoice.is_cancelled) return null;
+    if (einvoiceSwitchOn && canEInvoice(invoice)) return null;
+    if (!inMenu && !ewb && Number(invoice.net_amount ?? 0) <= EWB_VALUE_LIMIT) return null;
+    return { on, title };
   };
   /** E-invoice buttons: registered buyers, plus export bills (buyer abroad has no GSTIN). */
   const canEInvoice = (invoice: { id?: string; customers?: { gst_number?: string | null } | null }) =>
@@ -4746,16 +4758,16 @@ export default function SalesInvoiceDashboard() {
                                             <FileDown className="h-4 w-4 mr-2 text-teal-600" /> Download E-Invoice
                                           </DropdownMenuItem>
                                         )}
-                                        {(() => {
-                                          const ewbBtn = ewbButtonFor(invoice);
-                                          return ewbBtn ? (
-                                            <DropdownMenuItem onClick={() => setEwbInvoice(invoice)}>
-                                              <Truck className="h-4 w-4 mr-2 text-teal-600" /> {ewbBtn.on ? ewbBtn.title : "Generate E-Way Bill"}
-                                            </DropdownMenuItem>
-                                          ) : null;
-                                        })()}
                                       </>
                                     )}
+                                    {(() => {
+                                      const ewbBtn = ewbButtonFor(invoice, true);
+                                      return ewbBtn ? (
+                                        <DropdownMenuItem onClick={() => setEwbInvoice(invoice)}>
+                                          <Truck className="h-4 w-4 mr-2 text-teal-600" /> {ewbBtn.on ? ewbBtn.title : "Generate E-Way Bill"}
+                                        </DropdownMenuItem>
+                                      ) : null;
+                                    })()}
                                     <DropdownMenuSeparator />
                                     {columnSettings.modify && (() => {
                                       const own = canModifyEntry((invoice as any).created_by, invoiceCreatorLabel((invoice as any).created_by));

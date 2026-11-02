@@ -3,9 +3,9 @@ import { useIndustrialMode } from "./useIndustrialMode";
 import { ewayBillEnabled } from "@/utils/ewayBill";
 
 /**
- * E-way bills are on for this shop: E-Invoice and the E-Way Bill switch in Settings > Sale
- * (Industrial mode shops have the switch on unless they turned it off). Off for every other
- * shop, which then makes no e-way bill query.
+ * E-way bills are on for this shop: the E-Way Bill switch in Settings > Sale, with or without
+ * E-Invoice (Industrial mode shops with E-Invoice have it on unless they turned it off). Off for
+ * every other shop, which then makes no e-way bill query.
  */
 export function useEwayBillOn(): boolean {
   const { data } = useSettings();
