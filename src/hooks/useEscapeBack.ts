@@ -108,6 +108,7 @@ const BACK_MAP: Record<string, string> = {
   "discount-scheme-dashboard": "/",
   "delivery-challan-dashboard": "/",
   "debit-notes":              "/",
+  "eway-bills":               "/",
   // School
   "fee-collection":           "/",
   "students":                 "/",

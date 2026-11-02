@@ -96,6 +96,7 @@ export const PAGE_TITLE_CONFIG: Record<string, { label: string; icon: string }> 
   "purchase-orders": { label: "Purchase Orders", icon: "ClipboardList" },
   "delivery-challan-dashboard": { label: "Delivery Challans", icon: "Truck" },
   "debit-notes": { label: "Debit Notes", icon: "FileText" },
+  "eway-bills": { label: "E-Way Bills", icon: "Truck" },
   "delivery-dashboard": { label: "Delivery", icon: "Truck" },
   "advance-booking-dashboard": { label: "Advance Booking", icon: "Wallet" },
   "discount-scheme-dashboard": { label: "Discount Scheme", icon: "Percent" },

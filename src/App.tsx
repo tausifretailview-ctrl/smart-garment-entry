@@ -176,6 +176,7 @@ const BulkProductUpdate = lazyWithRetry(() => import("./pages/BulkProductUpdate"
 const DeliveryChallanEntry = lazyWithRetry(() => import("./pages/DeliveryChallanEntry"));
 const DeliveryChallanDashboard = lazyWithRetry(() => import("./pages/DeliveryChallanDashboard"));
 const DebitNoteDashboard = lazyWithRetry(() => import("./pages/DebitNoteDashboard"));
+const EwayBillRegister = lazyWithRetry(() => import("./pages/EwayBillRegister"));
 const AdvanceBookingDashboard = lazyWithRetry(() => import("./pages/AdvanceBookingDashboard"));
 const DiscountSchemeDashboard = lazyWithRetry(() => import("./pages/DiscountSchemeDashboard"));
 const SalesmanLayout = lazyWithRetry(() => import("./layouts/SalesmanLayout"));
@@ -1237,6 +1238,16 @@ const App = () => {
                     <ProtectedRoute>
                       <Layout>
                         <DebitNoteDashboard />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="eway-bills"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <EwayBillRegister />
                       </Layout>
                     </ProtectedRoute>
                   }
