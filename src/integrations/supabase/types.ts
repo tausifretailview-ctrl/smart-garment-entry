@@ -8213,6 +8213,8 @@ export type Database = {
       }
       sale_returns: {
         Row: {
+          ack_date: string | null
+          ack_no: string | null
           created_at: string
           credit_available_balance: number | null
           credit_note_id: string | null
@@ -8221,9 +8223,14 @@ export type Database = {
           customer_name: string
           deleted_at: string | null
           deleted_by: string | null
+          einvoice_error: string | null
+          einvoice_qr_code: string | null
+          einvoice_status: string | null
+          einvoice_test_mode: boolean | null
           gross_amount: number
           gst_amount: number
           id: string
+          irn: string | null
           journal_error: string | null
           journal_status: string
           linked_sale_id: string | null
@@ -8235,9 +8242,12 @@ export type Database = {
           refund_type: string
           return_date: string
           return_number: string | null
+          signed_invoice: string | null
           updated_at: string
         }
         Insert: {
+          ack_date?: string | null
+          ack_no?: string | null
           created_at?: string
           credit_available_balance?: number | null
           credit_note_id?: string | null
@@ -8246,9 +8256,14 @@ export type Database = {
           customer_name: string
           deleted_at?: string | null
           deleted_by?: string | null
+          einvoice_error?: string | null
+          einvoice_qr_code?: string | null
+          einvoice_status?: string | null
+          einvoice_test_mode?: boolean | null
           gross_amount?: number
           gst_amount?: number
           id?: string
+          irn?: string | null
           journal_error?: string | null
           journal_status?: string
           linked_sale_id?: string | null
@@ -8260,9 +8275,12 @@ export type Database = {
           refund_type?: string
           return_date?: string
           return_number?: string | null
+          signed_invoice?: string | null
           updated_at?: string
         }
         Update: {
+          ack_date?: string | null
+          ack_no?: string | null
           created_at?: string
           credit_available_balance?: number | null
           credit_note_id?: string | null
@@ -8271,9 +8289,14 @@ export type Database = {
           customer_name?: string
           deleted_at?: string | null
           deleted_by?: string | null
+          einvoice_error?: string | null
+          einvoice_qr_code?: string | null
+          einvoice_status?: string | null
+          einvoice_test_mode?: boolean | null
           gross_amount?: number
           gst_amount?: number
           id?: string
+          irn?: string | null
           journal_error?: string | null
           journal_status?: string
           linked_sale_id?: string | null
@@ -8285,6 +8308,7 @@ export type Database = {
           refund_type?: string
           return_date?: string
           return_number?: string | null
+          signed_invoice?: string | null
           updated_at?: string
         }
         Relationships: [

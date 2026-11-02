@@ -9,6 +9,8 @@ import {
   noteEInvoiceProblem,
   parseIrpDateTime,
   perioneErrorText,
+  saleReturnTaxInclusive,
+  saleReturnToNoteInput,
   type NoteInput,
   type NoteParty,
 } from "../../supabase/functions/_shared/einvoiceNote";
@@ -221,5 +223,59 @@ describe("noteEInvoiceProblem", () => {
   it("returns the first problem or null", () => {
     expect(noteEInvoiceProblem(freightNote(), seller, buyerMh)).toBeNull();
     expect(noteEInvoiceProblem(freightNote(), seller, { ...buyerMh, gstin: "" })).toContain("no GSTIN");
+  });
+});
+
+describe("saleReturnToNoteInput", () => {
+  const ret = {
+    return_number: "SR/26-27/12",
+    return_date: "2026-11-02",
+    net_amount: 2360,
+    gross_amount: 2360,
+    gst_amount: 360,
+    original_sale_number: "INV/26-27/538",
+    notes: null,
+  };
+  const items = [
+    { product_name: "Cotton shirt", hsn_code: "6205", quantity: 2, line_total: 2360, gst_percent: 18, is_dc_item: false, deleted_at: null },
+  ];
+
+  it("reads tax-inclusive returns (net = gross)", () => {
+    expect(saleReturnTaxInclusive(ret)).toBe(true);
+    const input = saleReturnToNoteInput(ret, items, { interState: false, originalSaleDate: "2026-10-28" });
+    expect(input).not.toBeNull();
+    if (!input) return;
+    expect(input.docType).toBe("CRN");
+    expect(input.number).toBe("SR/26-27/12");
+    expect(input.lines[0]).toMatchObject({ taxable: 2000, gstAmount: 360, qty: 2, rate: 1000, unit: "PCS" });
+    expect(input.netAmount).toBe(2360);
+    expect(input.againstInvoice).toEqual({ number: "INV/26-27/538", date: "2026-10-28" });
+    const r = buildNoteEInvoicePayload(input, seller, buyerMh);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.payload.DocDtls.Typ).toBe("CRN");
+      expect(r.payload.ValDtls).toMatchObject({ AssVal: 2000, CgstVal: 180, SgstVal: 180, RndOffAmt: 0, TotInvVal: 2360 });
+    }
+  });
+
+  it("reads tax-exclusive returns (net = gross + GST)", () => {
+    const ex = { ...ret, gross_amount: 2000, net_amount: 2360 };
+    expect(saleReturnTaxInclusive(ex)).toBe(false);
+    const input = saleReturnToNoteInput(ex, [{ ...items[0], line_total: 2000 }], { interState: true, originalSaleDate: null });
+    expect(input?.lines[0]).toMatchObject({ taxable: 2000, gstAmount: 360 });
+    expect(input?.againstInvoice).toEqual({ number: "INV/26-27/538", date: null });
+  });
+
+  it("leaves out challan and deleted lines", () => {
+    const mixed = [
+      ...items,
+      { product_name: "Sample", hsn_code: "6205", quantity: 1, line_total: 500, gst_percent: 0, is_dc_item: true, deleted_at: null },
+    ];
+    const input = saleReturnToNoteInput({ ...ret, net_amount: 2860, gross_amount: 2860 }, mixed, { interState: false, originalSaleDate: null });
+    expect(input?.lines).toHaveLength(1);
+    expect(input?.netAmount).toBe(2360);
+    expect(
+      saleReturnToNoteInput(ret, [{ ...items[0], is_dc_item: true }], { interState: false, originalSaleDate: null }),
+    ).toBeNull();
   });
 });

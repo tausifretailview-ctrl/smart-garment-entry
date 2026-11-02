@@ -1,16 +1,21 @@
-// E-invoice (IRN) for notes: generate or cancel the IRN of a sales debit note.
-// Industrial mode, Phase 2 step 2. Sale bills keep using generate-einvoice and
-// cancel-einvoice, which this function does not touch.
+// E-invoice (IRN) for notes: generate or cancel the IRN of a sales debit note (DBN,
+// a sales row) or a credit note (CRN, a sale return). Industrial mode, Phase 2 step 2.
+// Sale bills keep using generate-einvoice and cancel-einvoice, which this function
+// does not touch.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import {
   buildNoteEInvoicePayload,
+  cleanGstin,
   debitNoteToNoteInput,
+  saleReturnToNoteInput,
   duplicateIrnInfo,
   irnCancelHoursLeft,
   parseIrpDateTime,
   perioneErrorText,
   perioneSucceeded,
   IRN_CANCEL_REASONS,
+  type NoteInput,
+  type NoteParty,
 } from '../_shared/einvoiceNote.ts';
 
 const corsHeaders = {
@@ -20,7 +25,7 @@ const corsHeaders = {
 
 interface NoteRequest {
   action: 'generate' | 'cancel';
-  kind: 'debit';
+  kind: 'debit' | 'credit';
   noteId: string;
   organizationId: string;
   testMode?: boolean;
@@ -105,7 +110,7 @@ Deno.serve(async (req) => {
     const body = (await req.json()) as NoteRequest;
     const { action, kind, noteId, organizationId } = body;
     if (action !== 'generate' && action !== 'cancel') return json({ success: false, error: 'Unknown action' }, 400);
-    if (kind !== 'debit') return json({ success: false, error: 'Only debit notes are supported yet' }, 400);
+    if (kind !== 'debit' && kind !== 'credit') return json({ success: false, error: 'Unknown note kind' }, 400);
     if (!noteId || !UUID.test(noteId)) return json({ success: false, error: 'Invalid noteId' }, 400);
     if (!organizationId || !UUID.test(organizationId)) return json({ success: false, error: 'Invalid organizationId' }, 400);
 
@@ -126,17 +131,45 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!membership) return json({ success: false, error: 'Forbidden' }, 403);
 
-    const { data: note, error: noteError } = await supabase
-      .from('sales')
-      .select(
-        'id, sale_number, sale_date, sale_type, net_amount, customer_name, customer_address, customer_phone, debit_note_details, deleted_at, irn, ack_date, einvoice_status, einvoice_test_mode, customers:customer_id (gst_number, customer_name, address, phone, email)',
-      )
-      .eq('id', noteId)
-      .eq('organization_id', organizationId)
-      .maybeSingle();
-    if (noteError) throw new Error(`Could not read the debit note: ${noteError.message}`);
-    if (!note || note.sale_type !== 'debit_note' || note.deleted_at) {
-      return json({ success: false, error: 'Debit note not found. It may have been deleted.' });
+    // Debit notes are sales rows; credit notes are sale returns.
+    const table = kind === 'debit' ? 'sales' : 'sale_returns';
+    const word = kind === 'debit' ? 'debit note' : 'credit note';
+    // deno-lint-ignore no-explicit-any
+    let note: any = null;
+    if (kind === 'debit') {
+      const { data, error } = await supabase
+        .from('sales')
+        .select(
+          'id, sale_number, sale_date, sale_type, net_amount, customer_name, customer_address, customer_phone, debit_note_details, deleted_at, irn, ack_date, einvoice_status, einvoice_test_mode, customers:customer_id (gst_number, customer_name, address, phone, email)',
+        )
+        .eq('id', noteId)
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+      if (error) throw new Error(`Could not read the debit note: ${error.message}`);
+      if (data && data.sale_type === 'debit_note') note = data;
+    } else {
+      const { data, error } = await supabase
+        .from('sale_returns')
+        .select(
+          'id, return_number, return_date, net_amount, gross_amount, gst_amount, customer_id, customer_name, original_sale_number, notes, deleted_at, irn, ack_date, einvoice_status, einvoice_test_mode',
+        )
+        .eq('id', noteId)
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+      if (error) {
+        if (/irn|einvoice|ack_/i.test(error.message || '')) {
+          return json({
+            success: false,
+            code: 'MISSING_SQL',
+            error: 'Run the Phase 2 step 2b SQL first: it adds the IRN columns to sale returns.',
+          });
+        }
+        throw new Error(`Could not read the sale return: ${error.message}`);
+      }
+      note = data;
+    }
+    if (!note || note.deleted_at) {
+      return json({ success: false, error: `This ${word} was not found. It may have been deleted.` });
     }
 
     const { data: settingsData } = await supabase
@@ -165,18 +198,18 @@ Deno.serve(async (req) => {
     }
 
     const markFailed = async (error: string) => {
-      await supabase.from('sales').update({ einvoice_status: 'failed', einvoice_error: error.slice(0, 500) }).eq('id', noteId);
+      await supabase.from(table).update({ einvoice_status: 'failed', einvoice_error: error.slice(0, 500) }).eq('id', noteId);
     };
 
     if (action === 'cancel') {
       if (!note.irn || note.einvoice_status !== 'generated') {
-        return json({ success: false, error: 'This debit note has no active IRN to cancel.' });
+        return json({ success: false, error: `This ${word} has no active IRN to cancel.` });
       }
       if (irnCancelHoursLeft(note.ack_date) <= 0) {
         return json({
           success: false,
           code: 'CANCEL_WINDOW',
-          error: 'The IRP allows cancelling an IRN only within 24 hours. Raise a credit note against it instead.',
+          error: `The IRP allows cancelling an IRN only within 24 hours. Raise a ${kind === 'debit' ? 'credit' : 'debit'} note against it instead.`,
         });
       }
       const reasonCode = IRN_CANCEL_REASONS.some((r) => r.code === body.reasonCode) ? body.reasonCode! : '4';
@@ -205,50 +238,90 @@ Deno.serve(async (req) => {
       }
       if (!perioneSucceeded(data)) {
         const error = perioneErrorText(data, 'Cancellation failed');
-        await supabase.from('sales').update({ einvoice_error: `Cancel: ${error}`.slice(0, 500) }).eq('id', noteId);
+        await supabase.from(table).update({ einvoice_error: `Cancel: ${error}`.slice(0, 500) }).eq('id', noteId);
         return json({ success: false, error });
       }
-      await supabase.from('sales').update({ einvoice_status: 'cancelled', einvoice_error: null }).eq('id', noteId);
+      await supabase.from(table).update({ einvoice_status: 'cancelled', einvoice_error: null }).eq('id', noteId);
       return json({ success: true, message: 'IRN cancelled' });
     }
 
     // Generate
     if (note.irn && note.einvoice_status !== 'cancelled') {
-      return json({ success: false, code: 'ALREADY', error: 'This debit note already has an IRN.', irn: note.irn });
+      return json({ success: false, code: 'ALREADY', error: `This ${word} already has an IRN.`, irn: note.irn });
     }
     if (note.irn && note.einvoice_status === 'cancelled') {
       return json({
         success: false,
         code: 'CANCELLED_BEFORE',
-        error: 'Its IRN was cancelled, and the IRP never gives the same number a second IRN. Make a new debit note.',
+        error: `Its IRN was cancelled, and the IRP never gives the same number a second IRN. ${
+          kind === 'debit' ? 'Make a new debit note.' : 'Delete this return and save it again under a new number.'
+        }`,
       });
     }
 
-    const input = debitNoteToNoteInput(
-      { sale_number: note.sale_number, sale_date: note.sale_date, net_amount: note.net_amount },
-      note.debit_note_details,
-    );
-    if (!input) return json({ success: false, error: 'This debit note has no GST lines saved. Open and save it again.' });
-
-    // deno-lint-ignore no-explicit-any
-    const cust = (note.customers ?? {}) as any;
-    const built = buildNoteEInvoicePayload(
-      input,
-      {
-        gstin: creds.gstin,
-        name: settingsData?.business_name || '',
-        address: (settingsData?.address as string) || '',
-        phone: settingsData?.mobile_number,
-        email: settingsData?.email_id,
-      },
-      {
+    const seller: NoteParty = {
+      gstin: creds.gstin,
+      name: settingsData?.business_name || '',
+      address: (settingsData?.address as string) || '',
+      phone: settingsData?.mobile_number,
+      email: settingsData?.email_id,
+    };
+    let input: NoteInput | null = null;
+    let buyer: NoteParty;
+    if (kind === 'debit') {
+      // deno-lint-ignore no-explicit-any
+      const cust = (note.customers ?? {}) as any;
+      buyer = {
         gstin: cust.gst_number || '',
         name: note.customer_name || cust.customer_name || '',
         address: note.customer_address || cust.address || '',
         phone: note.customer_phone || cust.phone,
         email: cust.email,
-      },
-    );
+      };
+      input = debitNoteToNoteInput(
+        { sale_number: note.sale_number, sale_date: note.sale_date, net_amount: note.net_amount },
+        note.debit_note_details,
+      );
+      if (!input) return json({ success: false, error: 'This debit note has no GST lines saved. Open and save it again.' });
+    } else {
+      // sale_returns has no foreign key to customers: read the customer by id.
+      const { data: cust } = note.customer_id
+        ? await supabase
+          .from('customers')
+          .select('gst_number, customer_name, address, phone, email')
+          .eq('id', note.customer_id)
+          .eq('organization_id', organizationId)
+          .maybeSingle()
+        : { data: null };
+      buyer = {
+        gstin: cust?.gst_number || '',
+        name: note.customer_name || cust?.customer_name || '',
+        address: cust?.address || '',
+        phone: cust?.phone,
+        email: cust?.email,
+      };
+      const { data: items, error: itemsError } = await supabase
+        .from('sale_return_items')
+        .select('product_name, hsn_code, quantity, line_total, gst_percent, is_dc_item, deleted_at')
+        .eq('return_id', noteId);
+      if (itemsError) throw new Error(`Could not read the return lines: ${itemsError.message}`);
+      let originalSaleDate: string | null = null;
+      if (note.original_sale_number) {
+        const { data: orig } = await supabase
+          .from('sales')
+          .select('sale_date')
+          .eq('organization_id', organizationId)
+          .eq('sale_number', note.original_sale_number)
+          .is('deleted_at', null)
+          .limit(1)
+          .maybeSingle();
+        originalSaleDate = orig?.sale_date ? String(orig.sale_date).slice(0, 10) : null;
+      }
+      const interState = cleanGstin(creds.gstin).slice(0, 2) !== cleanGstin(buyer.gstin).slice(0, 2);
+      input = saleReturnToNoteInput(note, items ?? [], { interState, originalSaleDate });
+      if (!input) return json({ success: false, error: 'This return has no GST lines (challan items only), so it needs no IRN.' });
+    }
+    const built = buildNoteEInvoicePayload(input, seller, buyer);
     if (!built.ok) {
       await markFailed(built.error);
       return json({ success: false, code: built.code, error: built.error });
@@ -284,7 +357,7 @@ Deno.serve(async (req) => {
       const dup = duplicateIrnInfo(data);
       if (dup) {
         await supabase
-          .from('sales')
+          .from(table)
           .update({
             irn: dup.irn,
             ack_no: dup.ackNo || null,
@@ -303,7 +376,7 @@ Deno.serve(async (req) => {
 
     const out = data.data || {};
     const { error: saveError } = await supabase
-      .from('sales')
+      .from(table)
       .update({
         irn: out.Irn,
         ack_no: out.AckNo != null ? String(out.AckNo) : null,
