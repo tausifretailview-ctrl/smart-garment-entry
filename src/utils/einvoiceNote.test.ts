@@ -11,6 +11,8 @@ import {
   perioneErrorText,
   saleReturnTaxInclusive,
   saleReturnToNoteInput,
+  saleBillToIrnInput,
+  irpSupplyTypeOf,
   type NoteInput,
   type NoteParty,
 } from "../../supabase/functions/_shared/einvoiceNote";
@@ -277,5 +279,146 @@ describe("saleReturnToNoteInput", () => {
     expect(
       saleReturnToNoteInput(ret, [{ ...items[0], is_dc_item: true }], { interState: false, originalSaleDate: null }),
     ).toBeNull();
+  });
+});
+
+const exportBill = (patch: Partial<NoteInput> = {}): NoteInput => ({
+  docType: "INV",
+  number: "INV/26-27/612",
+  date: "2026-11-05",
+  interState: true,
+  netAmount: 50000,
+  lines: [{ description: "MS Pipe 25mm", hsn: "73063090", qty: 100, rate: 500, taxable: 50000, gstPercent: 0, gstAmount: 0, unit: "PCS" }],
+  supplyType: "EXPWOP",
+  exportDetails: { shipBillNo: "1234567", shipBillDate: "2026-11-07", portCode: "innsa1", countryCode: "AE", currency: "USD", foreignValue: 600 },
+  ...patch,
+});
+const buyerAbroad: NoteParty = { gstin: "", name: "Gulf Pipes LLC", address: "Jebel Ali, Dubai" };
+
+describe("export and SEZ bills", () => {
+  it("sends an export bill to a URP buyer in state 96 with the export details", () => {
+    const r = buildNoteEInvoicePayload(exportBill(), seller, buyerAbroad);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const p = r.payload;
+    expect(p.TranDtls.SupTyp).toBe("EXPWOP");
+    expect(p.DocDtls.Typ).toBe("INV");
+    expect(p.BuyerDtls).toMatchObject({ Gstin: "URP", Stcd: "96", Pos: "96", Pin: 999999 });
+    expect(p.ExpDtls).toEqual({ ShipBNo: "1234567", ShipBDt: "07/11/2026", Port: "INNSA1", CntCode: "AE", ForCur: "USD" });
+    expect(p.ValDtls.TotInvValFc).toBe(600);
+    expect(p.ValDtls.IgstVal).toBe(0);
+    expect(p.RefDtls).toBeUndefined();
+  });
+
+  it("charges IGST on an export with tax", () => {
+    const r = buildNoteEInvoicePayload(
+      exportBill({
+        supplyType: "EXPWP",
+        netAmount: 59000,
+        lines: [{ description: "MS Pipe 25mm", hsn: "73063090", qty: 100, rate: 500, taxable: 50000, gstPercent: 18, gstAmount: 9000 }],
+      }),
+      seller,
+      buyerAbroad,
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.payload.ItemList[0]).toMatchObject({ IgstAmt: 9000, CgstAmt: 0, SgstAmt: 0, GstRt: 18 });
+    expect(r.payload.ValDtls.IgstVal).toBe(9000);
+  });
+
+  it("stops GST on a bill under LUT and an export to a buyer with an Indian GSTIN", () => {
+    const taxed = exportBill({
+      netAmount: 59000,
+      lines: [{ description: "MS Pipe 25mm", hsn: "73063090", qty: 100, rate: 500, taxable: 50000, gstPercent: 18, gstAmount: 9000 }],
+    });
+    expect(noteEInvoiceProblem(taxed, seller, buyerAbroad)).toMatch(/LUT/);
+    const r = buildNoteEInvoicePayload(exportBill(), seller, buyerMh);
+    expect(r.ok === false && r.code).toBe("EXPORT_BUYER");
+  });
+
+  it("charges IGST to an SEZ unit in the shop's own state", () => {
+    const r = buildNoteEInvoicePayload(
+      exportBill({
+        supplyType: "SEZWP",
+        interState: false,
+        netAmount: 59000,
+        lines: [{ description: "MS Pipe 25mm", hsn: "73063090", qty: 100, rate: 500, taxable: 50000, gstPercent: 18, gstAmount: 9000 }],
+      }),
+      seller,
+      buyerMh,
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.payload.TranDtls.SupTyp).toBe("SEZWP");
+    expect(r.payload.BuyerDtls).toMatchObject({ Gstin: "27BBBBB1111B1Z6", Stcd: "27", Pos: "27", Pin: 411001 });
+    expect(r.payload.ItemList[0]).toMatchObject({ IgstAmt: 9000, CgstAmt: 0 });
+    expect(r.payload.ExpDtls).toBeUndefined();
+    expect(noteEInvoiceProblem(exportBill({ supplyType: "SEZWOP" }), seller, buyerAbroad)).toMatch(/SEZ unit has one/);
+  });
+
+  it("adds other charges to the total", () => {
+    const r = buildNoteEInvoicePayload(exportBill({ netAmount: 51500, otherCharges: 1500 }), seller, buyerAbroad);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.payload.ValDtls).toMatchObject({ AssVal: 50000, OthChrg: 1500, RndOffAmt: 0, TotInvVal: 51500 });
+  });
+});
+
+describe("saleBillToIrnInput", () => {
+  const item = (patch: Record<string, unknown> = {}) => ({
+    product_name: "MS Pipe 25mm",
+    hsn_code: "73063090",
+    quantity: 10,
+    unit_price: 1000,
+    line_total: 11800,
+    gst_percent: 18,
+    ...patch,
+  });
+
+  it("reads the supply type", () => {
+    expect(irpSupplyTypeOf({ supply_type: "SEZWOP" })).toBe("SEZWOP");
+    expect(irpSupplyTypeOf({ supply_type: "X" })).toBe("B2B");
+    expect(irpSupplyTypeOf(null)).toBe("B2B");
+  });
+
+  it("spreads the bill discount so the IRN total is the bill total", () => {
+    const input = saleBillToIrnInput(
+      {
+        sale_number: "INV/26-27/612",
+        sale_date: "2026-11-05T10:00:00+05:30",
+        net_amount: 21740,
+        flat_discount_amount: 1000,
+        other_charges: 500,
+        round_off: 0.4,
+        b2b_details: { supply_type: "EXPWP", port_code: "INNSA1", foreign_value: 260 },
+      },
+      [item(), item({ line_total: 11800 }), item({ is_dc_item: false, deleted_at: "2026-11-05" })],
+    );
+    expect(input).not.toBeNull();
+    if (!input) return;
+    expect(input.docType).toBe("INV");
+    expect(input.date).toBe("2026-11-05");
+    expect(input.supplyType).toBe("EXPWP");
+    expect(input.netAmount).toBe(21740);
+    expect(input.otherCharges).toBe(500);
+    expect(input.exportDetails).toMatchObject({ portCode: "INNSA1", foreignValue: 260 });
+    const value = input.lines.reduce((s, l) => s + l.taxable + l.gstAmount, 0);
+    expect(Math.abs(value - (21740 - 500 - 0.4))).toBeLessThan(0.02);
+    const r = buildNoteEInvoicePayload(input, seller, buyerAbroad);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(Math.abs(r.payload.ValDtls.RndOffAmt - 0.4)).toBeLessThan(0.03);
+    expect(r.payload.ValDtls.TotInvVal).toBe(21740);
+  });
+
+  it("reports only GST lines when challan lines are on the bill", () => {
+    const input = saleBillToIrnInput(
+      { sale_number: "INV/1", sale_date: "2026-11-05", net_amount: 13800, flat_discount_amount: 0, b2b_details: { supply_type: "SEZWP" } },
+      [item(), item({ line_total: 2000, gst_percent: 0, is_dc_item: true })],
+    );
+    expect(input?.lines).toHaveLength(1);
+    expect(input?.netAmount).toBe(11800);
+    expect(input?.exportDetails).toBeNull();
+    expect(saleBillToIrnInput({ sale_number: "INV/2", sale_date: "2026-11-05", net_amount: 0 }, [item({ is_dc_item: true })])).toBeNull();
   });
 });

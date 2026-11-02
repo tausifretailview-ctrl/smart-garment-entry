@@ -182,6 +182,87 @@ export interface SaleB2BDetails {
   /** yyyy-MM-dd */
   lr_date?: string;
   distance_km?: number;
+  /** Export / SEZ bill (Phase 2 step 3); absent on a regular bill within India. */
+  supply_type?: Exclude<SaleSupplyType, "B2B">;
+  /** Export only: shipping bill, port and buyer country, filled when known. */
+  ship_bill_no?: string;
+  /** yyyy-MM-dd */
+  ship_bill_date?: string;
+  /** Indian port code, e.g. INNSA1. */
+  port_code?: string;
+  /** Buyer country, ISO 2 letters, e.g. AE. */
+  country_code?: string;
+  /** Invoice currency, ISO 3 letters, e.g. USD. */
+  currency?: string;
+  /** Invoice value in that currency. */
+  foreign_value?: number;
+}
+
+/* Supply type of a sale bill. Codes are the IRP's own (TranDtls.SupTyp). */
+export type SaleSupplyType = "B2B" | "SEZWP" | "SEZWOP" | "EXPWP" | "EXPWOP";
+
+export const SALE_SUPPLY_TYPES: ReadonlyArray<{
+  value: SaleSupplyType;
+  label: string;
+  short: string;
+  /** Rule 46 line printed on the invoice. */
+  endorsement: string;
+}> = [
+  { value: "B2B", label: "Regular (within India)", short: "", endorsement: "" },
+  {
+    value: "SEZWP",
+    label: "SEZ unit, with IGST",
+    short: "SEZ with IGST",
+    endorsement: "SUPPLY TO SEZ UNIT OR SEZ DEVELOPER FOR AUTHORISED OPERATIONS ON PAYMENT OF INTEGRATED TAX",
+  },
+  {
+    value: "SEZWOP",
+    label: "SEZ unit, under LUT (no IGST)",
+    short: "SEZ under LUT",
+    endorsement:
+      "SUPPLY TO SEZ UNIT OR SEZ DEVELOPER FOR AUTHORISED OPERATIONS UNDER BOND OR LETTER OF UNDERTAKING WITHOUT PAYMENT OF INTEGRATED TAX",
+  },
+  {
+    value: "EXPWP",
+    label: "Export, with IGST",
+    short: "Export with IGST",
+    endorsement: "SUPPLY MEANT FOR EXPORT ON PAYMENT OF INTEGRATED TAX",
+  },
+  {
+    value: "EXPWOP",
+    label: "Export, under LUT (no IGST)",
+    short: "Export under LUT",
+    endorsement: "SUPPLY MEANT FOR EXPORT UNDER BOND OR LETTER OF UNDERTAKING WITHOUT PAYMENT OF INTEGRATED TAX",
+  },
+];
+
+const SUPPLY_CODES = SALE_SUPPLY_TYPES.map((t) => t.value);
+
+export function isSaleSupplyType(v: unknown): v is SaleSupplyType {
+  return typeof v === "string" && (SUPPLY_CODES as string[]).includes(v);
+}
+
+/** Supply type saved on a bill (b2b_details); "B2B" for every regular bill. */
+export function saleSupplyTypeOf(details: unknown): SaleSupplyType {
+  const v = details && typeof details === "object" ? (details as Record<string, unknown>).supply_type : null;
+  return isSaleSupplyType(v) ? v : "B2B";
+}
+
+export const isExportSupply = (t: SaleSupplyType | null | undefined): boolean => t === "EXPWP" || t === "EXPWOP";
+export const isSezSupply = (t: SaleSupplyType | null | undefined): boolean => t === "SEZWP" || t === "SEZWOP";
+/** Export or SEZ: always IGST, whatever the states. */
+export const isZeroRatedSupply = (t: SaleSupplyType | null | undefined): boolean => isExportSupply(t) || isSezSupply(t);
+/** Under LUT / bond: the bill carries no GST. */
+export const isSupplyWithoutTax = (t: SaleSupplyType | null | undefined): boolean => t === "SEZWOP" || t === "EXPWOP";
+
+export function saleSupplyShortLabel(t: SaleSupplyType | null | undefined): string {
+  return SALE_SUPPLY_TYPES.find((x) => x.value === t)?.short ?? "";
+}
+
+/** Rule 46 endorsement for an export / SEZ bill; "" for a regular bill. */
+export function saleSupplyEndorsement(details: unknown): string {
+  const t = saleSupplyTypeOf(details);
+  return SALE_SUPPLY_TYPES.find((x) => x.value === t)?.endorsement ?? "";
 }
 
 export type SaleB2BDetailsForm = {
@@ -194,6 +275,13 @@ export type SaleB2BDetailsForm = {
   lr_no: string;
   lr_date: string;
   distance_km: string;
+  supply_type: SaleSupplyType;
+  ship_bill_no: string;
+  ship_bill_date: string;
+  port_code: string;
+  country_code: string;
+  currency: string;
+  foreign_value: string;
 };
 
 export const EMPTY_SALE_B2B_FORM: SaleB2BDetailsForm = {
@@ -206,6 +294,13 @@ export const EMPTY_SALE_B2B_FORM: SaleB2BDetailsForm = {
   lr_no: "",
   lr_date: "",
   distance_km: "",
+  supply_type: "B2B",
+  ship_bill_no: "",
+  ship_bill_date: "",
+  port_code: "",
+  country_code: "",
+  currency: "",
+  foreign_value: "",
 };
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -231,6 +326,13 @@ export function saleB2BToForm(raw: unknown): SaleB2BDetailsForm {
     lr_no: str(r.lr_no),
     lr_date: ISO_DATE_RE.test(str(r.lr_date)) ? str(r.lr_date) : "",
     distance_km: r.distance_km == null || r.distance_km === "" ? "" : str(r.distance_km),
+    supply_type: saleSupplyTypeOf(r),
+    ship_bill_no: str(r.ship_bill_no),
+    ship_bill_date: ISO_DATE_RE.test(str(r.ship_bill_date)) ? str(r.ship_bill_date) : "",
+    port_code: str(r.port_code),
+    country_code: str(r.country_code),
+    currency: str(r.currency),
+    foreign_value: r.foreign_value == null || r.foreign_value === "" ? "" : str(r.foreign_value),
   };
 }
 
@@ -266,6 +368,40 @@ export function parseSaleB2BForm(form: SaleB2BDetailsForm): SaleB2BDetails | nul
     const n = Number(t(form.distance_km));
     if (!Number.isInteger(n) || n < 0 || n > 4000) throw new Error("Distance must be whole km from 0 to 4000");
     out.distance_km = n;
+  }
+  if (form.supply_type && form.supply_type !== "B2B") {
+    if (!isSaleSupplyType(form.supply_type)) throw new Error("Pick a supply type from the list");
+    out.supply_type = form.supply_type;
+  }
+  // Shipping bill, port and currency belong to export bills only.
+  if (isExportSupply(out.supply_type)) {
+    const sb = t(form.ship_bill_no).replace(/"/g, "");
+    if (sb) out.ship_bill_no = sb.slice(0, 20);
+    if (t(form.ship_bill_date)) {
+      if (!ISO_DATE_RE.test(t(form.ship_bill_date))) throw new Error("Shipping bill date is not a valid date");
+      out.ship_bill_date = t(form.ship_bill_date);
+    }
+    const port = t(form.port_code).toUpperCase().replace(/\s/g, "");
+    if (port) {
+      if (!/^[A-Z0-9]{2,10}$/.test(port)) throw new Error("Port code is letters and digits, e.g. INNSA1");
+      out.port_code = port;
+    }
+    const country = t(form.country_code).toUpperCase();
+    if (country) {
+      if (!/^[A-Z]{2}$/.test(country)) throw new Error("Country code is 2 letters, e.g. AE or US");
+      out.country_code = country;
+    }
+    const cur = t(form.currency).toUpperCase();
+    if (cur) {
+      if (!/^[A-Z]{3}$/.test(cur)) throw new Error("Currency is 3 letters, e.g. USD");
+      out.currency = cur;
+    }
+    const fv = t(form.foreign_value).replace(/,/g, "");
+    if (fv) {
+      const n = Number(fv);
+      if (!Number.isFinite(n) || n <= 0 || n > 1e13) throw new Error("Value in foreign currency must be more than 0");
+      out.foreign_value = Math.round(n * 100) / 100;
+    }
   }
   if (Object.keys(out).length === 0) return null;
   // Mode only means something once there is transport to describe.
@@ -319,6 +455,14 @@ export function buildB2BInvoiceRows(
 ): Array<[string, string]> {
   if (!d || typeof d !== "object") return [];
   const rows: Array<[string, string]> = [];
+  const supply = saleSupplyShortLabel(saleSupplyTypeOf(d));
+  if (supply) rows.push(["Supply", supply]);
+  if (d.ship_bill_no) rows.push(["Shipping Bill", `${d.ship_bill_no}${d.ship_bill_date ? ` dt ${dmy(d.ship_bill_date)}` : ""}`]);
+  const portCountry = [d.port_code, d.country_code].filter(Boolean).join(" · ");
+  if (portCountry) rows.push(["Port · Country", portCountry]);
+  if (d.currency && d.foreign_value) {
+    rows.push(["Value", `${d.currency} ${d.foreign_value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+  }
   const po = formatCustomerPoRef(d);
   if (po) rows.push(["Buyer's Order No.", po]);
   const through = [d.transporter_name, d.transport_mode && d.transport_mode !== "road" ? `by ${TRANSPORT_MODE_LABEL[d.transport_mode]}` : ""]

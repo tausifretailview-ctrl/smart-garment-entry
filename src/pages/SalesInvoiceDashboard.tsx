@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import type { SaleB2BDetails } from "@/utils/industrialMode";
+import { isExportSupply, saleSupplyShortLabel, type SaleB2BDetails } from "@/utils/industrialMode";
+import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { useSaleSupplyTypes } from "@/hooks/useSaleSupplyTypes";
+import { invokeSaleEInvoice } from "@/utils/saleEInvoiceRoute";
 import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
@@ -1085,6 +1088,19 @@ export default function SalesInvoiceDashboard() {
     isStatsLoading,
     isPageFetching,
   ]);
+  // Industrial mode, Phase 2 step 3: export / SEZ bills on this page (their IRN goes through einvoice-note).
+  const industrialMode = useIndustrialMode();
+  const exportIrnOn =
+    industrialMode.enabled &&
+    ((settings?.sale_settings as unknown as { einvoice_settings?: { enabled?: boolean } } | null)?.einvoice_settings?.enabled ?? false);
+  const pageSaleIds = useMemo(
+    () => (exportIrnOn ? (paginatedInvoices as Array<{ id?: string }>).map((i) => String(i.id ?? "")).filter(Boolean) : []),
+    [exportIrnOn, paginatedInvoices],
+  );
+  const pageSupplyTypes = useSaleSupplyTypes(currentOrganization?.id, pageSaleIds, exportIrnOn);
+  /** E-invoice buttons: registered buyers, plus export bills (buyer abroad has no GSTIN). */
+  const canEInvoice = (invoice: { id?: string; customers?: { gst_number?: string | null } | null }) =>
+    !!invoice.customers?.gst_number || (exportIrnOn && pageSupplyTypes.has(String(invoice.id ?? "")));
   const reconciledStats = dashboardStats;
   const totalCount =
     paymentStatusFilter.length > 0 &&
@@ -3336,7 +3352,10 @@ export default function SalesInvoiceDashboard() {
   const validateForEInvoice = (invoice: any): string[] => {
     const errors: string[] = [];
     const gstin = invoice.customers?.gst_number;
-    if (!gstin) errors.push('Customer GSTIN is required for B2B e-Invoice');
+    const exportBill = exportIrnOn && isExportSupply(pageSupplyTypes.get(String(invoice.id)));
+    if (exportBill) {
+      // Buyer abroad: no GSTIN (the IRP takes URP).
+    } else if (!gstin) errors.push('Customer GSTIN is required for B2B e-Invoice');
     else if (gstin.length !== 15) errors.push('Customer GSTIN must be 15 characters');
     if (!invoice.sale_number) errors.push('Invoice number is missing');
     if (invoice.net_amount <= 0) errors.push('Invoice total must be greater than 0');
@@ -3348,9 +3367,10 @@ export default function SalesInvoiceDashboard() {
 
   // E-Invoice generation handler
   const handleGenerateEInvoice = async (invoice: any) => {
-    // Check if customer has GST number
+    // Check if customer has GST number (an export bill's buyer abroad has none)
     const customerGstin = invoice.customers?.gst_number;
-    if (!customerGstin) {
+    const supplyType = exportIrnOn ? pageSupplyTypes.get(String(invoice.id)) : undefined;
+    if (!customerGstin && !isExportSupply(supplyType)) {
       toast({
         title: "GSTIN Required",
         description: "Customer GSTIN is required for e-Invoice generation. This is a B2B invoice requirement.",
@@ -3384,12 +3404,13 @@ export default function SalesInvoiceDashboard() {
     try {
       const testMode = (settings?.sale_settings as any)?.einvoice_settings?.test_mode ?? true;
       
-      const response = await supabase.functions.invoke('generate-einvoice', {
-        body: {
-          saleId: invoice.id,
-          organizationId: currentOrganization?.id,
-          testMode,
-        },
+      // Regular bills: generate-einvoice exactly as before. Export / SEZ bills (Industrial mode): einvoice-note.
+      const response = await invokeSaleEInvoice({
+        saleId: invoice.id,
+        organizationId: currentOrganization?.id ?? "",
+        testMode,
+        industrial: exportIrnOn,
+        supplyType: supplyType ?? null,
       });
 
       if (response.error) {
@@ -3404,7 +3425,7 @@ export default function SalesInvoiceDashboard() {
       
       if (result.success) {
         toast({
-          title: "E-Invoice Generated",
+          title: supplyType ? `E-Invoice Generated · ${saleSupplyShortLabel(supplyType)}` : "E-Invoice Generated",
           description: `IRN: ${result.irn?.substring(0, 30)}...`,
         });
         refreshInvoiceDashboard();
@@ -4543,7 +4564,7 @@ export default function SalesInvoiceDashboard() {
                             <TableCell className="text-right align-middle whitespace-nowrap py-1 max-w-0 overflow-hidden" onClick={(e) => e.stopPropagation()}>
                               {/* Desktop: compact single-line action icons */}
                               <div className="hidden lg:flex justify-end items-center gap-0.5 flex-nowrap [&_button]:h-7 [&_button]:w-7 [&_button]:shrink-0 min-w-0">
-                                {isEInvoiceEnabled && invoice.customers?.gst_number && (
+                                {isEInvoiceEnabled && canEInvoice(invoice) && (
                                   <>
                                     <Button variant="ghost" size="icon" onClick={() => handleGenerateEInvoice(invoice)} title={invoice.irn ? `IRN: ${invoice.irn.substring(0, 20)}...` : "Generate E-Invoice"} disabled={isGeneratingEInvoice === invoice.id} className={invoice.irn ? "text-green-600" : "text-orange-600"}>
                                       {isGeneratingEInvoice === invoice.id ? <Loader2 className="h-4 w-4 animate-spin" /> : invoice.irn ? <CheckCircle2 className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
@@ -4656,7 +4677,7 @@ export default function SalesInvoiceDashboard() {
                                         <Link2 className="h-4 w-4 mr-2 text-blue-600" /> Copy Invoice Link
                                       </DropdownMenuItem>
                                     )}
-                                    {isEInvoiceEnabled && invoice.customers?.gst_number && (
+                                    {isEInvoiceEnabled && canEInvoice(invoice) && (
                                       <>
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem onClick={() => handleGenerateEInvoice(invoice)} disabled={isGeneratingEInvoice === invoice.id}>

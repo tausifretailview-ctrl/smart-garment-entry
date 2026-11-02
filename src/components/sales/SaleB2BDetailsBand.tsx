@@ -1,14 +1,21 @@
 import { useState } from "react";
-import { ChevronDown, FileText, Truck } from "lucide-react";
+import { AlertTriangle, ChevronDown, FileText, Globe2, Truck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
+  SALE_SUPPLY_TYPES,
   TRANSPORT_MODE_LABEL,
   formatCustomerPoRef,
   formatSaleTransportLine,
+  isExportSupply,
+  isSezSupply,
+  isSupplyWithoutTax,
+  isZeroRatedSupply,
   parseSaleB2BForm,
+  saleSupplyShortLabel,
   type SaleB2BDetailsForm,
+  type SaleSupplyType,
   type TransportMode,
 } from "@/utils/industrialMode";
 
@@ -17,6 +24,12 @@ type Props = {
   onChange: (next: SaleB2BDetailsForm) => void;
   /** Customer Master "Transport" text, shown as a hint for Transporter. */
   customerTransport?: string | null;
+  /** Selected customer's GSTIN, to warn when it does not fit the supply type. */
+  customerGstin?: string | null;
+  /** GST on the bill now: an LUT (no IGST) bill must have none. */
+  billGst?: number;
+  /** Sets GST 0% on every line (LUT bills). */
+  onZeroGst?: () => void;
   className?: string;
 };
 
@@ -31,19 +44,34 @@ function readOpen(): boolean {
 }
 
 /** Sale Invoice (Industrial mode): customer PO and dispatch details, one tidy band under the header. */
-export function SaleB2BDetailsBand({ value, onChange, customerTransport, className }: Props) {
+export function SaleB2BDetailsBand({ value, onChange, customerTransport, customerGstin, billGst = 0, onZeroGst, className }: Props) {
   const [open, setOpen] = useState(readOpen);
   const set = (patch: Partial<SaleB2BDetailsForm>) => onChange({ ...value, ...patch });
+  const supply = value.supply_type || "B2B";
+  const exportBill = isExportSupply(supply);
+  const gstin = String(customerGstin ?? "").trim();
 
   let summary = "";
   try {
     const parsed = parseSaleB2BForm(value);
-    summary = [formatCustomerPoRef(parsed) && `PO ${formatCustomerPoRef(parsed)}`, formatSaleTransportLine(parsed)]
+    summary = [
+      saleSupplyShortLabel(supply),
+      formatCustomerPoRef(parsed) && `PO ${formatCustomerPoRef(parsed)}`,
+      formatSaleTransportLine(parsed),
+    ]
       .filter(Boolean)
       .join("  ·  ");
   } catch {
     summary = "Check the details";
   }
+
+  // Plain warnings; the e-invoice service gives the final word.
+  const warnings: string[] = [];
+  if (isSupplyWithoutTax(supply) && billGst > 0.005) {
+    warnings.push(`Under LUT the bill must not charge GST, but it has ₹${billGst.toFixed(2)}. Set GST 0% on the lines.`);
+  }
+  if (exportBill && gstin) warnings.push("This customer has an Indian GSTIN. An export bill is for a buyer abroad: pick SEZ if it is an SEZ unit.");
+  if (isSezSupply(supply) && !gstin) warnings.push("An SEZ unit has a GSTIN. Add it to this customer before the e-invoice.");
 
   const toggle = () => {
     const next = !open;
@@ -68,11 +96,126 @@ export function SaleB2BDetailsBand({ value, onChange, customerTransport, classNa
       >
         <Truck className="h-4 w-4 text-sky-700 shrink-0" />
         <span className="text-[13px] font-bold text-sky-900">Order &amp; dispatch</span>
+        {supply !== "B2B" ? (
+          <span className="shrink-0 rounded border border-sky-300 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-sky-800">
+            {saleSupplyShortLabel(supply)}
+          </span>
+        ) : null}
         <span className="text-xs text-slate-500 truncate min-w-0 flex-1">
           {summary || "Customer PO, transporter, vehicle, LR, distance"}
         </span>
         <ChevronDown className={cn("h-4 w-4 text-slate-500 transition-transform", open && "rotate-180")} />
       </button>
+
+      {open && (
+        <div className="px-3 pb-2 flex flex-wrap items-end gap-x-3 gap-y-2">
+          <div className="w-full sm:w-64">
+            <label htmlFor="b2b-supply" className={label}>
+              <Globe2 className="inline h-3 w-3 mr-1 -mt-0.5" />
+              Supply type
+            </label>
+            <Select value={supply} onValueChange={(v) => set({ supply_type: v as SaleSupplyType })}>
+              <SelectTrigger id="b2b-supply" className={field}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="z-50">
+                {SALE_SUPPLY_TYPES.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>
+                    {t.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {isZeroRatedSupply(supply) ? (
+            <p className="text-xs text-slate-600 pb-2.5 min-w-0 flex-1">
+              {isSupplyWithoutTax(supply)
+                ? "Zero-rated under LUT / bond: no GST on this bill. The print carries the LUT line."
+                : "IGST on this bill, even within the state. The print carries the export / SEZ line."}
+            </p>
+          ) : null}
+        </div>
+      )}
+
+      {open && warnings.length > 0 && (
+        <div className="mx-3 mb-2 rounded border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 flex flex-col gap-1">
+          {warnings.map((w) => (
+            <div key={w} className="flex items-start gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5 mt-px shrink-0 text-amber-600" />
+              <span className="min-w-0 flex-1">{w}</span>
+            </div>
+          ))}
+          {isSupplyWithoutTax(supply) && billGst > 0.005 && onZeroGst ? (
+            <button
+              type="button"
+              onClick={onZeroGst}
+              className="self-start rounded border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-900 hover:bg-amber-100"
+            >
+              Set GST 0% on all lines
+            </button>
+          ) : null}
+        </div>
+      )}
+
+      {open && exportBill && (
+        <div className="px-3 pb-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          <div>
+            <label htmlFor="b2b-sb-no" className={label}>Shipping bill no</label>
+            <Input
+              id="b2b-sb-no"
+              className={field}
+              value={value.ship_bill_no}
+              onChange={(e) => set({ ship_bill_no: e.target.value.slice(0, 20) })}
+              placeholder="Fill when known"
+            />
+          </div>
+          <div>
+            <label htmlFor="b2b-sb-date" className={label}>Shipping bill date</label>
+            <Input id="b2b-sb-date" type="date" className={field} value={value.ship_bill_date} onChange={(e) => set({ ship_bill_date: e.target.value })} />
+          </div>
+          <div>
+            <label htmlFor="b2b-port" className={label}>Port code</label>
+            <Input
+              id="b2b-port"
+              className={cn(field, "uppercase font-mono text-[13px]")}
+              value={value.port_code}
+              onChange={(e) => set({ port_code: e.target.value.toUpperCase().slice(0, 10) })}
+              placeholder="INNSA1"
+            />
+          </div>
+          <div>
+            <label htmlFor="b2b-country" className={label}>Country</label>
+            <Input
+              id="b2b-country"
+              className={cn(field, "uppercase font-mono text-[13px]")}
+              value={value.country_code}
+              onChange={(e) => set({ country_code: e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2) })}
+              placeholder="AE"
+            />
+          </div>
+          <div>
+            <label htmlFor="b2b-currency" className={label}>Currency</label>
+            <Input
+              id="b2b-currency"
+              className={cn(field, "uppercase font-mono text-[13px]")}
+              value={value.currency}
+              onChange={(e) => set({ currency: e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3) })}
+              placeholder="USD"
+            />
+          </div>
+          <div>
+            <label htmlFor="b2b-fc-value" className={label}>Value in currency</label>
+            <Input
+              id="b2b-fc-value"
+              inputMode="decimal"
+              className={cn(field, "tabular-nums")}
+              value={value.foreign_value}
+              onChange={(e) => set({ foreign_value: e.target.value.replace(/[^0-9.]/g, "").slice(0, 16) })}
+              placeholder="6250.00"
+            />
+          </div>
+        </div>
+      )}
 
       {open && (
         <div className="px-3 pb-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-9 gap-2.5">
