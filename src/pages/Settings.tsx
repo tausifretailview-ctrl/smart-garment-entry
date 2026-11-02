@@ -222,6 +222,7 @@ interface PurchaseSettings {
   auto_focus_search?: boolean;
   size_grid_review_mode?: boolean;
   roll_wise_mtr_entry?: boolean;
+  per_piece_barcode?: boolean;
   cursor_after_style?: 'pur_price' | 'hsn';
   garment_gst_rule_enabled?: boolean;
   garment_gst_threshold?: number;
@@ -2791,6 +2792,28 @@ export default function Settings() {
                 </div>
                 <p className="text-xs text-muted-foreground ml-6">
                   When enabled, products with UOM = MTR show a roll entry dialog where each roll's individual meter length is entered. Each roll gets its own barcode and variant for per-roll stock tracking.
+                </p>
+
+                <div className="flex items-center space-x-2 pt-4">
+                  <Checkbox
+                    id="per_piece_barcode"
+                    checked={settings.purchase_settings?.per_piece_barcode || false}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          per_piece_barcode: checked as boolean,
+                        },
+                      })
+                    }
+                  />
+                  <Label htmlFor="per_piece_barcode" className="font-normal cursor-pointer">
+                    Individual Barcode for Every Piece
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground ml-6">
+                  When enabled, a size entered with qty 2 or more (e.g. S = 2) is added as separate qty-1 lines, and every piece gets its own barcode and label. POS then deducts the exact piece scanned. Needs auto-generated barcodes. IMEI products, MTR/KG items and scanned supplier barcodes stay on one barcode.
                 </p>
 
                 <div className="space-y-2 pt-4 border-t">
