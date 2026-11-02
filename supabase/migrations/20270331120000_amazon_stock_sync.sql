@@ -236,3 +236,57 @@ SELECT cron.schedule(
   '*/2 * * * *',
   $$ SELECT public.dispatch_amazon_sync(); $$
 );
+
+-- Amazon report upload (no API needed): one row per Amazon order line made into an Ezzy
+-- bill (kind order), and per return line read from the returns report (kind return), so the
+-- same report can be uploaded again without making a second bill.
+CREATE TABLE IF NOT EXISTS public.amazon_imported_lines (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  kind text NOT NULL,
+  amazon_order_id text NOT NULL,
+  line_key text NOT NULL,
+  seller_sku text NOT NULL,
+  quantity integer NOT NULL DEFAULT 1,
+  amount numeric,
+  order_date timestamptz,
+  sale_id uuid REFERENCES public.sales(id) ON DELETE SET NULL,
+  sale_number text,
+  status text NOT NULL DEFAULT 'done',
+  reason text,
+  created_by uuid,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.amazon_imported_lines DROP CONSTRAINT IF EXISTS amazon_imported_lines_kind_check;
+ALTER TABLE public.amazon_imported_lines
+  ADD CONSTRAINT amazon_imported_lines_kind_check CHECK (kind IN ('order', 'return'));
+
+ALTER TABLE public.amazon_imported_lines DROP CONSTRAINT IF EXISTS amazon_imported_lines_status_check;
+ALTER TABLE public.amazon_imported_lines
+  ADD CONSTRAINT amazon_imported_lines_status_check CHECK (status IN ('done', 'pending', 'received', 'damaged'));
+
+CREATE UNIQUE INDEX IF NOT EXISTS amazon_imported_lines_org_kind_key
+  ON public.amazon_imported_lines (organization_id, kind, line_key);
+
+CREATE INDEX IF NOT EXISTS idx_amazon_imported_lines_org_order
+  ON public.amazon_imported_lines (organization_id, amazon_order_id);
+
+ALTER TABLE public.amazon_imported_lines ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Org members can view Amazon imports" ON public.amazon_imported_lines;
+CREATE POLICY "Org members can view Amazon imports"
+ON public.amazon_imported_lines FOR SELECT
+USING (public.user_belongs_to_org(auth.uid(), organization_id));
+
+DROP POLICY IF EXISTS "Org admins can add Amazon imports" ON public.amazon_imported_lines;
+CREATE POLICY "Org admins can add Amazon imports"
+ON public.amazon_imported_lines FOR INSERT
+WITH CHECK (public.has_org_role(auth.uid(), organization_id, 'admin'::public.app_role));
+
+DROP POLICY IF EXISTS "Org admins can change Amazon imports" ON public.amazon_imported_lines;
+CREATE POLICY "Org admins can change Amazon imports"
+ON public.amazon_imported_lines FOR UPDATE
+USING (public.has_org_role(auth.uid(), organization_id, 'admin'::public.app_role))
+WITH CHECK (public.has_org_role(auth.uid(), organization_id, 'admin'::public.app_role));

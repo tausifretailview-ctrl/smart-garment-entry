@@ -29,6 +29,7 @@ import {
   type AmazonSkuMapRow,
 } from "@/utils/amazonSync";
 import { isValidSellerId } from "../../supabase/functions/_shared/amazonSpApi";
+import { AmazonOfflineTools } from "@/components/amazon/AmazonOfflineTools";
 
 const STATUS_LABEL: Record<ReturnType<typeof amazonRowStatus>, { text: string; cls: string }> = {
   sent: { text: "Sent", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -137,9 +138,9 @@ export default function AmazonSync() {
   const saveSeller = () =>
     run("seller", async () => {
       const id = sellerId.trim().toUpperCase();
-      if (!isValidSellerId(id)) throw new Error("Seller ID looks wrong. Copy it from Seller Central > Settings > Account Info > Merchant Token.");
+      if (id && !isValidSellerId(id)) throw new Error("Seller ID looks wrong. Copy it from Seller Central > Settings > Account Info > Merchant Token.");
       const buf = Math.max(0, Math.min(1000, Math.floor(Number(defaultBuffer) || 0)));
-      await saveAmazonSettings(orgId, { seller_id: id, default_buffer: buf });
+      await saveAmazonSettings(orgId, { seller_id: id || null, default_buffer: buf });
       toast.success("Saved");
     });
 
@@ -205,8 +206,9 @@ export default function AmazonSync() {
       <div>
         <h1 className="text-xl font-bold text-teal-700 flex items-center gap-2"><Store className="h-5 w-5" /> Amazon Sync</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Sends your Ezzy stock to your Amazon.in listings a minute or two after every sale, purchase or return. Amazon orders are
-          not pulled in yet: keep billing Amazon orders in Ezzy so stock stays right.
+          Keeps Amazon.in and the shop on one stock. With Amazon app keys (steps 1 and 2), stock goes to Amazon a minute or two
+          after every sale, purchase or return. Without keys, link SKUs (step 3) and use the files at the bottom: upload Amazon's
+          orders and returns reports, and download the stock file for Seller Central.
         </p>
       </div>
 
@@ -220,8 +222,8 @@ export default function AmazonSync() {
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">1. Switch and seller</CardTitle>
-            <CardDescription>Nothing is sent to Amazon while this is off.</CardDescription>
+            <CardTitle className="text-base">1. Automatic sync (needs Amazon app keys)</CardTitle>
+            <CardDescription>Nothing is sent to Amazon automatically while this is off. The files below work either way.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between rounded-md border p-3">
@@ -400,6 +402,13 @@ export default function AmazonSync() {
           </div>
         </CardContent>
       </Card>
+
+      <AmazonOfflineTools
+        orgId={orgId}
+        userId={user?.id ?? null}
+        defaultBuffer={Number(settings?.default_buffer ?? 0) || 0}
+        disabled={missingSql}
+      />
     </div>
   );
 }
