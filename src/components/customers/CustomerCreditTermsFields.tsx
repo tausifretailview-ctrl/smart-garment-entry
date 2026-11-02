@@ -47,7 +47,7 @@ export function CustomerCreditTermsFields({ value, onChange, compact, idPrefix =
         <Building2 className="h-3.5 w-3.5" />
         Credit terms
       </legend>
-      <div className="grid grid-cols-2 gap-3">
+      <div className={cn("grid grid-cols-2 gap-3", compact && "sm:grid-cols-4")}>
         <div>
           <Label htmlFor={`${idPrefix}-credit-limit`} className={labelCls}>Credit limit (₹)</Label>
           <Input
