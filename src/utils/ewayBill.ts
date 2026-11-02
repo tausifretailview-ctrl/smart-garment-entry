@@ -137,9 +137,12 @@ export async function fetchEwayBillsForChallans(
   const rows = new Map<string, EwayBillRow>();
   const unique = Array.from(new Set(challanIds.filter(Boolean)));
   for (let i = 0; i < unique.length; i += 200) {
-    const { data, error } = await supabase
+    // eway_bills' challan columns (step 6b) are absent from the generated DB types,
+    // so the typed builder's generics recurse infinitely (TS2589); query untyped.
+    const client: any = supabase;
+    const { data, error } = await client
       .from("eway_bills")
-      .select(CHALLAN_EWB_COLS as string)
+      .select(CHALLAN_EWB_COLS)
       .eq("organization_id", organizationId)
       .in("challan_id", unique.slice(i, i + 200))
       .order("created_at", { ascending: false });
