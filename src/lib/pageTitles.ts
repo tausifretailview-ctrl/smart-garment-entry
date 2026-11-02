@@ -103,6 +103,7 @@ export const PAGE_TITLE_CONFIG: Record<string, { label: string; icon: string }> 
   "barcode-printing": { label: "Barcode Print", icon: "Printer" },
   settings: { label: "Settings", icon: "Settings" },
   website: { label: "Website", icon: "Store" },
+  "amazon-sync": { label: "Amazon Sync", icon: "Store" },
   backup: { label: "Backup", icon: "Database" },
   profile: { label: "Profile", icon: "UserCheck" },
   "audit-log": { label: "Activity Log", icon: "History" },

@@ -98,3 +98,6 @@ verify_jwt = false
 
 [functions.support-tokens]
 verify_jwt = false
+
+[functions.amazon-sync]
+verify_jwt = false

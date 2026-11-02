@@ -139,7 +139,7 @@ export function AppSidebar() {
     isAdmin: isAdminPermissions,
     permissions,
   } = useUserPermissions();
-  const { currentOrganization, organizationRole } = useOrganization();
+  const { currentOrganization, organizationRole, hasFeature } = useOrganization();
   const { data: orgSettings } = useSettings();
   const manufacturerErpOn = useManufacturerERP().enabled;
   const industrialOn = useIndustrialMode().enabled;
@@ -202,7 +202,7 @@ export function AppSidebar() {
     "/ledger-opening-balances",
     "/payments-dashboard",
   ];
-  const settingsPaths = ["/profile", "/settings", "/website", "/backup", "/organization-management", "/barcode-printing"];
+  const settingsPaths = ["/profile", "/settings", "/website", "/amazon-sync", "/backup", "/organization-management", "/barcode-printing"];
   const schoolPaths = ["/students", "/student-entry", "/teachers", "/fee-collection", "/fee-heads", "/fee-structures", "/academic-years", "/classes", "/student-reports", "/student-promotion", "/student-ledger"];
 
   const orgInitials = (currentOrganization?.name || "OR")
@@ -1410,6 +1410,16 @@ export function AppSidebar() {
                             <NavLink to="/website" className="flex items-center gap-2 group">
                               <Store className="h-4 w-4 sidebar-icon text-primary" />
                               <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Website</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      )}
+                      {hasFeature("amazon_sync") && (isAdmin || organizationRole === "admin") && (
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/amazon-sync")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
+                            <NavLink to="/amazon-sync" className="flex items-center gap-2 group">
+                              <Store className="h-4 w-4 sidebar-icon text-primary" />
+                              <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Amazon Sync</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>

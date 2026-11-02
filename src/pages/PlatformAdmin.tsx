@@ -84,6 +84,8 @@ const AVAILABLE_FEATURES = [
   "manufacturer_erp",
   // Industrial mode (B2B: credit limits, quotations, e-way bill, godowns): DEMO first.
   "industrial_mode",
+  // Amazon stock sync (Ezzy stock pushed to the shop's Amazon.in listings): DEMO first.
+  "amazon_sync",
 ];
 
 // Audit Log Section Component
