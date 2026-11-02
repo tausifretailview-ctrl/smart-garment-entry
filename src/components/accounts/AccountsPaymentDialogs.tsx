@@ -25,7 +25,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { PaymentReceiptPrint } from "@/components/PaymentReceiptPrint";
+import { PaymentReceiptPrint, usePaymentReceiptDialogClassName } from "@/components/PaymentReceiptPrint";
+import {
+  PAYMENT_RECEIPT_DIALOG_BODY_CLASS,
+  PAYMENT_RECEIPT_DIALOG_FOOTER_CLASS,
+} from "@/utils/paymentReceiptPrintConfig";
 import { cn } from "@/lib/utils";
 import { useAccountsPaymentDialogs } from "@/hooks/useAccountsPaymentDialogs";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -73,11 +77,12 @@ export function AccountsPaymentDialogs({ dialogs, compactEdit }: AccountsPayment
     companyDetails,
     receiptSettings,
   } = dialogs;
+  const receiptDialogClassName = usePaymentReceiptDialogClassName();
 
   return (
     <>
       <Dialog open={showReceiptDialog} onOpenChange={setShowReceiptDialog}>
-        <DialogContent className={cn("max-h-[90vh] overflow-y-auto", compactEdit ? "max-w-4xl" : "max-w-4xl")}>
+        <DialogContent className={receiptDialogClassName}>
           {receiptData ? (
             <>
               <DialogHeader>
@@ -92,7 +97,7 @@ export function AccountsPaymentDialogs({ dialogs, compactEdit }: AccountsPayment
                   receiptSettings={receiptSettings}
                 />
               </div>
-              <div className="border rounded-lg p-4 overflow-auto">
+              <div className={PAYMENT_RECEIPT_DIALOG_BODY_CLASS}>
                 <PaymentReceiptPrint
                   receiptData={receiptData}
                   companyDetails={companyDetails}
@@ -100,7 +105,7 @@ export function AccountsPaymentDialogs({ dialogs, compactEdit }: AccountsPayment
                   preview
                 />
               </div>
-              <DialogFooter className="gap-2">
+              <DialogFooter className={PAYMENT_RECEIPT_DIALOG_FOOTER_CLASS}>
                 <Button variant="outline" onClick={() => handlePrintReceipt()}>
                   <Printer className="mr-2 h-4 w-4" /> Print Receipt
                 </Button>
