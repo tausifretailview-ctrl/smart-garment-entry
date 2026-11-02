@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
 import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { useEwayBillOn } from "@/hooks/useEwayBillOn";
 import { isExportSupply, saleSupplyShortLabel, saleSupplyTypeOf } from "@/utils/industrialMode";
 import { invokeSaleEInvoice } from "@/utils/saleEInvoiceRoute";
 import { useEwayBillsForSales } from "@/hooks/useSaleEwayBills";
@@ -110,6 +111,8 @@ export default function EInvoiceReport() {
   // export / SEZ bills get their IRN from einvoice-note. Other shops: same query and calls as before.
   const industrialMode = useIndustrialMode();
   const industrialIrn = industrialMode.enabled;
+  // E-way bill column: any shop with the E-Way Bill switch on (Settings > Sale > E-Invoice).
+  const ewbOn = useEwayBillOn();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { toast } = useToast();
 
@@ -161,14 +164,20 @@ export default function EInvoiceReport() {
   const dateRange = getDateRange(periodFilter);
 
   const { data: invoices = [], isLoading, refetch } = useQuery<EInvoiceRecord[]>({
-    queryKey: ['einvoice-report', currentOrganization?.id, industrialIrn],
+    queryKey: ['einvoice-report', currentOrganization?.id, industrialIrn, ewbOn],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
       const baseSelect = 'id, sale_number, sale_date, created_at, cancelled_at, customer_name, customer_phone, net_amount, irn, ack_no, ack_date, einvoice_status, einvoice_error, einvoice_qr_code, is_cancelled, customers:customer_id (gst_number)';
       const { data, error } = await supabase
         .from('sales')
-        .select(industrialIrn ? `${baseSelect}, b2b_details, einvoice_test_mode` : baseSelect)
+        .select(
+          industrialIrn
+            ? `${baseSelect}, b2b_details, einvoice_test_mode`
+            : ewbOn
+              ? `${baseSelect}, einvoice_test_mode`
+              : baseSelect,
+        )
         .eq('organization_id', currentOrganization.id)
         .in('sale_type', ['invoice', 'pos'])
         .is('deleted_at', null)
@@ -215,12 +224,12 @@ export default function EInvoiceReport() {
     return filtered;
   }, [periodInvoices, statusFilter, searchQuery]);
 
-  // Industrial mode, Phase 2 step 4: e-way bill of each bill with an active IRN.
+  // E-way bill of each bill with an active IRN (E-Way Bill switch on).
   const ewbSaleIds = useMemo(
-    () => (industrialIrn ? filteredInvoices.filter((i) => i.irn && i.einvoice_status === 'generated').map((i) => i.id) : []),
-    [industrialIrn, filteredInvoices],
+    () => (ewbOn ? filteredInvoices.filter((i) => i.irn && i.einvoice_status === 'generated').map((i) => i.id) : []),
+    [ewbOn, filteredInvoices],
   );
-  const ewb = useEwayBillsForSales(currentOrganization?.id, ewbSaleIds, industrialIrn);
+  const ewb = useEwayBillsForSales(currentOrganization?.id, ewbSaleIds, ewbOn);
   const [ewbInvoice, setEwbInvoice] = useState<EInvoiceRecord | null>(null);
 
   const summary = useMemo(() => {
@@ -274,7 +283,7 @@ export default function EInvoiceReport() {
       'Ack No': inv.ack_no || '',
       'Ack Date': inv.ack_date ? format(new Date(inv.ack_date), 'dd/MM/yyyy HH:mm') : '',
       'Status': getStatusLabel(inv),
-      ...(industrialIrn
+      ...(ewbOn
         ? { 'E-Way Bill No': ewb.rows.get(inv.id)?.status === 'active' ? ewb.rows.get(inv.id)!.ewb_no : '' }
         : {}),
       'Error': inv.einvoice_error || '',
@@ -362,7 +371,7 @@ export default function EInvoiceReport() {
       cell: ({ row }) => <span className="text-xs">{row.original.ack_no || '-'}</span>,
       size: 120,
     },
-    ...(industrialIrn
+    ...(ewbOn
       ? [
           {
             id: 'ewb',
@@ -454,7 +463,7 @@ export default function EInvoiceReport() {
       },
       size: 120,
     },
-  ], [settings, currentOrganization, industrialIrn, ewb.rows]);
+  ], [settings, currentOrganization, industrialIrn, ewbOn, ewb.rows]);
 
   const einvoiceKpiItems = useMemo((): ReportKpiItem[] => [
     {
@@ -573,7 +582,7 @@ export default function EInvoiceReport() {
         )}
       </div>
 
-      {industrialIrn && currentOrganization?.id ? (
+      {ewbOn && currentOrganization?.id ? (
         <SaleEwayBillDialog
           open={!!ewbInvoice}
           onOpenChange={(v) => {

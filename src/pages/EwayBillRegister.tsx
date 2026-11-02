@@ -2,10 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { endOfMonth, format, startOfMonth } from "date-fns";
-import { AlertTriangle, Eye, FileSpreadsheet, Info, Loader2, Printer, RefreshCw, Search, Truck, X } from "lucide-react";
+import { AlertTriangle, Eye, FileSpreadsheet, Loader2, Printer, RefreshCw, Search, Truck, X } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { useSettings } from "@/hooks/useSettings";
-import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { useEwayBillOn } from "@/hooks/useEwayBillOn";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
@@ -66,14 +65,13 @@ function inr0(n: number | null | undefined): string {
   return `₹${Math.round(Number(n ?? 0)).toLocaleString("en-IN")}`;
 }
 
-/** Industrial mode, Phase 2 step 5a: every e-way bill, what lapses soon, and a print for the driver. */
+/** Every e-way bill, what lapses soon, and a print for the driver (E-Way Bill switch on). */
 export default function EwayBillRegister() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id ?? "";
-  const { data: settings } = useSettings();
-  const industrial = useIndustrialMode();
+  const ewbOn = useEwayBillOn();
   const { orgNavigate } = useOrgNavigation();
   const inTabCache = useTabCacheLayout();
   const sharedShell = useSharedAppShell();
@@ -99,17 +97,13 @@ export default function EwayBillRegister() {
     return () => window.clearInterval(id);
   }, []);
 
-  const einvoiceOn =
-    (settings as { sale_settings?: { einvoice_settings?: { enabled?: boolean } } } | null)?.sale_settings?.einvoice_settings
-      ?.enabled === true;
-
   const register = useQuery({
     queryKey: ["eway-bill-register", orgId, dateFrom, dateTo],
     queryFn: () => fetchEwayBillRegister(orgId, dateFrom, dateTo),
-    enabled: !!orgId && industrial.enabled,
+    enabled: !!orgId && ewbOn,
     staleTime: 30_000,
   });
-  const alerts = useEwayBillAlerts(orgId, !!orgId && industrial.enabled);
+  const alerts = useEwayBillAlerts(orgId, !!orgId && ewbOn);
   const printer = useEwayBillPrinter(orgId);
 
   const periodRows = register.data?.rows ?? [];
@@ -162,7 +156,7 @@ export default function EwayBillRegister() {
     }
   };
 
-  if (!industrial.enabled) {
+  if (!ewbOn) {
     return (
       <div className="flex h-full w-full items-start justify-center bg-slate-50 p-6">
         <Card className="max-w-lg border-slate-200 p-6 text-sm text-slate-600 shadow-sm">
@@ -170,8 +164,8 @@ export default function EwayBillRegister() {
             <Truck className="h-5 w-5 text-teal-600" />
             E-way bills
           </div>
-          The e-way bill register is part of Industrial mode. Turn it on in Settings &gt; Product (Industrial mode), and
-          E-Invoice Settings, to make e-way bills from your e-invoices.
+          E-way bills are off for this shop. Turn on E-Invoice and E-Way Bill in Settings &gt; Sale (E-Invoice Settings)
+          to make e-way bills from your e-invoices.
         </Card>
       </div>
     );
@@ -227,11 +221,6 @@ export default function EwayBillRegister() {
           <div className="flex shrink-0 items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             Run the Phase 2 step 4 SQL first: it adds the e-way bill table.
-          </div>
-        ) : !einvoiceOn ? (
-          <div className="flex shrink-0 items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
-            <Info className="mt-0.5 h-4 w-4 shrink-0" />
-            E-way bills are made from a bill's e-invoice (IRN). Turn on E-Invoice Settings to make new ones.
           </div>
         ) : null}
 

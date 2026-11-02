@@ -2,6 +2,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { getEdgeFunctionErrorMessage } from "@/utils/edgeFunctionError";
 import { saleB2BToForm } from "@/utils/industrialMode";
 import {
+  ewayBillEnabled,
+  ewayBillSwitchOn,
   isEwbTransportMode,
   type EwbApiField,
   type EwbExtendInput,
@@ -12,6 +14,8 @@ import {
   type EwbVehicleType,
   type EwbVehicleUpdateInput,
 } from "../../supabase/functions/_shared/ewayBill";
+
+export { ewayBillEnabled, ewayBillSwitchOn };
 
 /**
  * Industrial mode, Phase 2 step 4: e-way bills of sale bills, made from their IRN

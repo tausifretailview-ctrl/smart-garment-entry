@@ -639,3 +639,19 @@ export function ewbApiValidUpto(data: Record<string, unknown> | null): string | 
   if (!data) return null;
   return parseEwbApiDateTime(data.validUpto ?? data.ValidUpto ?? data.validUptoDate ?? null);
 }
+
+/**
+ * The shop's E-Way Bill switch (Settings > Sale > E-Invoice, einvoice_settings.ewb_enabled).
+ * Any shop can turn it on. A shop in Industrial mode that never touched it keeps e-way bills
+ * on, as it had them before the switch existed.
+ */
+export function ewayBillSwitchOn(einvoiceSettings: unknown, industrialOn: boolean): boolean {
+  const v = (einvoiceSettings as { ewb_enabled?: unknown } | null | undefined)?.ewb_enabled;
+  return typeof v === "boolean" ? v : industrialOn;
+}
+
+/** E-way bills work only when e-invoicing is on (they are made from the IRN) and the switch is on. */
+export function ewayBillEnabled(einvoiceSettings: unknown, industrialOn: boolean): boolean {
+  const enabled = (einvoiceSettings as { enabled?: unknown } | null | undefined)?.enabled === true;
+  return enabled && ewayBillSwitchOn(einvoiceSettings, industrialOn);
+}
