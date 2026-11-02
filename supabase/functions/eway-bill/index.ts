@@ -4,18 +4,28 @@
 // already holds. Saved in public.eway_bills. Shops without Industrial mode are refused
 // before anything is read. generate-einvoice, cancel-einvoice and einvoice-note are
 // not touched.
+// Step 5b: vehicle update (Part B), cancel and extend, through PeriOne's e-way bill API
+// (/ewaybillapi/v1.03), which has its own client id / secret and EWB username / password.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { indiaTodayIso, irpSupplyTypeOf, isExportSupplyType, parseIrpDateTime, perioneErrorText } from '../_shared/einvoiceNote.ts';
 import {
   buildEwbByIrnPayload,
+  buildEwbCancelPayload,
+  buildEwbExtendPayload,
+  buildEwbVehiclePayload,
   cleanVehicleNo,
   ewbAlreadyGenerated,
+  ewbApiData,
+  ewbApiErrorText,
+  ewbApiValidUpto,
   ewbDistance,
   ewbReplyInfo,
   isEwbTransportMode,
+  type EwbExtendInput,
   type EwbPortAddress,
   type EwbReplyInfo,
   type EwbTransportInput,
+  type EwbVehicleUpdateInput,
 } from '../_shared/ewayBill.ts';
 
 const corsHeaders = {
@@ -23,14 +33,27 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+type IrnAction = 'generate' | 'sync';
+type EwbApiAction = 'test' | 'vehicle' | 'cancel' | 'extend';
+
 interface EwbRequest {
-  /** generate: new EWB from the bill's IRN. sync: read the EWB the IRP holds for that IRN. */
-  action: 'generate' | 'sync';
-  saleId: string;
+  /**
+   * generate: new EWB from the bill's IRN. sync: read the EWB the IRP holds for that IRN.
+   * test: check the e-way bill API login. vehicle / cancel / extend: change one e-way bill.
+   */
+  action: IrnAction | EwbApiAction;
+  saleId?: string;
+  ewayBillId?: string;
   organizationId: string;
   transport?: EwbTransportInput;
   exportPort?: EwbPortAddress;
+  vehicle?: EwbVehicleUpdateInput;
+  cancel?: { reasonCode: number | string; remark?: string | null };
+  extend?: EwbExtendInput;
 }
+
+const IRN_ACTIONS: string[] = ['generate', 'sync'];
+const EWB_API_ACTIONS: string[] = ['test', 'vehicle', 'cancel', 'extend'];
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -109,6 +132,60 @@ async function readReply(resp: Response): Promise<unknown | null> {
   }
 }
 
+/* PeriOne e-way bill API (step 5b) ----------------------------------- */
+
+type EwbApiCreds = {
+  clientId: string;
+  clientSecret: string;
+  username: string;
+  password: string;
+  email: string;
+  gstin: string;
+};
+
+function ewbApiHeaders(creds: EwbApiCreds, ip: string): Record<string, string> {
+  return {
+    ip_address: ip,
+    client_id: creds.clientId,
+    client_secret: creds.clientSecret,
+    gstin: creds.gstin,
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+}
+
+/** Log in to the e-way bill API; PeriOne keeps the session for the calls that follow. */
+async function ewbApiAuth(baseUrl: string, creds: EwbApiCreds, ip: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const url = `${baseUrl}/ewaybillapi/v1.03/authenticate?email=${encodeURIComponent(creds.email)}` +
+    `&username=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}`;
+  const resp = await fetch(url, { method: 'GET', headers: ewbApiHeaders(creds, ip) });
+  const data = await readReply(resp);
+  if (data === null) return { ok: false, error: `E-way bill login failed (HTTP ${resp.status}).` };
+  if (!ewbApiData(data)) {
+    return { ok: false, error: `E-way bill login failed: ${ewbApiErrorText(data, 'check the e-way bill keys in Settings')}` };
+  }
+  return { ok: true };
+}
+
+async function ewbApiPost(
+  baseUrl: string,
+  op: 'vehewb' | 'canewb' | 'extendvalidity',
+  creds: EwbApiCreds,
+  ip: string,
+  payload: Record<string, string | number>,
+): Promise<{ ok: true; data: Record<string, unknown> } | { ok: false; error: string }> {
+  const resp = await fetch(`${baseUrl}/ewaybillapi/v1.03/ewayapi/${op}?email=${encodeURIComponent(creds.email)}`, {
+    method: 'POST',
+    headers: ewbApiHeaders(creds, ip),
+    body: JSON.stringify(payload),
+  });
+  const reply = await readReply(resp);
+  if (reply === null) return { ok: false, error: `The e-way bill system sent an unreadable reply (HTTP ${resp.status}).` };
+  const data = ewbApiData(reply);
+  if (!data) return { ok: false, error: ewbApiErrorText(reply, 'The e-way bill system did not accept it') };
+  return { ok: true, data };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
@@ -117,9 +194,14 @@ Deno.serve(async (req) => {
     if (!authHeader) return json({ success: false, error: 'No authorization header' }, 401);
 
     const body = (await req.json()) as EwbRequest;
-    const { action, saleId, organizationId } = body;
-    if (action !== 'generate' && action !== 'sync') return json({ success: false, error: 'Unknown action' }, 400);
-    if (!saleId || !UUID.test(saleId)) return json({ success: false, error: 'Invalid saleId' }, 400);
+    const { action, organizationId } = body;
+    const saleId = String(body.saleId ?? '');
+    const isIrnAction = IRN_ACTIONS.includes(action);
+    if (!isIrnAction && !EWB_API_ACTIONS.includes(action)) return json({ success: false, error: 'Unknown action' }, 400);
+    if (isIrnAction && !UUID.test(saleId)) return json({ success: false, error: 'Invalid saleId' }, 400);
+    if (action !== 'test' && !isIrnAction && !UUID.test(String(body.ewayBillId ?? ''))) {
+      return json({ success: false, error: 'Invalid ewayBillId' }, 400);
+    }
     if (!organizationId || !UUID.test(organizationId)) return json({ success: false, error: 'Invalid organizationId' }, 400);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -149,6 +231,121 @@ Deno.serve(async (req) => {
     const saleSettings = ((settingsData?.sale_settings as Record<string, any>) || {});
     if (!features.includes('industrial_mode') || saleSettings?.industrial_mode?.enabled !== true) {
       return json({ success: false, code: 'NOT_INDUSTRIAL', error: 'E-way bills need Industrial mode (Settings > Sale).' }, 403);
+    }
+
+    if (!isIrnAction) {
+      // deno-lint-ignore no-explicit-any
+      const ewbSettings = (saleSettings.einvoice_settings || {}) as Record<string, any>;
+      const creds: EwbApiCreds = {
+        clientId: ewbSettings.ewb_api_client_id || Deno.env.get('PERIONE_EWB_CLIENT_ID') || '',
+        clientSecret: ewbSettings.ewb_api_client_secret || Deno.env.get('PERIONE_EWB_CLIENT_SECRET') || '',
+        username: ewbSettings.ewb_api_username || Deno.env.get('PERIONE_EWB_USERNAME') || '',
+        password: ewbSettings.ewb_api_password || Deno.env.get('PERIONE_EWB_PASSWORD') || '',
+        email: ewbSettings.api_email || '',
+        gstin: String(ewbSettings.seller_gstin || settingsData?.gst_number || '').trim().toUpperCase(),
+      };
+      if (!creds.clientId || !creds.clientSecret || !creds.username || !creds.password || !creds.email) {
+        return json({
+          success: false,
+          code: 'MISSING_EWB_KEYS',
+          error: 'Add the e-way bill keys from PeriOne in Settings > Sale > E-Invoice Settings > E-way bill API (and the API email above them).',
+        });
+      }
+      if (!/^[0-9]{2}[0-9A-Z]{13}$/.test(creds.gstin)) {
+        return json({ success: false, error: 'Seller GSTIN is missing. Add it in Business Details (or the sandbox GSTIN in E-Invoice Settings).' });
+      }
+      const ip = await getPublicIP();
+
+      if (action === 'test') {
+        const testMode = ewbSettings.test_mode ?? true;
+        const baseUrl = testMode ? 'https://staging.perione.in' : 'https://api.perione.in';
+        const auth = await ewbApiAuth(baseUrl, creds, ip);
+        if (auth.ok === false) return json({ success: false, code: 'AUTH_FAILED', error: (auth as { error: string }).error });
+        return json({ success: true, message: `E-way bill login works (${testMode ? 'sandbox' : 'live'}, GSTIN ${creds.gstin}).` });
+      }
+
+      const { data: ewb, error: ewbError } = await supabase
+        .from('eway_bills')
+        .select('id, ewb_no, ewb_date, valid_till, status, test_mode, doc_date, distance_km, trans_mode, vehicle_no')
+        .eq('id', body.ewayBillId)
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+      if (ewbError) {
+        if (/eway_bills|does not exist|schema cache/i.test(ewbError.message || '')) {
+          return json({ success: false, code: 'MISSING_SQL', error: 'Run the Phase 2 step 4 SQL first: it adds the e-way bill table.' });
+        }
+        throw new Error(`Could not read the e-way bill: ${ewbError.message}`);
+      }
+      if (!ewb) return json({ success: false, error: 'This e-way bill was not found.' });
+      if (ewb.status !== 'active') return json({ success: false, error: `E-way bill ${ewb.ewb_no} is already cancelled.` });
+
+      // Same environment (sandbox or live) as the e-way bill itself.
+      const baseUrl = ewb.test_mode ? 'https://staging.perione.in' : 'https://api.perione.in';
+      const today = indiaTodayIso();
+      const docDate = ewb.doc_date ? String(ewb.doc_date).slice(0, 10) : null;
+
+      const built = action === 'vehicle'
+        ? buildEwbVehiclePayload({ ewbNo: ewb.ewb_no, input: body.vehicle ?? { mode: 'road' }, docDate, today })
+        : action === 'cancel'
+          ? buildEwbCancelPayload({
+            ewbNo: ewb.ewb_no,
+            reasonCode: body.cancel?.reasonCode ?? null,
+            remark: body.cancel?.remark ?? null,
+            ewbDate: ewb.ewb_date,
+          })
+          : buildEwbExtendPayload({
+            ewbNo: ewb.ewb_no,
+            input: body.extend ?? { consignment: 'M', mode: 'road' },
+            validTill: ewb.valid_till,
+            distanceKm: ewb.distance_km,
+            docDate,
+            today,
+          });
+      if (built.ok === false) {
+        const bad = built as { field: string; error: string };
+        return json({ success: false, code: 'INVALID', field: bad.field, error: bad.error });
+      }
+      const payload = (built as { payload: Record<string, string | number> }).payload;
+
+      const auth = await ewbApiAuth(baseUrl, creds, ip);
+      if (auth.ok === false) return json({ success: false, code: 'AUTH_FAILED', error: (auth as { error: string }).error });
+
+      const op = action === 'vehicle' ? 'vehewb' : action === 'cancel' ? 'canewb' : 'extendvalidity';
+      const res = await ewbApiPost(baseUrl, op, creds, ip, payload);
+      if (res.ok === false) return json({ success: false, error: (res as { error: string }).error });
+      const data = (res as { data: Record<string, unknown> }).data;
+
+      const now = new Date().toISOString();
+      let update: Record<string, unknown>;
+      if (action === 'cancel') {
+        update = { status: 'cancelled', updated_at: now };
+      } else {
+        const t = action === 'vehicle' ? body.vehicle : body.extend;
+        const moving = action === 'vehicle' || body.extend?.consignment !== 'T';
+        const mode = isEwbTransportMode(t?.mode) ? t!.mode : 'road';
+        const vehicleNo = cleanVehicleNo(t?.vehicleNo);
+        update = { updated_at: now };
+        const validUpto = ewbApiValidUpto(data);
+        if (validUpto) update.valid_till = validUpto;
+        if (moving) {
+          Object.assign(update, {
+            trans_mode: mode,
+            vehicle_no: vehicleNo || null,
+            vehicle_type: vehicleNo ? 'R' : null,
+            trans_doc_no: String(t?.transDocNo ?? '').replace(/\s+/g, '') || null,
+            trans_doc_date: /^\d{4}-\d{2}-\d{2}$/.test(String(t?.transDocDate ?? '')) ? t!.transDocDate : null,
+          });
+        }
+      }
+      const { error: saveError } = await supabase.from('eway_bills').update(update).eq('id', ewb.id);
+      const done = action === 'vehicle' ? 'Vehicle updated' : action === 'cancel' ? 'E-way bill cancelled' : 'Validity extended';
+      if (saveError) {
+        return json({
+          success: false,
+          error: `${done} on the e-way bill system, but not saved here: ${saveError.message}. Press "Refresh from IRP" to read it again.`,
+        });
+      }
+      return json({ success: true, ewbNo: ewb.ewb_no, validTill: (update.valid_till as string | undefined) ?? ewb.valid_till, message: done });
     }
 
     const { data: sale, error: saleError } = await supabase

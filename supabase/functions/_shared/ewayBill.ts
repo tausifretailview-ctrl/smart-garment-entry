@@ -276,3 +276,366 @@ export function ewbValidityDays(distanceKm: number | null | undefined, vehicleTy
 
 /** Goods worth more than this need an e-way bill (some states set their own limit within the state). */
 export const EWB_VALUE_LIMIT = 50_000;
+
+/* ------------------------------------------------------------------ */
+/* E-way bill API (PeriOne, NIC v1.03): Part B, cancel, extend         */
+/* Phase 2 step 5b. Separate login from the e-invoice API.            */
+/* ------------------------------------------------------------------ */
+
+/** Why the vehicle changes (vehewb reasonCode). */
+export const EWB_VEHICLE_REASONS: ReadonlyArray<{ code: string; label: string }> = [
+  { code: "4", label: "First time" },
+  { code: "1", label: "Vehicle broke down" },
+  { code: "2", label: "Transhipment" },
+  { code: "3", label: "Other" },
+];
+
+/** Why the e-way bill is cancelled (canewb cancelRsnCode). */
+export const EWB_CANCEL_REASONS: ReadonlyArray<{ code: number; label: string }> = [
+  { code: 1, label: "Duplicate" },
+  { code: 2, label: "Order cancelled" },
+  { code: 3, label: "Data entry mistake" },
+  { code: 4, label: "Other" },
+];
+
+/** Why the validity is extended (extendvalidity extnRsnCode). */
+export const EWB_EXTEND_REASONS: ReadonlyArray<{ code: number; label: string }> = [
+  { code: 1, label: "Natural calamity" },
+  { code: 2, label: "Law and order" },
+  { code: 4, label: "Transhipment" },
+  { code: 5, label: "Accident" },
+  { code: 99, label: "Other" },
+];
+
+/** Goods in transit but not moving (extend): on the road, in a warehouse, or elsewhere. */
+export type EwbTransitType = "R" | "W" | "O";
+
+export const EWB_TRANSIT_LABEL: Record<EwbTransitType, string> = { R: "On road", W: "Warehouse", O: "Other" };
+
+export type EwbApiField =
+  | "ewbNo"
+  | "vehicle"
+  | "transDoc"
+  | "transDocDate"
+  | "place"
+  | "state"
+  | "pin"
+  | "reason"
+  | "remark"
+  | "distance"
+  | "address"
+  | "window";
+
+export type EwbApiPayloadResult =
+  | { ok: true; payload: Record<string, string | number> }
+  | { ok: false; field: EwbApiField; error: string };
+
+const fail = (field: EwbApiField, error: string): EwbApiPayloadResult => ({ ok: false, field, error });
+
+const HOUR = 3_600_000;
+
+function ewbNoNumber(v: string | number | null | undefined): number | null {
+  const s = String(v ?? "").replace(/\D/g, "");
+  return /^\d{12}$/.test(s) ? Number(s) : null;
+}
+
+/** GST state code as a number (1-38, or 97 other territory), else null. */
+function stateNumber(v: string | number | null | undefined): number | null {
+  const n = Number(String(v ?? "").trim());
+  return Number.isInteger(n) && ((n >= 1 && n <= 38) || n === 97) ? n : null;
+}
+
+const PLACE = /^[A-Za-z0-9 .,()/-]{3,50}$/;
+
+type TransportCheck = { ok: true; vehicleNo: string; transDocNo: string; transDocDate: string } | { ok: false; result: EwbApiPayloadResult };
+
+/** Road needs the vehicle; rail / air / ship need the RR / AWB / bill of lading number and date. */
+function checkTransport(
+  mode: EwbTransportMode,
+  vehicleRaw: string | null | undefined,
+  docNoRaw: string | null | undefined,
+  docDateRaw: string | null | undefined,
+  dates: { docDate?: string | null; today: string },
+): TransportCheck {
+  const vehicleNo = cleanVehicleNo(vehicleRaw);
+  if (vehicleNo && (vehicleNo.length < 4 || vehicleNo.length > 15)) {
+    return { ok: false, result: fail("vehicle", "Vehicle number looks wrong. Type it as on the RC, e.g. MH12AB1234.") };
+  }
+  const transDocNo = clean(docNoRaw, 15).replace(/\s+/g, "");
+  if (transDocNo && !TRANS_DOC_NO.test(transDocNo)) {
+    return { ok: false, result: fail("transDoc", "LR / RR / AWB number can have up to 15 letters, digits, / or -.") };
+  }
+  const transDocDate = String(docDateRaw ?? "").slice(0, 10);
+  if (transDocDate && !ISO_DATE.test(transDocDate)) return { ok: false, result: fail("transDocDate", "Transport document date is not a date.") };
+  if (transDocDate && dates.docDate && ISO_DATE.test(dates.docDate) && transDocDate < dates.docDate) {
+    return { ok: false, result: fail("transDocDate", "Transport document date can't be before the bill date.") };
+  }
+  if (transDocDate && transDocDate > dates.today) {
+    return { ok: false, result: fail("transDocDate", "Transport document date can't be in the future.") };
+  }
+  if (transDocNo && !transDocDate) return { ok: false, result: fail("transDocDate", "Give the date of the LR / RR / AWB too.") };
+  if (mode === "road" && !vehicleNo) return { ok: false, result: fail("vehicle", "Give the vehicle number.") };
+  if (mode !== "road" && (!transDocNo || !transDocDate)) {
+    const doc = mode === "rail" ? "RR" : mode === "air" ? "AWB" : "bill of lading";
+    return { ok: false, result: fail("transDoc", `${EWB_MODE_LABEL[mode]}: give the ${doc} number and date.`) };
+  }
+  return { ok: true, vehicleNo, transDocNo, transDocDate };
+}
+
+function remarkFor(reasonLabel: string | undefined, raw: string | null | undefined, isOther: boolean): string | null {
+  const r = clean(raw, 50);
+  if (r) return r;
+  return isOther ? null : String(reasonLabel ?? "").slice(0, 50);
+}
+
+export type EwbVehicleUpdateInput = {
+  mode: EwbTransportMode;
+  vehicleNo?: string | null;
+  transDocNo?: string | null;
+  transDocDate?: string | null;
+  /** Where the vehicle starts from now (town). */
+  fromPlace?: string | null;
+  /** GST state code of that place. */
+  fromStateCode?: string | number | null;
+  reasonCode?: string | null;
+  reasonRemark?: string | null;
+};
+
+/** vehewb: add the vehicle (Part B) or change it. */
+export function buildEwbVehiclePayload(opts: {
+  ewbNo: string | number;
+  input: EwbVehicleUpdateInput;
+  /** Bill date, yyyy-mm-dd. */
+  docDate?: string | null;
+  /** India date today, yyyy-mm-dd. */
+  today: string;
+}): EwbApiPayloadResult {
+  const ewbNo = ewbNoNumber(opts.ewbNo);
+  if (!ewbNo) return fail("ewbNo", "This e-way bill number is not 12 digits.");
+  const i = opts.input;
+  const mode: EwbTransportMode = isEwbTransportMode(i.mode) ? i.mode : "road";
+  const t = checkTransport(mode, i.vehicleNo, i.transDocNo, i.transDocDate, { docDate: opts.docDate, today: opts.today });
+  if (t.ok === false) return (t as { result: EwbApiPayloadResult }).result;
+  const fromPlace = clean(i.fromPlace, 50);
+  if (!PLACE.test(fromPlace)) return fail("place", "Give the town the vehicle starts from (3 to 50 letters).");
+  const fromState = stateNumber(i.fromStateCode);
+  if (!fromState) return fail("state", "Choose the state the vehicle starts from.");
+  const reason = EWB_VEHICLE_REASONS.find((r) => r.code === String(i.reasonCode ?? ""));
+  if (!reason) return fail("reason", "Choose why the vehicle is being added or changed.");
+  const reasonRem = remarkFor(reason.label, i.reasonRemark, reason.code === "3");
+  if (!reasonRem) return fail("remark", "Say why, in a few words.");
+
+  const payload: Record<string, string | number> = {
+    ewbNo,
+    fromPlace,
+    fromState,
+    reasonCode: reason.code,
+    reasonRem,
+    transMode: EWB_MODE_CODE[mode],
+  };
+  if (t.vehicleNo) payload.vehicleNo = t.vehicleNo;
+  if (t.transDocNo) {
+    payload.transDocNo = t.transDocNo;
+    payload.transDocDate = ddmmyyyy(t.transDocDate);
+  }
+  return { ok: true, payload };
+}
+
+/** canewb: cancel within 24 hours of being made. */
+export function buildEwbCancelPayload(opts: {
+  ewbNo: string | number;
+  reasonCode: number | string | null | undefined;
+  remark?: string | null;
+  /** When it was made (ISO), to check the 24 hours. */
+  ewbDate?: string | null;
+  now?: Date;
+}): EwbApiPayloadResult {
+  const ewbNo = ewbNoNumber(opts.ewbNo);
+  if (!ewbNo) return fail("ewbNo", "This e-way bill number is not 12 digits.");
+  const made = opts.ewbDate ? Date.parse(opts.ewbDate) : NaN;
+  const now = (opts.now ?? new Date()).getTime();
+  if (Number.isFinite(made) && now - made > 24 * HOUR) {
+    return fail("window", "An e-way bill can be cancelled only within 24 hours of being made.");
+  }
+  const reason = EWB_CANCEL_REASONS.find((r) => r.code === Number(opts.reasonCode));
+  if (!reason) return fail("reason", "Choose why it is being cancelled.");
+  const cancelRmrk = remarkFor(reason.label, opts.remark, reason.code === 4);
+  if (!cancelRmrk) return fail("remark", "Say why, in a few words.");
+  return { ok: true, payload: { ewbNo, cancelRsnCode: reason.code, cancelRmrk } };
+}
+
+export type EwbExtendInput = {
+  /** M: goods moving; T: in transit but stopped (warehouse, road side). */
+  consignment: "M" | "T";
+  mode: EwbTransportMode;
+  vehicleNo?: string | null;
+  transDocNo?: string | null;
+  transDocDate?: string | null;
+  /** Where the goods are now. */
+  fromPlace?: string | null;
+  fromPincode?: string | number | null;
+  fromStateCode?: string | number | null;
+  /** Kilometres still to go. */
+  remainingKm?: string | number | null;
+  reasonCode?: number | string | null;
+  remark?: string | null;
+  transitType?: EwbTransitType | null;
+  address1?: string | null;
+  address2?: string | null;
+  address3?: string | null;
+};
+
+/** The portal accepts an extension from 8 hours before to 8 hours after the e-way bill lapses. */
+export function ewbExtendWindow(validTill: string | null | undefined): { from: string; to: string } | null {
+  const t = validTill ? Date.parse(validTill) : NaN;
+  if (!Number.isFinite(t)) return null;
+  return { from: new Date(t - 8 * HOUR).toISOString(), to: new Date(t + 8 * HOUR).toISOString() };
+}
+
+/** extendvalidity: more days when the goods won't reach in time. */
+export function buildEwbExtendPayload(opts: {
+  ewbNo: string | number;
+  input: EwbExtendInput;
+  validTill: string | null | undefined;
+  /** Distance on the e-way bill, when known: what remains can't be more. */
+  distanceKm?: number | null;
+  docDate?: string | null;
+  today: string;
+  now?: Date;
+}): EwbApiPayloadResult {
+  const ewbNo = ewbNoNumber(opts.ewbNo);
+  if (!ewbNo) return fail("ewbNo", "This e-way bill number is not 12 digits.");
+  const win = ewbExtendWindow(opts.validTill);
+  if (!win) return fail("window", "Add the vehicle (Part B) first: an e-way bill without a vehicle has no validity to extend.");
+  const now = (opts.now ?? new Date()).getTime();
+  if (now < Date.parse(win.from) || now > Date.parse(win.to)) {
+    return fail("window", "It can be extended only from 8 hours before to 8 hours after it lapses.");
+  }
+  const i = opts.input;
+  const fromPlace = clean(i.fromPlace, 50);
+  if (!PLACE.test(fromPlace)) return fail("place", "Give the town where the goods are now (3 to 50 letters).");
+  const pin = Number(String(i.fromPincode ?? "").trim());
+  if (!(Number.isInteger(pin) && pin >= 100000 && pin <= 999999)) return fail("pin", "Give the 6-digit PIN code where the goods are now.");
+  const fromState = stateNumber(i.fromStateCode);
+  if (!fromState) return fail("state", "Choose the state where the goods are now.");
+  const km = Number(String(i.remainingKm ?? "").trim());
+  if (!Number.isInteger(km) || km < 1 || km > 4000) return fail("distance", "Give the kilometres still to go (whole number, 1 to 4000).");
+  if (opts.distanceKm && opts.distanceKm > 0 && km > opts.distanceKm) {
+    return fail("distance", `Kilometres still to go can't be more than the e-way bill's ${opts.distanceKm} km.`);
+  }
+  const reason = EWB_EXTEND_REASONS.find((r) => r.code === Number(i.reasonCode));
+  if (!reason) return fail("reason", "Choose why it needs more time.");
+  const extnRemarks = remarkFor(reason.label, i.remark, reason.code === 99);
+  if (!extnRemarks) return fail("remark", "Say why, in a few words.");
+
+  const payload: Record<string, string | number> = {
+    ewbNo,
+    fromPlace,
+    fromPincode: pin,
+    fromState,
+    remainingDistance: km,
+    extnRsnCode: reason.code,
+    extnRemarks,
+  };
+
+  if (i.consignment === "T") {
+    const transitType: EwbTransitType = i.transitType === "W" || i.transitType === "O" ? i.transitType : "R";
+    const a1 = clean(i.address1, 50);
+    const a2 = clean(i.address2, 50);
+    const a3 = clean(i.address3, 50);
+    if (a1.length < 3 || a2.length < 3 || a3.length < 3) {
+      return fail("address", "Goods not moving: give the address where they are, in three lines.");
+    }
+    Object.assign(payload, {
+      consignmentStatus: "T",
+      transMode: "5",
+      transitType,
+      addressLine1: a1,
+      addressLine2: a2,
+      addressLine3: a3,
+    });
+    return { ok: true, payload };
+  }
+
+  const mode: EwbTransportMode = isEwbTransportMode(i.mode) ? i.mode : "road";
+  const t = checkTransport(mode, i.vehicleNo, i.transDocNo, i.transDocDate, { docDate: opts.docDate, today: opts.today });
+  if (t.ok === false) return (t as { result: EwbApiPayloadResult }).result;
+  Object.assign(payload, { consignmentStatus: "M", transMode: EWB_MODE_CODE[mode] });
+  if (t.vehicleNo) payload.vehicleNo = t.vehicleNo;
+  if (t.transDocNo) {
+    payload.transDocNo = t.transDocNo;
+    payload.transDocDate = ddmmyyyy(t.transDocDate);
+  }
+  return { ok: true, payload };
+}
+
+/* E-way bill API replies -------------------------------------------- */
+
+/** The reply's data when the e-way bill system accepted the request (status_cd 1), else null. */
+export function ewbApiData(resp: unknown): Record<string, unknown> | null {
+  const r = (resp ?? {}) as Record<string, unknown>;
+  const ok = String(r.status_cd ?? r.status ?? "").trim().toLowerCase();
+  if (ok !== "1" && ok !== "success") return null;
+  return replyData(resp) ?? {};
+}
+
+const EWB_ERROR_TEXT: Record<string, string> = {
+  "238": "The e-way bill login has expired. Try again.",
+  "312": "This e-way bill was not made by this GSTIN, or it is already cancelled.",
+  "315": "Its validity has lapsed, so it can't be cancelled.",
+  "316": "It has been verified by an officer, so it can't be cancelled.",
+};
+
+/** A readable reason from a refused e-way bill API reply. */
+export function ewbApiErrorText(resp: unknown, fallback: string): string {
+  const r = (resp ?? {}) as Record<string, unknown>;
+  const err = (r.error ?? {}) as Record<string, unknown>;
+  const raw = [err.message, err.desc, r.status_desc, r.message].find((v) => typeof v === "string" && v.trim()) as string | undefined;
+  let codes: string[] = [];
+  let text = raw ?? "";
+  if (raw && /errorCodes/i.test(raw)) {
+    try {
+      const parsed = JSON.parse(raw) as { errorCodes?: string };
+      codes = String(parsed.errorCodes ?? "").split(",").map((c) => c.trim()).filter(Boolean);
+      text = "";
+    } catch {
+      codes = (raw.match(/\d{3,4}/g) ?? []).slice(0, 3);
+    }
+  }
+  const errCd = String(err.error_cd ?? err.code ?? "").trim();
+  if (!codes.length && /^\d{3,4}$/.test(errCd)) codes = [errCd];
+  const known = codes.map((c) => EWB_ERROR_TEXT[c]).filter(Boolean);
+  const parts = [...known, text].filter(Boolean);
+  const msg = parts.length ? parts.join(" ") : fallback;
+  return codes.length ? `${msg} (code ${codes.join(", ")})` : msg;
+}
+
+/**
+ * Date-time from the e-way bill system, India time, as an ISO instant:
+ * "06/09/2026 11:59:00 PM", "06/09/2026 23:59:00" or "2026-09-06 23:59:00".
+ */
+export function parseEwbApiDateTime(v: unknown): string | null {
+  const s = String(v ?? "").trim();
+  let y: number, mo: number, d: number, h: number, mi: number, se: number;
+  let m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})[ T]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AaPp][Mm])?$/);
+  if (m) {
+    [d, mo, y, h, mi] = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4]), Number(m[5])];
+    se = Number(m[6] ?? 0);
+    const ap = (m[7] ?? "").toUpperCase();
+    if (ap === "PM" && h < 12) h += 12;
+    if (ap === "AM" && h === 12) h = 0;
+  } else {
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if (!m) return null;
+    [y, mo, d, h, mi] = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4]), Number(m[5])];
+    se = Number(m[6] ?? 0);
+  }
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59 || se > 59) return null;
+  return new Date(Date.UTC(y, mo - 1, d, h, mi, se) - 330 * 60_000).toISOString();
+}
+
+/** New validity from a vehewb or extendvalidity reply. */
+export function ewbApiValidUpto(data: Record<string, unknown> | null): string | null {
+  if (!data) return null;
+  return parseEwbApiDateTime(data.validUpto ?? data.ValidUpto ?? data.validUptoDate ?? null);
+}
