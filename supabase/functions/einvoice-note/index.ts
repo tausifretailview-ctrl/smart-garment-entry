@@ -352,19 +352,22 @@ Deno.serve(async (req) => {
         .eq('return_id', noteId);
       if (itemsError) throw new Error(`Could not read the return lines: ${itemsError.message}`);
       let originalSaleDate: string | null = null;
+      // Export / SEZ bill (Phase 2 step 3c): its return goes to the IRP with the same supply type.
+      let originalB2bDetails: unknown = null;
       if (note.original_sale_number) {
         const { data: orig } = await supabase
           .from('sales')
-          .select('sale_date')
+          .select('sale_date, b2b_details')
           .eq('organization_id', organizationId)
           .eq('sale_number', note.original_sale_number)
           .is('deleted_at', null)
           .limit(1)
           .maybeSingle();
         originalSaleDate = orig?.sale_date ? String(orig.sale_date).slice(0, 10) : null;
+        originalB2bDetails = orig?.b2b_details ?? null;
       }
       const interState = cleanGstin(creds.gstin).slice(0, 2) !== cleanGstin(buyer.gstin).slice(0, 2);
-      input = saleReturnToNoteInput(note, items ?? [], { interState, originalSaleDate });
+      input = saleReturnToNoteInput(note, items ?? [], { interState, originalSaleDate, originalB2bDetails });
       if (!input) return json({ success: false, error: 'This return has no GST lines (challan items only), so it needs no IRN.' });
     }
     const built = buildNoteEInvoicePayload(input, seller, buyer);

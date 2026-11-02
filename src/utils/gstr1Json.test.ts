@@ -391,6 +391,41 @@ describe("export and SEZ bills (Industrial mode)", () => {
     expect(r.json).toBeNull();
   });
 
+  it("reports returns of export bills in CDNUR and of SEZ bills in CDNR, IGST, net of the HSN rows", () => {
+    const r = buildGstr1Json(
+      input({
+        bills: [
+          bill({ id: "e1", number: "EXP/26-27/1", billValue: 11800, taxType: "exclusive", supplyType: "EXPWP",
+            exportDetails: { portCode: "INNSA1", shipBillNo: "1234567", shipBillDate: "2026-10-07" },
+            lines: [{ hsn: "6204", rate: 18, qty: 10, value: 10000, uom: "pcs", productName: "Dress" }] }),
+          bill({ id: "s1", number: "INV/26-27/6", gstin: MAH, billValue: 2000, taxType: "exclusive", supplyType: "SEZWOP",
+            lines: [{ hsn: "6109", rate: 0, qty: 4, value: 2000, uom: "pcs", productName: "T-Shirt" }] }),
+        ],
+        notes: [
+          bill({ id: "r1", number: "SR/26-27/1", date: "2026-10-20", billValue: 1180, supplyType: "EXPWP",
+            lines: [{ hsn: "6204", rate: 18, qty: 1, value: 1180, uom: "pcs", productName: "Dress" }] }),
+          bill({ id: "r2", number: "SR/26-27/2", date: "2026-10-21", gstin: MAH, billValue: 500, supplyType: "SEZWOP",
+            lines: [{ hsn: "6109", rate: 0, qty: 1, value: 500, uom: "pcs", productName: "T-Shirt" }] }),
+        ],
+      }),
+    );
+    expect(r.errors).toEqual([]);
+    const json = r.json!;
+    expect(json.cdnur).toEqual([
+      { typ: "EXPWP", ntty: "C", nt_num: "SR/26-27/1", nt_dt: "20-10-2026", val: 1180,
+        itms: [{ num: 1, itm_det: { rt: 18, txval: 1000, iamt: 180, camt: 0, samt: 0, csamt: 0 } }] },
+    ]);
+    expect(json.cdnr).toEqual([
+      { ctin: MAH, nt: [{ ntty: "C", nt_num: "SR/26-27/2", nt_dt: "21-10-2026", val: 500, pos: "27", rchrg: "N", inv_typ: "SEWOP",
+        itms: [{ num: 1, itm_det: { rt: 0, txval: 500, iamt: 0, camt: 0, samt: 0, csamt: 0 } }] }] },
+    ]);
+    expect(json.b2cs).toEqual([]);
+    expect(json.nil).toBeUndefined();
+    expect(json.hsn.hsn_b2c.map((h) => [h.hsn_sc, h.qty, h.txval, h.iamt])).toEqual([["6204", 9, 9000, 1620]]);
+    expect(json.hsn.hsn_b2b.map((h) => [h.hsn_sc, h.qty, h.txval, h.iamt])).toEqual([["6109", 3, 1500, 0]]);
+    expect(r.summary).toMatchObject({ cdnrNotes: 1, cdnurNotes: 1, taxable: 10500, tax: 1620 });
+  });
+
   it("leaves out shipping bill details the portal would reject", () => {
     const r = buildGstr1Json(
       input({

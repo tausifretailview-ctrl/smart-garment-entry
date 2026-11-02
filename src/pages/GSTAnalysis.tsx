@@ -391,11 +391,14 @@ const GSTAnalysis = () => {
     const netItc = subtractHeads(itcBills, itcReversed);
     const credit = addHeads(netItc, openingHeads);
     const setOff = computeGstSetOff(liability, credit);
-    // Export / SEZ bills under LUT are zero-rated (3.1(b)), not nil-rated, even at 0%.
+    // Export / SEZ bills (and their returns) are zero-rated (3.1(b)), not nil-rated, even at 0%.
     const zeroRatedSales = sales.filter((d) => d.zeroRated);
-    const zeroRated = sumRows(zeroRatedSales);
+    const zeroRatedReturns = saleReturns.filter((d) => d.zeroRated);
+    const zeroRatedBills = sumRows(zeroRatedSales);
+    const zeroRatedBack = sumRows(zeroRatedReturns);
+    const zeroRated = { taxable: zeroRatedBills.taxable - zeroRatedBack.taxable, ...subtractHeads(zeroRatedBills, zeroRatedBack) };
     const nilRated = sumByRate(sales.filter((d) => !d.zeroRated)).filter((r) => r.rate === 0).reduce((s, r) => s + r.taxable, 0)
-      - sumByRate(saleReturns).filter((r) => r.rate === 0).reduce((s, r) => s + r.taxable, 0);
+      - sumByRate(saleReturns.filter((d) => !d.zeroRated)).filter((r) => r.rate === 0).reduce((s, r) => s + r.taxable, 0);
 
     return {
       rateList: [...rates].sort((x, y) => x - y),
@@ -421,6 +424,7 @@ const GSTAnalysis = () => {
         nilRated,
         zeroRated,
         zeroRatedCount: zeroRatedSales.length,
+        zeroRatedReturnCount: zeroRatedReturns.length,
         outputByRate: netByRate(sumByRate(sales), sumByRate(saleReturns)),
         itcByRate: netByRate(sumByRate(claimPurchases), sumByRate(claimPurchaseReturns)),
         claimPurchaseCount: claimPurchases.length,
@@ -710,8 +714,14 @@ const GSTAnalysis = () => {
                           { label: "Sales (outward taxable supplies)", t: a.final.salesTotal.taxable, h: a.final.salesTotal },
                           { label: "Less: sale returns / credit notes", t: -a.final.saleReturnsTotal.taxable, h: subtractHeads(emptyHeads(), a.final.saleReturnsTotal), neg: true },
                           { label: "3.1(a) Net outward taxable supplies", t: a.final.salesTotal.taxable - a.final.saleReturnsTotal.taxable, h: a.final.liability, bold: true },
-                          ...(a.final.zeroRatedCount > 0
-                            ? [{ label: `3.1(b) of which zero-rated: export / SEZ (${count(a.final.zeroRatedCount)} bills)`, t: a.final.zeroRated.taxable, h: a.final.zeroRated, neg: false, bold: false }]
+                          ...(a.final.zeroRatedCount + a.final.zeroRatedReturnCount > 0
+                            ? [{
+                                label: `3.1(b) of which zero-rated: export / SEZ (${count(a.final.zeroRatedCount)} bills${a.final.zeroRatedReturnCount > 0 ? `, less ${count(a.final.zeroRatedReturnCount)} returns` : ""})`,
+                                t: a.final.zeroRated.taxable,
+                                h: a.final.zeroRated,
+                                neg: false,
+                                bold: false,
+                              }]
                             : []),
                           { label: "3.1(c) of which nil-rated (0%) sales", t: a.final.nilRated, h: emptyHeads() },
                           { label: `ITC on purchase bills (${count(a.final.claimPurchaseCount)} bills)`, t: a.final.itcBills.taxable, h: a.final.itcBills },

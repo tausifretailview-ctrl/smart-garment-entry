@@ -25,6 +25,7 @@ import {
   type GstDocRow,
 } from "@/utils/gstAnalysis";
 import { saleSupplyTypeOf } from "@/utils/industrialMode";
+import { fetchSupplyTypesBySaleNumber } from "@/utils/zeroRatedSuppliesData";
 
 const db = supabase as any;
 const PAGE = 1000;
@@ -258,6 +259,10 @@ export async function loadGstAnalysis(
     for (const c of data || []) gstinByCustomer.set(String(c.id), String(c.gst_number || ""));
   }
   const linkedTaxType = new Map(linkedSales.map((s) => [String(s.id), saleTaxType(s.tax_type, s.sale_type)]));
+  // Industrial mode: returns of export / SEZ bills are zero-rated IGST. No query for other shops.
+  const zeroRatedReturnBills = industrial
+    ? await fetchSupplyTypesBySaleNumber(orgId, saleReturnRows.map((r) => r.original_sale_number))
+    : null;
   const linesByReturn = groupBy(returnLines, (l: any) => String(l.return_id));
   let dcSaleReturns = 0;
   const saleReturns: GstDocRow[] = [];
@@ -283,6 +288,7 @@ export async function loadGstAnalysis(
         withoutDcLines(lines),
         taxType,
         shopGstin,
+        zeroRatedReturnBills?.has(String(r.original_sale_number || "").trim()) ? { zeroRated: true } : undefined,
       ),
     );
   }

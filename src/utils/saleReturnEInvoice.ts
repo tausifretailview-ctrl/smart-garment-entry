@@ -141,7 +141,7 @@ export async function loadSaleReturnNote(
     r.original_sale_number
       ? supabase
           .from("sales")
-          .select("sale_date")
+          .select("sale_date, b2b_details")
           .eq("organization_id", organizationId)
           .eq("sale_number", r.original_sale_number)
           .is("deleted_at", null)
@@ -157,7 +157,7 @@ export async function loadSaleReturnNote(
     phone?: string | null;
     email?: string | null;
   } | null;
-  const orig = (origRes.data ?? null) as { sale_date?: string | null } | null;
+  const orig = (origRes.data ?? null) as { sale_date?: string | null; b2b_details?: unknown } | null;
 
   const buyer: NoteParty = {
     gstin: cleanGstin(cust?.gst_number),
@@ -170,6 +170,7 @@ export async function loadSaleReturnNote(
   const input = saleReturnToNoteInput(r, itemsRes.data ?? [], {
     interState,
     originalSaleDate: orig?.sale_date ? String(orig.sale_date).slice(0, 10) : null,
+    originalB2bDetails: orig?.b2b_details,
   });
   return {
     data: {

@@ -1,7 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllSaleItems } from "@/utils/fetchAllRows";
 import { saleSupplyTypeOf } from "@/utils/industrialMode";
-import { zeroRatedOutward, type ZeroRatedOutward } from "@/utils/zeroRatedSupplies";
+import { gstr1SupplyOf, zeroRatedOutward, type ZeroRatedOutward } from "@/utils/zeroRatedSupplies";
+import type { Gstr1SupplyType } from "@/utils/gstr1Json";
 
 /**
  * Export / SEZ bills of a period for GSTR-3B 3.1(b). Picks the same bills as get_gst_summary
@@ -45,4 +46,31 @@ export async function fetchPeriodZeroRatedOutward(
     linesBySale.set(String(item.sale_id), list);
   }
   return zeroRatedOutward(bills.map((b) => ({ tax_type: b.tax_type, lines: linesBySale.get(b.id) || [] })));
+}
+
+/**
+ * Export / SEZ supply type of the original bills of sale returns, by bill number
+ * (sale_returns.original_sale_number). Regular bills are left out. Call only with Industrial mode on.
+ */
+export async function fetchSupplyTypesBySaleNumber(
+  organizationId: string,
+  saleNumbers: ReadonlyArray<string | null | undefined>,
+): Promise<Map<string, Gstr1SupplyType>> {
+  const out = new Map<string, Gstr1SupplyType>();
+  const unique = Array.from(new Set(saleNumbers.map((n) => String(n || "").trim()).filter(Boolean)));
+  for (let i = 0; i < unique.length; i += 200) {
+    const { data, error } = await supabase
+      .from("sales")
+      .select("sale_number, b2b_details")
+      .eq("organization_id", organizationId)
+      .in("sale_number", unique.slice(i, i + 200))
+      .is("deleted_at", null)
+      .not("b2b_details", "is", null);
+    if (error) throw error;
+    for (const row of (data ?? []) as Array<{ sale_number: string | null; b2b_details: unknown }>) {
+      const supply = gstr1SupplyOf(row.b2b_details);
+      if (supply && row.sale_number) out.set(String(row.sale_number), supply.supplyType);
+    }
+  }
+  return out;
 }
