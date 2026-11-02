@@ -5,6 +5,9 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
+import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { isExportSupply, saleSupplyShortLabel, saleSupplyTypeOf } from "@/utils/industrialMode";
+import { invokeSaleEInvoice } from "@/utils/saleEInvoiceRoute";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -55,6 +58,8 @@ type EInvoiceRecord = {
   customers?: {
     gst_number?: string | null;
   } | null;
+  /** Read only with Industrial mode on (export / SEZ supply type). */
+  b2b_details?: unknown;
 };
 
 const getEffectiveStatus = (invoice: EInvoiceRecord): Exclude<StatusFilter, 'all'> => {
@@ -96,6 +101,10 @@ const getStatusLabel = (invoice: EInvoiceRecord) => {
 export default function EInvoiceReport() {
   const { currentOrganization } = useOrganization();
   const { data: settings } = useSettings();
+  // Industrial mode, Phase 2 step 3: export bills (buyer abroad, no GSTIN) are listed too and
+  // export / SEZ bills get their IRN from einvoice-note. Other shops: same query and calls as before.
+  const industrialMode = useIndustrialMode();
+  const industrialIrn = industrialMode.enabled;
   const { orgNavigate: navigate } = useOrgNavigation();
   const { toast } = useToast();
 
@@ -147,13 +156,14 @@ export default function EInvoiceReport() {
   const dateRange = getDateRange(periodFilter);
 
   const { data: invoices = [], isLoading, refetch } = useQuery<EInvoiceRecord[]>({
-    queryKey: ['einvoice-report', currentOrganization?.id],
+    queryKey: ['einvoice-report', currentOrganization?.id, industrialIrn],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
+      const baseSelect = 'id, sale_number, sale_date, created_at, cancelled_at, customer_name, customer_phone, net_amount, irn, ack_no, ack_date, einvoice_status, einvoice_error, einvoice_qr_code, is_cancelled, customers:customer_id (gst_number)';
       const { data, error } = await supabase
         .from('sales')
-        .select('id, sale_number, sale_date, created_at, cancelled_at, customer_name, customer_phone, net_amount, irn, ack_no, ack_date, einvoice_status, einvoice_error, einvoice_qr_code, is_cancelled, customers:customer_id (gst_number)')
+        .select(industrialIrn ? `${baseSelect}, b2b_details` : baseSelect)
         .eq('organization_id', currentOrganization.id)
         .in('sale_type', ['invoice', 'pos'])
         .is('deleted_at', null)
@@ -161,8 +171,8 @@ export default function EInvoiceReport() {
 
       if (error) throw error;
 
-      return (data || []).filter((inv: EInvoiceRecord) => 
-        !!(inv.customers?.gst_number)
+      return ((data || []) as unknown as EInvoiceRecord[]).filter((inv: EInvoiceRecord) => 
+        !!(inv.customers?.gst_number) || (industrialIrn && isExportSupply(saleSupplyTypeOf(inv.b2b_details)))
       );
     },
     enabled: !!currentOrganization?.id,
@@ -220,8 +230,12 @@ export default function EInvoiceReport() {
     let successCount = 0;
     for (const inv of failedInvoices) {
       try {
-        const res = await supabase.functions.invoke('generate-einvoice', {
-          body: { saleId: inv.id, organizationId: currentOrganization?.id, testMode },
+        const res = await invokeSaleEInvoice({
+          saleId: inv.id,
+          organizationId: currentOrganization?.id ?? '',
+          testMode,
+          industrial: industrialIrn,
+          supplyType: industrialIrn ? saleSupplyTypeOf(inv.b2b_details) : null,
         });
         if (res.data?.success) successCount++;
       } catch { /* continue */ }
@@ -241,7 +255,7 @@ export default function EInvoiceReport() {
       'Invoice No': inv.sale_number,
       'Date': getActivityDate(inv) ? format(new Date(getActivityDate(inv)!), 'dd/MM/yyyy') : '',
       'Customer': inv.customer_name,
-      'GSTIN': inv.customers?.gst_number || '',
+      'GSTIN': inv.customers?.gst_number || (industrialIrn && isExportSupply(saleSupplyTypeOf(inv.b2b_details)) ? 'URP' : ''),
       'Amount': inv.net_amount,
       'IRN': inv.irn || '',
       'Ack No': inv.ack_no || '',
@@ -293,7 +307,15 @@ export default function EInvoiceReport() {
       cell: ({ row }) => (
         <div>
           <div className="font-medium text-sm">{row.original.customer_name}</div>
-          <div className="text-xs text-muted-foreground font-mono">{row.original.customers?.gst_number}</div>
+          <div className="text-xs text-muted-foreground font-mono">
+            {row.original.customers?.gst_number}
+            {industrialIrn && saleSupplyShortLabel(saleSupplyTypeOf(row.original.b2b_details)) ? (
+              <span className="ml-1 font-sans font-semibold text-sky-700">
+                {row.original.customers?.gst_number ? "· " : ""}
+                {saleSupplyShortLabel(saleSupplyTypeOf(row.original.b2b_details))}
+              </span>
+            ) : null}
+          </div>
         </div>
       ),
       size: 200,
@@ -354,8 +376,12 @@ export default function EInvoiceReport() {
             <Button variant="outline" size="sm" onClick={async () => {
               try {
                 const testMode = (settings?.sale_settings as any)?.einvoice_settings?.test_mode ?? true;
-                const res = await supabase.functions.invoke('generate-einvoice', {
-                  body: { saleId: inv.id, organizationId: currentOrganization?.id, testMode },
+                const res = await invokeSaleEInvoice({
+                  saleId: inv.id,
+                  organizationId: currentOrganization?.id ?? '',
+                  testMode,
+                  industrial: industrialIrn,
+                  supplyType: industrialIrn ? saleSupplyTypeOf(inv.b2b_details) : null,
                 });
                 if (res.error) throw new Error(res.error.message);
                 if (res.data?.success) {
@@ -384,7 +410,7 @@ export default function EInvoiceReport() {
       },
       size: 120,
     },
-  ], [settings, currentOrganization]);
+  ], [settings, currentOrganization, industrialIrn]);
 
   const einvoiceKpiItems = useMemo((): ReportKpiItem[] => [
     {

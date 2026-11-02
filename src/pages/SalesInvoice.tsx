@@ -5229,6 +5229,17 @@ Thank you for choosing us!`;
             value={b2bForm}
             onChange={setB2bForm}
             customerTransport={selectedCustomer?.transport_details}
+            customerGstin={selectedCustomer?.gst_number}
+            billGst={totalGST}
+            onZeroGst={() =>
+              setLineItems((prev) =>
+                prev.map((item) =>
+                  item.productId && Number(item.gstPercent) !== 0
+                    ? calculateLineTotal({ ...item, gstPercent: 0, purchaseGstPercent: 0 })
+                    : item,
+                ),
+              )
+            }
           />
         )}
       </section>

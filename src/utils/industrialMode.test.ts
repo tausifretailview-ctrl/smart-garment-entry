@@ -28,6 +28,10 @@ import {
   parseSaleB2BForm,
   resolveIndustrialMode,
   saleB2BToForm,
+  isSupplyWithoutTax,
+  isZeroRatedSupply,
+  saleSupplyEndorsement,
+  saleSupplyTypeOf,
 } from "./industrialMode";
 
 describe("resolveIndustrialMode", () => {
@@ -340,5 +344,63 @@ describe("ageing by due date", () => {
       "d90",
       "d90plus",
     ]);
+  });
+});
+
+describe("export and SEZ supply type", () => {
+  it("reads the saved type, regular by default", () => {
+    expect(saleSupplyTypeOf(null)).toBe("B2B");
+    expect(saleSupplyTypeOf({ customer_po_no: "A1" })).toBe("B2B");
+    expect(saleSupplyTypeOf({ supply_type: "EXPWOP" })).toBe("EXPWOP");
+    expect(saleSupplyTypeOf({ supply_type: "DEXP" })).toBe("B2B");
+    expect(isZeroRatedSupply("SEZWP")).toBe(true);
+    expect(isZeroRatedSupply("B2B")).toBe(false);
+    expect(isSupplyWithoutTax("EXPWOP")).toBe(true);
+    expect(isSupplyWithoutTax("EXPWP")).toBe(false);
+  });
+
+  it("saves export details only on an export bill", () => {
+    const form = {
+      ...EMPTY_SALE_B2B_FORM,
+      supply_type: "EXPWOP" as const,
+      ship_bill_no: " 1234567 ",
+      ship_bill_date: "2026-11-05",
+      port_code: "innsa1",
+      country_code: "ae",
+      currency: "usd",
+      foreign_value: "12,500.5",
+    };
+    expect(parseSaleB2BForm(form)).toEqual({
+      supply_type: "EXPWOP",
+      ship_bill_no: "1234567",
+      ship_bill_date: "2026-11-05",
+      port_code: "INNSA1",
+      country_code: "AE",
+      currency: "USD",
+      foreign_value: 12500.5,
+    });
+    expect(parseSaleB2BForm({ ...form, supply_type: "SEZWP" })).toEqual({ supply_type: "SEZWP" });
+    expect(parseSaleB2BForm({ ...form, supply_type: "B2B" })).toBeNull();
+    expect(saleB2BToForm(parseSaleB2BForm(form))).toEqual({ ...form, ship_bill_no: "1234567", port_code: "INNSA1", country_code: "AE", currency: "USD", foreign_value: "12500.5" });
+  });
+
+  it("rejects bad export details", () => {
+    const base = { ...EMPTY_SALE_B2B_FORM, supply_type: "EXPWP" as const };
+    expect(() => parseSaleB2BForm({ ...base, port_code: "IN-NSA" })).toThrow();
+    expect(() => parseSaleB2BForm({ ...base, country_code: "UAE" })).toThrow();
+    expect(() => parseSaleB2BForm({ ...base, currency: "US" })).toThrow();
+    expect(() => parseSaleB2BForm({ ...base, foreign_value: "0" })).toThrow();
+  });
+
+  it("prints the supply rows and the endorsement", () => {
+    const d = { supply_type: "EXPWOP" as const, ship_bill_no: "1234567", ship_bill_date: "2026-11-05", port_code: "INNSA1", country_code: "AE", currency: "USD", foreign_value: 12500 };
+    expect(buildB2BInvoiceRows(d, { invoiceDate: "2026-11-01", dueDate: "2026-11-01" })).toEqual([
+      ["Supply", "Export under LUT"],
+      ["Shipping Bill", "1234567 dt 05/11/2026"],
+      ["Port · Country", "INNSA1 · AE"],
+      ["Value", "USD 12,500.00"],
+    ]);
+    expect(saleSupplyEndorsement(d)).toBe("SUPPLY MEANT FOR EXPORT UNDER BOND OR LETTER OF UNDERTAKING WITHOUT PAYMENT OF INTEGRATED TAX");
+    expect(saleSupplyEndorsement({ customer_po_no: "A1" })).toBe("");
   });
 });

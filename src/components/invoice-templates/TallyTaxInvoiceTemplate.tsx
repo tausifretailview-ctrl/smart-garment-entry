@@ -11,7 +11,13 @@ import {
   formatInvoicePaymentModeFallback,
 } from "@/utils/invoicePaymentModeDisplay";
 import { isValidImeiLuhn } from "@/utils/barcodeChecksum";
-import { buildB2BInvoiceRows, type SaleB2BDetails } from "@/utils/industrialMode";
+import {
+  buildB2BInvoiceRows,
+  isZeroRatedSupply,
+  saleSupplyEndorsement,
+  saleSupplyTypeOf,
+  type SaleB2BDetails,
+} from "@/utils/industrialMode";
 
 interface InvoiceItem {
   sr: number;
@@ -351,7 +357,11 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
   const activeTerms = (termsConditions || []).filter((t) => t && t.trim());
   const showFinancerBlock = Boolean(financerDetails?.financer_name?.trim());
   const showTermsRow = activeTerms.length > 0 || showFinancerBlock;
-  const isInterState = gstNumber && customerGSTIN && gstNumber.substring(0, 2) !== customerGSTIN.substring(0, 2);
+  // Export / SEZ bills (Industrial mode) are always IGST; bills without a supply type are unchanged.
+  const zeroRatedSupply = isZeroRatedSupply(saleSupplyTypeOf(b2bDetails));
+  const supplyEndorsement = saleSupplyEndorsement(b2bDetails);
+  const isInterState =
+    zeroRatedSupply || (gstNumber && customerGSTIN && gstNumber.substring(0, 2) !== customerGSTIN.substring(0, 2));
 
   // Normalize bankDetails
   const normBank = bankDetails
@@ -500,6 +510,11 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
           }}
         >
           {grandTotal < 0 ? 'CREDIT NOTE' : 'TAX INVOICE'}
+          {supplyEndorsement ? (
+            <div style={{ fontSize: "9px", fontWeight: "bold", letterSpacing: "0.2px", marginTop: "2px", lineHeight: 1.25 }}>
+              {supplyEndorsement}
+            </div>
+          ) : null}
         </div>
 
         {/* Seller + Invoice Details */}

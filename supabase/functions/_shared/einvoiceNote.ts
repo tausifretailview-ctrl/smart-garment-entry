@@ -1,5 +1,6 @@
 /**
- * E-invoice (IRN) for debit and credit notes (Industrial mode, Phase 2 step 2).
+ * E-invoice (IRN) for debit and credit notes (Industrial mode, Phase 2 step 2),
+ * and for export / SEZ sale bills (Phase 2 step 3).
  *
  * Shared by the einvoice-note edge function and the app (pre-checks, 30-day
  * warning, cancel window). Pure: no Deno, browser or Supabase APIs, so vitest
@@ -8,9 +9,36 @@
  * The NIC schema is the same one sale bills use (generate-einvoice), with
  * DocDtls.Typ "DBN" or "CRN" and the original invoice in RefDtls.PrecDocDtls.
  * Notes are tax exclusive: each line's taxable value is stored, GST is on top.
+ * Export and SEZ bills are "INV" with SupTyp SEZWP / SEZWOP / EXPWP / EXPWOP:
+ * always IGST; an export buyer is URP with state and place of supply 96.
  */
 
-export type NoteDocType = "DBN" | "CRN";
+export type NoteDocType = "DBN" | "CRN" | "INV";
+
+/** IRP supply type (TranDtls.SupTyp). Deemed export (DEXP) is not offered yet. */
+export type IrpSupplyType = "B2B" | "SEZWP" | "SEZWOP" | "EXPWP" | "EXPWOP";
+
+const IRP_SUPPLY_TYPES: IrpSupplyType[] = ["B2B", "SEZWP", "SEZWOP", "EXPWP", "EXPWOP"];
+
+/** Supply type saved on a sale bill (sales.b2b_details.supply_type); "B2B" when none. */
+export function irpSupplyTypeOf(b2bDetails: unknown): IrpSupplyType {
+  const v = b2bDetails && typeof b2bDetails === "object" ? (b2bDetails as Record<string, unknown>).supply_type : null;
+  return typeof v === "string" && (IRP_SUPPLY_TYPES as string[]).includes(v) ? (v as IrpSupplyType) : "B2B";
+}
+
+export const isExportSupplyType = (t: IrpSupplyType | null | undefined): boolean => t === "EXPWP" || t === "EXPWOP";
+export const isSezSupplyType = (t: IrpSupplyType | null | undefined): boolean => t === "SEZWP" || t === "SEZWOP";
+
+/** Shipping bill, port, buyer country and foreign currency of an export bill (all optional at the IRP). */
+export interface ExportDocDetails {
+  shipBillNo?: string | null;
+  /** yyyy-mm-dd */
+  shipBillDate?: string | null;
+  portCode?: string | null;
+  countryCode?: string | null;
+  currency?: string | null;
+  foreignValue?: number | null;
+}
 
 export interface NoteParty {
   gstin: string;
@@ -44,6 +72,11 @@ export interface NoteInput {
   lines: NoteLineInput[];
   remarks?: string | null;
   againstInvoice?: { number: string; date: string | null } | null;
+  /** Default B2B. Export / SEZ always charge IGST, whatever interState says. */
+  supplyType?: IrpSupplyType;
+  /** Freight and other charges on the bill (not taxed), added to the total. */
+  otherCharges?: number | null;
+  exportDetails?: ExportDocDetails | null;
 }
 
 export type NotePayloadResult =
@@ -68,8 +101,10 @@ export interface NoteEInvoicePayload {
     OthChrg: number;
     RndOffAmt: number;
     TotInvVal: number;
+    TotInvValFc?: number;
   };
   RefDtls?: { InvRm?: string; PrecDocDtls?: Array<{ InvNo: string; InvDt: string }> };
+  ExpDtls?: Record<string, string | number>;
 }
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -146,7 +181,26 @@ function party(p: NoteParty, pin: number, stateCode: string) {
   };
 }
 
-const NOTE_WORD: Record<NoteDocType, string> = { DBN: "debit note", CRN: "credit note" };
+const NOTE_WORD: Record<NoteDocType, string> = { DBN: "debit note", CRN: "credit note", INV: "bill" };
+
+/** Overseas buyer at the IRP: no GSTIN, state and place of supply "Other country". */
+const EXPORT_BUYER = { gstin: "URP", state: "96", pin: 999999 };
+
+function exportDetailsPayload(e: ExportDocDetails | null | undefined): Record<string, string | number> | null {
+  if (!e) return null;
+  const out: Record<string, string | number> = {};
+  const sb = String(e.shipBillNo ?? "").replace(/"/g, "").trim().slice(0, 20);
+  if (sb) out.ShipBNo = sb;
+  const sbDt = irpDate(e.shipBillDate ?? null);
+  if (sbDt) out.ShipBDt = sbDt;
+  const port = String(e.portCode ?? "").trim().toUpperCase();
+  if (/^[A-Z0-9]{2,10}$/.test(port)) out.Port = port;
+  const country = String(e.countryCode ?? "").trim().toUpperCase();
+  if (/^[A-Z]{2}$/.test(country)) out.CntCode = country;
+  const cur = String(e.currency ?? "").trim().toUpperCase();
+  if (/^[A-Z]{3,16}$/.test(cur)) out.ForCur = cur;
+  return Object.keys(out).length ? out : null;
+}
 
 /**
  * NIC payload for a debit or credit note, or the first problem the shop must fix.
@@ -155,19 +209,39 @@ const NOTE_WORD: Record<NoteDocType, string> = { DBN: "debit note", CRN: "credit
  */
 export function buildNoteEInvoicePayload(note: NoteInput, seller: NoteParty, buyer: NoteParty): NotePayloadResult {
   const word = NOTE_WORD[note.docType];
+  const supply: IrpSupplyType = note.supplyType ?? "B2B";
+  const exportSupply = isExportSupplyType(supply);
+  const zeroRated = exportSupply || isSezSupplyType(supply);
+  const withoutTax = supply === "SEZWOP" || supply === "EXPWOP";
   const sellerGstin = cleanGstin(seller.gstin);
-  const buyerGstin = cleanGstin(buyer.gstin);
+  const buyerGstin = exportSupply ? EXPORT_BUYER.gstin : cleanGstin(buyer.gstin);
   if (!GSTIN_PATTERN.test(sellerGstin)) {
     return { ok: false, code: "SELLER_GSTIN", error: "Shop GSTIN missing or wrong. Fix it in Settings > Business Details." };
   }
-  if (!buyerGstin) {
-    return { ok: false, code: "BUYER_GSTIN", error: `This customer has no GSTIN. An IRN is only for a ${word} to a registered buyer.` };
+  if (exportSupply && GSTIN_PATTERN.test(cleanGstin(buyer.gstin))) {
+    return {
+      ok: false,
+      code: "EXPORT_BUYER",
+      error: `This customer has an Indian GSTIN (${cleanGstin(buyer.gstin)}). An export bill is for a buyer abroad: pick SEZ if the buyer is an SEZ unit, or Regular.`,
+    };
   }
-  if (!GSTIN_PATTERN.test(buyerGstin)) {
-    return { ok: false, code: "BUYER_GSTIN", error: `Customer GSTIN ${buyerGstin} doesn't look right (15 characters). Fix it in the customer master.` };
-  }
-  if (buyerGstin === sellerGstin) {
-    return { ok: false, code: "BUYER_GSTIN", error: "Customer GSTIN is the same as the shop GSTIN." };
+  // An export buyer is URP: no GSTIN checks.
+  if (!exportSupply) {
+    if (!buyerGstin) {
+      return {
+        ok: false,
+        code: "BUYER_GSTIN",
+        error: isSezSupplyType(supply)
+          ? "This customer has no GSTIN. An SEZ unit has one: add it in the customer master."
+          : `This customer has no GSTIN. An IRN is only for a ${word} to a registered buyer.`,
+      };
+    }
+    if (!GSTIN_PATTERN.test(buyerGstin)) {
+      return { ok: false, code: "BUYER_GSTIN", error: `Customer GSTIN ${buyerGstin} doesn't look right (15 characters). Fix it in the customer master.` };
+    }
+    if (buyerGstin === sellerGstin) {
+      return { ok: false, code: "BUYER_GSTIN", error: "Customer GSTIN is the same as the shop GSTIN." };
+    }
   }
   const number = String(note.number ?? "").trim();
   if (!IRP_DOC_NO_PATTERN.test(number)) {
@@ -184,15 +258,17 @@ export function buildNoteEInvoicePayload(note: NoteInput, seller: NoteParty, buy
   if (!sellerPin) {
     return { ok: false, code: "SELLER_PIN", error: "Shop PIN code missing. Add the 6-digit PIN to the address in Settings > Business Details." };
   }
-  const buyerPin = extractPin(buyer.address);
+  const buyerPin = exportSupply ? EXPORT_BUYER.pin : extractPin(buyer.address);
   if (!buyerPin) {
     return { ok: false, code: "BUYER_PIN", error: "Customer PIN code missing. Add the 6-digit PIN to this customer's address, then try again." };
   }
 
   const sellerState = sellerGstin.slice(0, 2);
-  const buyerState = buyerGstin.slice(0, 2);
+  const buyerState = exportSupply ? EXPORT_BUYER.state : buyerGstin.slice(0, 2);
   const gstinsInterState = sellerState !== buyerState;
-  if (gstinsInterState !== note.interState) {
+  // Export and SEZ supplies are inter-state by law (IGST), even to an SEZ in the shop's own state.
+  const inter = zeroRated ? true : note.interState;
+  if (!zeroRated && gstinsInterState !== note.interState) {
     return {
       ok: false,
       code: "INTER_STATE",
@@ -222,10 +298,17 @@ export function buildNoteEInvoicePayload(note: NoteInput, seller: NoteParty, buy
     if (taxable <= 0) return { ok: false, code: "LINE_VALUE", error: `${row} has no value.` };
     const gstRate = num(l.gstPercent);
     const gst = round2(num(l.gstAmount));
+    if (withoutTax && gst > 0) {
+      return {
+        ok: false,
+        code: "LUT_TAX",
+        error: `Under LUT / bond the bill can't charge GST, but ${row.toLowerCase()} has ₹${gst} GST. Set GST 0% on every line, or pick the "with IGST" supply type.`,
+      };
+    }
     const half = round2(gst / 2);
-    const cgst = note.interState ? 0 : half;
-    const sgst = note.interState ? 0 : half;
-    const igst = note.interState ? gst : 0;
+    const cgst = inter ? 0 : half;
+    const sgst = inter ? 0 : half;
+    const igst = inter ? gst : 0;
     const qty = round3(num(l.qty)) || 1;
     const service = hsn.startsWith("99");
     const desc = String(l.description ?? "").replace(/\s+/g, " ").trim().slice(0, 300);
@@ -264,13 +347,15 @@ export function buildNoteEInvoicePayload(note: NoteInput, seller: NoteParty, buy
   cgstVal = round2(cgstVal);
   sgstVal = round2(sgstVal);
   igstVal = round2(igstVal);
+  const othChrg = round2(Math.max(0, num(note.otherCharges)));
   const net = round2(num(note.netAmount));
-  const roundOff = round2(net - (assVal + cgstVal + sgstVal + igstVal));
+  const linesTotal = round2(assVal + cgstVal + sgstVal + igstVal + othChrg);
+  const roundOff = round2(net - linesTotal);
   if (Math.abs(roundOff) >= 100) {
     return {
       ok: false,
       code: "TOTAL",
-      error: `The ${word} total ₹${net} doesn't match its lines (₹${round2(assVal + cgstVal + sgstVal + igstVal)}). Open and save it again.`,
+      error: `The ${word} total ₹${net} doesn't match its lines (₹${linesTotal}). Open and save it again.`,
     };
   }
 
@@ -281,9 +366,12 @@ export function buildNoteEInvoicePayload(note: NoteInput, seller: NoteParty, buy
   const refDtls =
     remarks.length >= 3 || prec ? { ...(remarks.length >= 3 ? { InvRm: remarks } : {}), ...(prec ? { PrecDocDtls: prec } : {}) } : null;
 
+  const expDtls = exportSupply ? exportDetailsPayload(note.exportDetails) : null;
+  const foreignValue = exportSupply ? round2(num(note.exportDetails?.foreignValue)) : 0;
+
   const payload: NoteEInvoicePayload = {
     Version: "1.1",
-    TranDtls: { TaxSch: "GST", SupTyp: "B2B", RegRev: "N", EcmGstin: null, IgstOnIntra: "N" },
+    TranDtls: { TaxSch: "GST", SupTyp: supply, RegRev: "N", EcmGstin: null, IgstOnIntra: "N" },
     DocDtls: { Typ: note.docType, No: number, Dt: dt },
     SellerDtls: party({ ...seller, gstin: sellerGstin }, sellerPin, sellerState),
     BuyerDtls: { ...party({ ...buyer, gstin: buyerGstin }, buyerPin, buyerState), Pos: buyerState },
@@ -296,11 +384,13 @@ export function buildNoteEInvoicePayload(note: NoteInput, seller: NoteParty, buy
       CesVal: 0,
       StCesVal: 0,
       Discount: 0,
-      OthChrg: 0,
+      OthChrg: othChrg,
       RndOffAmt: roundOff,
       TotInvVal: net,
+      ...(foreignValue > 0 ? { TotInvValFc: foreignValue } : {}),
     },
     ...(refDtls ? { RefDtls: refDtls } : {}),
+    ...(expDtls ? { ExpDtls: expDtls } : {}),
   };
   return { ok: true, payload };
 }
@@ -443,6 +533,103 @@ export function saleReturnToNoteInput(
     remarks: String(ret.notes ?? "").trim() || "Goods returned",
     againstInvoice: ret.original_sale_number
       ? { number: String(ret.original_sale_number), date: opts.originalSaleDate }
+      : null,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Export / SEZ sale bill to a NoteInput (Phase 2 step 3)               */
+/* ------------------------------------------------------------------ */
+
+export interface SaleBillForIrn {
+  sale_number: string | null;
+  sale_date: string;
+  net_amount: number | null;
+  flat_discount_amount?: number | null;
+  other_charges?: number | null;
+  round_off?: number | null;
+  notes?: string | null;
+  b2b_details?: unknown;
+}
+
+export interface SaleBillItemForIrn {
+  product_name: string | null;
+  hsn_code: string | null;
+  quantity: number | null;
+  unit_price: number | null;
+  line_total: number | null;
+  gst_percent: number | null;
+  is_dc_item?: boolean | null;
+  deleted_at?: string | null;
+}
+
+/**
+ * NoteInput (INV) for a saved export / SEZ bill made on Sale Invoice.
+ *
+ * Sale Invoice saves each line_total with GST in it (inclusive and exclusive bills alike). The bill
+ * discounts (flat discount, points) are spread over the lines in proportion, so the IRN total is the
+ * bill's own net: lines + other charges + round off. A bill with challan (DC) lines, which carry no
+ * GST, reports its GST lines only, with the flat discount taken off each in the bill's ratio.
+ */
+export function saleBillToIrnInput(sale: SaleBillForIrn, items: SaleBillItemForIrn[]): NoteInput | null {
+  const all = items.filter((i) => !i.deleted_at);
+  const live = all.filter((i) => !i.is_dc_item);
+  if (live.length === 0) return null;
+  const otherCharges = Math.max(0, num(sale.other_charges));
+  const roundOff = num(sale.round_off);
+  const saved = num(sale.net_amount);
+  const linesSum = live.reduce((sum, i) => sum + num(i.line_total), 0);
+  const target = saved - otherCharges - roundOff;
+  const scaleToNet = live.length === all.length && linesSum > 0 && target > 0 && target <= linesSum + 1;
+  let keep: number;
+  if (scaleToNet) {
+    keep = target / linesSum;
+  } else {
+    const gross = all.reduce((sum, i) => sum + num(i.unit_price) * num(i.quantity), 0);
+    const flat = Math.max(0, num(sale.flat_discount_amount));
+    keep = gross > 0 ? 1 - Math.min(1, flat / gross) : 1;
+  }
+  const lines: NoteLineInput[] = live.map((i) => {
+    const value = num(i.line_total) * keep;
+    const rate = num(i.gst_percent);
+    const taxable = round2(value / (1 + rate / 100));
+    const gstAmount = round2(value - taxable);
+    const qty = num(i.quantity) || 1;
+    const hsn = String(i.hsn_code ?? "").trim();
+    return {
+      description: String(i.product_name ?? ""),
+      hsn,
+      qty,
+      rate: round3(taxable / qty),
+      taxable,
+      gstPercent: rate,
+      gstAmount,
+      unit: hsn.startsWith("99") ? "OTH" : "PCS",
+    };
+  });
+  const fromLines = round2(lines.reduce((s, l) => s + l.taxable + l.gstAmount, 0) + otherCharges + roundOff);
+  const supplyType = irpSupplyTypeOf(sale.b2b_details);
+  const d = (sale.b2b_details && typeof sale.b2b_details === "object" ? sale.b2b_details : {}) as Record<string, unknown>;
+  return {
+    docType: "INV",
+    number: String(sale.sale_number ?? ""),
+    date: String(sale.sale_date ?? "").slice(0, 10),
+    interState: true,
+    netAmount: scaleToNet ? saved : fromLines,
+    lines,
+    remarks: String(sale.notes ?? "").trim() || null,
+    againstInvoice: null,
+    supplyType,
+    otherCharges,
+    exportDetails: isExportSupplyType(supplyType)
+      ? {
+          shipBillNo: typeof d.ship_bill_no === "string" ? d.ship_bill_no : null,
+          shipBillDate: typeof d.ship_bill_date === "string" ? d.ship_bill_date : null,
+          portCode: typeof d.port_code === "string" ? d.port_code : null,
+          countryCode: typeof d.country_code === "string" ? d.country_code : null,
+          currency: typeof d.currency === "string" ? d.currency : null,
+          foreignValue: d.foreign_value == null ? null : num(d.foreign_value),
+        }
       : null,
   };
 }
