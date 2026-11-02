@@ -20,6 +20,9 @@ import {
   ewbGenReplyInfo,
   ewbPinIn,
   ewbTownIn,
+  challanEwbLines,
+  challanEwbSubSupply,
+  ewbSubSupplyLabel,
 } from "../../supabase/functions/_shared/ewayBill";
 import {
   ewbAlertKind,
@@ -37,6 +40,8 @@ import {
   formatEwbNo,
   formatIstDateTime,
   istDayRange,
+  istDateOf,
+  ewbDocOf,
   parseEwbRegisterView,
   summarizeEwbAlerts,
   type EwayBillRegisterRow,
@@ -563,5 +568,147 @@ describe("direct e-way bill (bill without an e-invoice)", () => {
       validTill: "2026-11-03T18:29:00.000Z",
     });
     expect(ewbGenReplyInfo({ alert: "x" })).toBe(null);
+  });
+});
+
+describe("e-way bill for a delivery challan (Phase 2 step 6b)", () => {
+  const seller = { gstin: "27AAACR1234A1Z5", name: "Ezzy Textiles", address: "Shop 4, Main Road, Bhiwandi 421302" };
+  const challanLines = challanEwbLines({
+    items: [
+      { description: "Grey fabric", hsn: "5208", qty: 400, unit: "MTR", value: 52500, gstPercent: 5 },
+      { description: "Free sample", hsn: "5208", qty: 1, unit: "MTR", value: 0, gstPercent: 5 },
+    ],
+    netAmount: 52500,
+    roundOff: 0,
+  });
+  const base = {
+    docNo: "DC/26-27/12",
+    docDate: "2026-11-02",
+    today: "2026-11-02",
+    seller,
+    buyer: { gstin: "", name: "Rehman Dyeing", address: "MIDC, Tarapur 401506" },
+    lines: challanLines.lines,
+    netAmount: challanLines.netAmount,
+    transport: { mode: "road" as const, vehicleNo: "MH04AB1234", distanceKm: "120" },
+    doc: { type: "CHL" as const, subSupplyType: "4" },
+  };
+
+  it("reads challan lines as GST-inclusive at the product rate, scaled to the saved total", () => {
+    expect(challanLines.lines).toHaveLength(1);
+    expect(challanLines.lines[0]).toMatchObject({ hsn: "5208", qty: 400, unit: "MTR", taxable: 50000, gstPercent: 5, gstAmount: 2500 });
+    expect(challanLines.netAmount).toBe(52500);
+    const flat = challanEwbLines({
+      items: [{ description: "Shirt", hsn: "6205", qty: 10, unit: "PCS", value: 11200, gstPercent: 12 }],
+      netAmount: 10080.4,
+      roundOff: 0.4,
+    });
+    expect(flat.lines[0]).toMatchObject({ taxable: 9000, gstAmount: 1080 });
+    expect(flat.netAmount).toBe(10080.4);
+  });
+
+  it("starts the reason from the challan type", () => {
+    expect(challanEwbSubSupply("job_work")).toEqual({ code: "4", desc: "" });
+    expect(challanEwbSubSupply("branch_transfer")).toEqual({ code: "5", desc: "" });
+    expect(challanEwbSubSupply("supply_on_approval")).toEqual({ code: "8", desc: "Supply on approval" });
+    expect(challanEwbSubSupply(null).code).toBe("8");
+    for (const t of ["supply_on_approval", "repair_return", "others", null]) {
+      expect(challanEwbSubSupply(t).desc.length).toBeLessThanOrEqual(20);
+    }
+    expect(ewbSubSupplyLabel("4")).toBe("Job work");
+    expect(ewbSubSupplyLabel("8", "Supply on approval")).toBe("Supply on approval");
+    expect(ewbSubSupplyLabel(null)).toBe("Supply");
+  });
+
+  it("job work: document CHL, sub supply 4, unregistered job worker as URP", () => {
+    const r = buildDirectEwbPayload(base);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.payload).toMatchObject({
+      supplyType: "O",
+      subSupplyType: "4",
+      docType: "CHL",
+      docNo: "DC/26-27/12",
+      toGstin: "URP",
+      toStateCode: 27,
+      toPincode: 401506,
+      totalValue: 50000,
+      cgstValue: 1250,
+      sgstValue: 1250,
+      otherValue: 0,
+      totInvValue: 52500,
+    });
+    expect("subSupplyDesc" in r.payload).toBe(false);
+  });
+
+  it("others needs a short reason; own use carries the shop GSTIN on both sides within the state", () => {
+    const fieldOf = (r: ReturnType<typeof buildDirectEwbPayload>) => (r.ok ? null : r.field);
+    expect(fieldOf(buildDirectEwbPayload({ ...base, doc: { type: "CHL", subSupplyType: "8" } }))).toBe("subSupply");
+    expect(fieldOf(buildDirectEwbPayload({ ...base, doc: { type: "CHL", subSupplyType: "8", subSupplyDesc: "x".repeat(21) } }))).toBe("subSupply");
+    expect(fieldOf(buildDirectEwbPayload({ ...base, doc: { type: "CHL", subSupplyType: "1" } }))).toBe("subSupply");
+    const others = buildDirectEwbPayload({ ...base, doc: { type: "CHL", subSupplyType: "8", subSupplyDesc: "Supply on approval" } });
+    expect(others.ok && others.payload).toMatchObject({ subSupplyType: "8", subSupplyDesc: "Supply on approval", docType: "CHL" });
+
+    const own = buildDirectEwbPayload({
+      ...base,
+      buyer: { gstin: "27AAACR1234A1Z5", name: "Godown 2", address: "Kalher, Bhiwandi 421302" },
+      doc: { type: "CHL", subSupplyType: "5" },
+    });
+    expect(own.ok && own.payload).toMatchObject({ toGstin: "27AAACR1234A1Z5", toStateCode: 27, actToStateCode: 27, subSupplyType: "5" });
+    const away = buildDirectEwbPayload({ ...base, shipTo: { pin: "395002", place: "Surat", stateCode: "24" }, doc: { type: "CHL", subSupplyType: "5" } });
+    expect(fieldOf(away)).toBe("toState");
+    // A customer on the shop's own GSTIN is pointed to "For own use".
+    const same = buildDirectEwbPayload({ ...base, buyer: { gstin: "27AAACR1234A1Z5", name: "Godown 2", address: "Bhiwandi 421302" } });
+    expect(fieldOf(same)).toBe("subSupply");
+  });
+
+  it("asks for rates when the challan has no values", () => {
+    const empty = challanEwbLines({ items: [{ description: "Fabric", hsn: "5208", qty: 10, unit: "MTR", value: 0, gstPercent: 5 }], netAmount: 0 });
+    const r = buildDirectEwbPayload({ ...base, lines: empty.lines, netAmount: empty.netAmount });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.field).toBe("lines");
+    expect(r.error).toContain("add the rates to the challan");
+  });
+
+  it("register rows show the challan", () => {
+    expect(istDateOf("2026-11-01T19:00:00.000Z")).toBe("2026-11-02");
+    expect(istDateOf("2026-11-02")).toBe("2026-11-02");
+    const row = {
+      id: "e1",
+      sale_id: null,
+      challan_id: "c1",
+      ewb_no: "141008536848",
+      ewb_date: "2026-11-02T06:00:00.000Z",
+      valid_till: null,
+      status: "active",
+      test_mode: true,
+      trans_mode: "road",
+      distance_km: 120,
+      transporter_id: null,
+      transporter_name: null,
+      vehicle_no: "MH04AB1234",
+      vehicle_type: "R",
+      trans_doc_no: null,
+      trans_doc_date: null,
+      doc_no: "DC/26-27/12",
+      doc_date: "2026-11-02",
+      doc_type: "CHL",
+      irn: null,
+      generated_via: "direct",
+      created_at: "2026-11-02T06:00:00.000Z",
+      sales: null,
+      delivery_challans: {
+        id: "c1",
+        challan_number: "DC/26-27/12",
+        challan_date: "2026-11-01T19:00:00.000Z",
+        challan_type: "job_work",
+        customer_name: "Rehman Dyeing",
+        net_amount: 52500,
+      },
+    } as EwayBillRegisterRow;
+    expect(ewbDocOf(row)).toEqual({ kind: "challan", id: "c1", number: "DC/26-27/12", date: "2026-11-02", party: "Rehman Dyeing", value: 52500 });
+    expect(ewbMatchesSearch(row, "rehman")).toBe(true);
+    const excel = ewbRegisterExcelRows([row])[0];
+    expect(excel).toMatchObject({ Document: "Delivery challan", "Bill No": "DC/26-27/12", Customer: "Rehman Dyeing", Value: 52500 });
   });
 });

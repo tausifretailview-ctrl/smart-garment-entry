@@ -28,6 +28,11 @@ export { EWB_VALUE_LIMIT, ewayBillEnabled, ewayBillSwitchOn };
 export type EwayBillRow = {
   id: string;
   sale_id: string | null;
+  /** Step 6b: the delivery challan it was made for (read only where the step 6b SQL has run). */
+  challan_id?: string | null;
+  /** Step 6b: why the goods move on a challan (NIC sub supply type) and the "Others" reason. */
+  sub_supply_type?: string | null;
+  sub_supply_desc?: string | null;
   ewb_no: string;
   ewb_date: string | null;
   valid_till: string | null;
@@ -117,6 +122,41 @@ export async function fetchEwayBillsForSales(
   return { rows, missingSql: false };
 }
 
+/** Step 6b SQL not run yet: eway_bills has no challan_id (or no table at all). */
+export function isMissingChallanEwbColumn(message: string | null | undefined): boolean {
+  return /challan_id|sub_supply|delivery_challans|relationship/i.test(String(message ?? "")) || isMissingEwayBillTable(message);
+}
+
+const CHALLAN_EWB_COLS = `${EWB_COLS}, challan_id, sub_supply_type, sub_supply_desc`;
+
+/** E-way bill of each given delivery challan (step 6b): its active one, else its latest cancelled one. */
+export async function fetchEwayBillsForChallans(
+  organizationId: string,
+  challanIds: string[],
+): Promise<{ rows: Map<string, EwayBillRow>; missingSql: boolean }> {
+  const rows = new Map<string, EwayBillRow>();
+  const unique = Array.from(new Set(challanIds.filter(Boolean)));
+  for (let i = 0; i < unique.length; i += 200) {
+    const { data, error } = await supabase
+      .from("eway_bills")
+      .select(CHALLAN_EWB_COLS)
+      .eq("organization_id", organizationId)
+      .in("challan_id", unique.slice(i, i + 200))
+      .order("created_at", { ascending: false });
+    if (error) {
+      if (isMissingChallanEwbColumn(error.message)) return { rows, missingSql: true };
+      throw error;
+    }
+    for (const r of (data ?? []) as unknown as EwayBillRow[]) {
+      const key = String(r.challan_id ?? "");
+      if (!key) continue;
+      const have = rows.get(key);
+      if (!have || (have.status !== "active" && r.status === "active")) rows.set(key, r);
+    }
+  }
+  return { rows, missingSql: false };
+}
+
 /* ------------------------------------------------------------------ */
 /* Dialog form                                                          */
 /* ------------------------------------------------------------------ */
@@ -194,10 +234,12 @@ export type EwbReply = {
 export async function invokeEwayBill(body: {
   /**
    * generate / sync: from the bill's IRN. test / vehicle / cancel / extend: e-way bill API (step 5b).
-   * direct: a bill without an e-invoice, on the e-way bill API (step 6a).
+   * direct: a bill without an e-invoice, on the e-way bill API (step 6a). challan: a delivery challan (step 6b).
    */
-  action: "generate" | "sync" | "test" | "vehicle" | "cancel" | "extend" | "direct";
+  action: "generate" | "sync" | "test" | "vehicle" | "cancel" | "extend" | "direct" | "challan";
   saleId?: string;
+  challanId?: string;
+  subSupply?: { code: string; desc?: string | null };
   ewayBillId?: string;
   organizationId: string;
   transport?: EwbTransportInput;
@@ -212,7 +254,9 @@ export async function invokeEwayBill(body: {
     const raw = await getEdgeFunctionErrorMessage(error, data, "The e-way bill service did not answer");
     const msg = /requested function was not found|failed to send a request/i.test(raw)
       ? "The e-way bill service isn't live yet. Deploy the eway-bill function, then try again."
-      : raw;
+      : /unknown action/i.test(raw)
+        ? "The e-way bill service is an older copy. Redeploy the eway-bill function, then try again."
+        : raw;
     const code = (data as { code?: string } | null)?.code;
     return { success: false, error: msg, code };
   }
@@ -274,16 +318,96 @@ export type EwbRegisterSale = {
   einvoice_test_mode: boolean | null;
 };
 
+/** The delivery challan an e-way bill belongs to (step 6b), as the register reads it. */
+export type EwbRegisterChallan = {
+  id: string;
+  challan_number: string;
+  challan_date: string;
+  challan_type: string | null;
+  customer_name: string | null;
+  net_amount: number | null;
+};
+
 export type EwayBillRegisterRow = EwayBillRow & {
   doc_no: string | null;
   doc_date: string | null;
+  doc_type?: string | null;
   irn: string | null;
   generated_via: string | null;
   created_at: string | null;
   sales: EwbRegisterSale | null;
+  delivery_challans?: EwbRegisterChallan | null;
 };
 
-const REGISTER_COLS = `${EWB_COLS}, doc_no, doc_date, irn, generated_via, sales:sale_id (id, sale_number, sale_date, customer_id, customer_name, net_amount, irn, einvoice_status, einvoice_test_mode)`;
+const REGISTER_COLS = `${EWB_COLS}, doc_no, doc_date, doc_type, irn, generated_via, sales:sale_id (id, sale_number, sale_date, customer_id, customer_name, net_amount, irn, einvoice_status, einvoice_test_mode)`;
+/** With the step 6b SQL: the challan too. */
+const REGISTER_COLS_6B = `${REGISTER_COLS}, challan_id, sub_supply_type, sub_supply_desc, delivery_challans:challan_id (id, challan_number, challan_date, challan_type, customer_name, net_amount)`;
+
+/** Remembered per page load once the step 6b columns are found missing, so lists don't ask twice. */
+let registerColsHave6b = true;
+
+/**
+ * Runs a register-style eway_bills read with the challan columns, and again without them where
+ * the step 6b SQL has not run, so the register and alerts work the same as before it.
+ */
+async function withRegisterCols<T>(
+  read: (cols: string) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<{ data: T[] | null; error: { message: string } | null }> {
+  if (registerColsHave6b) {
+    const first = await read(REGISTER_COLS_6B);
+    if (!first.error || isMissingEwayBillTableOnly(first.error.message) || !isMissingChallanEwbColumn(first.error.message)) return first;
+    registerColsHave6b = false;
+  }
+  return read(REGISTER_COLS);
+}
+
+/** No eway_bills table at all (step 4 SQL), as opposed to only the step 6b columns missing. */
+function isMissingEwayBillTableOnly(message: string | null | undefined): boolean {
+  return /relation "?(public\.)?eway_bills"? does not exist|table 'public\.eway_bills'/i.test(String(message ?? ""));
+}
+
+/** The document an e-way bill belongs to: a sale bill, a delivery challan, or only what was saved on it. */
+export type EwbDocInfo = {
+  kind: "bill" | "challan";
+  id: string | null;
+  number: string;
+  date: string;
+  party: string;
+  value: number | null;
+};
+
+export function ewbDocOf(row: EwayBillRegisterRow): EwbDocInfo {
+  if (row.sales) {
+    return {
+      kind: "bill",
+      id: row.sales.id,
+      number: row.sales.sale_number || row.doc_no || "",
+      date: String(row.sales.sale_date || row.doc_date || ""),
+      party: row.sales.customer_name || "",
+      value: row.sales.net_amount,
+    };
+  }
+  const c = row.delivery_challans ?? null;
+  if (c || row.challan_id || row.doc_type === "CHL") {
+    return {
+      kind: "challan",
+      id: c?.id ?? row.challan_id ?? null,
+      number: c?.challan_number || row.doc_no || "",
+      date: String((c?.challan_date ? istDateOf(c.challan_date) : "") || row.doc_date || ""),
+      party: c?.customer_name || "",
+      value: c ? c.net_amount : null,
+    };
+  }
+  return { kind: "bill", id: null, number: row.doc_no || "", date: String(row.doc_date || ""), party: "", value: null };
+}
+
+/** India date (yyyy-mm-dd) of an instant; a plain date stays as it is. */
+export function istDateOf(v: string | null | undefined): string {
+  const s = String(v ?? "");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const ms = Date.parse(s);
+  return Number.isFinite(ms) ? new Date(ms + 330 * 60_000).toISOString().slice(0, 10) : "";
+}
 
 /** Start and end of an India date range as instants, for timestamptz filters. */
 export function istDayRange(fromIso: string, toIso: string): { start: string; end: string } {
@@ -299,14 +423,16 @@ export async function fetchEwayBillRegister(
   toIso: string,
 ): Promise<{ rows: EwayBillRegisterRow[]; missingSql: boolean }> {
   const { start, end } = istDayRange(fromIso, toIso);
-  const { data, error } = await supabase
-    .from("eway_bills")
-    .select(REGISTER_COLS)
-    .eq("organization_id", organizationId)
-    .gte("ewb_date", start)
-    .lte("ewb_date", end)
-    .order("ewb_date", { ascending: false })
-    .limit(2000);
+  const { data, error } = await withRegisterCols((cols) =>
+    supabase
+      .from("eway_bills")
+      .select(cols)
+      .eq("organization_id", organizationId)
+      .gte("ewb_date", start)
+      .lte("ewb_date", end)
+      .order("ewb_date", { ascending: false })
+      .limit(2000),
+  );
   if (error) {
     if (isMissingEwayBillTable(error.message)) return { rows: [], missingSql: true };
     throw error;
@@ -382,24 +508,28 @@ export async function fetchEwayBillAlerts(
   now = new Date(),
 ): Promise<{ rows: EwayBillRegisterRow[]; missingSql: boolean }> {
   const t = now.getTime();
-  const near = supabase
-    .from("eway_bills")
-    .select(REGISTER_COLS)
-    .eq("organization_id", organizationId)
-    .eq("status", "active")
-    .gte("valid_till", new Date(t - EWB_EXTEND_WINDOW_HOURS * HOUR_MS).toISOString())
-    .lte("valid_till", new Date(t + EWB_EXTEND_WINDOW_HOURS * HOUR_MS).toISOString())
-    .order("valid_till", { ascending: true })
-    .limit(200);
-  const partA = supabase
-    .from("eway_bills")
-    .select(REGISTER_COLS)
-    .eq("organization_id", organizationId)
-    .eq("status", "active")
-    .is("valid_till", null)
-    .gte("ewb_date", new Date(t - EWB_PART_A_DAYS * 24 * HOUR_MS).toISOString())
-    .order("ewb_date", { ascending: true })
-    .limit(200);
+  const near = withRegisterCols((cols) =>
+    supabase
+      .from("eway_bills")
+      .select(cols)
+      .eq("organization_id", organizationId)
+      .eq("status", "active")
+      .gte("valid_till", new Date(t - EWB_EXTEND_WINDOW_HOURS * HOUR_MS).toISOString())
+      .lte("valid_till", new Date(t + EWB_EXTEND_WINDOW_HOURS * HOUR_MS).toISOString())
+      .order("valid_till", { ascending: true })
+      .limit(200),
+  );
+  const partA = withRegisterCols((cols) =>
+    supabase
+      .from("eway_bills")
+      .select(cols)
+      .eq("organization_id", organizationId)
+      .eq("status", "active")
+      .is("valid_till", null)
+      .gte("ewb_date", new Date(t - EWB_PART_A_DAYS * 24 * HOUR_MS).toISOString())
+      .order("ewb_date", { ascending: true })
+      .limit(200),
+  );
   const [a, b] = await Promise.all([near, partA]);
   const error = a.error ?? b.error;
   if (error) {
@@ -431,15 +561,17 @@ export function ewbDdMmYyyy(d: string | null | undefined): string {
 export function ewbRegisterExcelRows(rows: EwayBillRegisterRow[], now = new Date()): Record<string, string | number>[] {
   return rows.map((r) => {
     const v = ewbValidity(r, now);
+    const doc = ewbDocOf(r);
     return {
       "EWB No": r.ewb_no,
       "EWB Date": formatIstDateTime(r.ewb_date),
       "Valid Till": formatIstDateTime(r.valid_till),
       Status: v.label,
-      "Bill No": r.sales?.sale_number || r.doc_no || "",
-      "Bill Date": ewbDdMmYyyy(r.sales?.sale_date || r.doc_date),
-      Customer: r.sales?.customer_name || "",
-      Value: Math.round(Number(r.sales?.net_amount ?? 0)),
+      Document: doc.kind === "challan" ? "Delivery challan" : "Sale bill",
+      "Bill No": doc.number,
+      "Bill Date": ewbDdMmYyyy(doc.date),
+      Customer: doc.party,
+      Value: Math.round(Number(doc.value ?? 0)),
       Mode: ewbModeName(r.trans_mode),
       "Vehicle No": r.vehicle_no || "",
       "Transporter ID": r.transporter_id || "",
@@ -507,7 +639,16 @@ export function ewbMatchesSearch(row: EwayBillRegisterRow, q: string): boolean {
   // Vehicle numbers are saved without spaces or dashes, so "MH 04 AB" finds MH04AB1234.
   const vehicle = s.toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (vehicle.length >= 3 && String(row.vehicle_no ?? "").includes(vehicle)) return true;
-  return [row.sales?.sale_number, row.doc_no, row.sales?.customer_name, row.transporter_name, row.transporter_id, row.trans_doc_no]
+  return [
+    row.sales?.sale_number,
+    row.doc_no,
+    row.sales?.customer_name,
+    row.delivery_challans?.challan_number,
+    row.delivery_challans?.customer_name,
+    row.transporter_name,
+    row.transporter_id,
+    row.trans_doc_no,
+  ]
     .filter(Boolean)
     .some((v) => String(v).toLowerCase().includes(s));
 }

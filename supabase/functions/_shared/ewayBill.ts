@@ -734,7 +734,17 @@ export type EwbShipTo = {
   stateCode?: string | number | null;
 };
 
-export type EwbDirectField = EwbProblemField | "seller" | "docNo" | "docDate" | "toPin" | "toPlace" | "toState" | "lines" | "total";
+export type EwbDirectField =
+  | EwbProblemField
+  | "seller"
+  | "docNo"
+  | "docDate"
+  | "toPin"
+  | "toPlace"
+  | "toState"
+  | "lines"
+  | "total"
+  | "subSupply";
 
 export type EwbDirectItem = {
   productName: string;
@@ -753,7 +763,9 @@ export type EwbDirectItem = {
 export type EwbDirectPayload = {
   supplyType: "O";
   subSupplyType: string;
-  docType: "INV";
+  /** Needed with sub supply type 8 (Others), up to 20 characters. */
+  subSupplyDesc?: string;
+  docType: "INV" | "CHL";
   docNo: string;
   docDate: string;
   fromGstin: string;
@@ -833,8 +845,105 @@ function addrLines(address: string | null | undefined, fallback: string): { a1: 
   return { a1: a1.length >= 1 ? a1 : fallback, a2 };
 }
 
+/* Delivery challans (step 6b) ---------------------------------------- */
+
+/** Why goods move on a delivery challan: outward sub supply types that take a challan (NIC). */
+export const EWB_CHALLAN_SUB_SUPPLY: ReadonlyArray<{ code: string; label: string; hint: string }> = [
+  { code: "4", label: "Job work", hint: "Goods sent to a job worker." },
+  { code: "5", label: "For own use", hint: "Your own branch or godown on the same GSTIN." },
+  { code: "12", label: "Exhibition or fair", hint: "Goods sent to an exhibition or fair." },
+  { code: "10", label: "Line sales", hint: "Goods taken out to sell on the way." },
+  { code: "11", label: "Recipient not known", hint: "The buyer is not known when the goods leave." },
+  { code: "9", label: "SKD / CKD / lots", hint: "One supply sent in parts." },
+  { code: "8", label: "Others", hint: "Say why in a few words (up to 20 letters)." },
+];
+
+/** NIC limit on the "Others" reason. */
+export const EWB_SUB_SUPPLY_DESC_MAX = 20;
+
+/** Starting reason for a challan's e-way bill, from the challan type (Industrial mode); the shop can change it. */
+export function challanEwbSubSupply(challanType: string | null | undefined): { code: string; desc: string } {
+  switch (challanType) {
+    case "job_work":
+      return { code: "4", desc: "" };
+    case "branch_transfer":
+      return { code: "5", desc: "" };
+    case "supply_on_approval":
+      return { code: "8", desc: "Supply on approval" };
+    case "repair_return":
+      return { code: "8", desc: "Repair/replacement" };
+    case "others":
+      return { code: "8", desc: "Sample/testing" };
+    default:
+      return { code: "8", desc: "Bill to follow" };
+  }
+}
+
+/** Label of a sub supply type code for screens and the print ("Supply" for a bill). */
+export function ewbSubSupplyLabel(code: string | null | undefined, desc?: string | null): string {
+  const c = String(code ?? "").trim();
+  if (!c || c === "1") return "Supply";
+  if (c === "8") return String(desc ?? "").trim() || "Others";
+  return EWB_CHALLAN_SUB_SUPPLY.find((s) => s.code === c)?.label ?? "Others";
+}
+
+/** One challan line as read for its e-way bill. */
+export type EwbChallanLineInput = {
+  description: string;
+  hsn: string;
+  qty: number;
+  unit: string;
+  /** Line value as saved on the challan (after line discount). */
+  value: number;
+  gstPercent: number;
+};
+
 /**
- * genewaybill request for a sale bill without an e-invoice, or the first problem to fix.
+ * E-way bill lines of a delivery challan. A challan carries no GST, so each line's value is read
+ * as GST-inclusive at the product's sale GST rate (as the challan print shows it), and the lines
+ * are scaled to the challan's saved total (flat discount), the round off staying outside.
+ */
+export function challanEwbLines(opts: {
+  items: EwbChallanLineInput[];
+  netAmount: number | null | undefined;
+  roundOff?: number | null;
+}): { lines: EwbDirectLine[]; netAmount: number } {
+  const items = opts.items.filter((i) => numOf(i.value) > 0);
+  const sum = items.reduce((s, i) => s + numOf(i.value), 0);
+  const saved = numOf(opts.netAmount);
+  const roundOff = numOf(opts.roundOff);
+  const target = saved - roundOff;
+  const scale = sum > 0 && target > 0 && target <= sum + 1;
+  const keep = scale ? target / sum : 1;
+  const lines: EwbDirectLine[] = items.map((i) => {
+    const value = numOf(i.value) * keep;
+    const rate = numOf(i.gstPercent);
+    const taxable = r2(value / (1 + rate / 100));
+    return {
+      description: String(i.description ?? ""),
+      hsn: String(i.hsn ?? "").trim(),
+      qty: numOf(i.qty) || 1,
+      unit: String(i.unit ?? "").trim() || "PCS",
+      taxable,
+      gstPercent: rate,
+      gstAmount: r2(value - taxable),
+    };
+  });
+  return { lines, netAmount: scale ? saved : r2(sum + roundOff) };
+}
+
+/** The document an e-way bill is made from: a sale bill (default) or a delivery challan. */
+export type EwbDirectDoc = {
+  type: "INV" | "CHL";
+  /** Outward sub supply type: 1 Supply for a bill; a challan reason from EWB_CHALLAN_SUB_SUPPLY. */
+  subSupplyType: string;
+  subSupplyDesc?: string | null;
+};
+
+const BILL_DOC: EwbDirectDoc = { type: "INV", subSupplyType: "1" };
+
+/**
+ * genewaybill request for a sale bill without an e-invoice (or a delivery challan), or the first problem to fix.
  * Lines are grouped by HSN, GST rate and unit (the e-way bill shows goods by HSN). Service
  * lines (SAC 99…) are not goods: their value goes into other value. The difference to the
  * bill's saved total (freight, round off) goes into other value too, so totals match exactly.
@@ -852,15 +961,32 @@ export function buildDirectEwbPayload(opts: {
   /** The bill total as saved. */
   netAmount: number;
   transport: EwbTransportInput;
+  /** Bill (default) or delivery challan, with why the goods move. */
+  doc?: EwbDirectDoc | null;
 }): EwbDirectResult {
+  const doc = opts.doc ?? BILL_DOC;
+  const noun = doc.type === "CHL" ? "challan" : "bill";
+  const Noun = doc.type === "CHL" ? "Challan" : "Bill";
+  const subSupplyType = doc.type === "CHL" ? String(doc.subSupplyType ?? "").trim() : "1";
+  const subSupplyDesc = String(doc.subSupplyDesc ?? "").replace(/\s+/g, " ").trim();
+  if (doc.type === "CHL") {
+    if (!EWB_CHALLAN_SUB_SUPPLY.some((s) => s.code === subSupplyType)) {
+      return { ok: false, field: "subSupply", error: "Pick why the goods move (job work, own use, others…)." };
+    }
+    if (subSupplyType === "8" && (subSupplyDesc.length < 1 || subSupplyDesc.length > EWB_SUB_SUPPLY_DESC_MAX)) {
+      return { ok: false, field: "subSupply", error: `Say why the goods move in up to ${EWB_SUB_SUPPLY_DESC_MAX} letters, e.g. "Supply on approval".` };
+    }
+  }
+  const ownUse = subSupplyType === "5";
+
   const docNo = String(opts.docNo ?? "").trim();
   if (!EWB_DOC_NO.test(docNo)) {
-    return { ok: false, field: "docNo", error: `Bill number ${docNo || "(blank)"} can't go on an e-way bill: it takes up to 16 letters, digits, / and -.` };
+    return { ok: false, field: "docNo", error: `${Noun} number ${docNo || "(blank)"} can't go on an e-way bill: it takes up to 16 letters, digits, / and -.` };
   }
   const docDate = String(opts.docDate ?? "").slice(0, 10);
-  if (!ISO_DATE.test(docDate)) return { ok: false, field: "docDate", error: "The bill has no date." };
+  if (!ISO_DATE.test(docDate)) return { ok: false, field: "docDate", error: `The ${noun} has no date.` };
   if (ISO_DATE.test(opts.today) && docDate > opts.today) {
-    return { ok: false, field: "docDate", error: "The bill date is in the future. An e-way bill can't be made for it yet." };
+    return { ok: false, field: "docDate", error: `The ${noun} date is in the future. An e-way bill can't be made for it yet.` };
   }
 
   const sellerGstin = String(opts.seller.gstin ?? "").trim().toUpperCase();
@@ -878,18 +1004,32 @@ export function buildDirectEwbPayload(opts: {
   }
 
   const rawBuyerGstin = String(opts.buyer.gstin ?? "").trim().toUpperCase();
-  const registered = GSTIN.test(rawBuyerGstin);
-  if (registered && rawBuyerGstin === sellerGstin) {
-    return { ok: false, field: "seller", error: "Customer GSTIN is the same as the shop GSTIN." };
+  // Own use: the goods stay with the shop (its branch or godown), so both sides carry its GSTIN.
+  const registered = ownUse || GSTIN.test(rawBuyerGstin);
+  if (!ownUse && registered && rawBuyerGstin === sellerGstin) {
+    return {
+      ok: false,
+      field: doc.type === "CHL" ? "subSupply" : "seller",
+      error: doc.type === "CHL"
+        ? "This customer has the shop's own GSTIN. For your own branch or godown, pick \"For own use\"."
+        : "Customer GSTIN is the same as the shop GSTIN.",
+    };
   }
-  const toGstin = registered ? rawBuyerGstin : "URP";
+  const toGstin = ownUse ? sellerGstin : registered ? rawBuyerGstin : "URP";
   const ship = opts.shipTo ?? {};
   const shipState = String(ship.stateCode ?? "").trim() ? stateNumber(ship.stateCode) : null;
   if (String(ship.stateCode ?? "").trim() && shipState === null) {
     return { ok: false, field: "toState", error: "Pick the state the goods go to." };
   }
+  if (ownUse && shipState !== null && shipState !== fromState) {
+    return {
+      ok: false,
+      field: "toState",
+      error: "Your own GSTIN covers one state. Goods to a branch in another state go on a tax invoice to that branch's GSTIN.",
+    };
+  }
   // Billing state: the buyer's GSTIN; a buyer without one is billed in the state the goods go to.
-  const toState = registered ? Number(rawBuyerGstin.slice(0, 2)) : shipState ?? fromState;
+  const toState = ownUse ? fromState : registered ? Number(rawBuyerGstin.slice(0, 2)) : shipState ?? fromState;
   const actToState = shipState ?? toState;
   const pinRaw = String(ship.pin ?? "").trim();
   const toPin = pinRaw ? Number(pinRaw) : ewbPinIn(opts.buyer.address);
@@ -914,7 +1054,7 @@ export function buildDirectEwbPayload(opts: {
       return {
         ok: false,
         field: "lines",
-        error: `Line ${i + 1} (${String(l.description ?? "").trim() || "item"}) needs an HSN code of 4, 6 or 8 digits${hsn ? ` (it has ${hsn})` : ""}. Add it in the product master or the bill.`,
+        error: `Line ${i + 1} (${String(l.description ?? "").trim() || "item"}) needs an HSN code of 4, 6 or 8 digits${hsn ? ` (it has ${hsn})` : ""}. Add it in the product master or the ${noun}.`,
       };
     }
     if (hsn.startsWith("99")) {
@@ -936,11 +1076,15 @@ export function buildDirectEwbPayload(opts: {
     return {
       ok: false,
       field: "lines",
-      error: serviceValue > 0 ? "This bill has only services. An e-way bill is for goods." : "This bill has no lines with a value.",
+      error: serviceValue > 0
+        ? `This ${noun} has only services. An e-way bill is for goods.`
+        : doc.type === "CHL"
+          ? "This challan has no item values. An e-way bill needs the value of the goods: add the rates to the challan."
+          : "This bill has no lines with a value.",
     };
   }
   if (groups.size > EWB_MAX_ITEMS) {
-    return { ok: false, field: "lines", error: `This bill has ${groups.size} HSN / rate groups. An e-way bill takes at most ${EWB_MAX_ITEMS}.` };
+    return { ok: false, field: "lines", error: `This ${noun} has ${groups.size} HSN / rate groups. An e-way bill takes at most ${EWB_MAX_ITEMS}.` };
   }
 
   const interState = fromState !== toState;
@@ -981,7 +1125,7 @@ export function buildDirectEwbPayload(opts: {
   const net = r2(numOf(opts.netAmount));
   const otherValue = r2(net - (totalValue + cgstValue + sgstValue + igstValue));
   if (otherValue < -100) {
-    return { ok: false, field: "total", error: `The bill total ₹${net} is less than its lines. Open and save the bill again.` };
+    return { ok: false, field: "total", error: `The ${noun} total ₹${net} is less than its lines. Open and save the ${noun} again.` };
   }
 
   const checked = ewbTransportPart(opts.transport, { docDate, today: opts.today });
@@ -994,12 +1138,13 @@ export function buildDirectEwbPayload(opts: {
   const from = addrLines(opts.seller.address, fromPlace);
   const to = addrLines(opts.buyer.address, toPlace);
   const sellerName = String(opts.seller.name ?? "").replace(/\s+/g, " ").trim().slice(0, 100) || sellerGstin;
-  const buyerName = String(opts.buyer.name ?? "").replace(/\s+/g, " ").trim().slice(0, 100) || "Customer";
+  const buyerName = String(opts.buyer.name ?? "").replace(/\s+/g, " ").trim().slice(0, 100) || (ownUse ? sellerName : "Customer");
 
   const payload: EwbDirectPayload = {
     supplyType: "O",
-    subSupplyType: "1",
-    docType: "INV",
+    subSupplyType,
+    ...(subSupplyType === "8" ? { subSupplyDesc } : {}),
+    docType: doc.type,
     docNo,
     docDate: ddmmyyyy(docDate),
     fromGstin: sellerGstin,

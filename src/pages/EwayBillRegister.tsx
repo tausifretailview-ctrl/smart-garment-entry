@@ -13,6 +13,7 @@ import { useEwayBillAlerts } from "@/hooks/useEwayBillAlerts";
 import { useEwayBillPrinter } from "@/hooks/useEwayBillPrinter";
 import { ErpDashboardKpiCard } from "@/components/dashboard/ErpDashboardKpiCard";
 import { SaleEwayBillDialog } from "@/components/ewaybill/SaleEwayBillDialog";
+import { ChallanEwayBillDialog } from "@/components/ewaybill/ChallanEwayBillDialog";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,7 @@ import {
   ewbAlertKind,
   ewbCancelUntil,
   ewbDdMmYyyy,
+  ewbDocOf,
   ewbExtendUntil,
   ewbInRegisterView,
   ewbMatchesSearch,
@@ -337,7 +339,7 @@ export default function EwayBillRegister() {
                   ? "No e-way bill matches the search."
                   : alertView
                     ? "Nothing here right now."
-                    : "No e-way bills in this period. Make one from the Sales Invoice list: the truck button on an e-invoiced bill."}
+                    : "No e-way bills in this period. Make one with the truck button on the Sales Invoice or Delivery Challan list."}
               </div>
             ) : (
               <Table>
@@ -359,7 +361,8 @@ export default function EwayBillRegister() {
                     const extendUntil = kind === "extend" ? ewbExtendUntil(r.valid_till) : null;
                     const cancelUntil = ewbCancelUntil(r, now);
                     const mode = ewbModeName(r.trans_mode);
-                    const canOpen = !!r.sales;
+                    const doc = ewbDocOf(r);
+                    const canOpen = !!r.sales || !!r.delivery_challans;
                     return (
                       <TableRow key={r.id} className="text-sm">
                         <TableCell>
@@ -379,11 +382,16 @@ export default function EwayBillRegister() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="font-medium text-slate-800">{r.sales?.sale_number || r.doc_no || "—"}</div>
-                          <div className="text-xs text-slate-400">{ewbDdMmYyyy(r.sales?.sale_date || r.doc_date)}</div>
+                          <div className="font-medium text-slate-800">{doc.number || "—"}</div>
+                          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                            {ewbDdMmYyyy(doc.date)}
+                            {doc.kind === "challan" ? (
+                              <span className="rounded bg-sky-50 px-1 text-[9px] font-semibold uppercase text-sky-700 ring-1 ring-sky-200">Challan</span>
+                            ) : null}
+                          </div>
                         </TableCell>
-                        <TableCell className="max-w-[220px] truncate font-medium text-slate-700">{r.sales?.customer_name || "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums text-slate-800">{r.sales ? inr0(r.sales.net_amount) : "—"}</TableCell>
+                        <TableCell className="max-w-[220px] truncate font-medium text-slate-700">{doc.party || "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums text-slate-800">{doc.value !== null ? inr0(doc.value) : "—"}</TableCell>
                         <TableCell>
                           <div className="font-mono text-xs font-semibold text-slate-800">
                             {r.vehicle_no || (r.trans_doc_no ? `${r.trans_doc_no}` : "—")}
@@ -444,13 +452,13 @@ export default function EwayBillRegister() {
 
       {orgId ? (
         <SaleEwayBillDialog
-          open={!!openRow}
+          open={!!openRow && !openRow.delivery_challans}
           onOpenChange={(o) => {
             if (!o) setOpenRow(null);
           }}
           organizationId={orgId}
           sale={
-            openRow?.sales
+            openRow?.sales && !openRow.delivery_challans
               ? {
                   id: openRow.sales.id,
                   sale_number: openRow.sales.sale_number,
@@ -465,6 +473,31 @@ export default function EwayBillRegister() {
           }
           ewayBill={openRow}
           missingSql={missingSql}
+          onChanged={onChanged}
+        />
+      ) : null}
+
+      {orgId ? (
+        <ChallanEwayBillDialog
+          open={!!openRow?.delivery_challans}
+          onOpenChange={(o) => {
+            if (!o) setOpenRow(null);
+          }}
+          organizationId={orgId}
+          challan={
+            openRow?.delivery_challans
+              ? {
+                  id: openRow.delivery_challans.id,
+                  challan_number: openRow.delivery_challans.challan_number,
+                  challan_date: String(openRow.delivery_challans.challan_date ?? ""),
+                  challan_type: openRow.delivery_challans.challan_type,
+                  net_amount: openRow.delivery_challans.net_amount,
+                  customer_name: openRow.delivery_challans.customer_name,
+                }
+              : null
+          }
+          ewayBill={openRow}
+          missingSql={false}
           onChanged={onChanged}
         />
       ) : null}

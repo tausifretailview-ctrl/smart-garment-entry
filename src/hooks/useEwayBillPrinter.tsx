@@ -6,8 +6,19 @@ import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS } from "@/utils/thermalReceiptPrintDocument";
 import { waitForPrintReady } from "@/utils/printReady";
 import { saleSupplyShortLabel, saleSupplyTypeOf } from "@/utils/industrialMode";
-import { ewbHsnSummary, formatIstDateTime, type EwayBillRow } from "@/utils/ewayBill";
+import { ewbHsnSummary, formatIstDateTime, istDateOf, type EwayBillRow } from "@/utils/ewayBill";
+import { ewbSubSupplyLabel } from "../../supabase/functions/_shared/ewayBill";
 import { EwayBillPrint, type EwbPrintData } from "@/components/ewaybill/EwayBillPrint";
+
+type ChallanForPrint = {
+  challan_number: string;
+  challan_date: string;
+  net_amount: number | null;
+  customer_name: string | null;
+  customer_address: string | null;
+  shipping_address: string | null;
+  customers: { gst_number: string | null; address: string | null } | null;
+};
 
 type SaleForPrint = {
   sale_number: string;
@@ -70,6 +81,53 @@ export function useEwayBillPrinter(organizationId: string | undefined) {
       try {
         let sale: SaleForPrint | null = null;
         let hsn: string[] = [];
+        const sellerParty = {
+          name: biz?.business_name || "",
+          gstin: String(biz?.sale_settings?.einvoice_settings?.seller_gstin || biz?.gst_number || "").toUpperCase(),
+          address: biz?.address || "",
+        };
+        if (ewb.challan_id) {
+          // Step 6b: a delivery challan's e-way bill.
+          const [c, items] = await Promise.all([
+            supabase
+              .from("delivery_challans")
+              .select("challan_number, challan_date, net_amount, customer_name, customer_address, shipping_address, customers:customer_id (gst_number, address)")
+              .eq("id", ewb.challan_id)
+              .eq("organization_id", organizationId)
+              .maybeSingle(),
+            supabase.from("delivery_challan_items").select("hsn_code, line_total").eq("challan_id", ewb.challan_id).is("deleted_at", null),
+          ]);
+          if (c.error) throw c.error;
+          const challan = (c.data ?? null) as unknown as ChallanForPrint | null;
+          const ownUse = ewb.sub_supply_type === "5";
+          const reason = ewbSubSupplyLabel(ewb.sub_supply_type, ewb.sub_supply_desc);
+          setData({
+            ewb,
+            doc: {
+              number: challan?.challan_number || ewb.doc_no || "",
+              date: istDateOf(challan?.challan_date) || String(ewb.doc_date || "").slice(0, 10),
+              value: Number(challan?.net_amount ?? 0),
+              supplyLabel: "Regular",
+              irn: null,
+              ackNo: null,
+              typeLabel: "Delivery Challan",
+              reason: `Outward - ${reason}`,
+            },
+            seller: sellerParty,
+            buyer: {
+              name: challan?.customer_name || "",
+              gstin: ownUse ? sellerParty.gstin : String(challan?.customers?.gst_number || "").trim().toUpperCase(),
+              address: challan?.shipping_address || challan?.customer_address || challan?.customers?.address || "",
+            },
+            hsn: ewbHsnSummary((items.data ?? []) as Array<{ hsn_code: string | null; line_total: number | null }>),
+            printedAt: formatIstDateTime(new Date().toISOString()),
+          });
+          requestAnimationFrame(() => {
+            waitForPrintReady(printRef, () => handlePrintRef.current(), { maxWait: 8000 });
+          });
+          window.setTimeout(() => setPrintingId((id) => (id === ewb.id ? null : id)), 15_000);
+          return;
+        }
         if (ewb.sale_id) {
           const [s, items] = await Promise.all([
             supabase
@@ -95,11 +153,7 @@ export function useEwayBillPrinter(organizationId: string | undefined) {
             irn: sale?.irn || ewb.irn || null,
             ackNo: sale?.ack_no ?? null,
           },
-          seller: {
-            name: biz?.business_name || "",
-            gstin: String(biz?.sale_settings?.einvoice_settings?.seller_gstin || biz?.gst_number || "").toUpperCase(),
-            address: biz?.address || "",
-          },
+          seller: sellerParty,
           buyer: {
             name: sale?.customer_name || "",
             gstin: String(sale?.customers?.gst_number || "").trim().toUpperCase(),

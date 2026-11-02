@@ -7,7 +7,18 @@ export type EwbPrintParty = { name: string; gstin: string; address: string };
 
 export type EwbPrintData = {
   ewb: EwayBillRow;
-  doc: { number: string; date: string; value: number; supplyLabel: string; irn: string | null; ackNo: string | null };
+  doc: {
+    number: string;
+    date: string;
+    value: number;
+    supplyLabel: string;
+    irn: string | null;
+    ackNo: string | null;
+    /** "Tax Invoice" (default) or "Delivery Challan". */
+    typeLabel?: string;
+    /** "Outward - Supply" (default), or a challan's reason, e.g. "Outward - Job Work". */
+    reason?: string;
+  };
   seller: EwbPrintParty;
   buyer: EwbPrintParty;
   hsn: string[];
@@ -92,12 +103,12 @@ export const EwayBillPrint = React.forwardRef<HTMLDivElement, { data: EwbPrintDa
     ["Place of Dispatch", placeLine(seller) || "—"],
     ["GSTIN of Recipient", <>{buyer.gstin || "URP"} <span style={{ fontWeight: 400, color: muted }}>{buyer.name}</span></>],
     ["Place of Delivery", placeLine(buyer) || buyer.address || "—"],
-    ["Document No.", doc.number],
+    ["Document", `${doc.typeLabel || "Tax Invoice"} ${doc.number}`],
     ["Document Date", ewbDdMmYyyy(doc.date)],
     ["Transaction Type", doc.supplyLabel || "Regular"],
     ["Value of Goods", `₹${Math.round(doc.value).toLocaleString("en-IN")}`],
     ["HSN Code", data.hsn.length ? data.hsn.join(", ") : "—"],
-    ["Reason for Transportation", "Outward - Supply"],
+    ["Reason for Transportation", doc.reason || "Outward - Supply"],
     ["Transporter", transporter || "—"],
   ];
 
@@ -131,7 +142,9 @@ export const EwayBillPrint = React.forwardRef<HTMLDivElement, { data: EwbPrintDa
                 </span>
               ) : null}
             </div>
-            <div style={{ marginTop: "2px", fontSize: "9px", color: muted }}>Made from the e-invoice (IRN) of {doc.number}</div>
+            <div style={{ marginTop: "2px", fontSize: "9px", color: muted }}>
+              {doc.irn ? `Made from the e-invoice (IRN) of ${doc.number}` : `Made from ${(doc.typeLabel || "Tax Invoice").toLowerCase()} ${doc.number}`}
+            </div>
           </div>
           <div style={{ textAlign: "center" }}>
             <svg ref={barRef} style={{ display: "block", height: "46px", maxWidth: "70mm" }} />
