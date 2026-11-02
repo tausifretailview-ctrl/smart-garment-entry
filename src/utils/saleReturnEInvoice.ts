@@ -5,6 +5,7 @@ import {
   type NoteInput,
   type NoteParty,
 } from "../../supabase/functions/_shared/einvoiceNote";
+import { einvoiceUnit } from "../../supabase/functions/_shared/uqc";
 
 /**
  * Industrial mode, Phase 2 step 2b: IRN state of sale returns (GST credit notes).
@@ -136,7 +137,7 @@ export async function loadSaleReturnNote(
       : Promise.resolve({ data: null, error: null }),
     supabase
       .from("sale_return_items")
-      .select("product_name, hsn_code, quantity, line_total, gst_percent, is_dc_item, deleted_at")
+      .select("product_id, product_name, hsn_code, quantity, line_total, gst_percent, is_dc_item, deleted_at")
       .eq("return_id", returnId),
     r.original_sale_number
       ? supabase
@@ -167,7 +168,23 @@ export async function loadSaleReturnNote(
     email: cust?.email,
   };
   const interState = cleanGstin(sellerGstin).slice(0, 2) !== buyer.gstin.slice(0, 2);
-  const input = saleReturnToNoteInput(r, itemsRes.data ?? [], {
+  // Same units as einvoice-note sends (product master unit → UQC), so the check and print match the IRN.
+  const returnItems = itemsRes.data ?? [];
+  const productIds = Array.from(new Set(returnItems.map((i) => String(i.product_id ?? "")).filter(Boolean)));
+  const uomById = new Map<string, string>();
+  for (let i = 0; i < productIds.length; i += 200) {
+    const { data: products } = await supabase
+      .from("products")
+      .select("id, uom")
+      .eq("organization_id", organizationId)
+      .in("id", productIds.slice(i, i + 200));
+    for (const p of products ?? []) uomById.set(String(p.id), String(p.uom ?? ""));
+  }
+  const itemsWithUnits = returnItems.map((i) => {
+    const uom = i.product_id ? uomById.get(String(i.product_id)) : undefined;
+    return uom === undefined ? i : { ...i, unit: einvoiceUnit(uom, i.hsn_code) };
+  });
+  const input = saleReturnToNoteInput(r, itemsWithUnits, {
     interState,
     originalSaleDate: orig?.sale_date ? String(orig.sale_date).slice(0, 10) : null,
     originalB2bDetails: orig?.b2b_details,

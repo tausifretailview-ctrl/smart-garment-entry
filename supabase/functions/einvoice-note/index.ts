@@ -20,6 +20,7 @@ import {
   type NoteInput,
   type NoteParty,
 } from '../_shared/einvoiceNote.ts';
+import { einvoiceUnit } from '../_shared/uqc.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -38,6 +39,35 @@ interface NoteRequest {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Each line's IRP unit (KGS, MTR, NOS…) from its product's unit, as the GSTR-1 HSN table reports it
+ * (Phase 2 step 3d). A failed lookup keeps the old default (PCS / OTH).
+ */
+async function withProductUnits<T extends { product_id?: string | null; hsn_code: string | null }>(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  organizationId: string,
+  items: T[],
+): Promise<Array<T & { unit?: string }>> {
+  const unchanged = items as Array<T & { unit?: string }>;
+  const ids = [...new Set(items.map((i) => String(i.product_id ?? '')).filter(Boolean))];
+  if (ids.length === 0) return unchanged;
+  const uomById = new Map<string, string>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await supabase
+      .from('products')
+      .select('id, uom')
+      .eq('organization_id', organizationId)
+      .in('id', ids.slice(i, i + 200));
+    if (error) return unchanged;
+    for (const p of data ?? []) uomById.set(String(p.id), String(p.uom ?? ''));
+  }
+  return items.map((i) => {
+    const uom = i.product_id ? uomById.get(String(i.product_id)) : undefined;
+    return uom === undefined ? (i as T & { unit?: string }) : { ...i, unit: einvoiceUnit(uom, i.hsn_code) };
+  });
+}
 
 function json(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -309,10 +339,10 @@ Deno.serve(async (req) => {
       };
       const { data: items, error: itemsError } = await supabase
         .from('sale_items')
-        .select('product_name, hsn_code, quantity, unit_price, line_total, gst_percent, is_dc_item, deleted_at')
+        .select('product_id, product_name, hsn_code, quantity, unit_price, line_total, gst_percent, is_dc_item, deleted_at')
         .eq('sale_id', noteId);
       if (itemsError) throw new Error(`Could not read the bill lines: ${itemsError.message}`);
-      input = saleBillToIrnInput(note, items ?? []);
+      input = saleBillToIrnInput(note, await withProductUnits(supabase, organizationId, items ?? []));
       if (!input) return json({ success: false, error: 'This bill has no GST lines (challan items only), so it needs no IRN.' });
     } else if (kind === 'debit') {
       // deno-lint-ignore no-explicit-any
@@ -348,7 +378,7 @@ Deno.serve(async (req) => {
       };
       const { data: items, error: itemsError } = await supabase
         .from('sale_return_items')
-        .select('product_name, hsn_code, quantity, line_total, gst_percent, is_dc_item, deleted_at')
+        .select('product_id, product_name, hsn_code, quantity, line_total, gst_percent, is_dc_item, deleted_at')
         .eq('return_id', noteId);
       if (itemsError) throw new Error(`Could not read the return lines: ${itemsError.message}`);
       let originalSaleDate: string | null = null;
@@ -367,7 +397,11 @@ Deno.serve(async (req) => {
         originalB2bDetails = orig?.b2b_details ?? null;
       }
       const interState = cleanGstin(creds.gstin).slice(0, 2) !== cleanGstin(buyer.gstin).slice(0, 2);
-      input = saleReturnToNoteInput(note, items ?? [], { interState, originalSaleDate, originalB2bDetails });
+      input = saleReturnToNoteInput(note, await withProductUnits(supabase, organizationId, items ?? []), {
+        interState,
+        originalSaleDate,
+        originalB2bDetails,
+      });
       if (!input) return json({ success: false, error: 'This return has no GST lines (challan items only), so it needs no IRN.' });
     }
     const built = buildNoteEInvoicePayload(input, seller, buyer);

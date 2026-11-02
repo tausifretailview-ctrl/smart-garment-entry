@@ -16,6 +16,7 @@ import {
   type NoteInput,
   type NoteParty,
 } from "../../supabase/functions/_shared/einvoiceNote";
+import { einvoiceUnit } from "../../supabase/functions/_shared/uqc";
 
 const seller: NoteParty = {
   gstin: "27AAAAA0000A1Z5",
@@ -452,5 +453,34 @@ describe("saleBillToIrnInput", () => {
     expect(input?.netAmount).toBe(11800);
     expect(input?.exportDetails).toBeNull();
     expect(saleBillToIrnInput({ sale_number: "INV/2", sale_date: "2026-11-05", net_amount: 0 }, [item({ is_dc_item: true })])).toBeNull();
+  });
+});
+
+describe("real units on IRN lines (step 3d)", () => {
+  it("maps the product master unit to the IRP unit code", () => {
+    expect(einvoiceUnit("Kg", "7208")).toBe("KGS");
+    expect(einvoiceUnit("mtrs", "7308")).toBe("MTR");
+    expect(einvoiceUnit("Nos.", "8481")).toBe("NOS");
+    expect(einvoiceUnit("", "6205")).toBe("PCS");
+    expect(einvoiceUnit(null, "6205")).toBe("PCS");
+    // Services, units the IRP has no code for, and NA go as OTH.
+    expect(einvoiceUnit("Kg", "998719")).toBe("OTH");
+    expect(einvoiceUnit("coil", "7213")).toBe("OTH");
+    expect(einvoiceUnit("service", "8481")).toBe("OTH");
+  });
+
+  it("puts the line unit on the credit note and export bill payloads; PCS when none is given", () => {
+    const ret = { return_number: "SR/26-27/20", return_date: "2026-11-02", net_amount: 1180, gross_amount: 1180, gst_amount: 180, original_sale_number: null, notes: null };
+    const line = { product_name: "MS plate", hsn_code: "7208", quantity: 10, line_total: 1180, gst_percent: 18, is_dc_item: false, deleted_at: null };
+    const withUnit = saleReturnToNoteInput(ret, [{ ...line, unit: "KGS" }], { interState: false, originalSaleDate: null });
+    expect(withUnit?.lines[0].unit).toBe("KGS");
+    const r = withUnit ? buildNoteEInvoicePayload(withUnit, seller, buyerMh) : null;
+    expect(r?.ok && r.payload.ItemList[0].Unit).toBe("KGS");
+    expect(saleReturnToNoteInput(ret, [line], { interState: false, originalSaleDate: null })?.lines[0].unit).toBe("PCS");
+
+    const sale = { sale_number: "EXP/26-27/9", sale_date: "2026-11-02", net_amount: 1000, b2b_details: { supply_type: "EXPWOP" } };
+    const item = { product_name: "MS plate", hsn_code: "7208", quantity: 10, unit_price: 100, line_total: 1000, gst_percent: 0, is_dc_item: false, deleted_at: null };
+    expect(saleBillToIrnInput(sale, [{ ...item, unit: "KGS" }])?.lines[0].unit).toBe("KGS");
+    expect(saleBillToIrnInput(sale, [item])?.lines[0].unit).toBe("PCS");
   });
 });
