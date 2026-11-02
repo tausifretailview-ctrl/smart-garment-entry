@@ -5163,8 +5163,8 @@ export default function POSSales() {
     } else {
       toast.error(
         availableSrCredit > 0.01
-          ? `Credit is more than this customer's saved return credit (₹${formatINR2(availableSrCredit)}). Ask an admin or manager to record the old return.`
-          : "No saved Sale Return credit for this customer. Ask an admin or manager to record the old return, or clear the Credit box.",
+          ? `S/R Adj is more than this customer's saved return credit (₹${formatINR2(availableSrCredit)}). Ask an admin or manager to record the old return.`
+          : "No saved Sale Return credit for this customer. Ask an admin or manager to record the old return, or clear S/R Adj.",
       );
     }
     return true;
@@ -9131,14 +9131,19 @@ export default function POSSales() {
                 )}
               </div>
               
-              {/* Credit (S/R adjust) — the ONE place to use a customer's return / credit-note credit.
+              {/* S/R Adj — manual sale return / credit note adjust (old CN balance, return taken at
+                  another shop) and the ONE place to use a customer's pending credit note (Use button).
                   Same-bill exchange may exceed bill (Mix refund/CN); pre-existing credit stays bill-capped. */}
               <div className="text-center flex flex-col items-center min-h-[4.5rem]">
                 <div
                   className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide"
-                  title="Sale return / credit note credit used on this bill"
+                  title={
+                    customerId && availableSrCredit > 0.005
+                      ? `S/R adjust: type an amount, or use this customer's pending credit note (₹${Math.round(availableSrCredit).toLocaleString("en-IN")})`
+                      : "S/R adjust: type the sale return / old credit note amount to adjust on this bill"
+                  }
                 >
-                  Credit{customerId && availableSrCredit > 0.005 ? ` ₹${Math.round(availableSrCredit).toLocaleString("en-IN")}` : ''}
+                  S/R Adj{customerId && availableSrCredit > 0.005 ? ` · CN ₹${Math.round(availableSrCredit).toLocaleString("en-IN")}` : ''}
                 </div>
                 <div className="flex items-center h-10">
                   <Input 
@@ -9272,7 +9277,7 @@ export default function POSSales() {
                     title="Use this customer's pending credit on this bill (type a smaller amount for part use)"
                     onClick={() => clampSaleReturnAdjust(availableSrCredit, { silent: true })}
                   >
-                    Use ₹{Math.round(Math.min(availableSrCredit, maxSrFromBill)).toLocaleString("en-IN")}
+                    Use CN ₹{Math.round(Math.min(availableSrCredit, maxSrFromBill)).toLocaleString("en-IN")}
                   </button>
                 ) : exchangeRefundDue > 0.01 ? (
                   <div className="text-[10px] text-orange-200 mt-0.5 max-w-[11rem] leading-tight">
@@ -9385,7 +9390,7 @@ export default function POSSales() {
               )}
 
               {/* Credit Applied */}
-              {/* Old separate "Cr" box removed: it drew from the same credit pool as the Credit box
+              {/* Old separate "Cr" box removed: it drew from the same credit pool as the S/R Adj box
                   above and caused double entry. Shown only if a legacy amount is set, so it can be cleared. */}
               {creditApplied > 0 && (
                 <div className="text-center">
