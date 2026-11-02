@@ -21,6 +21,8 @@ import { resolveGstFilingPrefs } from "@/utils/gstReadiness";
 import { invalidateMoneyViewsAfterMutation } from "@/utils/moneyViewFreshnessInvalidation";
 import { invalidateOrgLedgerReferenceData } from "@/hooks/useOrgLedgerReferenceData";
 import { toIsoDay } from "@/utils/industrialMode";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { deleteJournalEntryByReference, postSaleJournalInBackground } from "@/utils/accounting/journalService";
 import {
   DEBIT_NOTE_GST_RATES,
   DEBIT_NOTE_NUMBER_PREFIX,
@@ -334,6 +336,23 @@ export function DebitNoteDialog({ open, onOpenChange, organizationId, editing, o
           .single();
         if (error) throw error;
         saved = data as unknown as DebitNoteRow;
+      }
+
+      // Accounts: post (or re-post after an edit) off the save path, like a credit invoice.
+      // Money arrives through receipts, which post their own journals, so the note posts as unpaid.
+      if (isAccountingEngineEnabled(settings as { accounting_engine_enabled?: boolean } | null)) {
+        const noteId = saved.id;
+        const noteDateForJournal = String(saved.sale_date).slice(0, 10);
+        const noteNet = Number(saved.net_amount || 0);
+        const wasEdit = !!editing;
+        void (async () => {
+          try {
+            if (wasEdit) await deleteJournalEntryByReference(organizationId, "Sale", noteId, supabase);
+            postSaleJournalInBackground(noteId, organizationId, noteNet, 0, "pay_later", noteDateForJournal, supabase);
+          } catch (journalErr) {
+            console.error("Auto-journal (debit note) failed:", journalErr);
+          }
+        })();
       }
 
       invalidateMoneyViewsAfterMutation(queryClient, organizationId, party?.id ?? null);

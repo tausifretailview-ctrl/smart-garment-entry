@@ -4,10 +4,12 @@ import {
   computeDebitNote,
   debitNoteBalance,
   debitNoteDetailsToForms,
+  debitNoteGstBreakdown,
   debitNoteGstr1Lines,
   debitNotePrintItems,
   debitNotePrintNote,
   debitNoteReasonLabel,
+  debitNoteSaleLines,
   debitNoteTaxHeads,
   isDebitNoteSale,
   newDebitNoteLineForm,
@@ -129,5 +131,27 @@ describe("GST return helpers", () => {
     });
     expect(debitNoteGstr1Lines(build("short_billed", "7306", false))[0]).toMatchObject({ qty: 100, uom: "" });
     expect(debitNoteGstr1Lines(build("freight", "996511", false))[0]).toMatchObject({ qty: 0, uom: "na" });
+  });
+});
+
+describe("accounts and sale-line helpers", () => {
+  const details = buildDebitNoteDetails({
+    againstSaleId: null,
+    againstSaleNumber: "INV/26-27/12",
+    againstSaleDate: null,
+    reason: "freight",
+    reasonNote: "",
+    interState: true,
+    totals: computeDebitNote([line({ description: "Freight charges", hsn: "996511", qty: "1", rate: "1250", gst_percent: "5" })], true),
+  });
+
+  it("gives the ledger GST split", () => {
+    expect(debitNoteGstBreakdown(details)).toEqual({ taxableAmount: 1250, cgst: 0, sgst: 0, igst: 62.5, totalGst: 62.5 });
+  });
+
+  it("shapes stored lines like exclusive sale lines", () => {
+    expect(debitNoteSaleLines(details)).toEqual([
+      { product_name: "Freight charges", hsn_code: "996511", quantity: 1, unit_price: 1250, line_total: 1250, gst_percent: 5, discount_share: 0 },
+    ]);
   });
 });

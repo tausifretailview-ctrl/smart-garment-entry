@@ -41,6 +41,8 @@ import {
   generateTallyExcel,
   downloadTallyExcel
 } from "@/utils/tallyExportUtils";
+import { DEBIT_NOTE_SALE_TYPE, debitNoteSaleLines } from "@/utils/debitNote";
+import { fetchDebitNoteDetailsByIds } from "@/utils/debitNoteData";
 
 type PeriodType = "this-month" | "last-month" | "this-quarter" | "last-quarter" | "this-fy" | "custom";
 type ExportType = "masters" | "transactions" | "complete";
@@ -263,6 +265,7 @@ const TallyExport = () => {
       let purchaseVouchers: any[] = [];
       let creditNotes: any[] = [];
       let debitNotes: any[] = [];
+      let salesDebitNotes: any[] = [];
       let receiptVouchers: any[] = [];
       let paymentVouchers: any[] = [];
 
@@ -337,7 +340,20 @@ const TallyExport = () => {
             sale_items: itemsBySale.get(s.id) || [],
             customer_gstin: customerGstinMap.get(s.customer_id) || ''
           }));
-          salesVouchers = transformSalesToVouchers(salesWithGstin, orgGstin);
+          // Sales debit notes (Industrial mode) have no sale lines: their own sheet, from the note's GST lines.
+          const isDn = (s: any) => s.sale_type === DEBIT_NOTE_SALE_TYPE;
+          const dnRows = salesWithGstin.filter(isDn);
+          if (dnRows.length > 0) {
+            const dnDetails = await fetchDebitNoteDetailsByIds(dnRows.map((s: any) => String(s.id)));
+            salesDebitNotes = transformSalesToVouchers(
+              dnRows.map((s: any) => {
+                const d = dnDetails.get(String(s.id));
+                return { ...s, tax_type: "exclusive", sale_items: d ? debitNoteSaleLines(d) : [] };
+              }),
+              orgGstin,
+            );
+          }
+          salesVouchers = transformSalesToVouchers(salesWithGstin.filter((s: any) => !isDn(s)), orgGstin);
           setCounts(prev => ({ ...prev, sales: sales.length }));
         }
       }
@@ -498,6 +514,7 @@ const TallyExport = () => {
         purchaseVouchers: purchaseVouchers.length > 0 ? purchaseVouchers : undefined,
         creditNotes: creditNotes.length > 0 ? creditNotes : undefined,
         debitNotes: debitNotes.length > 0 ? debitNotes : undefined,
+        salesDebitNotes: salesDebitNotes.length > 0 ? salesDebitNotes : undefined,
         receiptVouchers: receiptVouchers.length > 0 ? receiptVouchers : undefined,
         paymentVouchers: paymentVouchers.length > 0 ? paymentVouchers : undefined
       });

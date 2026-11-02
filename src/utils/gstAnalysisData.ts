@@ -7,6 +7,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllSaleItems } from "@/utils/fetchAllRows";
 import { isHeldOrCancelledSale } from "@/utils/posHoldBill";
+import { debitNoteSaleLines, isDebitNoteSale } from "@/utils/debitNote";
+import { fetchDebitNoteDetailsByIds } from "@/utils/debitNoteData";
 import { allDcDocumentIds, isMissingDcColumnError, saleReturnAmountsWithoutDc, withoutDcLines } from "@/utils/gstDcExclusion";
 import {
   normalizeGstTaxType,
@@ -177,6 +179,12 @@ export async function loadGstAnalysis(orgId: string, fromYmd: string, toYmd: str
   const allSaleItems = salesRows.length ? await fetchAllSaleItems(salesRows.map((s) => String(s.id))) : [];
   const allDcSales = allDcDocumentIds(allSaleItems, "sale_id");
   const saleItemsBySale = groupBy(withoutDcLines(allSaleItems), (i: any) => String(i.sale_id));
+  // Sales debit notes (Industrial mode) have no sale lines: use the GST lines stored on the note.
+  // No query runs when the period has none.
+  const debitNoteDetails = await fetchDebitNoteDetailsByIds(
+    salesRows.filter((s) => isDebitNoteSale(s)).map((s) => String(s.id)),
+  );
+  debitNoteDetails.forEach((d, id) => saleItemsBySale.set(id, debitNoteSaleLines(d)));
   const sales = salesRows
     .filter((s) => !allDcSales.has(String(s.id)))
     .map((s) =>
@@ -190,7 +198,7 @@ export async function loadGstAnalysis(orgId: string, fromYmd: string, toYmd: str
           billValue: Number(s.net_amount) || 0,
         },
         saleItemsBySale.get(String(s.id)) || [],
-        saleTaxType(s.tax_type, s.sale_type),
+        isDebitNoteSale(s) ? "exclusive" : saleTaxType(s.tax_type, s.sale_type),
         shopGstin,
       ),
     );
