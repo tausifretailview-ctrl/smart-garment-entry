@@ -3,11 +3,14 @@ import { getEdgeFunctionErrorMessage } from "@/utils/edgeFunctionError";
 import { saleB2BToForm } from "@/utils/industrialMode";
 import {
   isEwbTransportMode,
+  type EwbApiField,
+  type EwbExtendInput,
   type EwbPortAddress,
   type EwbProblemField,
   type EwbTransportInput,
   type EwbTransportMode,
   type EwbVehicleType,
+  type EwbVehicleUpdateInput,
 } from "../../supabase/functions/_shared/ewayBill";
 
 /**
@@ -171,20 +174,26 @@ export type EwbReply = {
   success: boolean;
   error?: string;
   code?: string;
-  field?: EwbProblemField;
+  field?: EwbProblemField | EwbApiField;
   ewbNo?: string;
   ewbDate?: string;
   validTill?: string;
   found?: boolean;
   partAOnly?: boolean;
+  message?: string;
 };
 
 export async function invokeEwayBill(body: {
-  action: "generate" | "sync";
-  saleId: string;
+  /** generate / sync: from the bill's IRN. test / vehicle / cancel / extend: e-way bill API (step 5b). */
+  action: "generate" | "sync" | "test" | "vehicle" | "cancel" | "extend";
+  saleId?: string;
+  ewayBillId?: string;
   organizationId: string;
   transport?: EwbTransportInput;
   exportPort?: EwbPortAddress;
+  vehicle?: EwbVehicleUpdateInput;
+  cancel?: { reasonCode: number | string; remark?: string | null };
+  extend?: EwbExtendInput;
 }): Promise<EwbReply> {
   const { data, error } = await supabase.functions.invoke("eway-bill", { body });
   if (error) {
@@ -489,4 +498,34 @@ export function ewbMatchesSearch(row: EwayBillRegisterRow, q: string): boolean {
   return [row.sales?.sale_number, row.doc_no, row.sales?.customer_name, row.transporter_name, row.transporter_id, row.trans_doc_no]
     .filter(Boolean)
     .some((v) => String(v).toLowerCase().includes(s));
+}
+
+/* ------------------------------------------------------------------ */
+/* E-way bill API keys (step 5b), kept with E-Invoice Settings          */
+/* ------------------------------------------------------------------ */
+
+export type EwbApiKeys = {
+  ewb_api_client_id?: string;
+  ewb_api_client_secret?: string;
+  ewb_api_username?: string;
+  ewb_api_password?: string;
+};
+
+/** All four e-way bill API keys are filled (the API email is shared with e-invoice). */
+export function ewbApiKeysSet(einvoiceSettings: unknown): boolean {
+  const s = (einvoiceSettings ?? {}) as EwbApiKeys & { api_email?: string };
+  return [s.ewb_api_client_id, s.ewb_api_client_secret, s.ewb_api_username, s.ewb_api_password, s.api_email].every(
+    (v) => String(v ?? "").trim().length > 0,
+  );
+}
+
+/** Town, PIN and state code of the shop, as the vehicle / extend forms' starting values. */
+export function ewbSellerPlace(address: string | null | undefined, gstin: string | null | undefined): {
+  place: string;
+  pin: string;
+  stateCode: string;
+} {
+  const { place, pin } = ewbPlaceOf(address);
+  const code = String(gstin ?? "").slice(0, 2);
+  return { place, pin, stateCode: /^\d{2}$/.test(code) ? code : "" };
 }

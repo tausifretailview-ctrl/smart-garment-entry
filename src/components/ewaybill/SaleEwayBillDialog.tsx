@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, Info, Loader2, Printer, RefreshCw, Truck }
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useEwayBillPrinter } from "@/hooks/useEwayBillPrinter";
+import { EwayBillActions } from "@/components/ewaybill/EwayBillActions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -80,6 +81,14 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
   const [busy, setBusy] = useState<"generate" | "sync" | null>(null);
   const printer = useEwayBillPrinter(organizationId);
   const queryClient = useQueryClient();
+  const afterChange = () => {
+    onChanged();
+    // The register and the lapse alerts read the same table.
+    void queryClient.invalidateQueries({ queryKey: ["eway-bill-alerts", organizationId] });
+    void queryClient.invalidateQueries({ queryKey: ["eway-bill-register", organizationId] });
+    void queryClient.invalidateQueries({ queryKey: ["sale-eway-bills", organizationId] });
+    void queryClient.invalidateQueries({ queryKey: ["eway-bills-for-sales", organizationId] });
+  };
 
   // The bill's B2B details (transport, export) are read here so the list query stays as it is.
   const { data: b2b, isLoading: b2bLoading } = useQuery({
@@ -171,10 +180,7 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
       }
     } finally {
       setBusy(null);
-      onChanged();
-      // The register and the lapse alerts read the same table.
-      void queryClient.invalidateQueries({ queryKey: ["eway-bill-alerts", organizationId] });
-      void queryClient.invalidateQueries({ queryKey: ["eway-bill-register", organizationId] });
+      afterChange();
     }
   };
 
@@ -272,25 +278,29 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
             {alertKind === "extend" && extendUntil ? (
               <p className="mt-3 flex items-start gap-1.5 rounded-md bg-red-50 px-2 py-1.5 text-[11px] font-medium text-red-700">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                Lapsed. If the goods are still on the way, extend it on the e-way bill portal by {formatIstDateTime(extendUntil)}.
+                Lapsed. If the goods are still on the way, extend it by {formatIstDateTime(extendUntil)}.
               </p>
             ) : alertKind === "soon" ? (
               <p className="mt-3 flex items-start gap-1.5 rounded-md bg-amber-50 px-2 py-1.5 text-[11px] font-medium text-amber-800">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                Lapses within 8 hours. If the goods won't reach in time, extend it on the e-way bill portal.
+                Lapses within 8 hours. If the goods won't reach in time, extend it.
               </p>
             ) : alertKind === "partA" ? (
               <p className="mt-3 flex items-start gap-1.5 rounded-md bg-sky-50 px-2 py-1.5 text-[11px] font-medium text-sky-800">
                 <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                No vehicle yet. Add it on the e-way bill portal before the goods move.
+                No vehicle yet. Add it before the goods move.
               </p>
             ) : null}
+            <EwayBillActions
+              key={active.id}
+              organizationId={organizationId}
+              ewb={active}
+              docDate={String(sale.sale_date ?? "").slice(0, 10) || null}
+              onDone={afterChange}
+            />
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-              <p className="flex items-start gap-1.5 text-[11px] text-slate-500">
-                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                {cancelUntil
-                  ? `Vehicle change, extend and cancel (till ${formatIstDateTime(cancelUntil)}) are on the e-way bill portal for now.`
-                  : "Vehicle change and extend are on the e-way bill portal for now."}
+              <p className="text-[11px] text-slate-400">
+                {cancelUntil ? `Can be cancelled till ${formatIstDateTime(cancelUntil)}.` : "Cancel window (24 hours) has passed."}
               </p>
               <Button
                 type="button"

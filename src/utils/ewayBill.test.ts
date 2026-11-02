@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   buildEwbByIrnPayload,
+  buildEwbCancelPayload,
+  buildEwbExtendPayload,
+  buildEwbVehiclePayload,
+  ewbApiData,
+  ewbApiErrorText,
+  ewbApiValidUpto,
+  ewbExtendWindow,
+  parseEwbApiDateTime,
   cleanVehicleNo,
   ewbAlreadyGenerated,
   ewbDistance,
@@ -328,5 +336,114 @@ describe("e-way bill register and alerts (Phase 2 step 5a)", () => {
     expect(ewbPlaceOf("Gala 4, MIDC Road, Bhiwandi - 421302")).toEqual({ place: "Bhiwandi", pin: "421302" });
     expect(ewbPlaceOf("Plot 12, Chakan, Pune 410501")).toEqual({ place: "Pune", pin: "410501" });
     expect(ewbPlaceOf("")).toEqual({ place: "", pin: "" });
+  });
+});
+
+describe("e-way bill API: vehicle, cancel, extend (Phase 2 step 5b)", () => {
+  const EWB = "141008536848";
+  const today = "2026-11-02";
+
+  it("vehicle update: road with a reason, empty values left out", () => {
+    const r = buildEwbVehiclePayload({
+      ewbNo: "1410 0853 6848",
+      today,
+      docDate: "2026-11-01",
+      input: { mode: "road", vehicleNo: "mh 12-ab 1234", fromPlace: "Bhiwandi", fromStateCode: "27", reasonCode: "1" },
+    });
+    expect(r).toEqual({
+      ok: true,
+      payload: {
+        ewbNo: 141008536848,
+        fromPlace: "Bhiwandi",
+        fromState: 27,
+        reasonCode: "1",
+        reasonRem: "Vehicle broke down",
+        transMode: "1",
+        vehicleNo: "MH12AB1234",
+      },
+    });
+  });
+
+  it("vehicle update: rail needs RR no and date; 'Other' needs a remark", () => {
+    const base = { ewbNo: EWB, today, input: { mode: "rail" as const, fromPlace: "Pune", fromStateCode: 27, reasonCode: "4" } };
+    const noDoc = buildEwbVehiclePayload(base);
+    expect(!noDoc.ok && noDoc.field).toBe("transDoc");
+    const ok = buildEwbVehiclePayload({ ...base, input: { ...base.input, transDocNo: "RR 991", transDocDate: "2026-11-02" } });
+    expect(ok.ok && ok.payload).toMatchObject({ transMode: "2", transDocNo: "RR991", transDocDate: "02/11/2026", reasonRem: "First time" });
+    const other = buildEwbVehiclePayload({ ewbNo: EWB, today, input: { mode: "road", vehicleNo: "MH12AB1234", fromPlace: "Pune", fromStateCode: 27, reasonCode: "3" } });
+    expect(!other.ok && other.field).toBe("remark");
+    const noState = buildEwbVehiclePayload({ ewbNo: EWB, today, input: { mode: "road", vehicleNo: "MH12AB1234", fromPlace: "Pune", reasonCode: "4" } });
+    expect(!noState.ok && noState.field).toBe("state");
+    const badNo = buildEwbVehiclePayload({ ewbNo: "123", today, input: { mode: "road" } });
+    expect(!badNo.ok && badNo.field).toBe("ewbNo");
+  });
+
+  it("cancel: within 24 hours, with a reason", () => {
+    const now = new Date("2026-11-02T12:00:00Z");
+    const r = buildEwbCancelPayload({ ewbNo: EWB, reasonCode: 2, ewbDate: "2026-11-02T08:00:00Z", now });
+    expect(r).toEqual({ ok: true, payload: { ewbNo: 141008536848, cancelRsnCode: 2, cancelRmrk: "Order cancelled" } });
+    const late = buildEwbCancelPayload({ ewbNo: EWB, reasonCode: 2, ewbDate: "2026-11-01T11:00:00Z", now });
+    expect(!late.ok && late.field).toBe("window");
+    const other = buildEwbCancelPayload({ ewbNo: EWB, reasonCode: "4", ewbDate: "2026-11-02T08:00:00Z", now });
+    expect(!other.ok && other.field).toBe("remark");
+    const noReason = buildEwbCancelPayload({ ewbNo: EWB, reasonCode: null, now });
+    expect(!noReason.ok && noReason.field).toBe("reason");
+  });
+
+  it("extend: only 8 hours either side of lapsing", () => {
+    expect(ewbExtendWindow("2026-11-02T18:29:00.000Z")).toEqual({ from: "2026-11-02T10:29:00.000Z", to: "2026-11-03T02:29:00.000Z" });
+    const input = { consignment: "M" as const, mode: "road" as const, vehicleNo: "MH12AB1234", fromPlace: "Surat", fromPincode: "395003", fromStateCode: "24", remainingKm: "120", reasonCode: 5 };
+    const early = buildEwbExtendPayload({ ewbNo: EWB, input, validTill: "2026-11-02T18:29:00.000Z", today, now: new Date("2026-11-02T09:00:00Z") });
+    expect(!early.ok && early.field).toBe("window");
+    const partA = buildEwbExtendPayload({ ewbNo: EWB, input, validTill: null, today });
+    expect(!partA.ok && partA.field).toBe("window");
+    const ok = buildEwbExtendPayload({ ewbNo: EWB, input, validTill: "2026-11-02T18:29:00.000Z", distanceKm: 300, today, now: new Date("2026-11-02T15:00:00Z") });
+    expect(ok).toEqual({
+      ok: true,
+      payload: {
+        ewbNo: 141008536848,
+        fromPlace: "Surat",
+        fromPincode: 395003,
+        fromState: 24,
+        remainingDistance: 120,
+        extnRsnCode: 5,
+        extnRemarks: "Accident",
+        consignmentStatus: "M",
+        transMode: "1",
+        vehicleNo: "MH12AB1234",
+      },
+    });
+    const far = buildEwbExtendPayload({ ewbNo: EWB, input: { ...input, remainingKm: 400 }, validTill: "2026-11-02T18:29:00.000Z", distanceKm: 300, today, now: new Date("2026-11-02T15:00:00Z") });
+    expect(!far.ok && far.field).toBe("distance");
+  });
+
+  it("extend: goods stopped in a warehouse go as transit with the address", () => {
+    const now = new Date("2026-11-02T20:00:00Z");
+    const base = { consignment: "T" as const, mode: "road" as const, fromPlace: "Surat", fromPincode: 395003, fromStateCode: 24, remainingKm: 80, reasonCode: 1, transitType: "W" as const };
+    const noAddr = buildEwbExtendPayload({ ewbNo: EWB, input: base, validTill: "2026-11-02T18:29:00.000Z", today, now });
+    expect(!noAddr.ok && noAddr.field).toBe("address");
+    const ok = buildEwbExtendPayload({
+      ewbNo: EWB,
+      input: { ...base, address1: "Godown 4", address2: "Ring Road", address3: "Surat" },
+      validTill: "2026-11-02T18:29:00.000Z",
+      today,
+      now,
+    });
+    expect(ok.ok && ok.payload).toMatchObject({ consignmentStatus: "T", transMode: "5", transitType: "W", addressLine1: "Godown 4" });
+    expect(ok.ok && "vehicleNo" in ok.payload).toBe(false);
+  });
+
+  it("reads replies: accepted data, refusals with NIC codes, and dates", () => {
+    expect(ewbApiData({ status_cd: "1", data: JSON.stringify({ validUpto: "03/11/2026 11:59:00 PM" }) })).toEqual({ validUpto: "03/11/2026 11:59:00 PM" });
+    expect(ewbApiData({ status_cd: "0", error: { message: "x" } })).toBe(null);
+    expect(ewbApiValidUpto({ validUpto: "03/11/2026 11:59:00 PM" })).toBe("2026-11-03T18:29:00.000Z");
+    expect(parseEwbApiDateTime("03/11/2026 12:05:00 AM")).toBe("2026-11-02T18:35:00.000Z");
+    expect(parseEwbApiDateTime("2026-11-03 23:59:00")).toBe("2026-11-03T18:29:00.000Z");
+    expect(parseEwbApiDateTime("junk")).toBe(null);
+    expect(ewbApiErrorText({ status_cd: "0", error: { message: '{"errorCodes":"315,"}' } }, "Failed")).toBe(
+      "Its validity has lapsed, so it can't be cancelled. (code 315)",
+    );
+    expect(ewbApiErrorText({ status_cd: "0", error: { message: "Invalid vehicle number" } }, "Failed")).toBe("Invalid vehicle number");
+    expect(ewbApiErrorText({}, "Failed")).toBe("Failed");
   });
 });
