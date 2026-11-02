@@ -477,6 +477,8 @@ export interface SaleReturnItemForNote {
   gst_percent: number | null;
   is_dc_item?: boolean | null;
   deleted_at?: string | null;
+  /** IRP unit (UQC) from the product master, worked out by the caller (_shared/uqc.ts). Default PCS. */
+  unit?: string | null;
 }
 
 /**
@@ -522,7 +524,7 @@ export function saleReturnToNoteInput(
       taxable,
       gstPercent: rate,
       gstAmount,
-      unit: "PCS",
+      unit: String(i.unit ?? "").trim() || "PCS",
     };
   });
   const lineSum = round2(lines.reduce((s, l) => s + l.taxable + l.gstAmount, 0));
@@ -580,6 +582,8 @@ export interface SaleBillItemForIrn {
   gst_percent: number | null;
   is_dc_item?: boolean | null;
   deleted_at?: string | null;
+  /** IRP unit (UQC) from the product master, worked out by the caller (_shared/uqc.ts). Default PCS / OTH. */
+  unit?: string | null;
 }
 
 /**
@@ -623,7 +627,7 @@ export function saleBillToIrnInput(sale: SaleBillForIrn, items: SaleBillItemForI
       taxable,
       gstPercent: rate,
       gstAmount,
-      unit: hsn.startsWith("99") ? "OTH" : "PCS",
+      unit: String(i.unit ?? "").trim() || (hsn.startsWith("99") ? "OTH" : "PCS"),
     };
   });
   const fromLines = round2(lines.reduce((s, l) => s + l.taxable + l.gstAmount, 0) + otherCharges + roundOff);

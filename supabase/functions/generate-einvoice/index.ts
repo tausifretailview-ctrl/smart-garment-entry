@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { einvoiceUnit } from '../_shared/uqc.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -159,6 +160,48 @@ async function getPublicIP(): Promise<string> {
   } catch (error) {
     console.log('Could not get public IP, using default');
     return '127.0.0.1';
+  }
+}
+
+/**
+ * Industrial mode only (Platform Admin feature + Settings switch, Phase 2 step 3d): product id → unit
+ * typed in the product master, so each IRN line carries its real UQC (KGS, MTR, NOS…), the same
+ * unit the GSTR-1 HSN table reports. Every other shop gets null here, makes no extra query and
+ * keeps sending PCS. Any lookup problem also returns null (old behaviour).
+ */
+async function industrialProductUnits(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  organizationId: string,
+  // deno-lint-ignore no-explicit-any
+  saleSettings: Record<string, any>,
+  // deno-lint-ignore no-explicit-any
+  items: any[],
+): Promise<Map<string, string> | null> {
+  if (saleSettings?.industrial_mode?.enabled !== true) return null;
+  try {
+    const { data: org, error: orgErr } = await supabase
+      .from('organizations')
+      .select('enabled_features')
+      .eq('id', organizationId)
+      .maybeSingle();
+    if (orgErr) return null;
+    const features = Array.isArray(org?.enabled_features) ? org.enabled_features : [];
+    if (!features.includes('industrial_mode')) return null;
+    const ids = [...new Set((items || []).map((i) => String(i?.product_id ?? '')).filter(Boolean))];
+    const units = new Map<string, string>();
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, uom')
+        .eq('organization_id', organizationId)
+        .in('id', ids.slice(i, i + 200));
+      if (error) return null;
+      for (const p of data ?? []) units.set(String(p.id), String(p.uom ?? ''));
+    }
+    return units;
+  } catch (_e) {
+    return null;
   }
 }
 
@@ -450,6 +493,9 @@ Deno.serve(async (req) => {
     const buyerStateCode = getStateCodeFromGstin(buyerGstin);
     const isInterState = sellerStateCode !== buyerStateCode;
 
+    // Industrial mode: real unit per line; null (PCS for every line, as before) for other shops.
+    const productUnits = await industrialProductUnits(supabase, organizationId, saleSettings, sale.sale_items);
+
     // Build item list
     const itemList = sale.sale_items.map((item: any, index: number) => {
       const gstRate = item.gst_percent || 0;
@@ -469,7 +515,7 @@ Deno.serve(async (req) => {
         ...(item.barcode && item.barcode.length >= 3 ? { Barcde: item.barcode.substring(0, 30) } : {}),
         Qty: item.quantity,
         FreeQty: 0,
-        Unit: 'PCS',
+        Unit: productUnits ? einvoiceUnit(productUnits.get(String(item.product_id ?? '')), item.hsn_code) : 'PCS',
         UnitPrice: Number(item.unit_price.toFixed(2)),
         TotAmt: grossAmt,
         Discount: discountAmt,
