@@ -139,7 +139,7 @@ export async function fetchEwayBillsForChallans(
   for (let i = 0; i < unique.length; i += 200) {
     const { data, error } = await supabase
       .from("eway_bills")
-      .select(CHALLAN_EWB_COLS)
+      .select(CHALLAN_EWB_COLS as string)
       .eq("organization_id", organizationId)
       .in("challan_id", unique.slice(i, i + 200))
       .order("created_at", { ascending: false });
