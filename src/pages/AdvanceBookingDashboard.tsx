@@ -215,23 +215,83 @@ export default function AdvanceBookingDashboard() {
     }
   };
 
-  // Summary cards query (lightweight)
+  // Customer IDs matching the search box (name / phone)
+  const findSearchCustomerIds = async (): Promise<string[] | null> => {
+    if (!debouncedSearch) return null;
+    const term = `%${debouncedSearch}%`;
+    const { data: matchedCustomers } = await supabase
+      .from("customers")
+      .select("id")
+      .eq("organization_id", orgId!)
+      .or(`customer_name.ilike.${term},phone.ilike.${term}`)
+      .limit(200);
+    return matchedCustomers?.map(c => c.id) || [];
+  };
+
+  // Same filters for the list, the summary cards and the grand total row
+  const applyAdvanceFilters = <Q extends { or: any; ilike: any; gte: any; eq: any }>(
+    query: Q,
+    customerIds: string[] | null,
+  ): Q => {
+    let q: any = query;
+    if (debouncedSearch) {
+      const term = `%${debouncedSearch}%`;
+      if (customerIds && customerIds.length > 0) {
+        q = q.or(`advance_number.ilike.${term},customer_id.in.(${customerIds.join(",")})`);
+      } else if (/^gv/i.test(debouncedSearch.trim())) {
+        q = q.or(`advance_number.ilike.${term},voucher_code.ilike.${term}`);
+      } else {
+        q = q.ilike("advance_number", term);
+      }
+    }
+    const dateFrom = getDateRange();
+    if (dateFrom) q = q.gte("advance_date", dateFrom);
+    if (statusFilter !== "all") q = q.eq("status", statusFilter);
+    if (typeFilter === "gift") q = q.eq("is_gift_voucher", true);
+    if (typeFilter === "advance") q = q.or("is_gift_voucher.is.null,is_gift_voucher.eq.false");
+    return q as Q;
+  };
+
+  // Summary cards + grand total row: follow the active search / date / status / type
+  // filters and read every page (no 1000-row cap).
   const { data: summary } = useQuery({
-    queryKey: ["advance-summary", orgId],
+    queryKey: ["advance-summary", orgId, debouncedSearch, dateFilter, statusFilter, typeFilter],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("customer_advances")
-        // "*" so the summary still loads before the gift voucher columns exist.
-        .select("*")
-        .eq("organization_id", orgId!);
-      if (error) throw error;
-      const rows = (data || []) as Array<{ amount: number | null; used_amount: number | null; is_gift_voucher?: boolean | null }>;
-      const total = rows.length;
-      const totalAmount = rows.reduce((s, a) => s + (a.amount || 0), 0);
-      const usedAmount = rows.reduce((s, a) => s + (a.used_amount || 0), 0);
-      const gifts = rows.filter((a) => a.is_gift_voucher);
-      const giftCount = gifts.length;
-      const giftAvailable = gifts.reduce((s, a) => s + (a.amount || 0) - (a.used_amount || 0), 0);
+      const customerIds = await findSearchCustomerIds();
+      let total = 0;
+      let totalAmount = 0;
+      let usedAmount = 0;
+      let giftCount = 0;
+      let giftAvailable = 0;
+      const PAGE = 1000;
+      let offset = 0;
+      while (true) {
+        const { data: pageRows, error } = await applyAdvanceFilters(
+          supabase
+            .from("customer_advances")
+            .select("id, amount, used_amount, is_gift_voucher")
+            .eq("organization_id", orgId!),
+          customerIds,
+        )
+          .order("id", { ascending: true })
+          .range(offset, offset + PAGE - 1);
+        if (error) throw error;
+        const rows = (pageRows || []) as Array<{ amount: number | null; used_amount: number | null; is_gift_voucher?: boolean | null }>;
+        if (!rows.length) break;
+        for (const row of rows) {
+          const amt = Number(row.amount || 0);
+          const used = Number(row.used_amount || 0);
+          total += 1;
+          totalAmount += amt;
+          usedAmount += used;
+          if (row.is_gift_voucher) {
+            giftCount += 1;
+            giftAvailable += amt - used;
+          }
+        }
+        if (rows.length < PAGE) break;
+        offset += PAGE;
+      }
       return { total, totalAmount, usedAmount, available: totalAmount - usedAmount, giftCount, giftAvailable };
     },
     enabled: !!orgId,
@@ -242,54 +302,18 @@ export default function AdvanceBookingDashboard() {
   const { data: advancesData, isLoading } = useQuery({
     queryKey: ["advance-dashboard", orgId, debouncedSearch, dateFilter, statusFilter, typeFilter, currentPage],
     queryFn: async () => {
-      // If searching by customer name/phone, first find matching customer IDs
-      let customerIds: string[] | null = null;
-      if (debouncedSearch) {
-        const term = `%${debouncedSearch}%`;
-        const { data: matchedCustomers } = await supabase
-          .from("customers")
-          .select("id")
-          .eq("organization_id", orgId!)
-          .or(`customer_name.ilike.${term},phone.ilike.${term}`)
-          .limit(200);
-        customerIds = matchedCustomers?.map(c => c.id) || [];
-      }
+      const customerIds = await findSearchCustomerIds();
 
-      let query = supabase
-        .from("customer_advances")
-        .select("*, customers(customer_name, phone)", { count: "exact" })
-        .eq("organization_id", orgId!)
-        .order("created_at", { ascending: false });
-
-      if (debouncedSearch) {
-        const term = `%${debouncedSearch}%`;
-        if (customerIds && customerIds.length > 0) {
-          // Search by advance number OR matching customer IDs
-          query = query.or(`advance_number.ilike.${term},customer_id.in.(${customerIds.join(",")})`);
-        } else if (/^gv/i.test(debouncedSearch.trim())) {
-          // Gift voucher code typed (GV…)
-          query = query.or(`advance_number.ilike.${term},voucher_code.ilike.${term}`);
-        } else {
-          // No matching customers, just search by advance number
-          query = query.ilike("advance_number", term);
-        }
-      }
-
-      const dateFrom = getDateRange();
-      if (dateFrom) {
-        query = query.gte("advance_date", dateFrom);
-      }
-
-      if (statusFilter !== "all") {
-        query = query.eq("status", statusFilter);
-      }
-      if (typeFilter === "gift") query = query.eq("is_gift_voucher", true);
-      if (typeFilter === "advance") query = query.or("is_gift_voucher.is.null,is_gift_voucher.eq.false");
+      const query = applyAdvanceFilters(
+        supabase
+          .from("customer_advances")
+          .select("*, customers(customer_name, phone)", { count: "exact" })
+          .eq("organization_id", orgId!),
+        customerIds,
+      ).order("created_at", { ascending: false });
 
       const offset = (currentPage - 1) * PAGE_SIZE;
-      query = query.range(offset, offset + PAGE_SIZE - 1);
-
-      const { data, error, count } = await query;
+      const { data, error, count } = await query.range(offset, offset + PAGE_SIZE - 1);
       if (error) throw error;
       return { data: data || [], count: count || 0 };
     },
@@ -301,74 +325,9 @@ export default function AdvanceBookingDashboard() {
   const totalCount = advancesData?.count || 0;
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
-  // Filter-scoped totals for grand total row (matches active filters, all pages)
-  const { data: filteredTotals } = useQuery({
-    queryKey: ["advance-filter-totals", orgId, debouncedSearch, dateFilter, statusFilter, typeFilter],
-    queryFn: async () => {
-      let customerIds: string[] | null = null;
-      if (debouncedSearch) {
-        const term = `%${debouncedSearch}%`;
-        const { data: matchedCustomers } = await supabase
-          .from("customers")
-          .select("id")
-          .eq("organization_id", orgId!)
-          .or(`customer_name.ilike.${term},phone.ilike.${term}`)
-          .limit(200);
-        customerIds = matchedCustomers?.map(c => c.id) || [];
-      }
-
-      const buildQuery = () => {
-        let query = supabase
-          .from("customer_advances")
-          .select("amount, used_amount")
-          .eq("organization_id", orgId!);
-
-        if (debouncedSearch) {
-          const term = `%${debouncedSearch}%`;
-          if (customerIds && customerIds.length > 0) {
-            query = query.or(`advance_number.ilike.${term},customer_id.in.(${customerIds.join(",")})`);
-          } else {
-            query = query.ilike("advance_number", term);
-          }
-        }
-
-        const dateFrom = getDateRange();
-        if (dateFrom) {
-          query = query.gte("advance_date", dateFrom);
-        }
-
-        if (statusFilter !== "all") {
-          query = query.eq("status", statusFilter);
-        }
-        if (typeFilter === "gift") query = query.eq("is_gift_voucher", true);
-        if (typeFilter === "advance") query = query.or("is_gift_voucher.is.null,is_gift_voucher.eq.false");
-        return query;
-      };
-
-      let totalAmount = 0;
-      let totalUsed = 0;
-      const PAGE = 1000;
-      let offset = 0;
-      while (true) {
-        const { data: pageRows, error } = await buildQuery().range(offset, offset + PAGE - 1);
-        if (error) throw error;
-        if (!pageRows?.length) break;
-        for (const row of pageRows) {
-          totalAmount += Number(row.amount || 0);
-          totalUsed += Number(row.used_amount || 0);
-        }
-        if (pageRows.length < PAGE) break;
-        offset += PAGE;
-      }
-      return { totalAmount, totalUsed, totalAvailable: totalAmount - totalUsed };
-    },
-    enabled: !!orgId,
-    staleTime: STALE_LIVE,
-  });
-
-  const grandTotalAmount = filteredTotals?.totalAmount ?? advances.reduce((s, a) => s + (a.amount || 0), 0);
-  const grandTotalUsed = filteredTotals?.totalUsed ?? advances.reduce((s, a) => s + (a.used_amount || 0), 0);
-  const grandTotalAvailable = filteredTotals?.totalAvailable ?? grandTotalAmount - grandTotalUsed;
+  const grandTotalAmount = summary?.totalAmount ?? advances.reduce((s, a) => s + (a.amount || 0), 0);
+  const grandTotalUsed = summary?.usedAmount ?? advances.reduce((s, a) => s + (a.used_amount || 0), 0);
+  const grandTotalAvailable = summary?.available ?? grandTotalAmount - grandTotalUsed;
 
   // Refund mutation
   const refundMutation = useMutation({
@@ -387,7 +346,6 @@ export default function AdvanceBookingDashboard() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["advance-dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["advance-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["advance-filter-totals"] });
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-ledger-adv-refunds"] });
@@ -449,7 +407,6 @@ export default function AdvanceBookingDashboard() {
      onSuccess: () => {
        queryClient.invalidateQueries({ queryKey: ["advance-dashboard"] });
        queryClient.invalidateQueries({ queryKey: ["advance-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["advance-filter-totals"] });
        queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
        queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
        invalidateCustomerFinancialSnapshot(queryClient, orgId, selectedAdvance?.customer_id);
@@ -558,7 +515,6 @@ export default function AdvanceBookingDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["advance-dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["advance-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["advance-filter-totals"] });
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
@@ -704,7 +660,6 @@ export default function AdvanceBookingDashboard() {
         <Button variant="outline" size="icon" onClick={() => {
           queryClient.invalidateQueries({ queryKey: ["advance-dashboard"] });
           queryClient.invalidateQueries({ queryKey: ["advance-summary"] });
-          queryClient.invalidateQueries({ queryKey: ["advance-filter-totals"] });
         }}>
           <RefreshCw className="h-4 w-4" />
         </Button>
@@ -866,7 +821,6 @@ export default function AdvanceBookingDashboard() {
             if (!open) {
               queryClient.invalidateQueries({ queryKey: ["advance-dashboard"] });
               queryClient.invalidateQueries({ queryKey: ["advance-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["advance-filter-totals"] });
             }
           }}
           organizationId={orgId}
