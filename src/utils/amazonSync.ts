@@ -19,6 +19,7 @@ export type AmazonChannelSettings = {
 export type AmazonSkuMapRow = {
   id: string;
   seller_sku: string;
+  variant_id: string | null;
   product_id: string;
   color: string | null;
   size: string;
@@ -65,7 +66,7 @@ export async function saveAmazonSettings(
 export async function fetchAmazonSkuMap(orgId: string): Promise<AmazonSkuMapRow[]> {
   const { data, error } = await table("amazon_sku_map")
     .select(
-      "id, seller_sku, product_id, color, size, barcode, buffer_qty, active, needs_push, last_stock_qty, last_pushed_qty, last_pushed_at, last_error, products(product_name)",
+      "id, seller_sku, variant_id, product_id, color, size, barcode, buffer_qty, active, needs_push, last_stock_qty, last_pushed_qty, last_pushed_at, last_error, products(product_name)",
     )
     .eq("organization_id", orgId)
     .order("seller_sku", { ascending: true })
