@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, Info, Loader2, Printer, RefreshCw, Truck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useSettings } from "@/hooks/useSettings";
 import { useEwayBillPrinter } from "@/hooks/useEwayBillPrinter";
 import { EwayBillActions } from "@/components/ewaybill/EwayBillActions";
 import { Button } from "@/components/ui/button";
@@ -16,8 +17,10 @@ import {
   ewbFormFromB2b,
   ewbPortInput,
   ewbAlertKind,
+  ewbApiKeysSet,
   ewbCancelUntil,
   ewbExtendUntil,
+  ewbSellerPlace,
   ewbTransportInput,
   ewbValidity,
   formatEwbNo,
@@ -32,7 +35,9 @@ import {
   EWB_VALUE_LIMIT,
   buildEwbByIrnPayload,
   ewbDistance,
+  ewbTransportPart,
   ewbValidityDays,
+  type EwbDirectField,
   type EwbProblemField,
   type EwbTransportMode,
 } from "../../../supabase/functions/_shared/ewayBill";
@@ -60,6 +65,10 @@ type Props = {
 };
 
 const MODES: EwbTransportMode[] = ["road", "rail", "air", "ship"];
+const GSTIN_RE = /^[0-9]{2}[0-9A-Z]{13}$/;
+
+/** Where the goods go (direct e-way bill): starts from the buyer's address and GSTIN. */
+type ShipToForm = { pin: string; place: string; stateCode: string };
 const field = "h-9 text-sm bg-white";
 const label = "text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1 block";
 const STATES = Object.entries(GSTIN_STATE_NAMES).sort((a, b) => a[1].localeCompare(b[1]));
@@ -72,12 +81,17 @@ function inr(n: number | null | undefined): string {
   return `₹${Math.round(Number(n ?? 0)).toLocaleString("en-IN")}`;
 }
 
-/** E-way bill of one e-invoiced sale bill: make it from the IRN, or see the one it has. */
+/**
+ * E-way bill of one sale bill: from its e-invoice (IRN), or a direct e-way bill when it has none
+ * (step 6a); or see the one it has.
+ */
 export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, ewayBill, missingSql, onChanged }: Props) {
   const { toast } = useToast();
+  const { data: settings } = useSettings();
   const [form, setForm] = useState<EwbTransportForm>(() => ewbFormFromB2b(null));
   const [port, setPort] = useState<EwbPortForm>(EMPTY_PORT_FORM);
-  const [problem, setProblem] = useState<{ field: EwbProblemField | null; error: string } | null>(null);
+  const [shipTo, setShipTo] = useState<ShipToForm>({ pin: "", place: "", stateCode: "" });
+  const [problem, setProblem] = useState<{ field: EwbProblemField | EwbDirectField | null; error: string } | null>(null);
   const [busy, setBusy] = useState<"generate" | "sync" | null>(null);
   const printer = useEwayBillPrinter(organizationId);
   const queryClient = useQueryClient();
@@ -90,22 +104,39 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
     void queryClient.invalidateQueries({ queryKey: ["eway-bills-for-sales", organizationId] });
   };
 
-  // The bill's B2B details (transport, export) are read here so the list query stays as it is.
-  const { data: b2b, isLoading: b2bLoading } = useQuery({
-    queryKey: ["sale-b2b-details", organizationId, sale?.id ?? ""],
+  // The bill's B2B details (transport, export) and buyer are read here so the list query stays as it is.
+  const { data: details, isLoading: b2bLoading } = useQuery({
+    queryKey: ["sale-ewb-details", organizationId, sale?.id ?? ""],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("sales")
-        .select("b2b_details")
+        .select("b2b_details, customer_address, customers:customer_id (gst_number, address)")
         .eq("id", sale!.id)
         .eq("organization_id", organizationId)
         .maybeSingle();
       if (error) throw error;
-      return ((data as { b2b_details?: unknown } | null)?.b2b_details ?? null) as unknown;
+      const row = (data ?? {}) as {
+        b2b_details?: unknown;
+        customer_address?: string | null;
+        customers?: { gst_number?: string | null; address?: string | null } | null;
+      };
+      return {
+        b2b: row.b2b_details ?? null,
+        buyerGstin: String(row.customers?.gst_number ?? "").trim().toUpperCase(),
+        buyerAddress: row.customer_address || row.customers?.address || "",
+      };
     },
     enabled: open && !!sale?.id,
     staleTime: 30_000,
   });
+  const b2b = details?.b2b ?? null;
+  const einvoiceSettings = (settings as { sale_settings?: { einvoice_settings?: Record<string, unknown> } } | null)?.sale_settings
+    ?.einvoice_settings;
+  const shopGstin = String(
+    (einvoiceSettings?.test_mode !== false && einvoiceSettings?.seller_gstin) || (settings as { gst_number?: string | null } | null)?.gst_number || "",
+  )
+    .trim()
+    .toUpperCase();
 
   // Start once per opening from the bill's saved transport details; a later refetch keeps what was typed.
   const [seededFor, setSeededFor] = useState<string | null>(null);
@@ -117,9 +148,11 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
     if (!sale?.id || b2bLoading || seededFor === sale.id) return;
     setForm(ewbFormFromB2b(b2b ?? null));
     setPort(EMPTY_PORT_FORM);
+    const buyer = ewbSellerPlace(details?.buyerAddress ?? "", GSTIN_RE.test(details?.buyerGstin ?? "") ? details?.buyerGstin : null);
+    setShipTo({ pin: buyer.pin, place: buyer.place, stateCode: buyer.stateCode || shopGstin.slice(0, 2) });
     setProblem(null);
     setSeededFor(sale.id);
-  }, [open, sale?.id, b2b, b2bLoading, seededFor]);
+  }, [open, sale?.id, b2b, details, b2bLoading, seededFor, shopGstin]);
 
   const isExport = isExportSupplyType(irpSupplyTypeOf(b2b ?? null));
   const set = (patch: Partial<EwbTransportForm>) => {
@@ -130,18 +163,36 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
     setPort((p) => ({ ...p, ...patch }));
     setProblem(null);
   };
+  const setS = (patch: Partial<ShipToForm>) => {
+    setShipTo((p) => ({ ...p, ...patch }));
+    setProblem(null);
+  };
 
   const days = useMemo(() => ewbValidityDays(ewbDistance(form.distanceKm), form.vehicleType), [form.distanceKm, form.vehicleType]);
 
   if (!sale) return printer.printNode;
   const active = ewayBill && ewayBill.status === "active" ? ewayBill : null;
-  const testMode = sale.einvoice_test_mode ?? null;
   const belowLimit = Number(sale.net_amount ?? 0) <= EWB_VALUE_LIMIT;
   const hasIrn = !!sale.irn && sale.einvoice_status === "generated";
+  // No IRN: a direct e-way bill on the e-way bill API keys. Export bills and, in an e-invoice shop,
+  // bills to a registered buyer need the IRN first.
+  const direct = !hasIrn;
+  const einvoiceOn = einvoiceSettings?.enabled === true;
+  const needsIrn = direct && (isExport || (einvoiceOn && GSTIN_RE.test(details?.buyerGstin ?? "")));
+  const keysSet = ewbApiKeysSet(einvoiceSettings);
+  const canMake = !missingSql && (hasIrn || (!needsIrn && keysSet));
+  const testMode = active ? active.test_mode : hasIrn ? sale.einvoice_test_mode ?? null : einvoiceSettings ? einvoiceSettings.test_mode !== false : null;
 
   const run = async (action: "generate" | "sync") => {
     if (busy) return;
-    if (action === "generate") {
+    if (action === "generate" && direct) {
+      const checked = ewbTransportPart(ewbTransportInput(form), { docDate: String(sale.sale_date ?? "").slice(0, 10), today: indiaTodayIso() });
+      if (checked.ok === false) {
+        const fail = checked as { field: EwbProblemField; error: string };
+        setProblem({ field: fail.field, error: fail.error });
+        return;
+      }
+    } else if (action === "generate") {
       const built = buildEwbByIrnPayload({
         irn: sale.irn,
         docDate: String(sale.sale_date ?? "").slice(0, 10),
@@ -159,12 +210,16 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
     }
     setBusy(action);
     try {
-      const res = await invokeEwayBill({
-        action,
-        saleId: sale.id,
-        organizationId,
-        ...(action === "generate" ? { transport: ewbTransportInput(form), exportPort: isExport ? ewbPortInput(port) : undefined } : {}),
-      });
+      const res = await invokeEwayBill(
+        action === "generate" && direct
+          ? { action: "direct", saleId: sale.id, organizationId, transport: ewbTransportInput(form), shipTo }
+          : {
+              action,
+              saleId: sale.id,
+              organizationId,
+              ...(action === "generate" ? { transport: ewbTransportInput(form), exportPort: isExport ? ewbPortInput(port) : undefined } : {}),
+            },
+      );
       if (res.success) {
         toast({
           title: res.found ? "E-way bill found at the IRP" : "E-way bill generated",
@@ -176,8 +231,11 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
       } else if (action === "sync" && res.code === "NOT_FOUND") {
         toast({ title: "No e-way bill yet", description: res.error });
       } else {
-        // generate / sync only report the IRN form's fields.
-        setProblem({ field: (res.field as EwbProblemField | undefined) ?? null, error: res.error || "The IRP did not accept it" });
+        // generate / sync / direct only report this form's fields.
+        setProblem({
+          field: (res.field as EwbProblemField | EwbDirectField | undefined) ?? null,
+          error: res.error || (direct ? "The e-way bill system did not accept it" : "The IRP did not accept it"),
+        });
       }
     } finally {
       setBusy(null);
@@ -185,7 +243,7 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
     }
   };
 
-  const bad = (f: EwbProblemField) => (problem?.field === f ? "border-red-400 ring-1 ring-red-200" : "");
+  const bad = (f: EwbProblemField | EwbDirectField) => (problem?.field === f ? "border-red-400 ring-1 ring-red-200" : "");
   const validity = active ? ewbValidity(active) : null;
   const alertKind = active ? ewbAlertKind(active) : null;
   const extendUntil = active ? ewbExtendUntil(active.valid_till) : null;
@@ -216,7 +274,9 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
                 ) : null}
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Made from this bill's e-invoice (IRN). Part A comes from the IRN; Part B is the vehicle or transport document.
+                {direct
+                  ? "This bill has no e-invoice, so the e-way bill is made from the bill itself: goods by HSN, buyer and transport."
+                  : "Made from this bill's e-invoice (IRN). Part A comes from the IRN; Part B is the vehicle or transport document."}
               </DialogDescription>
             </div>
           </div>
@@ -238,8 +298,10 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
             <div className="truncate font-medium text-slate-800">{sale.customer_name || "—"}</div>
           </div>
           <div className="col-span-2 min-w-0 sm:col-span-4">
-            <div className="text-slate-500">IRN</div>
-            <div className="truncate font-mono text-[11px] text-slate-700">{sale.irn || "—"}</div>
+            <div className="text-slate-500">{direct ? "Buyer GSTIN" : "IRN"}</div>
+            <div className="truncate font-mono text-[11px] text-slate-700">
+              {direct ? (GSTIN_RE.test(details?.buyerGstin ?? "") ? details?.buyerGstin : "Unregistered (URP)") : sale.irn || "—"}
+            </div>
           </div>
         </div>
 
@@ -317,7 +379,21 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
             </div>
           </div>
         ) : (
-          <div className={cn("grid gap-4", (!hasIrn || missingSql) && "pointer-events-none opacity-60")}>
+          <div className="grid gap-4">
+            {direct && needsIrn ? (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                {isExport
+                  ? "Export bill: generate its e-invoice (IRN) first. The e-way bill is made from the IRN."
+                  : "This buyer has a GSTIN and your shop makes e-invoices: generate the e-invoice (IRN) first. The e-way bill is made from it."}
+              </div>
+            ) : direct && !keysSet ? (
+              <div className="flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                To make e-way bills for bills without an e-invoice, add PeriOne's e-way bill keys and API email in Settings &gt; Sale &gt; E-Way Bill.
+              </div>
+            ) : null}
+          <div className={cn("grid gap-4", !canMake && "pointer-events-none opacity-60")}>
             {belowLimit ? (
               <div className="flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
                 <Info className="mt-0.5 h-4 w-4 shrink-0" />
@@ -430,7 +506,54 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
               </div>
             </div>
 
-            {isExport ? (
+            {direct ? (
+              <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                <div className="mb-2 text-xs font-semibold text-slate-700">Goods go to</div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div>
+                    <label htmlFor="ewb-to-place" className={label}>Town</label>
+                    <Input
+                      id="ewb-to-place"
+                      className={cn(field, "no-uppercase", bad("toPlace"))}
+                      value={shipTo.place}
+                      onChange={(e) => setS({ place: e.target.value })}
+                      placeholder="Surat"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="ewb-to-pin" className={label}>PIN</label>
+                    <Input
+                      id="ewb-to-pin"
+                      inputMode="numeric"
+                      className={cn(field, "tabular-nums", bad("toPin"))}
+                      value={shipTo.pin}
+                      onChange={(e) => setS({ pin: e.target.value.replace(/[^0-9]/g, "").slice(0, 6) })}
+                      placeholder="395002"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="ewb-to-state" className={label}>State</label>
+                    <Select value={shipTo.stateCode} onValueChange={(v) => setS({ stateCode: v })}>
+                      <SelectTrigger id="ewb-to-state" className={cn(field, bad("toState"))}>
+                        <SelectValue placeholder="State" />
+                      </SelectTrigger>
+                      <SelectContent className="z-[60] max-h-72">
+                        {STATES.map(([code, name]) => (
+                          <SelectItem key={code} value={code}>
+                            {code} {name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <p className="mt-1.5 text-[11px] text-slate-400">
+                  From the buyer's address. GST is IGST when this state differs from your shop's state.
+                </p>
+              </div>
+            ) : null}
+
+            {isExport && !direct ? (
               <div className={cn("rounded-lg border border-indigo-200 bg-indigo-50/50 p-3", problem?.field === "port" && "border-red-300")}>
                 <div className="mb-2 text-xs font-semibold text-indigo-800">Export bill: port the goods go to</div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -478,6 +601,7 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
               </div>
             ) : null}
           </div>
+          </div>
         )}
 
         {problem ? (
@@ -492,9 +616,9 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
             type="button"
             variant="ghost"
             size="sm"
-            className="text-xs text-slate-500"
             onClick={() => void run("sync")}
             disabled={!!busy || !hasIrn || missingSql}
+            className={cn("text-xs text-slate-500", !hasIrn && "invisible")}
             title="Read the e-way bill the IRP already holds for this IRN"
           >
             {busy === "sync" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
@@ -509,7 +633,7 @@ export function SaleEwayBillDialog({ open, onOpenChange, organizationId, sale, e
                 type="button"
                 className="bg-teal-600 text-white hover:bg-teal-700"
                 onClick={() => void run("generate")}
-                disabled={!!busy || !hasIrn || missingSql || b2bLoading}
+                disabled={!!busy || !canMake || b2bLoading}
               >
                 {busy === "generate" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Truck className="mr-1.5 h-4 w-4" />}
                 Generate e-way bill

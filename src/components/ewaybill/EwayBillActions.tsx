@@ -113,8 +113,8 @@ export function EwayBillActions({ organizationId, ewb, docDate, onDone }: Props)
     return (
       <p className="mt-3 flex items-start gap-1.5 text-[11px] text-slate-500">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        To change the vehicle, extend or cancel it from here, add the e-way bill keys from PeriOne in Settings &gt; E-Invoice
-        Settings. Until then, use the e-way bill portal.
+        To change the vehicle, extend or cancel it from here, add the e-way bill keys from PeriOne in Settings &gt; Sale
+        &gt; E-Way Bill. Until then, use the e-way bill portal.
       </p>
     );
   }

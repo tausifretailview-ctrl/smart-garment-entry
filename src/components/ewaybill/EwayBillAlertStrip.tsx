@@ -6,7 +6,7 @@ import { formatIstDateTime, summarizeEwbAlerts, type EwbAlertKind } from "@/util
 
 type Props = {
   organizationId: string | undefined;
-  /** E-Way Bill switch on (Settings > Sale > E-Invoice); nothing is read otherwise. */
+  /** E-Way Bill switch on (Settings > Sale > E-Way Bill); nothing is read otherwise. */
   enabled: boolean;
   onShow: (kind: EwbAlertKind) => void;
   /** Lets the user hide the strip until the counts change (Sales Invoice list). */

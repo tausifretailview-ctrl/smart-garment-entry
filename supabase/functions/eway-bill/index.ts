@@ -7,9 +7,20 @@
 // not touched.
 // Step 5b: vehicle update (Part B), cancel and extend, through PeriOne's e-way bill API
 // (/ewaybillapi/v1.03), which has its own client id / secret and EWB username / password.
+// Step 6a: direct e-way bill (genewaybill) for a sale bill without an e-invoice, on the
+// same e-way bill API keys.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { indiaTodayIso, irpSupplyTypeOf, isExportSupplyType, parseIrpDateTime, perioneErrorText } from '../_shared/einvoiceNote.ts';
 import {
+  indiaTodayIso,
+  irpSupplyTypeOf,
+  isExportSupplyType,
+  parseIrpDateTime,
+  perioneErrorText,
+  saleBillToIrnInput,
+} from '../_shared/einvoiceNote.ts';
+import { einvoiceUnit } from '../_shared/uqc.ts';
+import {
+  buildDirectEwbPayload,
   buildEwbByIrnPayload,
   buildEwbCancelPayload,
   buildEwbExtendPayload,
@@ -20,12 +31,14 @@ import {
   ewbApiErrorText,
   ewbApiValidUpto,
   ewbDistance,
+  ewbGenReplyInfo,
   ewbReplyInfo,
   ewayBillEnabled,
   isEwbTransportMode,
   type EwbExtendInput,
   type EwbPortAddress,
   type EwbReplyInfo,
+  type EwbShipTo,
   type EwbTransportInput,
   type EwbVehicleUpdateInput,
 } from '../_shared/ewayBill.ts';
@@ -36,12 +49,13 @@ const corsHeaders = {
 };
 
 type IrnAction = 'generate' | 'sync';
-type EwbApiAction = 'test' | 'vehicle' | 'cancel' | 'extend';
+type EwbApiAction = 'test' | 'vehicle' | 'cancel' | 'extend' | 'direct';
 
 interface EwbRequest {
   /**
    * generate: new EWB from the bill's IRN. sync: read the EWB the IRP holds for that IRN.
    * test: check the e-way bill API login. vehicle / cancel / extend: change one e-way bill.
+   * direct: new EWB for a sale bill without an e-invoice (saleId).
    */
   action: IrnAction | EwbApiAction;
   saleId?: string;
@@ -52,10 +66,14 @@ interface EwbRequest {
   vehicle?: EwbVehicleUpdateInput;
   cancel?: { reasonCode: number | string; remark?: string | null };
   extend?: EwbExtendInput;
+  /** direct: where the goods go, when the bill's address has no PIN or the buyer has no GSTIN. */
+  shipTo?: EwbShipTo;
 }
 
 const IRN_ACTIONS: string[] = ['generate', 'sync'];
-const EWB_API_ACTIONS: string[] = ['test', 'vehicle', 'cancel', 'extend'];
+const EWB_API_ACTIONS: string[] = ['test', 'vehicle', 'cancel', 'extend', 'direct'];
+/** E-way bill API actions on a sale bill (the rest act on an e-way bill). */
+const SALE_EWB_ACTIONS: string[] = ['direct'];
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -171,10 +189,10 @@ async function ewbApiAuth(baseUrl: string, creds: EwbApiCreds, ip: string): Prom
 
 async function ewbApiPost(
   baseUrl: string,
-  op: 'vehewb' | 'canewb' | 'extendvalidity',
+  op: 'vehewb' | 'canewb' | 'extendvalidity' | 'genewaybill',
   creds: EwbApiCreds,
   ip: string,
-  payload: Record<string, string | number>,
+  payload: Record<string, unknown>,
 ): Promise<{ ok: true; data: Record<string, unknown> } | { ok: false; error: string }> {
   const resp = await fetch(`${baseUrl}/ewaybillapi/v1.03/ewayapi/${op}?email=${encodeURIComponent(creds.email)}`, {
     method: 'POST',
@@ -186,6 +204,156 @@ async function ewbApiPost(
   const data = ewbApiData(reply);
   if (!data) return { ok: false, error: ewbApiErrorText(reply, 'The e-way bill system did not accept it') };
   return { ok: true, data };
+}
+
+/**
+ * Step 6a: e-way bill for a sale bill without an e-invoice, through genewaybill. Bills with an
+ * IRN (and export bills, which need one) get theirs from the IRN instead.
+ */
+async function directEwayBill(ctx: {
+  // deno-lint-ignore no-explicit-any
+  supabase: any;
+  organizationId: string;
+  saleId: string;
+  userId: string;
+  seller: { name: string; address: string };
+  testMode: boolean;
+  creds: EwbApiCreds;
+  ip: string;
+  transport: EwbTransportInput;
+  shipTo: EwbShipTo | null;
+}): Promise<Response> {
+  const { supabase, organizationId, saleId } = ctx;
+  const { data: sale, error: saleError } = await supabase
+    .from('sales')
+    .select(
+      'id, sale_number, sale_date, sale_type, net_amount, flat_discount_amount, other_charges, round_off, notes, b2b_details, is_cancelled, deleted_at, irn, einvoice_status, customer_name, customer_address, customers:customer_id (gst_number, customer_name, address)',
+    )
+    .eq('id', saleId)
+    .eq('organization_id', organizationId)
+    .maybeSingle();
+  if (saleError) throw new Error(`Could not read the bill: ${saleError.message}`);
+  if (!sale || sale.deleted_at || sale.sale_type === 'debit_note') {
+    return json({ success: false, error: 'This bill was not found. It may have been deleted.' });
+  }
+  if (sale.is_cancelled) return json({ success: false, error: 'This bill is cancelled, so it needs no e-way bill.' });
+  if (sale.irn && sale.einvoice_status === 'generated') {
+    return json({ success: false, code: 'HAS_IRN', error: 'This bill has an e-invoice. Make its e-way bill from the IRN.' });
+  }
+  if (isExportSupplyType(irpSupplyTypeOf(sale.b2b_details))) {
+    return json({ success: false, code: 'NO_IRN', error: 'Export bills get their e-way bill from the e-invoice. Generate the IRN first.' });
+  }
+
+  const { data: existing, error: existingError } = await supabase
+    .from('eway_bills')
+    .select('id, ewb_no')
+    .eq('organization_id', organizationId)
+    .eq('sale_id', saleId)
+    .eq('status', 'active')
+    .limit(1)
+    .maybeSingle();
+  if (existingError) {
+    if (/eway_bills|does not exist|schema cache/i.test(existingError.message || '')) {
+      return json({ success: false, code: 'MISSING_SQL', error: 'Run the Phase 2 step 4 SQL first: it adds the e-way bill table.' });
+    }
+    throw new Error(`Could not read e-way bills: ${existingError.message}`);
+  }
+  if (existing) return json({ success: false, code: 'ALREADY', error: `This bill already has e-way bill ${existing.ewb_no}.`, ewbNo: existing.ewb_no });
+
+  const { data: items, error: itemsError } = await supabase
+    .from('sale_items')
+    .select('product_id, product_name, hsn_code, quantity, unit_price, line_total, gst_percent, is_dc_item, deleted_at')
+    .eq('sale_id', saleId);
+  if (itemsError) throw new Error(`Could not read the bill lines: ${itemsError.message}`);
+  // deno-lint-ignore no-explicit-any
+  const rows = (items ?? []) as any[];
+  const ids = [...new Set(rows.map((i) => String(i.product_id ?? '')).filter(Boolean))];
+  const uomById = new Map<string, string>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await supabase
+      .from('products')
+      .select('id, uom')
+      .eq('organization_id', organizationId)
+      .in('id', ids.slice(i, i + 200));
+    if (error) break;
+    for (const p of data ?? []) uomById.set(String(p.id), String(p.uom ?? ''));
+  }
+  const input = saleBillToIrnInput(
+    sale,
+    rows.map((i) => ({ ...i, unit: einvoiceUnit(uomById.get(String(i.product_id ?? '')) ?? '', i.hsn_code) })),
+  );
+  if (!input) return json({ success: false, code: 'INVALID', field: 'lines', error: 'This bill has no goods lines with GST (challan items only).' });
+
+  const saleDate = String(sale.sale_date ?? '').slice(0, 10);
+  const built = buildDirectEwbPayload({
+    docNo: sale.sale_number,
+    docDate: saleDate,
+    today: indiaTodayIso(),
+    seller: { gstin: ctx.creds.gstin, name: ctx.seller.name, address: ctx.seller.address },
+    buyer: {
+      gstin: sale.customers?.gst_number ?? null,
+      name: sale.customer_name || sale.customers?.customer_name || null,
+      address: sale.customer_address || sale.customers?.address || null,
+    },
+    shipTo: ctx.shipTo,
+    lines: input.lines.map((l) => ({
+      description: l.description,
+      hsn: l.hsn,
+      qty: l.qty,
+      unit: l.unit || 'PCS',
+      taxable: l.taxable,
+      gstPercent: l.gstPercent,
+      gstAmount: l.gstAmount,
+    })),
+    netAmount: input.netAmount,
+    transport: ctx.transport,
+  });
+  if (built.ok === false) {
+    const bad = built as { field: string; error: string };
+    return json({ success: false, code: 'INVALID', field: bad.field, error: bad.error });
+  }
+  const { payload, partAOnly } = built as { payload: Record<string, unknown>; partAOnly: boolean };
+
+  const baseUrl = ctx.testMode ? 'https://staging.perione.in' : 'https://api.perione.in';
+  const auth = await ewbApiAuth(baseUrl, ctx.creds, ctx.ip);
+  if (auth.ok === false) return json({ success: false, code: 'AUTH_FAILED', error: (auth as { error: string }).error });
+  const res = await ewbApiPost(baseUrl, 'genewaybill', ctx.creds, ctx.ip, payload);
+  if (res.ok === false) return json({ success: false, error: (res as { error: string }).error });
+  const info = ewbGenReplyInfo((res as { data: Record<string, unknown> }).data);
+  if (!info) return json({ success: false, error: 'The e-way bill system did not send an e-way bill number. Check the portal before trying again.' });
+
+  const t = ctx.transport;
+  const vehicleNo = cleanVehicleNo(t.vehicleNo);
+  const km = ewbDistance(t.distanceKm);
+  const row: Record<string, unknown> = {
+    organization_id: organizationId,
+    sale_id: saleId,
+    doc_type: 'INV',
+    doc_no: sale.sale_number,
+    doc_date: saleDate || null,
+    irn: null,
+    ewb_no: info.ewbNo,
+    ewb_date: info.ewbDate ?? new Date().toISOString(),
+    valid_till: info.validTill,
+    status: 'active',
+    generated_via: 'direct',
+    test_mode: ctx.testMode,
+    created_by: ctx.userId,
+    updated_at: new Date().toISOString(),
+    trans_mode: isEwbTransportMode(t.mode) ? t.mode : 'road',
+    distance_km: km && km > 0 ? km : null,
+    transporter_id: String(t.transporterId ?? '').trim().toUpperCase() || null,
+    transporter_name: String(t.transporterName ?? '').trim() || null,
+    vehicle_no: vehicleNo || null,
+    vehicle_type: vehicleNo ? (t.vehicleType === 'O' ? 'O' : 'R') : null,
+    trans_doc_no: String(t.transDocNo ?? '').replace(/\s+/g, '') || null,
+    trans_doc_date: /^\d{4}-\d{2}-\d{2}$/.test(String(t.transDocDate ?? '')) ? t.transDocDate : null,
+  };
+  const { error: saveError } = await supabase.from('eway_bills').upsert(row, { onConflict: 'organization_id,ewb_no,test_mode' });
+  if (saveError) {
+    return json({ success: false, ewbNo: info.ewbNo, error: `E-way bill ${info.ewbNo} was made but could not be saved: ${saveError.message}. Note the number down.` });
+  }
+  return json({ success: true, ewbNo: info.ewbNo, ewbDate: info.ewbDate, validTill: info.validTill, partAOnly });
 }
 
 Deno.serve(async (req) => {
@@ -200,8 +368,9 @@ Deno.serve(async (req) => {
     const saleId = String(body.saleId ?? '');
     const isIrnAction = IRN_ACTIONS.includes(action);
     if (!isIrnAction && !EWB_API_ACTIONS.includes(action)) return json({ success: false, error: 'Unknown action' }, 400);
-    if (isIrnAction && !UUID.test(saleId)) return json({ success: false, error: 'Invalid saleId' }, 400);
-    if (action !== 'test' && !isIrnAction && !UUID.test(String(body.ewayBillId ?? ''))) {
+    const onSale = isIrnAction || SALE_EWB_ACTIONS.includes(action);
+    if (onSale && !UUID.test(saleId)) return json({ success: false, error: 'Invalid saleId' }, 400);
+    if (action !== 'test' && !onSale && !UUID.test(String(body.ewayBillId ?? ''))) {
       return json({ success: false, error: 'Invalid ewayBillId' }, 400);
     }
     if (!organizationId || !UUID.test(organizationId)) return json({ success: false, error: 'Invalid organizationId' }, 400);
@@ -226,7 +395,7 @@ Deno.serve(async (req) => {
     // E-Way Bill switch (Settings > Sale > E-Invoice) with e-invoicing on; Industrial mode shops have it on by default.
     const [{ data: org }, { data: settingsData }] = await Promise.all([
       supabase.from('organizations').select('enabled_features').eq('id', organizationId).maybeSingle(),
-      supabase.from('settings').select('gst_number, sale_settings').eq('organization_id', organizationId).maybeSingle(),
+      supabase.from('settings').select('gst_number, business_name, address, sale_settings').eq('organization_id', organizationId).maybeSingle(),
     ]);
     const features = Array.isArray(org?.enabled_features) ? org.enabled_features : [];
     // deno-lint-ignore no-explicit-any
@@ -236,7 +405,7 @@ Deno.serve(async (req) => {
       return json({
         success: false,
         code: 'EWB_OFF',
-        error: 'E-way bills are off. Turn on E-Invoice and E-Way Bill in Settings > Sale.',
+        error: 'E-way bills are off. Turn on E-Way Bill in Settings > Sale.',
       }, 403);
     }
 
@@ -255,7 +424,7 @@ Deno.serve(async (req) => {
         return json({
           success: false,
           code: 'MISSING_EWB_KEYS',
-          error: 'Add the e-way bill keys from PeriOne in Settings > Sale > E-Invoice Settings > E-way bill API (and the API email above them).',
+          error: 'Add the e-way bill keys and API email from PeriOne in Settings > Sale > E-Way Bill.',
         });
       }
       if (!/^[0-9]{2}[0-9A-Z]{13}$/.test(creds.gstin)) {
@@ -269,6 +438,22 @@ Deno.serve(async (req) => {
         const auth = await ewbApiAuth(baseUrl, creds, ip);
         if (auth.ok === false) return json({ success: false, code: 'AUTH_FAILED', error: (auth as { error: string }).error });
         return json({ success: true, message: `E-way bill login works (${testMode ? 'sandbox' : 'live'}, GSTIN ${creds.gstin}).` });
+      }
+
+      if (action === 'direct') {
+        return await directEwayBill({
+          // deno-lint-ignore no-explicit-any
+          supabase: supabase as any,
+          organizationId,
+          saleId,
+          userId: user.id,
+          seller: { name: String(settingsData?.business_name ?? ''), address: String(settingsData?.address ?? '') },
+          testMode: ewbSettings.test_mode ?? true,
+          creds,
+          ip,
+          transport: body.transport ?? { mode: 'road' },
+          shipTo: body.shipTo ?? null,
+        });
       }
 
       const { data: ewb, error: ewbError } = await supabase

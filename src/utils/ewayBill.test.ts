@@ -16,6 +16,10 @@ import {
   ewbValidityDays,
   ewayBillEnabled,
   ewayBillSwitchOn,
+  buildDirectEwbPayload,
+  ewbGenReplyInfo,
+  ewbPinIn,
+  ewbTownIn,
 } from "../../supabase/functions/_shared/ewayBill";
 import {
   ewbAlertKind,
@@ -450,24 +454,114 @@ describe("e-way bill API: vehicle, cancel, extend (Phase 2 step 5b)", () => {
   });
 });
 
-describe("E-Way Bill switch (Settings > Sale > E-Invoice)", () => {
-  it("is off for normal shops until they turn it on", () => {
+describe("E-Way Bill switch (Settings > Sale > E-Way Bill)", () => {
+  it("is off for normal shops until they turn it on, with or without E-Invoice", () => {
     expect(ewayBillSwitchOn(undefined, false)).toBe(false);
     expect(ewayBillSwitchOn({ enabled: true }, false)).toBe(false);
     expect(ewayBillSwitchOn({ enabled: true, ewb_enabled: true }, false)).toBe(true);
+    expect(ewayBillEnabled({ enabled: false, ewb_enabled: true }, false)).toBe(true);
+    expect(ewayBillEnabled({ ewb_enabled: true }, false)).toBe(true);
   });
 
-  it("stays on for Industrial mode shops unless they turn it off", () => {
+  it("stays on for Industrial mode shops with E-Invoice unless they turn it off", () => {
     expect(ewayBillSwitchOn({ enabled: true }, true)).toBe(true);
+    expect(ewayBillSwitchOn({ enabled: false }, true)).toBe(false);
     expect(ewayBillSwitchOn({ enabled: true, ewb_enabled: false }, true)).toBe(false);
-  });
-
-  it("needs E-Invoice on, since the e-way bill is made from the IRN", () => {
-    expect(ewayBillEnabled({ enabled: true, ewb_enabled: true }, false)).toBe(true);
-    expect(ewayBillEnabled({ enabled: false, ewb_enabled: true }, false)).toBe(false);
-    expect(ewayBillEnabled({ ewb_enabled: true }, true)).toBe(false);
-    expect(ewayBillEnabled({ enabled: true }, true)).toBe(true);
     expect(ewayBillEnabled(null, true)).toBe(false);
     expect(ewayBillEnabled({ enabled: "yes", ewb_enabled: "yes" }, false)).toBe(false);
+  });
+});
+
+describe("direct e-way bill (bill without an e-invoice)", () => {
+  const seller = { gstin: "27AAACR1234A1Z5", name: "Ezzy Textiles", address: "Shop 4, Main Road, Bhiwandi 421302" };
+  const lines = [
+    { description: "Cotton shirt", hsn: "6205", qty: 10, unit: "PCS", taxable: 50000, gstPercent: 5, gstAmount: 2500 },
+    { description: "Linen shirt", hsn: "6205", qty: 2, unit: "PCS", taxable: 4000, gstPercent: 5, gstAmount: 200 },
+    { description: "Jeans", hsn: "62034200", qty: 5, unit: "PCS", taxable: 10000, gstPercent: 12, gstAmount: 1200 },
+    { description: "Stitching", hsn: "998821", qty: 1, unit: "OTH", taxable: 100, gstPercent: 18, gstAmount: 18 },
+  ];
+  const base = {
+    docNo: "INV/26-27/101",
+    docDate: "2026-11-02",
+    today: "2026-11-02",
+    seller,
+    buyer: { gstin: "24AABCS1234B1Z2", name: "Shah Traders", address: "Ring Road, Surat 395002" },
+    lines,
+    netAmount: 68018,
+    transport: { mode: "road" as const, vehicleNo: "MH 04 AB 1234", distanceKm: "280" },
+  };
+
+  it("reads PIN and town from an address", () => {
+    expect(ewbPinIn("Ring Road, Surat 395002")).toBe(395002);
+    expect(ewbPinIn("Phone 9876543210")).toBe(null);
+    expect(ewbTownIn("Shop 4, Main Road, Bhiwandi 421302")).toBe("Bhiwandi");
+    expect(ewbTownIn("")).toBe("");
+  });
+
+  it("groups goods by HSN and rate, charges IGST across states and keeps services in other value", () => {
+    const r = buildDirectEwbPayload(base);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.interState).toBe(true);
+    expect(r.partAOnly).toBe(false);
+    const p = r.payload;
+    expect(p).toMatchObject({
+      supplyType: "O",
+      subSupplyType: "1",
+      docType: "INV",
+      docDate: "02/11/2026",
+      fromGstin: "27AAACR1234A1Z5",
+      fromPlace: "Bhiwandi",
+      fromPincode: 421302,
+      fromStateCode: 27,
+      toGstin: "24AABCS1234B1Z2",
+      toPlace: "Surat",
+      toPincode: 395002,
+      toStateCode: 24,
+      actToStateCode: 24,
+      totalValue: 64000,
+      igstValue: 3900,
+      cgstValue: 0,
+      otherValue: 118,
+      totInvValue: 68018,
+      transMode: "1",
+      transDistance: "280",
+      vehicleNo: "MH04AB1234",
+      vehicleType: "R",
+    });
+    expect(p.itemList).toHaveLength(2);
+    expect(p.itemList[0]).toMatchObject({ productName: "Cotton shirt and 1 more", hsnCode: 6205, quantity: 12, igstRate: 5, taxableAmount: 54000 });
+  });
+
+  it("bills a buyer without GSTIN as URP in the state the goods go to", () => {
+    const r = buildDirectEwbPayload({ ...base, buyer: { gstin: "", name: "Walk-in", address: "Andheri, Mumbai 400053" } });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.payload).toMatchObject({ toGstin: "URP", toStateCode: 27, cgstValue: 1950, sgstValue: 1950, igstValue: 0 });
+    expect(r.payload.itemList[0]).toMatchObject({ cgstRate: 2.5, sgstRate: 2.5, igstRate: 0 });
+    const away = buildDirectEwbPayload({ ...base, buyer: { gstin: null, name: "Walk-in", address: "" }, shipTo: { pin: "560001", place: "Bengaluru", stateCode: "29" } });
+    expect(away.ok && away.payload).toMatchObject({ toGstin: "URP", toStateCode: 29, toPincode: 560001, toPlace: "Bengaluru", igstValue: 3900 });
+  });
+
+  it("stops with the field to fix", () => {
+    const fieldOf = (r: ReturnType<typeof buildDirectEwbPayload>) => (r.ok ? null : r.field);
+    expect(fieldOf(buildDirectEwbPayload({ ...base, buyer: { gstin: "", name: "X", address: "No pin here" } }))).toBe("toPin");
+    expect(fieldOf(buildDirectEwbPayload({ ...base, seller: { ...seller, address: "Bhiwandi" } }))).toBe("seller");
+    expect(fieldOf(buildDirectEwbPayload({ ...base, lines: [{ ...lines[0], hsn: "62" }] }))).toBe("lines");
+    expect(fieldOf(buildDirectEwbPayload({ ...base, lines: [lines[3]] }))).toBe("lines");
+    expect(fieldOf(buildDirectEwbPayload({ ...base, docNo: "INV 101 (copy)" }))).toBe("docNo");
+    expect(fieldOf(buildDirectEwbPayload({ ...base, transport: { mode: "road" } }))).toBe("vehicle");
+    const partA = buildDirectEwbPayload({ ...base, transport: { mode: "road", transporterId: "27ABCDE1234F1Z5" } });
+    expect(partA.ok && partA.partAOnly).toBe(true);
+    expect(partA.ok && "transMode" in partA.payload).toBe(false);
+  });
+
+  it("reads the genewaybill reply", () => {
+    expect(ewbGenReplyInfo({ ewayBillNo: 381009876543, ewayBillDate: "02/11/2026 05:30:00 PM", validUpto: "03/11/2026 11:59:00 PM" })).toEqual({
+      ewbNo: "381009876543",
+      ewbDate: "2026-11-02T12:00:00.000Z",
+      validTill: "2026-11-03T18:29:00.000Z",
+    });
+    expect(ewbGenReplyInfo({ alert: "x" })).toBe(null);
   });
 });

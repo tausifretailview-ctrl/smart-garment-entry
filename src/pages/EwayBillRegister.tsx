@@ -164,8 +164,7 @@ export default function EwayBillRegister() {
             <Truck className="h-5 w-5 text-teal-600" />
             E-way bills
           </div>
-          E-way bills are off for this shop. Turn on E-Invoice and E-Way Bill in Settings &gt; Sale (E-Invoice Settings)
-          to make e-way bills from your e-invoices.
+          E-way bills are off for this shop. Turn on E-Way Bill in Settings &gt; Sale to make e-way bills of your bills.
         </Card>
       </div>
     );
@@ -188,7 +187,7 @@ export default function EwayBillRegister() {
               <Truck className="h-4 w-4 shrink-0 opacity-70" />
               E-Way Bills
             </h1>
-            <p className="mt-1 text-sm text-slate-500">Every e-way bill made from your e-invoices, and what lapses soon</p>
+            <p className="mt-1 text-sm text-slate-500">Every e-way bill of your bills, and what lapses soon</p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button variant="outline" size="sm" className="h-9 gap-1.5 border-slate-200 text-sm" onClick={refresh} disabled={fetching}>
