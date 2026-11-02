@@ -38,6 +38,12 @@ import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { cn } from "@/lib/utils";
 import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
 import {
+  canChangeSaleReturnCustomer,
+  saleReturnLinesUnchanged,
+  saleReturnStockIncreaseByVariant,
+  type SaleReturnCreditState,
+} from "@/utils/saleReturnEditPlan";
+import {
   countSoldAndReturnedForSaleReturn,
   lookupSoldVariantForSaleReturn,
 } from "@/utils/saleReturnBarcodeLookup";
@@ -143,6 +149,12 @@ export default function SaleReturnEntry() {
 
   // Store original item IDs for edit mode (to delete them on resave)
   const [originalItemIds, setOriginalItemIds] = useState<string[]>([]);
+  // Saved lines + credit state in edit mode: header-only edits must not touch stock,
+  // and a customer can only be set while the return's credit is unused.
+  const [originalLines, setOriginalLines] = useState<ReturnItem[]>([]);
+  const [originalCredit, setOriginalCredit] = useState<
+    (SaleReturnCreditState & { credit_note_id?: string | null }) | null
+  >(null);
 
   // Sale items loading state
   const [saleItems, setSaleItems] = useState<Array<{
@@ -275,6 +287,26 @@ export default function SaleReturnEntry() {
       }));
 
       setReturnItems(mappedItems);
+      setOriginalLines(mappedItems);
+
+      let creditNoteUsed = 0;
+      const cnId = (returnData as any).credit_note_id as string | null | undefined;
+      if (cnId) {
+        const { data: cn } = await supabase
+          .from("credit_notes")
+          .select("used_amount")
+          .eq("id", cnId)
+          .maybeSingle();
+        creditNoteUsed = Number((cn as any)?.used_amount) || 0;
+      }
+      setOriginalCredit({
+        customer_id: returnData.customer_id || null,
+        credit_status: (returnData as any).credit_status ?? null,
+        linked_sale_id: (returnData as any).linked_sale_id ?? null,
+        refund_type: (returnData as any).refund_type ?? null,
+        credit_note_id: cnId || null,
+        creditNoteUsed,
+      });
     } catch (error) {
       console.error("Error loading sale return:", error);
       toast({ title: "Error", description: "Failed to load sale return", variant: "destructive" });
@@ -839,15 +871,43 @@ export default function SaleReturnEntry() {
         }
       }
 
-      // Stock ceiling validation — ensure stock won't exceed total purchased
+      const editLinesUnchanged =
+        isEditMode && saleReturnLinesUnchanged(originalLines, returnItems);
+
+      const customerChanged =
+        isEditMode && (originalCredit?.customer_id || "") !== (selectedCustomer || "");
+      if (customerChanged && originalCredit && !canChangeSaleReturnCustomer(originalCredit)) {
+        toast({
+          title: "Customer cannot be changed",
+          description:
+            "This return's credit is already adjusted on a bill or refunded. Changing the customer now would show the same credit again in the new customer's balance.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Stock ceiling validation — ensure stock won't exceed total purchased.
+      // In edit mode the saved return is already in stock, so only the extra qty
+      // over the saved lines is checked (none when lines are unchanged).
       const { validateBatchStockCeiling } = await import("@/utils/stockCeilingValidation");
-      const ceilingItems = returnItems
-        .filter(item => item.variantId)
-        .map(item => ({
-          variantId: item.variantId,
-          qtyToAdd: item.quantity,
-          label: `${item.productName} (${item.size})`,
-        }));
+      const labelByVariant = new Map(
+        returnItems.map(item => [item.variantId, `${item.productName} (${item.size})`] as const),
+      );
+      const ceilingItems = isEditMode
+        ? Array.from(saleReturnStockIncreaseByVariant(originalLines, returnItems)).map(
+            ([variantId, qtyToAdd]) => ({
+              variantId,
+              qtyToAdd,
+              label: labelByVariant.get(variantId) || variantId,
+            }),
+          )
+        : returnItems
+            .filter(item => item.variantId)
+            .map(item => ({
+              variantId: item.variantId,
+              qtyToAdd: item.quantity,
+              label: `${item.productName} (${item.size})`,
+            }));
 
       if (ceilingItems.length > 0) {
         const ceilingFailures = await validateBatchStockCeiling(supabase, ceilingItems, "Sale Return");
@@ -867,37 +927,41 @@ export default function SaleReturnEntry() {
       const totals = calculateTotals();
 
       if (isEditMode && editId) {
-        // Hard-delete items directly so the DB trigger fires normally
-        // (trigger sees deleted_at IS NULL → reverses stock correctly)
-        // This matches the sale edit pattern in useSaveSale.tsx
-        for (const itemId of originalItemIds) {
-          const { error: delError } = await supabase
+        // Header-only edit (customer, date, notes, bill no.): keep the saved lines
+        // as they are, so stock is not reversed and re-added.
+        if (!editLinesUnchanged) {
+          // Hard-delete items directly so the DB trigger fires normally
+          // (trigger sees deleted_at IS NULL → reverses stock correctly)
+          // This matches the sale edit pattern in useSaveSale.tsx
+          for (const itemId of originalItemIds) {
+            const { error: delError } = await supabase
+              .from("sale_return_items")
+              .delete()
+              .eq("id", itemId);
+            if (delError) throw delError;
+          }
+
+          const itemsToInsert = returnItems.map((item) => ({
+            return_id: editId,
+            product_id: item.productId,
+            variant_id: item.variantId,
+            product_name: item.productName,
+            size: item.size,
+            barcode: item.barcode,
+            color: item.color || null,
+            quantity: item.quantity,
+            unit_price: item.unitPrice,
+            gst_percent: item.gstPercent,
+            line_total: item.lineTotal,
+            hsn_code: item.hsnCode || null,
+          }));
+
+          const { error: insertError } = await supabase
             .from("sale_return_items")
-            .delete()
-            .eq("id", itemId);
-          if (delError) throw delError;
+            .insert(itemsToInsert);
+
+          if (insertError) throw insertError;
         }
-
-        const itemsToInsert = returnItems.map((item) => ({
-          return_id: editId,
-          product_id: item.productId,
-          variant_id: item.variantId,
-          product_name: item.productName,
-          size: item.size,
-          barcode: item.barcode,
-          color: item.color || null,
-          quantity: item.quantity,
-          unit_price: item.unitPrice,
-          gst_percent: item.gstPercent,
-          line_total: item.lineTotal,
-          hsn_code: item.hsnCode || null,
-        }));
-
-        const { error: insertError } = await supabase
-          .from("sale_return_items")
-          .insert(itemsToInsert);
-
-        if (insertError) throw insertError;
 
         const { error: updateError } = await supabase
           .from("sale_returns")
@@ -914,6 +978,19 @@ export default function SaleReturnEntry() {
           .eq("id", editId);
 
         if (updateError) throw updateError;
+
+        // Keep an unused credit note on the same customer as the return.
+        if (customerChanged && originalCredit?.credit_note_id) {
+          const { error: cnUpdateError } = await supabase
+            .from("credit_notes")
+            .update({
+              customer_id: selectedCustomer || null,
+              customer_name: customer?.customer_name || "Walk-in Customer",
+            })
+            .eq("id", originalCredit.credit_note_id)
+            .eq("organization_id", currentOrganization!.id);
+          if (cnUpdateError) throw cnUpdateError;
+        }
 
         const { data: srRefundMeta } = await supabase
           .from("sale_returns")
