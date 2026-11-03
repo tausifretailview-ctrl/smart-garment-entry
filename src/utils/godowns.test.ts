@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   emptyGodownForm,
   formatGodownQty,
+  godownCardStripe,
   godownFormOf,
   godownFormProblem,
   godownItemLabel,
   godownStockExcelRows,
+  godownTotals,
   godownTypeInfo,
   isMissingGodownSql,
   sortGodowns,
@@ -88,5 +90,37 @@ describe("godowns (Phase 3 step 3a)", () => {
       },
     ]);
     expect(rows[0]).toMatchObject({ Godown: "Bhiwandi", Item: "MS Pipe", Brand: "Tata", Size: "6M", Unit: "KGS", Qty: 960.5, Value: 58591, "Shop stock": 3400 });
+  });
+});
+
+describe("Godowns page cards", () => {
+  it("adds up Main, the other godowns and the items to check", () => {
+    const list = [
+      g({ id: "main", godown_type: "main" }),
+      g({ id: "bhw", godown_type: "godown" }),
+      g({ id: "jw", godown_type: "job_work" }),
+      g({ id: "old", godown_type: "godown", is_active: false }),
+    ];
+    const summary = new Map([
+      ["main", { godown_id: "main", items: 2702, qty: 9744, stock_value: 807522, short_items: 3 }],
+      ["bhw", { godown_id: "bhw", items: 6, qty: 6, stock_value: 500, short_items: 0 }],
+      ["jw", { godown_id: "jw", items: 1, qty: 2.5, stock_value: 0, short_items: 0 }],
+    ]);
+    expect(godownTotals(list, summary)).toEqual({
+      all: { items: 2709, qty: 9752.5, value: 808022 },
+      main: { items: 2702, qty: 9744, value: 807522 },
+      others: { count: 2, items: 7, qty: 8.5, value: 500 },
+      shortItems: 3,
+    });
+    expect(godownTotals(list, undefined).all).toEqual({ items: 0, qty: 0, value: 0 });
+    expect(godownTotals(list, undefined).others.count).toBe(2);
+  });
+
+  it("colours each kind of place", () => {
+    expect(godownCardStripe("main")).toBe("bg-teal-500");
+    expect(godownCardStripe("godown")).toBe("bg-sky-500");
+    expect(godownCardStripe("job_work")).toBe("bg-violet-500");
+    expect(godownCardStripe("damaged")).toBe("bg-rose-500");
+    expect(godownCardStripe(null)).toBe("bg-sky-500");
   });
 });

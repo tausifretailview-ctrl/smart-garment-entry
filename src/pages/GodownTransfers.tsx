@@ -380,18 +380,18 @@ export default function GodownTransfers() {
               </div>
             ) : (
               <Table>
-                <TableHeader className="sticky top-0 z-10 bg-slate-50">
-                  <TableRow>
-                    <TableHead className="w-[36px]" />
-                    <TableHead className="w-[140px]">Transfer no</TableHead>
-                    <TableHead className="w-[100px]">Date</TableHead>
-                    <TableHead>From → To</TableHead>
-                    <TableHead className="w-[70px] text-right">Items</TableHead>
-                    <TableHead className="w-[110px] text-right">Qty</TableHead>
-                    <TableHead className="w-[120px] text-right">Value</TableHead>
-                    <TableHead className="w-[130px]">Vehicle</TableHead>
-                    <TableHead className="w-[100px]">Status</TableHead>
-                    <TableHead className="w-[150px] text-right" />
+                <TableHeader className="sticky top-0 z-10">
+                  <TableRow className="border-none bg-slate-800 hover:bg-slate-800">
+                    <TableHead className="h-10 text-xs font-bold uppercase tracking-wide text-white w-[36px]" />
+                    <TableHead className="h-10 text-xs font-bold uppercase tracking-wide text-white w-[140px]">Transfer no</TableHead>
+                    <TableHead className="h-10 text-xs font-bold uppercase tracking-wide text-white w-[100px]">Date</TableHead>
+                    <TableHead className="h-10 text-xs font-bold uppercase tracking-wide text-white">From → To</TableHead>
+                    <TableHead className="h-10 text-xs font-bold uppercase tracking-wide text-white w-[70px] text-right">Items</TableHead>
+                    <TableHead className="h-10 text-xs font-bold uppercase tracking-wide text-white w-[110px] text-right">Qty</TableHead>
+                    <TableHead className="h-10 text-xs font-bold uppercase tracking-wide text-white w-[120px] text-right">Value</TableHead>
+                    <TableHead className="h-10 text-xs font-bold uppercase tracking-wide text-white w-[130px]">Vehicle</TableHead>
+                    <TableHead className="h-10 text-xs font-bold uppercase tracking-wide text-white w-[100px]">Status</TableHead>
+                    <TableHead className="h-10 text-xs font-bold uppercase tracking-wide text-white w-[150px] text-right" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
