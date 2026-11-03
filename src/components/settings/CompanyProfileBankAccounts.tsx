@@ -36,7 +36,7 @@ const emptyForm = () => ({
   is_default: false,
 });
 
-export function CompanyProfileBankAccounts() {
+export function CompanyProfileBankAccounts({ embedded = false }: { embedded?: boolean } = {}) {
   const { currentOrganization, organizationRole } = useOrganization();
   const orgId = currentOrganization?.id;
   const canManage = organizationRole === "admin" || organizationRole === "manager";
@@ -103,11 +103,11 @@ export function CompanyProfileBankAccounts() {
   };
 
   return (
-    <div className="space-y-4 pt-4 border-t">
+    <div className={embedded ? "space-y-3" : "space-y-4 pt-4 border-t"}>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-sm font-semibold">Receiving Bank Accounts</h3>
-          <p className="text-xs text-muted-foreground mt-1">
+          {!embedded && <h3 className="text-sm font-semibold">Receiving Bank Accounts</h3>}
+          <p className={embedded ? "text-xs text-muted-foreground" : "text-xs text-muted-foreground mt-1"}>
             Accounts where customer UPI, card, and bank payments are received. Used on Customer Payment Receipt.
           </p>
         </div>

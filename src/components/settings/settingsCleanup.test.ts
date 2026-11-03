@@ -70,3 +70,18 @@ describe("Settings cleanup step 3 (Nov 2026)", () => {
     expect(wa).toContain("{settings?.chatbot_enabled === true && (");
   });
 });
+
+describe("Settings premium layout (Nov 2026)", () => {
+  const tab = (id: string) => {
+    const from = settingsPage.slice(settingsPage.indexOf(`<TabsContent value="${id}"`));
+    return from.slice(0, from.indexOf("</TabsContent>"));
+  };
+
+  it("lays Company, Branding and Product out in field grids", () => {
+    for (const id of ["company", "branding", "product"]) {
+      expect(tab(id)).toContain("<SettingsGrid");
+    }
+    expect(tab("company")).toContain('label="Business Name" htmlFor="business_name" required important');
+    expect(tab("product")).toContain('id={`enable_${field.key}`}');
+  });
+});
