@@ -742,6 +742,8 @@ const ProductEditPanel = ({
                     />
                   </div>
                   {renderField("Sale Price", "default_sale_price", "number", { ref: focusField === "sale_price" ? focusRef : undefined })}
+                  {/* MRP box only when Settings > Purchase MRP is on */}
+                  {showMrp && (
                   <div className="space-y-1">
                     <Label className="text-xs">MRP</Label>
                     <Input
@@ -771,6 +773,7 @@ const ProductEditPanel = ({
                       className={cn("h-9 text-sm no-uppercase", modifiedFields.has("default_mrp") && "border-l-4 border-l-amber-500")}
                     />
                   </div>
+                  )}
 
                   {showMrp && (
                     <div className="space-y-1">
@@ -829,7 +832,7 @@ const ProductEditPanel = ({
                 </div>
 
                 {/* MRP Validation */}
-                {form.default_mrp > 0 && form.default_sale_price > form.default_mrp && (
+                {showMrp && form.default_mrp > 0 && form.default_sale_price > form.default_mrp && (
                   <p className="text-xs text-destructive flex items-center gap-1 mt-1">
                     <AlertTriangle className="h-3 w-3" /> Sale Price exceeds MRP
                   </p>
@@ -1086,7 +1089,7 @@ const ProductEditPanel = ({
                         )}
                       </div>
                     )}
-                    <div className="grid grid-cols-3 gap-2 pt-1 border-t border-border/50">
+                    <div className={cn("grid gap-2 pt-1 border-t border-border/50", showMrp ? "grid-cols-3" : "grid-cols-2")}>
                       <div className="text-center">
                         <p className="text-[10px] text-muted-foreground">Pur Price</p>
                         <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">₹{currentVariant.pur_price || 0}</p>
@@ -1095,10 +1098,12 @@ const ProductEditPanel = ({
                         <p className="text-[10px] text-muted-foreground">Sale Price</p>
                         <p className="text-sm font-semibold text-green-700 dark:text-green-400">₹{currentVariant.sale_price || 0}</p>
                       </div>
+                      {showMrp && (
                       <div className="text-center">
                         <p className="text-[10px] text-muted-foreground">MRP</p>
                         <p className="text-sm font-semibold">₹{currentVariant.mrp || "—"}</p>
                       </div>
+                      )}
                     </div>
                   </div>
                 ) : (

@@ -1574,6 +1574,8 @@ export default function BarcodePrinting() {
   const precisionPrintOkRef = useRef<HTMLButtonElement>(null);
   const [purchaseCodeAlphabet, setPurchaseCodeAlphabet] = useState("ABCDEFGHIK");
   const [showPurchaseCode, setShowPurchaseCode] = useState(false);
+  /** Settings > Purchase "MRP" field (purchase_settings.show_mrp). Off → hide MRP column in the item list. */
+  const [showMrpColumn, setShowMrpColumn] = useState(true);
   const [purchaseCodeIncludeGst, setPurchaseCodeIncludeGst] = useState(false);
   const [purchaseCodeIncludeDate, setPurchaseCodeIncludeDate] = useState(true);
   const [purchaseCodeExtraPercentEnabled, setPurchaseCodeExtraPercentEnabled] = useState(false);
@@ -2452,6 +2454,10 @@ export default function BarcodePrinting() {
         
         if (data?.business_name) {
           setBusinessName(data.business_name);
+        }
+
+        if (data) {
+          setShowMrpColumn((data.purchase_settings as { show_mrp?: boolean } | null)?.show_mrp === true);
         }
 
         // Fetch purchase code settings
@@ -7136,7 +7142,7 @@ export default function BarcodePrinting() {
               <TableRow className="hover:bg-transparent">
                 <TableHead>Product Description</TableHead>
                 <TableHead className="w-[70px]">Size</TableHead>
-                <TableHead className="w-[80px]">MRP</TableHead>
+                {showMrpColumn && <TableHead className="w-[80px]">MRP</TableHead>}
                 <TableHead className="w-[80px]">Sale</TableHead>
                 <TableHead className="w-[110px]">Barcode</TableHead>
                 <TableHead className="w-[90px]">Sup Code</TableHead>
@@ -7156,7 +7162,7 @@ export default function BarcodePrinting() {
                 <TableRow key={item.sku_id}>
                   <TableCell className="barcode-products-desc font-semibold max-w-[320px] truncate" title={fullDesc}>{fullDesc}</TableCell>
                   <TableCell className="font-medium">{item.size}</TableCell>
-                  <TableCell className="font-mono tabular-nums">₹{item.mrp || 0}</TableCell>
+                  {showMrpColumn && <TableCell className="font-mono tabular-nums">₹{item.mrp || 0}</TableCell>}
                   <TableCell className="font-mono tabular-nums">₹{item.sale_price}</TableCell>
                   <TableCell className="font-mono">
                     <span>{item.barcode || "(auto-gen)"}</span>
