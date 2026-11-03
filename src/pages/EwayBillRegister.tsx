@@ -14,6 +14,7 @@ import { useEwayBillPrinter } from "@/hooks/useEwayBillPrinter";
 import { ErpDashboardKpiCard } from "@/components/dashboard/ErpDashboardKpiCard";
 import { SaleEwayBillDialog } from "@/components/ewaybill/SaleEwayBillDialog";
 import { ChallanEwayBillDialog } from "@/components/ewaybill/ChallanEwayBillDialog";
+import { PurchaseReturnEwayBillDialog } from "@/components/ewaybill/PurchaseReturnEwayBillDialog";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -339,7 +340,7 @@ export default function EwayBillRegister() {
                   ? "No e-way bill matches the search."
                   : alertView
                     ? "Nothing here right now."
-                    : "No e-way bills in this period. Make one with the truck button on the Sales Invoice or Delivery Challan list."}
+                    : "No e-way bills in this period. Make one with the truck button on the Sales Invoice, Delivery Challan or Purchase Return list."}
               </div>
             ) : (
               <Table>
@@ -347,7 +348,7 @@ export default function EwayBillRegister() {
                   <TableRow>
                     <TableHead className="w-[170px]">EWB No</TableHead>
                     <TableHead className="w-[130px]">Bill</TableHead>
-                    <TableHead>Customer</TableHead>
+                    <TableHead>Party</TableHead>
                     <TableHead className="text-right">Value</TableHead>
                     <TableHead>Transport</TableHead>
                     <TableHead className="w-[220px]">Validity</TableHead>
@@ -362,7 +363,7 @@ export default function EwayBillRegister() {
                     const cancelUntil = ewbCancelUntil(r, now);
                     const mode = ewbModeName(r.trans_mode);
                     const doc = ewbDocOf(r);
-                    const canOpen = !!r.sales || !!r.delivery_challans;
+                    const canOpen = !!r.sales || !!r.delivery_challans || !!r.purchase_returns;
                     return (
                       <TableRow key={r.id} className="text-sm">
                         <TableCell>
@@ -387,6 +388,8 @@ export default function EwayBillRegister() {
                             {ewbDdMmYyyy(doc.date)}
                             {doc.kind === "challan" ? (
                               <span className="rounded bg-sky-50 px-1 text-[9px] font-semibold uppercase text-sky-700 ring-1 ring-sky-200">Challan</span>
+                            ) : doc.kind === "purchase_return" ? (
+                              <span className="rounded bg-violet-50 px-1 text-[9px] font-semibold uppercase text-violet-700 ring-1 ring-violet-200">Pur. return</span>
                             ) : null}
                           </div>
                         </TableCell>
@@ -452,13 +455,13 @@ export default function EwayBillRegister() {
 
       {orgId ? (
         <SaleEwayBillDialog
-          open={!!openRow && !openRow.delivery_challans}
+          open={!!openRow && !openRow.delivery_challans && !openRow.purchase_returns}
           onOpenChange={(o) => {
             if (!o) setOpenRow(null);
           }}
           organizationId={orgId}
           sale={
-            openRow?.sales && !openRow.delivery_challans
+            openRow?.sales && !openRow.delivery_challans && !openRow.purchase_returns
               ? {
                   id: openRow.sales.id,
                   sale_number: openRow.sales.sale_number,
@@ -493,6 +496,30 @@ export default function EwayBillRegister() {
                   challan_type: openRow.delivery_challans.challan_type,
                   net_amount: openRow.delivery_challans.net_amount,
                   customer_name: openRow.delivery_challans.customer_name,
+                }
+              : null
+          }
+          ewayBill={openRow}
+          missingSql={false}
+          onChanged={onChanged}
+        />
+      ) : null}
+
+      {orgId ? (
+        <PurchaseReturnEwayBillDialog
+          open={!!openRow?.purchase_returns}
+          onOpenChange={(o) => {
+            if (!o) setOpenRow(null);
+          }}
+          organizationId={orgId}
+          purchaseReturn={
+            openRow?.purchase_returns
+              ? {
+                  id: openRow.purchase_returns.id,
+                  return_number: openRow.purchase_returns.return_number,
+                  return_date: String(openRow.purchase_returns.return_date ?? ""),
+                  net_amount: openRow.purchase_returns.net_amount,
+                  supplier_name: openRow.purchase_returns.supplier_name,
                 }
               : null
           }

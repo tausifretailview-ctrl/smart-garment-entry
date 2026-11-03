@@ -30,6 +30,8 @@ export type EwayBillRow = {
   sale_id: string | null;
   /** Step 6b: the delivery challan it was made for (read only where the step 6b SQL has run). */
   challan_id?: string | null;
+  /** Step 6c: the purchase return it was made for (goods back to the supplier). */
+  purchase_return_id?: string | null;
   /** Step 6b: why the goods move on a challan (NIC sub supply type) and the "Others" reason. */
   sub_supply_type?: string | null;
   sub_supply_desc?: string | null;
@@ -122,42 +124,56 @@ export async function fetchEwayBillsForSales(
   return { rows, missingSql: false };
 }
 
-/** Step 6b SQL not run yet: eway_bills has no challan_id (or no table at all). */
+/** Step 6b SQL not run yet: eway_bills has no challan_id / purchase_return_id (or no table at all). */
 export function isMissingChallanEwbColumn(message: string | null | undefined): boolean {
-  return /challan_id|sub_supply|delivery_challans|relationship/i.test(String(message ?? "")) || isMissingEwayBillTable(message);
+  return (
+    /challan_id|purchase_return_id|sub_supply|delivery_challans|purchase_returns|relationship/i.test(String(message ?? "")) ||
+    isMissingEwayBillTable(message)
+  );
 }
 
-const CHALLAN_EWB_COLS = `${EWB_COLS}, challan_id, sub_supply_type, sub_supply_desc`;
+const CHALLAN_EWB_COLS = `${EWB_COLS}, challan_id, purchase_return_id, sub_supply_type, sub_supply_desc`;
 
-/** E-way bill of each given delivery challan (step 6b): its active one, else its latest cancelled one. */
-export async function fetchEwayBillsForChallans(
+/** E-way bill of each given document, by its link column: its active one, else its latest cancelled one. */
+async function fetchEwayBillsByLink(
   organizationId: string,
-  challanIds: string[],
+  column: "challan_id" | "purchase_return_id",
+  docIds: string[],
 ): Promise<{ rows: Map<string, EwayBillRow>; missingSql: boolean }> {
   const rows = new Map<string, EwayBillRow>();
-  const unique = Array.from(new Set(challanIds.filter(Boolean)));
+  const unique = Array.from(new Set(docIds.filter(Boolean)));
   for (let i = 0; i < unique.length; i += 200) {
-    // eway_bills' challan columns (step 6b) are absent from the generated DB types,
-    // so the typed builder's generics recurse infinitely (TS2589); query untyped.
+    // eway_bills' challan / purchase return columns (step 6b SQL) are absent from the generated
+    // DB types, so the typed builder's generics recurse infinitely (TS2589); query untyped.
     const client: any = supabase;
     const { data, error } = await client
       .from("eway_bills")
       .select(CHALLAN_EWB_COLS)
       .eq("organization_id", organizationId)
-      .in("challan_id", unique.slice(i, i + 200))
+      .in(column, unique.slice(i, i + 200))
       .order("created_at", { ascending: false });
     if (error) {
       if (isMissingChallanEwbColumn(error.message)) return { rows, missingSql: true };
       throw error;
     }
     for (const r of (data ?? []) as unknown as EwayBillRow[]) {
-      const key = String(r.challan_id ?? "");
+      const key = String(r[column] ?? "");
       if (!key) continue;
       const have = rows.get(key);
       if (!have || (have.status !== "active" && r.status === "active")) rows.set(key, r);
     }
   }
   return { rows, missingSql: false };
+}
+
+/** E-way bill of each given delivery challan (step 6b). */
+export function fetchEwayBillsForChallans(organizationId: string, challanIds: string[]) {
+  return fetchEwayBillsByLink(organizationId, "challan_id", challanIds);
+}
+
+/** E-way bill of each given purchase return (step 6c). */
+export function fetchEwayBillsForPurchaseReturns(organizationId: string, returnIds: string[]) {
+  return fetchEwayBillsByLink(organizationId, "purchase_return_id", returnIds);
 }
 
 /* ------------------------------------------------------------------ */
@@ -238,10 +254,12 @@ export async function invokeEwayBill(body: {
   /**
    * generate / sync: from the bill's IRN. test / vehicle / cancel / extend: e-way bill API (step 5b).
    * direct: a bill without an e-invoice, on the e-way bill API (step 6a). challan: a delivery challan (step 6b).
+   * purchase_return: goods going back to the supplier (step 6c); subSupply.desc is the reason.
    */
-  action: "generate" | "sync" | "test" | "vehicle" | "cancel" | "extend" | "direct" | "challan";
+  action: "generate" | "sync" | "test" | "vehicle" | "cancel" | "extend" | "direct" | "challan" | "purchase_return";
   saleId?: string;
   challanId?: string;
+  purchaseReturnId?: string;
   subSupply?: { code: string; desc?: string | null };
   ewayBillId?: string;
   organizationId: string;
@@ -331,6 +349,15 @@ export type EwbRegisterChallan = {
   net_amount: number | null;
 };
 
+/** The purchase return an e-way bill belongs to (step 6c), as the register reads it. */
+export type EwbRegisterPurchaseReturn = {
+  id: string;
+  return_number: string | null;
+  return_date: string | null;
+  supplier_name: string | null;
+  net_amount: number | null;
+};
+
 export type EwayBillRegisterRow = EwayBillRow & {
   doc_no: string | null;
   doc_date: string | null;
@@ -340,11 +367,12 @@ export type EwayBillRegisterRow = EwayBillRow & {
   created_at: string | null;
   sales: EwbRegisterSale | null;
   delivery_challans?: EwbRegisterChallan | null;
+  purchase_returns?: EwbRegisterPurchaseReturn | null;
 };
 
 const REGISTER_COLS = `${EWB_COLS}, doc_no, doc_date, doc_type, irn, generated_via, sales:sale_id (id, sale_number, sale_date, customer_id, customer_name, net_amount, irn, einvoice_status, einvoice_test_mode)`;
-/** With the step 6b SQL: the challan too. */
-const REGISTER_COLS_6B = `${REGISTER_COLS}, challan_id, sub_supply_type, sub_supply_desc, delivery_challans:challan_id (id, challan_number, challan_date, challan_type, customer_name, net_amount)`;
+/** With the step 6b SQL: the challan and the purchase return too. */
+const REGISTER_COLS_6B = `${REGISTER_COLS}, challan_id, purchase_return_id, sub_supply_type, sub_supply_desc, delivery_challans:challan_id (id, challan_number, challan_date, challan_type, customer_name, net_amount), purchase_returns:purchase_return_id (id, return_number, return_date, supplier_name, net_amount)`;
 
 /** Remembered per page load once the step 6b columns are found missing, so lists don't ask twice. */
 let registerColsHave6b = true;
@@ -369,9 +397,9 @@ function isMissingEwayBillTableOnly(message: string | null | undefined): boolean
   return /relation "?(public\.)?eway_bills"? does not exist|table 'public\.eway_bills'/i.test(String(message ?? ""));
 }
 
-/** The document an e-way bill belongs to: a sale bill, a delivery challan, or only what was saved on it. */
+/** The document an e-way bill belongs to: a sale bill, a delivery challan, a purchase return, or only what was saved on it. */
 export type EwbDocInfo = {
-  kind: "bill" | "challan";
+  kind: "bill" | "challan" | "purchase_return";
   id: string | null;
   number: string;
   date: string;
@@ -388,6 +416,17 @@ export function ewbDocOf(row: EwayBillRegisterRow): EwbDocInfo {
       date: String(row.sales.sale_date || row.doc_date || ""),
       party: row.sales.customer_name || "",
       value: row.sales.net_amount,
+    };
+  }
+  const pr = row.purchase_returns ?? null;
+  if (pr || row.purchase_return_id) {
+    return {
+      kind: "purchase_return",
+      id: pr?.id ?? row.purchase_return_id ?? null,
+      number: pr?.return_number || row.doc_no || "",
+      date: String((pr?.return_date ? istDateOf(pr.return_date) : "") || row.doc_date || ""),
+      party: pr?.supplier_name || "",
+      value: pr ? pr.net_amount : null,
     };
   }
   const c = row.delivery_challans ?? null;
@@ -560,6 +599,13 @@ export function ewbDdMmYyyy(d: string | null | undefined): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : "";
 }
 
+/** What the register calls each kind of document. */
+export const EWB_DOC_KIND_NAME: Record<EwbDocInfo["kind"], string> = {
+  bill: "Sale bill",
+  challan: "Delivery challan",
+  purchase_return: "Purchase return",
+};
+
 /** One row per e-way bill for the register's Excel file. */
 export function ewbRegisterExcelRows(rows: EwayBillRegisterRow[], now = new Date()): Record<string, string | number>[] {
   return rows.map((r) => {
@@ -570,10 +616,10 @@ export function ewbRegisterExcelRows(rows: EwayBillRegisterRow[], now = new Date
       "EWB Date": formatIstDateTime(r.ewb_date),
       "Valid Till": formatIstDateTime(r.valid_till),
       Status: v.label,
-      Document: doc.kind === "challan" ? "Delivery challan" : "Sale bill",
+      Document: EWB_DOC_KIND_NAME[doc.kind],
       "Bill No": doc.number,
       "Bill Date": ewbDdMmYyyy(doc.date),
-      Customer: doc.party,
+      Party: doc.party,
       Value: Math.round(Number(doc.value ?? 0)),
       Mode: ewbModeName(r.trans_mode),
       "Vehicle No": r.vehicle_no || "",
@@ -648,6 +694,8 @@ export function ewbMatchesSearch(row: EwayBillRegisterRow, q: string): boolean {
     row.sales?.customer_name,
     row.delivery_challans?.challan_number,
     row.delivery_challans?.customer_name,
+    row.purchase_returns?.return_number,
+    row.purchase_returns?.supplier_name,
     row.transporter_name,
     row.transporter_id,
     row.trans_doc_no,

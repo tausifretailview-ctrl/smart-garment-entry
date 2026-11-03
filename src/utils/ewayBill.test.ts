@@ -23,6 +23,8 @@ import {
   challanEwbLines,
   challanEwbSubSupply,
   ewbSubSupplyLabel,
+  purchaseReturnEwbLines,
+  EWB_PURCHASE_RETURN_DESC,
 } from "../../supabase/functions/_shared/ewayBill";
 import {
   ewbAlertKind,
@@ -321,7 +323,7 @@ describe("e-way bill register and alerts (Phase 2 step 5a)", () => {
       "Valid Till": "03/11/2026 23:59",
       "Bill No": "INV/26-27/101",
       "Bill Date": "02/11/2026",
-      Customer: "Shree Steel Traders",
+      Party: "Shree Steel Traders",
       Value: 125000,
       Mode: "Road",
       "Vehicle No": "MH04AB1234",
@@ -709,6 +711,132 @@ describe("e-way bill for a delivery challan (Phase 2 step 6b)", () => {
     expect(ewbDocOf(row)).toEqual({ kind: "challan", id: "c1", number: "DC/26-27/12", date: "2026-11-02", party: "Rehman Dyeing", value: 52500 });
     expect(ewbMatchesSearch(row, "rehman")).toBe(true);
     const excel = ewbRegisterExcelRows([row])[0];
-    expect(excel).toMatchObject({ Document: "Delivery challan", "Bill No": "DC/26-27/12", Customer: "Rehman Dyeing", Value: 52500 });
+    expect(excel).toMatchObject({ Document: "Delivery challan", "Bill No": "DC/26-27/12", Party: "Rehman Dyeing", Value: 52500 });
+  });
+});
+
+describe("e-way bill for a purchase return (Phase 2 step 6c)", () => {
+  const seller = { gstin: "27AAACR1234A1Z5", name: "Ezzy Textiles", address: "Shop 4, Main Road, Bhiwandi 421302" };
+  const items = [
+    { description: "Cotton shirt", hsn: "6205", qty: 40, unit: "PCS", lineTotal: 40000, gstPercent: 5 },
+    { description: "Denim jeans", hsn: "6203", qty: 10, unit: "PCS", lineTotal: 20000, gstPercent: 12 },
+  ];
+
+  it("reads rates before GST when that matches the saved total, with the flat discount", () => {
+    const r = purchaseReturnEwbLines({ items, netAmount: 57960, gstAmount: 3960, discountAmount: 6000 });
+    expect(r.inclusive).toBe(false);
+    expect(r.netAmount).toBe(57960);
+    expect(r.lines[0]).toMatchObject({ hsn: "6205", qty: 40, taxable: 36000, gstPercent: 5, gstAmount: 1800 });
+    expect(r.lines[1]).toMatchObject({ hsn: "6203", taxable: 18000, gstPercent: 12, gstAmount: 2160 });
+  });
+
+  it("reads GST-inclusive rates when that matches the saved total", () => {
+    const r = purchaseReturnEwbLines({ items, netAmount: 60000, gstAmount: 4047.62, discountAmount: 0 });
+    expect(r.inclusive).toBe(true);
+    expect(r.lines[0]).toMatchObject({ taxable: 38095.24, gstAmount: 1904.76 });
+    expect(r.lines[1]).toMatchObject({ taxable: 17857.14, gstAmount: 2142.86 });
+  });
+
+  it("a return without GST (DC) goes at 0%", () => {
+    for (const r of [
+      purchaseReturnEwbLines({ items, netAmount: 60000, isDc: true }),
+      purchaseReturnEwbLines({ items, netAmount: 60000, gstAmount: 0 }),
+    ]) {
+      expect(r.lines.map((l) => [l.taxable, l.gstPercent, l.gstAmount])).toEqual([
+        [40000, 0, 0],
+        [20000, 0, 0],
+      ]);
+    }
+    expect(purchaseReturnEwbLines({ items, netAmount: 0, isDc: true }).netAmount).toBe(60000);
+  });
+
+  it("goes to the supplier as a delivery challan, Others: Purchase return", () => {
+    const lines = purchaseReturnEwbLines({ items, netAmount: 57960, gstAmount: 3960, discountAmount: 6000 });
+    const r = buildDirectEwbPayload({
+      docNo: "PR/26-27/7",
+      docDate: "2026-11-03",
+      today: "2026-11-03",
+      seller,
+      buyer: { gstin: "24AABCS1234B1Z2", name: "Shree Garments", address: "Ring Road, Surat 395002" },
+      shipTo: { pin: "395002", place: "Surat", stateCode: "24" },
+      lines: lines.lines,
+      netAmount: lines.netAmount,
+      transport: { mode: "road", vehicleNo: "MH04AB1234", distanceKm: "280" },
+      doc: { type: "CHL", subSupplyType: "8", subSupplyDesc: EWB_PURCHASE_RETURN_DESC, noun: "purchase return" },
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.payload).toMatchObject({
+      supplyType: "O",
+      subSupplyType: "8",
+      subSupplyDesc: "Purchase return",
+      docType: "CHL",
+      docNo: "PR/26-27/7",
+      toGstin: "24AABCS1234B1Z2",
+      toStateCode: 24,
+      totalValue: 54000,
+      igstValue: 3960,
+      cgstValue: 0,
+      otherValue: 0,
+      totInvValue: 57960,
+    });
+  });
+
+  it("messages name the purchase return", () => {
+    const empty = purchaseReturnEwbLines({ items: [{ ...items[0], lineTotal: 0 }], netAmount: 0 });
+    const r = buildDirectEwbPayload({
+      docNo: "PR/26-27/7",
+      docDate: "2026-11-03",
+      today: "2026-11-03",
+      seller,
+      buyer: { gstin: "24AABCS1234B1Z2", name: "Shree Garments", address: "Ring Road, Surat 395002" },
+      lines: empty.lines,
+      netAmount: empty.netAmount,
+      transport: { mode: "road", vehicleNo: "MH04AB1234", distanceKm: "280" },
+      doc: { type: "CHL", subSupplyType: "8", subSupplyDesc: EWB_PURCHASE_RETURN_DESC, noun: "purchase return" },
+    });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toContain("This purchase return has no item values");
+    expect(ewbSubSupplyLabel("8", EWB_PURCHASE_RETURN_DESC)).toBe("Purchase return");
+  });
+
+  it("register rows show the purchase return and its supplier", () => {
+    const row = {
+      id: "e2",
+      sale_id: null,
+      challan_id: null,
+      purchase_return_id: "r1",
+      sub_supply_type: "8",
+      sub_supply_desc: "Purchase return",
+      ewb_no: "141008536849",
+      ewb_date: "2026-11-03T06:00:00.000Z",
+      valid_till: null,
+      status: "active",
+      test_mode: true,
+      trans_mode: "road",
+      distance_km: 280,
+      transporter_id: null,
+      transporter_name: null,
+      vehicle_no: "MH04AB1234",
+      vehicle_type: "R",
+      trans_doc_no: null,
+      trans_doc_date: null,
+      doc_no: "PR/26-27/7",
+      doc_date: "2026-11-03",
+      doc_type: "CHL",
+      irn: null,
+      generated_via: "direct",
+      created_at: "2026-11-03T06:00:00.000Z",
+      sales: null,
+      delivery_challans: null,
+      purchase_returns: { id: "r1", return_number: "PR/26-27/7", return_date: "2026-11-03", supplier_name: "Shree Garments", net_amount: 57960 },
+    } as EwayBillRegisterRow;
+    expect(ewbDocOf(row)).toEqual({ kind: "purchase_return", id: "r1", number: "PR/26-27/7", date: "2026-11-03", party: "Shree Garments", value: 57960 });
+    expect(ewbMatchesSearch(row, "shree")).toBe(true);
+    expect(ewbMatchesSearch(row, "PR/26-27/7")).toBe(true);
+    expect(ewbRegisterExcelRows([row])[0]).toMatchObject({ Document: "Purchase return", "Bill No": "PR/26-27/7", Party: "Shree Garments", Value: 57960 });
+    // Saved before the step 6b SQL's join could be read: still a purchase return, from what the row has.
+    expect(ewbDocOf({ ...row, purchase_returns: null }).kind).toBe("purchase_return");
   });
 });

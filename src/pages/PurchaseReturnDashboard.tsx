@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ChevronDown, ChevronUp, Trash2, Search, Calendar, Package, TrendingDown, Plus, Printer, Receipt, IndianRupee, Edit, Eye, CreditCard, FileText, X, Download } from "lucide-react";
+import { ChevronDown, ChevronUp, Trash2, Search, Calendar, Package, TrendingDown, Plus, Printer, Receipt, IndianRupee, Edit, Eye, CreditCard, FileText, X, Download, Truck } from "lucide-react";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { format, formatDistanceToNow } from "date-fns";
@@ -38,6 +38,10 @@ import { lookupMap } from "@/lib/coerceToMap";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
+import { useEwayBillOn } from "@/hooks/useEwayBillOn";
+import { PurchaseReturnEwayBillDialog, type EwbPurchaseReturnInfo } from "@/components/ewaybill/PurchaseReturnEwayBillDialog";
+import { EWB_VALUE_LIMIT, fetchEwayBillsForPurchaseReturns, formatEwbNo } from "@/utils/ewayBill";
+import { cn } from "@/lib/utils";
 
 interface PurchaseReturnItem {
   id: string;
@@ -134,6 +138,12 @@ const PurchaseReturnDashboard = () => {
       label: "Download PDF",
       icon: Download,
       onClick: () => handlePdfDownload(returnRecord),
+    },
+    {
+      label: "E-way bill",
+      icon: Truck,
+      onClick: () => setEwbReturn(returnRecord),
+      hidden: !ewbOn,
     },
   ];
 
@@ -431,6 +441,31 @@ const PurchaseReturnDashboard = () => {
     enabled: !!returnsData?.returns?.length,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
+
+  // E-way bills of the returns on this page (step 6c), only with the E-Way Bill switch on.
+  const ewbOn = useEwayBillOn();
+  const [ewbReturn, setEwbReturn] = useState<PurchaseReturn | null>(null);
+  const returnIdsKey = useMemo(
+    () => (ewbOn ? (returnsData?.returns || []).map((r) => String(r.id)).sort().join(",") : ""),
+    [ewbOn, returnsData],
+  );
+  const { data: returnEwb, refetch: refetchReturnEwb } = useQuery({
+    queryKey: ["purchase-return-eway-bills", currentOrganization?.id ?? "", returnIdsKey],
+    queryFn: () => fetchEwayBillsForPurchaseReturns(currentOrganization!.id, returnIdsKey.split(",")),
+    enabled: ewbOn && !!currentOrganization?.id && returnIdsKey.length > 0,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const ewbOfReturn = (id: string) => returnEwb?.rows.get(String(id)) ?? null;
+  const ewbReturnInfo: EwbPurchaseReturnInfo | null = ewbReturn
+    ? {
+        id: String(ewbReturn.id),
+        return_number: ewbReturn.return_number ?? null,
+        return_date: String(ewbReturn.return_date ?? ""),
+        net_amount: ewbReturn.net_amount ?? null,
+        supplier_name: ewbReturn.supplier_name ?? null,
+      }
+    : null;
 
   const linkedBillById = linkedBillByIdRaw ?? {};
   const cnAmountByReturnId = cnAmountByReturnIdRaw ?? {};
@@ -1191,6 +1226,23 @@ const PurchaseReturnDashboard = () => {
                             >
                               <Download className="h-3.5 w-3.5 text-orange-600" />
                             </Button>
+                            {ewbOn ? (() => {
+                              // Like the Sales list: in the row above the ₹50,000 limit or once it has one; the menu has it on every return.
+                              const ewb = ewbOfReturn(returnRecord.id);
+                              const on = ewb?.status === "active";
+                              if (!ewb && (returnRecord.is_dc || Number(returnRecord.net_amount ?? 0) <= EWB_VALUE_LIMIT)) return null;
+                              return (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className={cn("h-7 w-7", on ? "text-teal-600" : "text-slate-400 hover:text-teal-600")}
+                                  onClick={() => setEwbReturn(returnRecord)}
+                                  title={on ? `E-way bill ${formatEwbNo(ewb!.ewb_no)}` : "Generate e-way bill"}
+                                >
+                                  <Truck className="h-3.5 w-3.5" />
+                                </Button>
+                              );
+                            })() : null}
                             <Button
                               variant="ghost"
                               size="icon"
@@ -1457,6 +1509,20 @@ const PurchaseReturnDashboard = () => {
           organizationId={currentOrganization.id}
         />
       )}
+
+      {ewbOn && currentOrganization?.id ? (
+        <PurchaseReturnEwayBillDialog
+          open={!!ewbReturn}
+          onOpenChange={(o) => {
+            if (!o) setEwbReturn(null);
+          }}
+          organizationId={currentOrganization.id}
+          purchaseReturn={ewbReturnInfo}
+          ewayBill={ewbReturn ? ewbOfReturn(ewbReturn.id) : null}
+          missingSql={!!returnEwb?.missingSql}
+          onChanged={() => void refetchReturnEwb()}
+        />
+      ) : null}
 
       {isDesktop && (
         <DesktopContextMenu

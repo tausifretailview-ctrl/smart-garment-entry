@@ -932,12 +932,72 @@ export function challanEwbLines(opts: {
   return { lines, netAmount: scale ? saved : r2(sum + roundOff) };
 }
 
-/** The document an e-way bill is made from: a sale bill (default) or a delivery challan. */
+/* Purchase returns (step 6c) ------------------------------------------ */
+
+/** Default "Others" reason when goods go back to the supplier. */
+export const EWB_PURCHASE_RETURN_DESC = "Purchase return";
+
+/** One purchase return line as read for its e-way bill. */
+export type EwbPurchaseReturnLineInput = {
+  description: string;
+  hsn: string;
+  qty: number;
+  unit: string;
+  /** Line value as saved (after line discount): before GST, or GST-inclusive, as the return was made. */
+  lineTotal: number;
+  gstPercent: number;
+};
+
+/**
+ * E-way bill lines of a purchase return. The return does not save whether its rates were before
+ * GST or GST-inclusive, so both readings are worked out (with the return's flat discount) and the
+ * one that adds up to its saved total is used. A return without GST (DC) goes at 0%.
+ */
+export function purchaseReturnEwbLines(opts: {
+  items: EwbPurchaseReturnLineInput[];
+  netAmount: number | null | undefined;
+  gstAmount?: number | null;
+  discountAmount?: number | null;
+  isDc?: boolean | null;
+}): { lines: EwbDirectLine[]; netAmount: number; inclusive: boolean } {
+  const items = opts.items.filter((i) => numOf(i.lineTotal) > 0);
+  const sum = items.reduce((s, i) => s + numOf(i.lineTotal), 0);
+  const discount = Math.max(0, numOf(opts.discountAmount));
+  const keep = sum > 0 ? Math.max(0, 1 - discount / sum) : 1;
+  const saved = numOf(opts.netAmount);
+  const noGst = opts.isDc === true || (opts.gstAmount != null && numOf(opts.gstAmount) === 0);
+  const read = (inclusive: boolean): EwbDirectLine[] =>
+    items.map((i) => {
+      const rate = noGst ? 0 : numOf(i.gstPercent);
+      const value = numOf(i.lineTotal) * keep;
+      const taxable = r2(inclusive ? value / (1 + rate / 100) : value);
+      const gst = r2(inclusive ? value - taxable : (taxable * rate) / 100);
+      return {
+        description: String(i.description ?? ""),
+        hsn: String(i.hsn ?? "").trim(),
+        qty: numOf(i.qty) || 1,
+        unit: String(i.unit ?? "").trim() || "PCS",
+        taxable,
+        gstPercent: rate,
+        gstAmount: gst,
+      };
+    });
+  const total = (ls: EwbDirectLine[]) => ls.reduce((s, l) => s + l.taxable + l.gstAmount, 0);
+  const exclusive = read(false);
+  const inclusive = read(true);
+  const useInclusive = !noGst && saved > 0 && Math.abs(total(inclusive) - saved) < Math.abs(total(exclusive) - saved);
+  const lines = useInclusive ? inclusive : exclusive;
+  return { lines, netAmount: saved > 0 ? saved : r2(total(lines)), inclusive: useInclusive };
+}
+
+/** The document an e-way bill is made from: a sale bill (default), a delivery challan or a purchase return. */
 export type EwbDirectDoc = {
   type: "INV" | "CHL";
   /** Outward sub supply type: 1 Supply for a bill; a challan reason from EWB_CHALLAN_SUB_SUPPLY. */
   subSupplyType: string;
   subSupplyDesc?: string | null;
+  /** What the messages call the document ("bill", "challan", "purchase return"). */
+  noun?: string;
 };
 
 const BILL_DOC: EwbDirectDoc = { type: "INV", subSupplyType: "1" };
@@ -965,8 +1025,8 @@ export function buildDirectEwbPayload(opts: {
   doc?: EwbDirectDoc | null;
 }): EwbDirectResult {
   const doc = opts.doc ?? BILL_DOC;
-  const noun = doc.type === "CHL" ? "challan" : "bill";
-  const Noun = doc.type === "CHL" ? "Challan" : "Bill";
+  const noun = String(doc.noun ?? "").trim() || (doc.type === "CHL" ? "challan" : "bill");
+  const Noun = noun.charAt(0).toUpperCase() + noun.slice(1);
   const subSupplyType = doc.type === "CHL" ? String(doc.subSupplyType ?? "").trim() : "1";
   const subSupplyDesc = String(doc.subSupplyDesc ?? "").replace(/\s+/g, " ").trim();
   if (doc.type === "CHL") {
@@ -1079,7 +1139,7 @@ export function buildDirectEwbPayload(opts: {
       error: serviceValue > 0
         ? `This ${noun} has only services. An e-way bill is for goods.`
         : doc.type === "CHL"
-          ? "This challan has no item values. An e-way bill needs the value of the goods: add the rates to the challan."
+          ? `This ${noun} has no item values. An e-way bill needs the value of the goods: add the rates to the ${noun}.`
           : "This bill has no lines with a value.",
     };
   }
