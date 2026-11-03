@@ -79,6 +79,7 @@ import {
 } from "@/utils/customerBalanceUtils";
 import { fetchItemsGrossBySaleId } from "@/utils/fetchItemsGrossBySaleId";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
+import { invalidateSupplierPaymentViewsAfterMutation } from "@/utils/supplierPaymentViews";
 
 interface FloatingPaymentsProps {
   open: boolean;
@@ -992,14 +993,8 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
       toast.success("Supplier payment recorded");
       setShowSaved(true);
       setTimeout(() => setShowSaved(false), 3000);
-      void queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
-      void queryClient.invalidateQueries({ queryKey: ["supplier-bills"] });
-      void queryClient.invalidateQueries({ queryKey: ["supplier-balance"] });
-      void queryClient.invalidateQueries({ queryKey: ["suppliers-with-balance"] });
-      void queryClient.invalidateQueries({ queryKey: ["supplier-ledger"] });
-      void queryClient.invalidateQueries({ queryKey: ["supplier-bill-payment-voucher-drift"] });
-      void queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
-      void queryClient.invalidateQueries({ queryKey: ["purchase-summary"] });
+      // Purchase dashboard, Supplier Payment tab, ledger and dues; pings other tabs.
+      invalidateSupplierPaymentViewsAfterMutation(queryClient, organizationId);
       resetForm();
     },
     onError: (e: Error) => toast.error(e.message),

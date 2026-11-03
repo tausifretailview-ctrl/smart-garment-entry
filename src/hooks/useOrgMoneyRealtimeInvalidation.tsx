@@ -13,6 +13,10 @@ import {
   readStoredMoneyFreshnessMarker,
   shouldApplyMoneyFreshnessMarker,
 } from "@/utils/posSalesRefresh";
+import {
+  invalidateSupplierPaymentViews,
+  isSupplierVoucherRealtimeChange,
+} from "@/utils/supplierPaymentViews";
 
 const MONEY_REALTIME_TABLES = [
   "sales",
@@ -27,15 +31,31 @@ export function useOrgMoneyRealtimeInvalidation() {
   const queryClient = useQueryClient();
   const orgId = currentOrganization?.id;
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Supplier views (purchase bills paid/status, supplier dues) refresh only when a
+  // supplier voucher changed, so POS sales do not refetch the Purchase dashboard.
+  const supplierPendingRef = useRef(false);
 
-  const scheduleInvalidate = useCallback(() => {
+  const runInvalidate = useCallback(() => {
     if (!orgId) return;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      debounceRef.current = null;
-      invalidateMoneyViewFreshness(queryClient, orgId);
-    }, MONEY_VIEW_REALTIME_DEBOUNCE_MS);
+    invalidateMoneyViewFreshness(queryClient, orgId);
+    if (supplierPendingRef.current) {
+      supplierPendingRef.current = false;
+      invalidateSupplierPaymentViews(queryClient);
+    }
   }, [orgId, queryClient]);
+
+  const scheduleInvalidate = useCallback(
+    (supplier = false) => {
+      if (!orgId) return;
+      if (supplier) supplierPendingRef.current = true;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        debounceRef.current = null;
+        runInvalidate();
+      }, MONEY_VIEW_REALTIME_DEBOUNCE_MS);
+    },
+    [orgId, runInvalidate],
+  );
 
   const flushInvalidate = useCallback(() => {
     if (!orgId) return;
@@ -43,8 +63,8 @@ export function useOrgMoneyRealtimeInvalidation() {
       clearTimeout(debounceRef.current);
       debounceRef.current = null;
     }
-    invalidateMoneyViewFreshness(queryClient, orgId);
-  }, [orgId, queryClient]);
+    runInvalidate();
+  }, [orgId, runInvalidate]);
 
   const applyStoredFreshness = useCallback(
     (immediate: boolean) => {
@@ -59,6 +79,7 @@ export function useOrgMoneyRealtimeInvalidation() {
         return;
       }
       markMoneyFreshnessApplied(marker!.ts);
+      if (marker!.supplierPayments) supplierPendingRef.current = true;
       if (immediate) flushInvalidate();
       else scheduleInvalidate();
     },
@@ -94,7 +115,10 @@ export function useOrgMoneyRealtimeInvalidation() {
           table,
           filter: `organization_id=eq.${orgId}`,
         },
-        scheduleInvalidate,
+        (payload) =>
+          scheduleInvalidate(
+            table === "voucher_entries" && isSupplierVoucherRealtimeChange(payload as any),
+          ),
       );
     }
     channel.subscribe();
