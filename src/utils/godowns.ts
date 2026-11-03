@@ -82,6 +82,52 @@ export function formatGodownValue(n: number | null | undefined): string {
   return `₹${Math.round(Number(n ?? 0)).toLocaleString("en-IN")}`;
 }
 
+/** Top stripe colour of a godown card on the Godowns page. */
+export function godownCardStripe(type: string | null | undefined): string {
+  switch (type) {
+    case "main":
+      return "bg-teal-500";
+    case "job_work":
+      return "bg-violet-500";
+    case "damaged":
+      return "bg-rose-500";
+    default:
+      return "bg-sky-500";
+  }
+}
+
+export type GodownTotals = {
+  all: { items: number; qty: number; value: number };
+  main: { items: number; qty: number; value: number };
+  others: { count: number; items: number; qty: number; value: number };
+  /** Item lines whose Main stock is below zero. */
+  shortItems: number;
+};
+
+/** The figures for the coloured cards at the top of the Godowns page. */
+export function godownTotals(godowns: Pick<Godown, "id" | "godown_type" | "is_active">[], summary: Map<string, GodownSummary> | undefined): GodownTotals {
+  const t: GodownTotals = {
+    all: { items: 0, qty: 0, value: 0 },
+    main: { items: 0, qty: 0, value: 0 },
+    others: { count: 0, items: 0, qty: 0, value: 0 },
+    shortItems: 0,
+  };
+  for (const g of godowns) {
+    const s = summary?.get(g.id);
+    if (g.godown_type !== "main" && g.is_active) t.others.count += 1;
+    if (!s) continue;
+    const bucket = g.godown_type === "main" ? t.main : t.others;
+    bucket.items += s.items;
+    bucket.qty += s.qty;
+    bucket.value += s.stock_value;
+    t.all.items += s.items;
+    t.all.qty += s.qty;
+    t.all.value += s.stock_value;
+    t.shortItems += s.short_items || 0;
+  }
+  return t;
+}
+
 /** Item name with colour and size, as the stock list and messages show it. */
 export function godownItemLabel(row: { product_name: string; color?: string | null; size?: string | null }): string {
   const color = String(row.color ?? "").trim();
