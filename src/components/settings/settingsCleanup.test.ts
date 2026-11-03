@@ -27,7 +27,7 @@ describe("Settings cleanup step 2 (Nov 2026)", () => {
   it("has no QZ setup guide and one Direct Print block", () => {
     expect(settingsPage).not.toContain("Direct Bill Printing — Setup Guide");
     expect(settingsPage).not.toContain("Default Printer (Direct Print)");
-    expect(settingsPage).toContain("Direct Printing (QZ Tray)");
+    expect(settingsPage).not.toContain("{/* Direct Printing (QZ Tray) Settings */}");
   });
 
   it("hides switches no screen reads", () => {
@@ -45,5 +45,28 @@ describe("Settings cleanup step 2 (Nov 2026)", () => {
     expect(pos).toContain("2nd billing details");
     const waTab = settingsPage.slice(settingsPage.indexOf('<TabsContent value="whatsapp"'));
     expect(waTab.slice(0, waTab.indexOf("</TabsContent>"))).toContain('id="instagram_link"');
+  });
+});
+
+describe("Settings cleanup step 3 (Nov 2026)", () => {
+  const tab = (id: string) => {
+    const from = settingsPage.slice(settingsPage.indexOf(`<TabsContent value="${id}"`));
+    return from.slice(0, from.indexOf("</TabsContent>"));
+  };
+
+  it("drops the cross-shop label designs list", () => {
+    expect(settingsPage).not.toContain("Label Designs from All Your Shops");
+  });
+
+  it("shows the stamp in Branding and customer page in Alerts", () => {
+    expect(tab("branding")).toContain("Authorised Stamp / Signature");
+    expect(tab("bill")).not.toContain("Authorised Stamp / Signature");
+    expect(tab("reports")).toContain("<CustomerPagePanel />");
+    expect(tab("whatsapp")).not.toContain("<CustomerPagePanel />");
+  });
+
+  it("only shows AI Chatbot to a shop that already has it on", () => {
+    const wa = read("../WhatsAppAPISettings.tsx");
+    expect(wa).toContain("{settings?.chatbot_enabled === true && (");
   });
 });

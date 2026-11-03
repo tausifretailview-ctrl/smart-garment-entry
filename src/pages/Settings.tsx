@@ -844,7 +844,6 @@ export default function Settings() {
   useEffect(() => {
     if (!currentOrganization?.id || !visitedTabs.has("bill")) return;
     fetchDbPresets();
-    fetchAllOrgPresets();
   }, [visitedTabs, currentOrganization?.id, organizations.length]);
 
   // Prefill landing + design from the org's current is_default preset when unset
@@ -1646,6 +1645,160 @@ export default function Settings() {
                       <p className="text-sm text-center text-muted-foreground">
                         Sign in to access your account
                       </p>
+                    </div>
+                  </div>
+                </div>
+                {/* Authorised Stamp / Signature Section */}
+                <div className="pt-6 border-t">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="h-7 w-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center">
+                      <Pencil className="h-3.5 w-3.5 text-indigo-700 dark:text-indigo-300" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">Authorised Stamp / Signature</p>
+                      <p className="text-xs text-muted-foreground">Upload a stamp or signature image that appears on invoices</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {/* Upload area */}
+                    <div className="flex items-start gap-4">
+                      <label
+                        htmlFor="stamp_upload"
+                        className="flex flex-col items-center justify-center w-40 h-32 border-2 border-dashed rounded-lg cursor-pointer hover:border-primary transition-colors bg-muted/30"
+                      >
+                        {settings.bill_barcode_settings?.stamp_image_base64 ? (
+                          <img
+                            src={settings.bill_barcode_settings.stamp_image_base64}
+                            alt="Stamp preview"
+                            className="max-w-full max-h-full object-contain p-1"
+                          />
+                        ) : (
+                          <div className="text-center p-2">
+                            <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-1" />
+                            <p className="text-xs text-muted-foreground">Click to upload</p>
+                          </div>
+                        )}
+                        <input
+                          id="stamp_upload"
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            if (file.size > 2 * 1024 * 1024) {
+                              toast({ title: "File too large", description: "Max 2MB allowed", variant: "destructive" });
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onload = (ev) => {
+                              setSettings({
+                                ...settings,
+                                bill_barcode_settings: {
+                                  ...settings.bill_barcode_settings,
+                                  stamp_image_base64: ev.target?.result as string,
+                                },
+                              });
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                      </label>
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        <p>PNG, JPG (max 2MB)</p>
+                        <p>Stamp or signature image</p>
+                        {settings.bill_barcode_settings?.stamp_image_base64 && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="mt-2"
+                            onClick={() =>
+                              setSettings({
+                                ...settings,
+                                bill_barcode_settings: {
+                                  ...settings.bill_barcode_settings,
+                                  stamp_image_base64: undefined,
+                                },
+                              })
+                            }
+                          >
+                            Remove Image
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Position */}
+                    <div className="space-y-1.5">
+                      <Label>Position on Invoice</Label>
+                      <div className="flex gap-4">
+                        {(['bottom-right', 'bottom-left'] as const).map((pos) => (
+                          <label key={pos} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                            <input
+                              type="radio"
+                              name="stamp_position"
+                              checked={(settings.bill_barcode_settings?.stamp_position || 'bottom-right') === pos}
+                              onChange={() =>
+                                setSettings({
+                                  ...settings,
+                                  bill_barcode_settings: { ...settings.bill_barcode_settings, stamp_position: pos },
+                                })
+                              }
+                            />
+                            {pos === 'bottom-right' ? 'Bottom Right (default)' : 'Bottom Left'}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Size */}
+                    <div className="space-y-1.5">
+                      <Label>Stamp Size</Label>
+                      <div className="flex gap-2">
+                        {(['small', 'medium', 'large'] as const).map((sz) => (
+                          <Button
+                            key={sz}
+                            variant={(settings.bill_barcode_settings?.stamp_size || 'medium') === sz ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() =>
+                              setSettings({
+                                ...settings,
+                                bill_barcode_settings: { ...settings.bill_barcode_settings, stamp_size: sz },
+                              })
+                            }
+                          >
+                            {sz.charAt(0).toUpperCase() + sz.slice(1)}
+                          </Button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">Small=80px, Medium=120px, Large=160px</p>
+                    </div>
+
+                    {/* Show on */}
+                    <div className="space-y-1.5">
+                      <Label>Show on</Label>
+                      <div className="flex flex-wrap gap-4">
+                        {[
+                          { key: 'stamp_show_sale' as const, label: 'Sale Invoice', def: true },
+                          { key: 'stamp_show_purchase' as const, label: 'Purchase Bill', def: true },
+                          { key: 'stamp_show_dc' as const, label: 'DC / Challan', def: false },
+                          { key: 'stamp_show_pos' as const, label: 'POS Receipt', def: false },
+                        ].map(({ key, label, def }) => (
+                          <label key={key} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                            <Checkbox
+                              checked={settings.bill_barcode_settings?.[key] ?? def}
+                              onCheckedChange={(checked) =>
+                                setSettings({
+                                  ...settings,
+                                  bill_barcode_settings: { ...settings.bill_barcode_settings, [key]: !!checked },
+                                })
+                              }
+                            />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -3407,10 +3560,6 @@ export default function Settings() {
                     POS thermal).
                   </p>
 
-                  <p className="text-xs text-muted-foreground">
-                    Direct printing (printer selection, Auto Print After Save) is under{" "}
-                    <strong className="text-foreground">Settings → Bill &amp; Barcode → Direct Printing</strong>.
-                  </p>
                 </div>
 
                 {/* Item Details Display Settings */}
@@ -5559,436 +5708,8 @@ export default function Settings() {
                   </CardContent>
                 </Card>
 
-                {/* Direct Printing (QZ Tray) Settings */}
-                <Card className="border-dashed">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2 justify-between">
-                      <span className="flex items-center gap-2">
-                        🖨️ Direct Printing (QZ Tray)
-                      </span>
-                      <QZStatusBadge />
-                    </CardTitle>
-                    <CardDescription>
-                      Print invoices directly to thermal or laser printers without browser print dialog
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label htmlFor="enable_direct_print" className="cursor-pointer">
-                          Enable Direct Printing
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          Send invoices directly to printer via QZ Tray (no print preview dialog)
-                        </p>
-                      </div>
-                      <Switch
-                        id="enable_direct_print"
-                        checked={settings.bill_barcode_settings?.enable_direct_print === true}
-                        onCheckedChange={(checked) =>
-                          setSettings({
-                            ...settings,
-                            bill_barcode_settings: {
-                              ...settings.bill_barcode_settings,
-                              enable_direct_print: checked,
-                            },
-                          })
-                        }
-                      />
-                    </div>
-
-                    {settings.bill_barcode_settings?.enable_direct_print && (
-                      <>
-                        <div className="space-y-2">
-                          <Label>Sale Invoice Printer</Label>
-                          <Select
-                            value={settings.bill_barcode_settings?.direct_print_sale_printer || ''}
-                            onValueChange={(value) =>
-                              setSettings({
-                                ...settings,
-                                bill_barcode_settings: {
-                                  ...settings.bill_barcode_settings,
-                                  direct_print_sale_printer: value,
-                                },
-                              })
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Click 'Detect Printers' first, then select..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {detectedPrinters.map(p => (
-                                <SelectItem key={p} value={p}>{p}</SelectItem>
-                              ))}
-                              {detectedPrinters.length === 0 && (
-                                <div className="p-2 text-sm text-muted-foreground">No printers detected. Click "Detect Printers" below.</div>
-                              )}
-                            </SelectContent>
-                          </Select>
-                          <p className="text-xs text-muted-foreground">
-                            Printer for Sale Invoice (A4/A5). Detect printers first, then select.
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Sale Invoice Paper Size</Label>
-                          <Select
-                            value={settings.bill_barcode_settings?.direct_print_sale_paper || 'A4'}
-                            onValueChange={(value) =>
-                              setSettings({
-                                ...settings,
-                                bill_barcode_settings: {
-                                  ...settings.bill_barcode_settings,
-                                  direct_print_sale_paper: value as any,
-                                },
-                              })
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="A4">A4 (210×297mm) — Laser / Inkjet</SelectItem>
-                              <SelectItem value="A5">A5 (148×210mm) — Laser / Inkjet</SelectItem>
-                              <SelectItem value="80mm">80mm Thermal Roll</SelectItem>
-                              <SelectItem value="58mm">58mm Thermal Roll</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>POS Printer</Label>
-                          <Select
-                            value={settings.bill_barcode_settings?.direct_print_pos_printer || ''}
-                            onValueChange={(value) =>
-                              setSettings({
-                                ...settings,
-                                bill_barcode_settings: {
-                                  ...settings.bill_barcode_settings,
-                                  direct_print_pos_printer: value,
-                                },
-                              })
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Click 'Detect Printers' first, then select..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {detectedPrinters.map(p => (
-                                <SelectItem key={p} value={p}>{p}</SelectItem>
-                              ))}
-                              {detectedPrinters.length === 0 && (
-                                <div className="p-2 text-sm text-muted-foreground">No printers detected. Click "Detect Printers" below.</div>
-                              )}
-                            </SelectContent>
-                          </Select>
-                          <p className="text-xs text-muted-foreground">
-                            Printer for POS billing (thermal 80mm/58mm). Supports shared printers (e.g., \\PC-NAME\PrinterShare).
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>POS Printer Paper Size</Label>
-                          <Select
-                            value={settings.bill_barcode_settings?.direct_print_pos_paper || '80mm'}
-                            onValueChange={(value) =>
-                              setSettings({
-                                ...settings,
-                                bill_barcode_settings: {
-                                  ...settings.bill_barcode_settings,
-                                  direct_print_pos_paper: value as any,
-                                },
-                              })
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="80mm">80mm Thermal Roll</SelectItem>
-                              <SelectItem value="58mm">58mm Thermal Roll</SelectItem>
-                              <SelectItem value="A4">A4 (210×297mm) — Laser / Inkjet</SelectItem>
-                              <SelectItem value="A5">A5 (148×210mm) — Laser / Inkjet</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-0.5">
-                            <Label htmlFor="direct_print_auto" className="cursor-pointer">
-                              Auto Print After Save
-                            </Label>
-                            <p className="text-xs text-muted-foreground">
-                              Automatically print invoice after saving (skip print confirmation dialog)
-                            </p>
-                          </div>
-                          <Switch
-                            id="direct_print_auto"
-                            checked={settings.bill_barcode_settings?.direct_print_auto_print === true}
-                            onCheckedChange={(checked) =>
-                              setSettings({
-                                ...settings,
-                                bill_barcode_settings: {
-                                  ...settings.bill_barcode_settings,
-                                  direct_print_auto_print: checked,
-                                },
-                              })
-                            }
-                          />
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-0.5">
-                            <Label htmlFor="direct_print_copies">Print Copies</Label>
-                            <p className="text-xs text-muted-foreground">
-                              Number of copies to print per invoice
-                            </p>
-                          </div>
-                          <input
-                            id="direct_print_copies"
-                            type="number"
-                            min={1}
-                            max={5}
-                            className="w-16 h-9 border rounded-md text-center text-sm"
-                            value={settings.bill_barcode_settings?.direct_print_copies || 1}
-                            onChange={(e) =>
-                              setSettings({
-                                ...settings,
-                                bill_barcode_settings: {
-                                  ...settings.bill_barcode_settings,
-                                  direct_print_copies: Math.max(1, Math.min(5, Number(e.target.value))),
-                                },
-                              })
-                            }
-                          />
-                        </div>
-
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={async () => {
-                              const { getQZPrinters } = await import('@/utils/directInvoicePrint');
-                              const printers = await getQZPrinters();
-                              if (printers.length === 0) {
-                                toast({
-                                  title: "No Printers Found",
-                                  description: "Make sure QZ Tray app is running on this computer (system tray). Download from qz.io/download if not installed.",
-                                  variant: "destructive",
-                                });
-                              } else {
-                                setDetectedPrinters(printers);
-                                toast({
-                                  title: `${printers.length} Printer(s) Detected`,
-                                  description: "Select your printers from the dropdowns above.",
-                                });
-                              }
-                            }}
-                          >
-                            🔍 Detect Printers
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={async () => {
-                              const { printTestReceipt } = await import('@/utils/directInvoicePrint');
-                              const printer = settings.bill_barcode_settings?.direct_print_pos_printer 
-                                || settings.bill_barcode_settings?.direct_print_sale_printer;
-                              if (!printer) {
-                                toast({
-                                  title: "No Printer Set",
-                                  description: "Please enter a printer name first",
-                                  variant: "destructive",
-                                });
-                                return;
-                              }
-                              const paper = (settings.bill_barcode_settings?.direct_print_pos_paper
-                                || settings.bill_barcode_settings?.direct_print_sale_paper
-                                || 'A4') as '58mm' | '80mm' | 'A4' | 'A5';
-                              const success = await printTestReceipt(printer, paper);
-                              if (success) {
-                                toast({ title: "Test Print Sent", description: "Check your printer for the test receipt" });
-                              }
-                            }}
-                          >
-                            🧪 Test Print
-                          </Button>
-                        </div>
-
-                        <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-2">
-                          <p className="font-medium">Setup Requirements:</p>
-                          <ul className="list-disc list-inside text-muted-foreground space-y-1">
-                            <li>
-                              <strong>Step 1:</strong> Install QZ Tray on this PC — {' '}
-                              <a href="https://qz.io/download/" target="_blank" 
-                                 rel="noopener noreferrer" className="text-primary underline">
-                                Download QZ Tray
-                              </a>
-                            </li>
-                            <li><strong>Step 2:</strong> Launch QZ Tray — it runs in the system tray</li>
-                            <li><strong>Step 3:</strong> Click "Detect Printers" above — select your printers</li>
-                            <li><strong>Step 4:</strong> Choose correct paper size per printer</li>
-                            <li><strong>Step 5:</strong> Click "Test Print" to verify</li>
-                            <li>First connection will show a QZ Tray approval popup — click <em>Allow</em></li>
-                            <li>Thermal printers: select 80mm or 58mm paper size</li>
-                            <li>Laser/Inkjet printers: select A4 or A5 paper size</li>
-                            <li>Shared network printers are also supported</li>
-                          </ul>
-                        </div>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
 
 
-                {/* ═══ All Org Label Designs ═══ */}
-                {allOrgPresets.length > 0 && (
-                  <div className="space-y-3 pt-4 border-t">
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                        <Copy className="h-4 w-4 text-indigo-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold leading-none">Label Designs from All Your Shops</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Reuse calibrated label designs from your other organizations — import in one click
-                        </p>
-                      </div>
-                    </div>
-
-                    {Array.from(
-                      allOrgPresets.reduce((map, item) => {
-                        if (!map.has(item.orgId)) map.set(item.orgId, {
-                          orgName: item.orgName,
-                          presets: [],
-                          isCurrent: item.orgId === currentOrganization?.id
-                        });
-                        map.get(item.orgId)!.presets.push(item);
-                        return map;
-                      }, new Map<string, { orgName: string; presets: typeof allOrgPresets; isCurrent: boolean }>())
-                    ).map(([orgId, group]) => (
-                      <div key={orgId} className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border ${group.isCurrent ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                            {group.isCurrent ? '● Current Shop' : group.orgName}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {group.presets.length} design{group.presets.length !== 1 ? 's' : ''}
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {group.presets.map((item) => {
-                            const p = item.preset;
-                            const isCurrentOrg = item.orgId === currentOrganization?.id;
-                            const alreadyImported = settingsDbPresets.some(
-                              sp => sp.name === p.name && sp.width === p.width && sp.height === p.height
-                            );
-                            const isImporting = importingPresetId === (p.id || p.name);
-
-                            return (
-                              <div
-                                key={p.id || p.name}
-                                className={`flex items-start justify-between p-3 rounded-lg border bg-card gap-3 ${alreadyImported && !isCurrentOrg ? 'opacity-60 border-dashed' : ''}`}
-                              >
-                                <div className="flex gap-2.5 min-w-0">
-                                  <div className={`flex-shrink-0 rounded border-2 ${p.printMode === 'a4' ? 'border-violet-300 bg-violet-50 w-8 h-10' : 'border-teal-300 bg-teal-50 w-10 h-6'} flex items-center justify-center mt-0.5`}>
-                                    <span className="text-[8px] font-bold text-muted-foreground">
-                                      {p.printMode === 'a4' ? 'A4' : '🖨'}
-                                    </span>
-                                  </div>
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-medium truncate">{p.name}</p>
-                                    <div className="flex flex-wrap gap-1 mt-1">
-                                      <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${p.printMode === 'a4' ? 'bg-violet-50 text-violet-700 border-violet-200' : 'bg-teal-50 text-teal-700 border-teal-200'}`}>
-                                        {p.printMode === 'a4' ? 'Laser/A4' : 'Thermal'}
-                                      </span>
-                                      <span className="text-[9px] bg-slate-50 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded-full font-mono">
-                                        {p.width}×{p.height}mm
-                                      </span>
-                                      {p.printMode === 'a4' && p.a4Cols && p.a4Rows && (
-                                        <span className="text-[9px] bg-slate-50 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded-full">
-                                          {p.a4Cols}×{p.a4Rows} grid
-                                        </span>
-                                      )}
-                                      {p.labelConfig && (
-                                        <span className="text-[9px] bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded-full">
-                                          ✓ Design saved
-                                        </span>
-                                      )}
-                                      {(p.xOffset !== 0 || p.yOffset !== 0) && (
-                                        <span className="text-[9px] bg-orange-50 text-orange-600 border border-orange-200 px-1.5 py-0.5 rounded-full font-mono">
-                                          ±{p.xOffset},{p.yOffset} offset
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {!isCurrentOrg && (
-                                  <Button
-                                    type="button"
-                                    variant={alreadyImported ? 'ghost' : 'outline'}
-                                    size="sm"
-                                    disabled={isImporting}
-                                    onClick={() => handleImportPreset(item)}
-                                    className="flex-shrink-0 h-8 text-xs"
-                                  >
-                                    {isImporting ? (
-                                      <Loader2 className="h-3 w-3 animate-spin" />
-                                    ) : alreadyImported ? (
-                                      <>
-                                        <CheckCircle2 className="h-3 w-3 mr-1 text-green-600" />
-                                        Imported
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Copy className="h-3 w-3 mr-1" />
-                                        Import
-                                      </>
-                                    )}
-                                  </Button>
-                                )}
-                                {isCurrentOrg && (
-                                  <span className="text-[10px] text-muted-foreground flex-shrink-0 self-center">
-                                    This shop
-                                  </span>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs text-muted-foreground h-7"
-                      onClick={fetchAllOrgPresets}
-                    >
-                      <RefreshCw className="h-3 w-3 mr-1.5" />
-                      Refresh designs
-                    </Button>
-                  </div>
-                )}
-
-                {allOrgPresets.length === 0 && organizations.length <= 1 && (
-                  <div className="pt-4 border-t">
-                    <div className="rounded-lg border border-dashed p-4 text-center">
-                      <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center mx-auto mb-2">
-                        <Copy className="h-4 w-4 text-slate-400" />
-                      </div>
-                      <p className="text-sm font-medium text-muted-foreground">No other shops to copy from</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Once you create or join another shop, its label designs will appear here for reuse.
-                      </p>
-                    </div>
-                  </div>
-                )}
 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -6094,161 +5815,6 @@ export default function Settings() {
                   )}
                 </div>
 
-                {/* Authorised Stamp / Signature Section */}
-                <div className="pt-6 border-t">
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="h-7 w-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center">
-                      <Pencil className="h-3.5 w-3.5 text-indigo-700 dark:text-indigo-300" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold">Authorised Stamp / Signature</p>
-                      <p className="text-xs text-muted-foreground">Upload a stamp or signature image that appears on invoices</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    {/* Upload area */}
-                    <div className="flex items-start gap-4">
-                      <label
-                        htmlFor="stamp_upload"
-                        className="flex flex-col items-center justify-center w-40 h-32 border-2 border-dashed rounded-lg cursor-pointer hover:border-primary transition-colors bg-muted/30"
-                      >
-                        {settings.bill_barcode_settings?.stamp_image_base64 ? (
-                          <img
-                            src={settings.bill_barcode_settings.stamp_image_base64}
-                            alt="Stamp preview"
-                            className="max-w-full max-h-full object-contain p-1"
-                          />
-                        ) : (
-                          <div className="text-center p-2">
-                            <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-1" />
-                            <p className="text-xs text-muted-foreground">Click to upload</p>
-                          </div>
-                        )}
-                        <input
-                          id="stamp_upload"
-                          type="file"
-                          accept="image/png,image/jpeg,image/jpg"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            if (file.size > 2 * 1024 * 1024) {
-                              toast({ title: "File too large", description: "Max 2MB allowed", variant: "destructive" });
-                              return;
-                            }
-                            const reader = new FileReader();
-                            reader.onload = (ev) => {
-                              setSettings({
-                                ...settings,
-                                bill_barcode_settings: {
-                                  ...settings.bill_barcode_settings,
-                                  stamp_image_base64: ev.target?.result as string,
-                                },
-                              });
-                            };
-                            reader.readAsDataURL(file);
-                          }}
-                        />
-                      </label>
-                      <div className="text-xs text-muted-foreground space-y-1">
-                        <p>PNG, JPG (max 2MB)</p>
-                        <p>Stamp or signature image</p>
-                        {settings.bill_barcode_settings?.stamp_image_base64 && (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            className="mt-2"
-                            onClick={() =>
-                              setSettings({
-                                ...settings,
-                                bill_barcode_settings: {
-                                  ...settings.bill_barcode_settings,
-                                  stamp_image_base64: undefined,
-                                },
-                              })
-                            }
-                          >
-                            Remove Image
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Position */}
-                    <div className="space-y-1.5">
-                      <Label>Position on Invoice</Label>
-                      <div className="flex gap-4">
-                        {(['bottom-right', 'bottom-left'] as const).map((pos) => (
-                          <label key={pos} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                            <input
-                              type="radio"
-                              name="stamp_position"
-                              checked={(settings.bill_barcode_settings?.stamp_position || 'bottom-right') === pos}
-                              onChange={() =>
-                                setSettings({
-                                  ...settings,
-                                  bill_barcode_settings: { ...settings.bill_barcode_settings, stamp_position: pos },
-                                })
-                              }
-                            />
-                            {pos === 'bottom-right' ? 'Bottom Right (default)' : 'Bottom Left'}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Size */}
-                    <div className="space-y-1.5">
-                      <Label>Stamp Size</Label>
-                      <div className="flex gap-2">
-                        {(['small', 'medium', 'large'] as const).map((sz) => (
-                          <Button
-                            key={sz}
-                            variant={(settings.bill_barcode_settings?.stamp_size || 'medium') === sz ? 'default' : 'outline'}
-                            size="sm"
-                            onClick={() =>
-                              setSettings({
-                                ...settings,
-                                bill_barcode_settings: { ...settings.bill_barcode_settings, stamp_size: sz },
-                              })
-                            }
-                          >
-                            {sz.charAt(0).toUpperCase() + sz.slice(1)}
-                          </Button>
-                        ))}
-                      </div>
-                      <p className="text-xs text-muted-foreground">Small=80px, Medium=120px, Large=160px</p>
-                    </div>
-
-                    {/* Show on */}
-                    <div className="space-y-1.5">
-                      <Label>Show on</Label>
-                      <div className="flex flex-wrap gap-4">
-                        {[
-                          { key: 'stamp_show_sale' as const, label: 'Sale Invoice', def: true },
-                          { key: 'stamp_show_purchase' as const, label: 'Purchase Bill', def: true },
-                          { key: 'stamp_show_dc' as const, label: 'DC / Challan', def: false },
-                          { key: 'stamp_show_pos' as const, label: 'POS Receipt', def: false },
-                        ].map(({ key, label, def }) => (
-                          <label key={key} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                            <Checkbox
-                              checked={settings.bill_barcode_settings?.[key] ?? def}
-                              onCheckedChange={(checked) =>
-                                setSettings({
-                                  ...settings,
-                                  bill_barcode_settings: { ...settings.bill_barcode_settings, [key]: !!checked },
-                                })
-                              }
-                            />
-                            {label}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 {/* Cheque Printing Section */}
                 <div className="pt-6 border-t">
                   <div className="flex items-center gap-2 mb-4">
@@ -6268,6 +5834,15 @@ export default function Settings() {
 
           <TabsContent value="reports">
             <OwnerAlertsSettings />
+            <Card className="mt-3 h-fit settings-panel-card">
+              <CardContent className="space-y-3 pt-4">
+                <SettingsSection title="Customer page & notifications">
+                  <div className="px-3 py-2.5">
+                    <CustomerPagePanel />
+                  </div>
+                </SettingsSection>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="users">
@@ -6557,11 +6132,6 @@ export default function Settings() {
                   <p className="px-3 pb-2.5 text-xs text-muted-foreground">
                     Works with Ezzy ERP WhatsApp or WappConnect (join QR: Ezzy ERP WhatsApp only). Messages go a few at a time from your linked number to keep it safe. Click Save Settings after changing.
                   </p>
-                </SettingsSection>
-                <SettingsSection title="Customer page & notifications">
-                  <div className="px-3 py-2.5">
-                    <CustomerPagePanel />
-                  </div>
                 </SettingsSection>
               </CardContent>
             </Card>
