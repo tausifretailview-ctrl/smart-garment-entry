@@ -60,3 +60,54 @@ export function DocGodownBar(props: {
     </div>
   );
 }
+
+/** The same pick as a header field (label above, as on the Sale Invoice top row). */
+export function DocGodownField(props: {
+  label: string;
+  choices: Godown[];
+  value: string | null;
+  mainId: string | null;
+  onChange: (id: string) => void;
+  mainHint: string;
+  godownHint: (name: string) => string;
+  disabled?: boolean;
+  loading?: boolean;
+  className?: string;
+}) {
+  const { label, choices, value, mainId, onChange, mainHint, godownHint, disabled, loading, className } = props;
+  const picked = choices.find((g) => g.id === value) ?? null;
+  const isMain = !value || value === mainId;
+  const hint = isMain ? mainHint : godownHint(picked?.name ?? "this godown");
+
+  return (
+    <div className={className}>
+      <label className="mb-1 flex items-center gap-1 text-[13px] font-medium text-muted-foreground">
+        <Warehouse className={cn("h-3.5 w-3.5 shrink-0", isMain ? "text-slate-400" : "text-emerald-600")} />
+        <span className="truncate">{label}</span>
+        {loading ? <Loader2 className="h-3 w-3 shrink-0 animate-spin text-slate-400" /> : null}
+      </label>
+      <Select value={value ?? ""} onValueChange={onChange} disabled={disabled || loading}>
+        <SelectTrigger
+          data-field="doc-godown"
+          aria-label={`${label} godown`}
+          title={hint}
+          className={cn(
+            "h-10 text-sm",
+            isMain ? "" : "border-emerald-400 bg-emerald-50 font-semibold text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200",
+          )}
+        >
+          <SelectValue placeholder="Main" />
+        </SelectTrigger>
+        <SelectContent className="z-50 bg-background">
+          {choices.map((g) => (
+            <SelectItem key={g.id} value={g.id}>
+              {g.name}
+              {g.godown_type === "job_work" || g.godown_type === "damaged" ? ` (${godownTypeInfo(g.godown_type).label})` : ""}
+              {!g.is_active ? " (closed)" : ""}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
