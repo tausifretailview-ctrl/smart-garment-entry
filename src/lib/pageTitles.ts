@@ -38,6 +38,7 @@ export const PAGE_TITLE_CONFIG: Record<string, { label: string; icon: string }> 
   "stock-adjustment": { label: "Stock Adjustment", icon: "Package" },
   "stock-transfer": { label: "Stock Transfer", icon: "Package" },
   "stock-transfer-entry": { label: "Stock Transfer Entry", icon: "ArrowLeftRight" },
+  godowns: { label: "Godowns", icon: "Package" },
   "stock-report": { label: "Stock Report", icon: "BarChart3" },
   "stock-summary": { label: "Stock Summary", icon: "Package" },
   "stock-ageing": { label: "Stock Ageing", icon: "BarChart3" },

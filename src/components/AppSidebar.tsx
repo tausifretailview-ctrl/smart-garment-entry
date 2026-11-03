@@ -55,6 +55,7 @@ import {
   Database,
   ArrowLeftRight,
   Factory,
+  Warehouse,
   Landmark,
 } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -187,7 +188,7 @@ export function AppSidebar() {
 
   // Menu structure
   const masterPaths = ["/customers", "/suppliers", "/employees", "/salesman-commission"];
-  const inventoryPaths = ["/purchase-bills", "/purchase-returns", "/purchase-entry", "/purchase-orders", "/purchase-order-entry", "/product-entry", "/products", "/orphaned-products", "/bulk-product-update", "/stock-settlement", "/stock-transfer", "/stock-transfer-entry", "/manufacturing"];
+  const inventoryPaths = ["/purchase-bills", "/purchase-returns", "/purchase-entry", "/purchase-orders", "/purchase-order-entry", "/product-entry", "/products", "/orphaned-products", "/bulk-product-update", "/stock-settlement", "/stock-transfer", "/stock-transfer-entry", "/godowns", "/manufacturing"];
   const salesPaths = ["/quotation-entry", "/quotation-dashboard", "/sale-order-entry", "/sale-order-dashboard", "/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard", "/sale-return-entry", "/sale-returns", "/delivery-challan-entry", "/delivery-challan-dashboard", "/debit-notes", "/eway-bills", "/advance-booking-dashboard", "/discount-scheme-dashboard"];
   const reportsPaths = ["/reports", "/insights", "/stock-report", "/stock-summary", "/stock-analysis", "/stock-ageing", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/daily-tally", "/account-tally", "/item-wise-sales", "/item-wise-stock", "/price-history", "/gst-reports", "/gst-analysis", "/gst-readiness", "/gst-register", "/tally-export", "/sales-analytics", "/accounting-reports", "/expense-salary-report", "/cn-sr-adjustment-register", "/customer-reviews", "/customer-notifications", "/customer-ledger-report", "/customer-points-report", "/customer-party-balances", "/supplier-party-balances", "/payment-flow", "/customer-account-statement", "/customer-account-statement-audit", "/customer-balance-activity", "/customer-audit-report", "/daily-sale-analysis", "/einvoice-report"];
   const accountsPaths = [
@@ -574,6 +575,16 @@ export function AppSidebar() {
                               <NavLink to="/stock-transfer" className="flex items-center gap-2 group">
                                 <ArrowLeftRight className="h-4 w-4 sidebar-icon text-primary" />
                                 <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Stock Transfer</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {industrialOn && (organizationRole === "admin" || organizationRole === "manager") && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/godowns")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
+                              <NavLink to="/godowns" className="flex items-center gap-2 group">
+                                <Warehouse className="h-4 w-4 sidebar-icon text-primary" />
+                                <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Godowns</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
