@@ -8,7 +8,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Search, RefreshCw, Check, ArrowRight, ArrowLeft, ChevronsUpDown, History, Clock, Merge, Layers } from "lucide-react";
+import { AlertTriangle, Search, RefreshCw, Check, ArrowRight, ArrowLeft, ChevronsUpDown, History, Clock, Merge, Layers, Pencil } from "lucide-react";
 import { ProductBrandUpdateDialog } from "@/components/ProductBrandUpdateDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -25,6 +25,8 @@ import {
 } from "@/hooks/useBulkProductUpdate";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { cn } from "@/lib/utils";
+import { ProductSearchDropdown } from "@/components/ProductSearchDropdown";
+import { productEntryEditUrl } from "@/utils/productEntryReturn";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { Loader2 } from "lucide-react";
@@ -57,6 +59,7 @@ export default function BulkProductUpdate() {
 
   const [updateHistory, setUpdateHistory] = useState<any[]>([]);
   const [productBrandOpen, setProductBrandOpen] = useState(false);
+  const [fixSearch, setFixSearch] = useState("");
   // Filter state
   const [filters, setFilters] = useState<FilterCriteria>({});
   const [filterOptions, setFilterOptions] = useState<{ productNames: string[]; categories: string[]; brands: string[]; styles: string[] }>({ productNames: [], categories: [], brands: [], styles: [] });
@@ -221,6 +224,29 @@ export default function BulkProductUpdate() {
             loadFilterOptions();
           }}
         />
+
+        {/* Fix one product: search, pick, open its edit form */}
+        <Card className="overflow-hidden rounded-lg border border-slate-200 p-0 shadow-sm">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 bg-white px-3 py-2">
+            <div className="flex shrink-0 items-center gap-2">
+              <Pencil className="h-4 w-4 text-teal-700" />
+              <div>
+                <p className="text-sm font-bold leading-tight text-slate-800">Fix one product</p>
+                <p className="text-xs text-muted-foreground">Search, pick it, change the mistake, save</p>
+              </div>
+            </div>
+            <ProductSearchDropdown
+              className="min-w-[240px] flex-1"
+              value={fixSearch}
+              onChange={setFixSearch}
+              placeholder="Search by name, brand, category, style, size or barcode..."
+              onSelect={(p) => {
+                setFixSearch("");
+                if (p.product_id) orgNavigate(productEntryEditUrl(p.product_id, "bulk-product-update"));
+              }}
+            />
+          </div>
+        </Card>
 
         <div className="grid gap-2 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
           {/* Left column: filters & configuration */}
