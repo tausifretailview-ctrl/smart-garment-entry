@@ -141,6 +141,7 @@ const DialogA11ySpotCheck = import.meta.env.DEV
   ? lazyWithRetry(() => import("./pages/dev/DialogA11ySpotCheck"))
   : null;
 const StockAdjustment = lazyWithRetry(() => import("./pages/StockAdjustment"));
+const DuplicatePurchaseBills = lazyWithRetry(() => import("./pages/DuplicatePurchaseBills"));
 const StockTransfer = lazyWithRetry(() => import("./pages/StockTransfer"));
 const StockTransferEntry = lazyWithRetry(() => import("./pages/StockTransferEntry"));
 const Godowns = lazyWithRetry(() => import("./pages/Godowns"));
@@ -770,6 +771,18 @@ const App = () => {
                       <Layout>
                         <StockSummary />
                       </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="duplicate-purchase-bills"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin"]}>
+                        <Layout>
+                          <DuplicatePurchaseBills />
+                        </Layout>
+                      </RoleProtectedRoute>
                     </ProtectedRoute>
                   }
                 />

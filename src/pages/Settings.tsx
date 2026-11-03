@@ -12,7 +12,7 @@ import type { IndustrialModeConfig } from "@/utils/industrialMode";
 import { EwayBillSettingsSection } from "@/components/ewaybill/EwayBillSettingsSection";
 import { DEFAULT_MANUFACTURER_ERP, type ManufacturerERPConfig } from "@/utils/manufacturing";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, BarChart2, Factory, Truck } from "lucide-react";
+import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, Factory, Truck } from "lucide-react";
 import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { SaleInvoiceFormatBackupDialog } from "@/components/settings/SaleInvoiceFormatBackupDialog";
 import { InvoiceTemplateSelectItems } from "@/components/settings/InvoiceTemplateSelectItems";
@@ -124,11 +124,6 @@ const LazyChequeFormatManagement = lazyWithRetry(() =>
 );
 const LazyPaymentGatewaySettings = lazyWithRetry(() =>
   import("@/components/PaymentGatewaySettings").then((m) => ({ default: m.PaymentGatewaySettings })),
-);
-const LazyDuplicatePurchaseBillsReconciler = lazyWithRetry(() =>
-  import("@/components/DuplicatePurchaseBillsReconciler").then((m) => ({
-    default: m.DuplicatePurchaseBillsReconciler,
-  })),
 );
 
 function SettingsPanelFallback() {
@@ -2853,11 +2848,6 @@ export default function Settings() {
                 </SettingsSection>
               </CardContent>
             </Card>
-            <div className="mt-4">
-              <LazySettingsPanel>
-                <LazyDuplicatePurchaseBillsReconciler />
-              </LazySettingsPanel>
-            </div>
           </TabsContent>
 
           <TabsContent value="sale" className="mt-0">
@@ -6689,47 +6679,6 @@ export default function Settings() {
                     />
                   </div>
                 </SettingsSection>
-                <SettingsSection title="Reports">
-                <div className="text-center py-8 text-muted-foreground">
-                  <BarChart2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                  <p className="font-medium">Report column customization coming soon</p>
-                  <p className="text-xs mt-1">Use the Stock Adjustment and Reconciliation tools below</p>
-                </div>
-                </SettingsSection>
-              </CardContent>
-            </Card>
-
-            {/* Stock Adjustment Tool */}
-            <Card className="mt-3 h-fit settings-panel-card">
-              <CardHeader>
-                <CardTitle>Stock Adjustment Tool</CardTitle>
-                <CardDescription>
-                  Correct opening quantities while accounting for purchases and sales
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Use this tool to adjust opening stock quantities when test data needs to be corrected. 
-                  It automatically calculates the correct stock based on: New Stock = New Opening + Purchases - Sales + Returns
-                </p>
-                <Button onClick={() => navigate("/stock-adjustment")}>
-                  Open Stock Adjustment Tool
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Customer Balance Reconciliation */}
-            <Card className="mt-3 h-fit settings-panel-card">
-              <CardHeader>
-                <CardTitle>Customer Balance Reconciliation</CardTitle>
-                <CardDescription>
-                  Cross-verify customer balances from raw transactions vs ledger display
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button onClick={() => navigate("/customer-reconciliation")}>
-                  🔍 Reconcile Customer Balances
-                </Button>
               </CardContent>
             </Card>
           </TabsContent>
