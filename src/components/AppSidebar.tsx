@@ -57,6 +57,9 @@ import {
   Factory,
   Warehouse,
   Landmark,
+  SlidersHorizontal,
+  CopyX,
+  UserCheck,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
