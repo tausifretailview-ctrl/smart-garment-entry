@@ -1647,7 +1647,7 @@ async function downloadSaleOrderPDF(
 
   const pageHeightPx = (pageH / pageW) * imgWidth;
   if (imgHeight <= pageHeightPx + 2) {
-    pdf.addImage(imgData, "PNG", 0, 0, pageW, pageH);
+    pdf.addImage(imgData, "PNG", 0, 0, pageW, pageH, undefined, "FAST");
   } else {
     let y = 0;
     let page = 0;
@@ -1663,7 +1663,7 @@ async function downloadSaleOrderPDF(
         ctx.fillRect(0, 0, imgWidth, sliceH);
         ctx.drawImage(canvas, 0, y, imgWidth, sliceH, 0, 0, imgWidth, sliceH);
         const sliceHMm = (sliceH / imgWidth) * pageW;
-        pdf.addImage(sliceCanvas.toDataURL("image/png"), "PNG", 0, 0, pageW, sliceHMm);
+        pdf.addImage(sliceCanvas.toDataURL("image/png"), "PNG", 0, 0, pageW, sliceHMm, undefined, "FAST");
       }
       y += pageHeightPx;
       page += 1;

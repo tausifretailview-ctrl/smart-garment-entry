@@ -1,7 +1,7 @@
 import type html2canvasType from "html2canvas";
 import type jsPDFType from "jspdf";
 import { applyWappConnectInvoicePdfCloneFixes } from "@/utils/wappConnectInvoicePdfCapture";
-import { resolveInvoicePdfRasterOptions } from "@/utils/invoicePdfRaster";
+import { PDF_IMAGE_COMPRESSION, resolveInvoicePdfRasterOptions } from "@/utils/invoicePdfRaster";
 import { applyThermalPdfColourTheme } from "@/utils/thermalPdfColourTheme";
 
 /** Lazily loaded — keeps html2canvas + jsPDF (~350 KB gz) off the initial payload. */
@@ -153,7 +153,7 @@ async function capturePagedInvoiceTemplatesToPdfBlob(
       drawW = pdfHeight * canvasAspect;
       offsetX = (pdfWidth - drawW) / 2;
     }
-    pdf.addImage(imgData, imageType, offsetX, offsetY, drawW, drawH);
+    pdf.addImage(imgData, imageType, offsetX, offsetY, drawW, drawH, undefined, PDF_IMAGE_COMPRESSION);
   }
 
   return pdf.output("blob");
@@ -209,7 +209,7 @@ export async function captureElementToPdfBlob(
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeightThermal = pdf.internal.pageSize.getHeight();
     // Single continuous page, edge to edge across the roll width.
-    pdf.addImage(imgData, imageType, 0, 0, pdfWidth, pdfHeightThermal);
+    pdf.addImage(imgData, imageType, 0, 0, pdfWidth, pdfHeightThermal, undefined, PDF_IMAGE_COMPRESSION);
     return pdf.output("blob");
   }
 
@@ -232,7 +232,7 @@ export async function captureElementToPdfBlob(
     const drawW = pdfWidth * pagePlan.drawWidthScale;
     const drawH = scaledHeight * pagePlan.drawWidthScale;
     const offsetX = (pdfWidth - drawW) / 2;
-    pdf.addImage(imgData, imageType, offsetX, 0, drawW, drawH);
+    pdf.addImage(imgData, imageType, offsetX, 0, drawW, drawH, undefined, PDF_IMAGE_COMPRESSION);
     return pdf.output("blob");
   }
 
@@ -254,7 +254,7 @@ export async function captureElementToPdfBlob(
     if (ctx) {
       ctx.drawImage(canvas, 0, sourceY, imgWidth, sourceH, 0, 0, imgWidth, Math.ceil(sourceH));
       const pageImgData = pageCanvas.toDataURL(mimeType, imageQuality);
-      pdf.addImage(pageImgData, imageType, 0, 0, pdfWidth, sliceScaledHeight);
+      pdf.addImage(pageImgData, imageType, 0, 0, pdfWidth, sliceScaledHeight, undefined, PDF_IMAGE_COMPRESSION);
     }
   }
 
