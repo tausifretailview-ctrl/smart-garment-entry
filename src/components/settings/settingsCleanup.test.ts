@@ -84,4 +84,22 @@ describe("Settings premium layout (Nov 2026)", () => {
     expect(tab("company")).toContain('label="Business Name" htmlFor="business_name" required important');
     expect(tab("product")).toContain('id={`enable_${field.key}`}');
   });
+
+  it("lays Purchase out in sections with switch cards", () => {
+    const purchase = tab("purchase");
+    expect(purchase).toContain("<SettingsGrid");
+    expect(purchase).toContain('title="Purchase code on barcode labels"');
+    expect(purchase).toContain('id="per_piece_barcode"');
+    expect(purchase).toContain('id="dc_visibility_hide"');
+    expect(purchase).not.toContain("<Checkbox");
+  });
+
+  it("lays Bill & Barcode out in sections", () => {
+    const bill = tab("bill");
+    expect(bill).toContain('title="UPI payment QR"');
+    expect(bill).toContain('title="Barcode labels"');
+    expect(bill).toContain('id="barcode_default_print_tab"');
+    expect(bill).toContain('id="enable_cash_drawer"');
+    expect(bill).toContain("<LazyChequeFormatManagement />");
+  });
 });
