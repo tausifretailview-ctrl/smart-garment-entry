@@ -12,8 +12,8 @@ import {
   type SaleB2BDetails,
   type SaleB2BDetailsForm,
 } from "@/utils/industrialMode";
-import { SaleB2BDetailsBand } from "@/components/sales/SaleB2BDetailsBand";
-import { DocGodownBar } from "@/components/godowns/DocGodownBar";
+import { SaleB2BDetailsBand, SaleSupplyTypeField } from "@/components/sales/SaleB2BDetailsBand";
+import { DocGodownField } from "@/components/godowns/DocGodownBar";
 import { useDocGodown } from "@/hooks/useDocGodown";
 import { godownDocCheckLines } from "@/utils/godownDocs";
 import { fetchQuotationWithItems } from "@/utils/quotationListQueries";
@@ -4903,7 +4903,13 @@ Thank you for choosing us!`;
       {/* Invoice & Customer Details Section */}
       <section className={cn("sale-bill-details-section bg-white border-b border-slate-100 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-start entry-vasy-key-fields">
+        <div
+          className={cn(
+            "grid grid-cols-2 md:grid-cols-3 gap-4 items-start entry-vasy-key-fields",
+            // Industrial mode adds Supply type (and Dispatch from) to this row; other shops keep six columns.
+            !industrialMode.enabled ? "lg:grid-cols-6" : saleGodown.visible ? "md:grid-cols-4 lg:grid-cols-8 lg:gap-3" : "md:grid-cols-4 lg:grid-cols-7 lg:gap-3",
+          )}
+        >
           {/* Customer Selection */}
           <div className="col-span-2 md:col-span-1 lg:col-span-2 entry-key-field entry-key-field--party">
             <Label className="entry-key-label text-[13px] font-semibold text-slate-500">Customer <span className="text-red-500">*</span></Label>
@@ -4914,12 +4920,13 @@ Thank you for choosing us!`;
                     variant="outline"
                     role="combobox"
                     aria-expanded={openCustomerSearch}
-                    className="flex-1 justify-between h-11 text-base font-semibold"
+                    className="flex-1 min-w-0 justify-between h-11 text-base font-semibold"
+                    title={selectedCustomer ? `${selectedCustomer.customer_name}${selectedCustomer.phone ? ` - ${selectedCustomer.phone}` : ''}` : undefined}
                   >
                     {selectedCustomer ? (
-                      <span>{selectedCustomer.customer_name}{selectedCustomer.phone ? ` - ${selectedCustomer.phone}` : ''}</span>
+                      <span className="truncate">{selectedCustomer.customer_name}{selectedCustomer.phone ? ` - ${selectedCustomer.phone}` : ''}</span>
                     ) : (
-                      <span className="text-muted-foreground">Search customer by name, phone...</span>
+                      <span className="truncate text-muted-foreground">Search customer by name, phone...</span>
                     )}
                     <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
@@ -5241,10 +5248,31 @@ Thank you for choosing us!`;
             </Select>
           </div>
 
+          {industrialMode.enabled && (
+            <SaleSupplyTypeField
+              value={b2bForm.supply_type || "B2B"}
+              onChange={(v) => setB2bForm((f) => ({ ...f, supply_type: v }))}
+            />
+          )}
+
+          {saleGodown.visible && (
+            <DocGodownField
+              label="Dispatch from"
+              choices={saleGodown.choices}
+              value={saleGodown.value}
+              mainId={saleGodown.mainId}
+              onChange={saleGodown.setValue}
+              loading={saleGodown.loading}
+              disabled={isSaving}
+              mainHint="Goods go out of the shop stock (Main), as before."
+              godownHint={(name) => `When you save, the goods on this bill go out of ${name}.`}
+            />
+          )}
+
         </div>
         {industrialMode.enabled && (
           <SaleB2BDetailsBand
-            className="mt-2.5"
+            className="mt-2"
             value={b2bForm}
             onChange={setB2bForm}
             customerTransport={selectedCustomer?.transport_details}
@@ -5259,20 +5287,6 @@ Thank you for choosing us!`;
                 ),
               )
             }
-          />
-        )}
-        {saleGodown.visible && (
-          <DocGodownBar
-            className="mt-2"
-            label="Dispatch from"
-            choices={saleGodown.choices}
-            value={saleGodown.value}
-            mainId={saleGodown.mainId}
-            onChange={saleGodown.setValue}
-            loading={saleGodown.loading}
-            disabled={isSaving}
-            mainHint="Goods go out of the shop stock (Main), as before."
-            godownHint={(name) => `When you save, the goods on this bill go out of ${name}.`}
           />
         )}
       </section>

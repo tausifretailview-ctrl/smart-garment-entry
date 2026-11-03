@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertTriangle, ChevronDown, FileText, Globe2, Truck } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp, FileText, Globe2, Info, Truck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -43,7 +43,47 @@ function readOpen(): boolean {
   }
 }
 
-/** Sale Invoice (Industrial mode): customer PO and dispatch details, one tidy band under the header. */
+/** Supply type for the Sale Invoice header row (Industrial mode). */
+export function SaleSupplyTypeField({
+  value,
+  onChange,
+  className,
+}: {
+  value: SaleSupplyType;
+  onChange: (next: SaleSupplyType) => void;
+  className?: string;
+}) {
+  const picked = SALE_SUPPLY_TYPES.find((t) => t.value === value);
+  return (
+    <div className={className}>
+      <label htmlFor="b2b-supply" className="text-[13px] font-medium text-muted-foreground mb-1 block truncate">
+        <Globe2 className="inline h-3 w-3 mr-1 -mt-0.5" />
+        Supply type
+      </label>
+      <Select value={value} onValueChange={(v) => onChange(v as SaleSupplyType)}>
+        <SelectTrigger
+          id="b2b-supply"
+          title={picked?.label}
+          className={cn("h-10 text-sm", value !== "B2B" && "border-sky-400 bg-sky-50 font-semibold text-sky-900")}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="z-50">
+          {SALE_SUPPLY_TYPES.map((t) => (
+            <SelectItem key={t.value} value={t.value}>
+              {t.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+/**
+ * Sale Invoice (Industrial mode): customer PO and dispatch details in one row under the header.
+ * The supply type sits in the header row (SaleSupplyTypeField); this band reads it for its hints.
+ */
 export function SaleB2BDetailsBand({ value, onChange, customerTransport, customerGstin, billGst = 0, onZeroGst, className }: Props) {
   const [open, setOpen] = useState(readOpen);
   const set = (patch: Partial<SaleB2BDetailsForm>) => onChange({ ...value, ...patch });
@@ -84,61 +124,37 @@ export function SaleB2BDetailsBand({ value, onChange, customerTransport, custome
   };
 
   const field = "h-9 text-sm bg-white";
-  const label = "text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1 block";
+  const label = "text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-0.5 block truncate";
 
   return (
     <div className={cn("rounded-md border border-sky-200 bg-sky-50/60", className)} data-testid="sale-b2b-band">
-      <button
-        type="button"
-        onClick={toggle}
-        className="w-full flex items-center gap-2 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 rounded-md"
-        aria-expanded={open}
-      >
-        <Truck className="h-4 w-4 text-sky-700 shrink-0" />
-        <span className="text-[13px] font-bold text-sky-900">Order &amp; dispatch</span>
-        {supply !== "B2B" ? (
-          <span className="shrink-0 rounded border border-sky-300 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-sky-800">
-            {saleSupplyShortLabel(supply)}
+      {!open ? (
+        <button
+          type="button"
+          onClick={toggle}
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 rounded-md"
+          aria-expanded={false}
+        >
+          <Truck className="h-4 w-4 text-sky-700 shrink-0" />
+          <span className="text-[13px] font-bold text-sky-900">Order &amp; dispatch</span>
+          <span className="text-xs text-slate-500 truncate min-w-0 flex-1">
+            {summary || "Customer PO, transporter, vehicle, LR, distance"}
           </span>
-        ) : null}
-        <span className="text-xs text-slate-500 truncate min-w-0 flex-1">
-          {summary || "Customer PO, transporter, vehicle, LR, distance"}
-        </span>
-        <ChevronDown className={cn("h-4 w-4 text-slate-500 transition-transform", open && "rotate-180")} />
-      </button>
+          <ChevronDown className="h-4 w-4 text-slate-500" />
+        </button>
+      ) : null}
 
-      {open && (
-        <div className="px-3 pb-2 flex flex-wrap items-end gap-x-3 gap-y-2">
-          <div className="w-full sm:w-64">
-            <label htmlFor="b2b-supply" className={label}>
-              <Globe2 className="inline h-3 w-3 mr-1 -mt-0.5" />
-              Supply type
-            </label>
-            <Select value={supply} onValueChange={(v) => set({ supply_type: v as SaleSupplyType })}>
-              <SelectTrigger id="b2b-supply" className={field}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="z-50">
-                {SALE_SUPPLY_TYPES.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>
-                    {t.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {isZeroRatedSupply(supply) ? (
-            <p className="text-xs text-slate-600 pb-2.5 min-w-0 flex-1">
-              {isSupplyWithoutTax(supply)
-                ? "Zero-rated under LUT / bond: no GST on this bill. The print carries the LUT line."
-                : "IGST on this bill, even within the state. The print carries the export / SEZ line."}
-            </p>
-          ) : null}
-        </div>
-      )}
+      {open && isZeroRatedSupply(supply) ? (
+        <p className="mx-3 mt-2 flex items-start gap-1.5 text-xs text-slate-600">
+          <Info className="h-3.5 w-3.5 mt-px shrink-0 text-sky-600" />
+          {isSupplyWithoutTax(supply)
+            ? "Zero-rated under LUT / bond: no GST on this bill. The print carries the LUT line."
+            : "IGST on this bill, even within the state. The print carries the export / SEZ line."}
+        </p>
+      ) : null}
 
       {open && warnings.length > 0 && (
-        <div className="mx-3 mb-2 rounded border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 flex flex-col gap-1">
+        <div className="mx-3 mt-2 rounded border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 flex flex-col gap-1">
           {warnings.map((w) => (
             <div key={w} className="flex items-start gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5 mt-px shrink-0 text-amber-600" />
@@ -158,7 +174,7 @@ export function SaleB2BDetailsBand({ value, onChange, customerTransport, custome
       )}
 
       {open && exportBill && (
-        <div className="px-3 pb-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        <div className="px-3 pt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 border-b border-sky-100 pb-2">
           <div>
             <label htmlFor="b2b-sb-no" className={label}>Shipping bill no</label>
             <Input
@@ -218,7 +234,19 @@ export function SaleB2BDetailsBand({ value, onChange, customerTransport, custome
       )}
 
       {open && (
-        <div className="px-3 pb-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-9 gap-2.5">
+        <div className="flex items-stretch">
+        <button
+          type="button"
+          onClick={toggle}
+          title="Order & dispatch: hide these fields"
+          aria-label="Hide order and dispatch details"
+          aria-expanded
+          className="flex shrink-0 flex-col items-center justify-center gap-1 rounded-l-md border-r border-sky-200 px-2 text-sky-700 hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+        >
+          <Truck className="h-4 w-4" />
+          <ChevronUp className="h-3.5 w-3.5 text-slate-500" />
+        </button>
+        <div className="min-w-0 flex-1 px-3 pt-1.5 pb-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-9 gap-x-2.5 gap-y-2">
           <div className="col-span-1">
             <label htmlFor="b2b-po-no" className={label}>
               <FileText className="inline h-3 w-3 mr-1 -mt-0.5" />
@@ -294,6 +322,7 @@ export function SaleB2BDetailsBand({ value, onChange, customerTransport, custome
               placeholder="142"
             />
           </div>
+        </div>
         </div>
       )}
     </div>
