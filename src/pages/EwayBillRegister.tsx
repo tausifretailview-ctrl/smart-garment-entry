@@ -15,6 +15,7 @@ import { ErpDashboardKpiCard } from "@/components/dashboard/ErpDashboardKpiCard"
 import { SaleEwayBillDialog } from "@/components/ewaybill/SaleEwayBillDialog";
 import { ChallanEwayBillDialog } from "@/components/ewaybill/ChallanEwayBillDialog";
 import { PurchaseReturnEwayBillDialog } from "@/components/ewaybill/PurchaseReturnEwayBillDialog";
+import { GodownTransferEwayBillDialog } from "@/components/ewaybill/GodownTransferEwayBillDialog";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -363,7 +364,7 @@ export default function EwayBillRegister() {
                     const cancelUntil = ewbCancelUntil(r, now);
                     const mode = ewbModeName(r.trans_mode);
                     const doc = ewbDocOf(r);
-                    const canOpen = !!r.sales || !!r.delivery_challans || !!r.purchase_returns;
+                    const canOpen = !!r.sales || !!r.delivery_challans || !!r.purchase_returns || !!r.godown_moves;
                     return (
                       <TableRow key={r.id} className="text-sm">
                         <TableCell>
@@ -390,6 +391,8 @@ export default function EwayBillRegister() {
                               <span className="rounded bg-sky-50 px-1 text-[9px] font-semibold uppercase text-sky-700 ring-1 ring-sky-200">Challan</span>
                             ) : doc.kind === "purchase_return" ? (
                               <span className="rounded bg-violet-50 px-1 text-[9px] font-semibold uppercase text-violet-700 ring-1 ring-violet-200">Pur. return</span>
+                            ) : doc.kind === "godown_transfer" ? (
+                              <span className="rounded bg-teal-50 px-1 text-[9px] font-semibold uppercase text-teal-700 ring-1 ring-teal-200">Godown</span>
                             ) : null}
                           </div>
                         </TableCell>
@@ -455,13 +458,13 @@ export default function EwayBillRegister() {
 
       {orgId ? (
         <SaleEwayBillDialog
-          open={!!openRow && !openRow.delivery_challans && !openRow.purchase_returns}
+          open={!!openRow && !openRow.delivery_challans && !openRow.purchase_returns && !openRow.godown_moves}
           onOpenChange={(o) => {
             if (!o) setOpenRow(null);
           }}
           organizationId={orgId}
           sale={
-            openRow?.sales && !openRow.delivery_challans && !openRow.purchase_returns
+            openRow?.sales && !openRow.delivery_challans && !openRow.purchase_returns && !openRow.godown_moves
               ? {
                   id: openRow.sales.id,
                   sale_number: openRow.sales.sale_number,
@@ -520,6 +523,29 @@ export default function EwayBillRegister() {
                   return_date: String(openRow.purchase_returns.return_date ?? ""),
                   net_amount: openRow.purchase_returns.net_amount,
                   supplier_name: openRow.purchase_returns.supplier_name,
+                }
+              : null
+          }
+          ewayBill={openRow}
+          missingSql={false}
+          onChanged={onChanged}
+        />
+      ) : null}
+
+      {orgId ? (
+        <GodownTransferEwayBillDialog
+          open={!!openRow?.godown_moves}
+          onOpenChange={(o) => {
+            if (!o) setOpenRow(null);
+          }}
+          organizationId={orgId}
+          move={
+            openRow?.godown_moves
+              ? {
+                  id: openRow.godown_moves.id,
+                  move_no: openRow.godown_moves.move_no,
+                  move_date: String(openRow.godown_moves.move_date ?? ""),
+                  total_value: openRow.godown_moves.total_value,
                 }
               : null
           }
