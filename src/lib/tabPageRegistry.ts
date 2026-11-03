@@ -109,6 +109,11 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
     layout: "layout",
     roles: ["admin"],
   },
+  "duplicate-purchase-bills": {
+    loader: () => import("@/pages/DuplicatePurchaseBills"),
+    layout: "layout",
+    roles: ["admin"],
+  },
   "stock-ageing": { loader: () => import("@/pages/StockAgeingReport"), layout: "layout" },
   "stock-settlement": {
     loader: () => import("@/pages/StockSettlement"),

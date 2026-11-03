@@ -512,6 +512,22 @@ export function HeaderMenubar({
                 Stock Settlement
               </MenubarItem>
             )}
+            {organizationRole === "admin" && (
+              <MenubarItem
+                {...tabPrefetchProps("duplicate-purchase-bills")}
+                onClick={() => orgNavigate("/duplicate-purchase-bills")}
+              >
+                Duplicate Purchase Bills
+              </MenubarItem>
+            )}
+            {organizationRole === "admin" && (
+              <MenubarItem
+                {...tabPrefetchProps("customer-reconciliation")}
+                onClick={() => orgNavigate("/customer-reconciliation")}
+              >
+                Customer Balance Reconciliation
+              </MenubarItem>
+            )}
             {can("bulk_product_update") && (
               <MenubarItem
                 {...tabPrefetchProps("bulk-product-update")}

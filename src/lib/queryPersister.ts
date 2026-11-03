@@ -31,6 +31,8 @@ const VOLATILE_PREFIXES = [
   "open-settlement-variant-ids",
   // Godowns page summary is a Map — it dehydrates to {} and crashed the page (.get) after a reload.
   "godown-summary",
+  // Customer Reconciliation ledger balances are a Map — same crash after a reload.
+  "reconcile-ledger-balances",
   "purchase-return-linked-bills",
   "purchase-return-cn-amounts",
   "purchase-returns",
