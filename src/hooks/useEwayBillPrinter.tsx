@@ -7,7 +7,7 @@ import { INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS } from "@/utils/thermalReceiptPri
 import { waitForPrintReady } from "@/utils/printReady";
 import { saleSupplyShortLabel, saleSupplyTypeOf } from "@/utils/industrialMode";
 import { ewbHsnSummary, formatIstDateTime, istDateOf, type EwayBillRow } from "@/utils/ewayBill";
-import { ewbSubSupplyLabel } from "../../supabase/functions/_shared/ewayBill";
+import { EWB_PURCHASE_RETURN_DESC, ewbSubSupplyLabel } from "../../supabase/functions/_shared/ewayBill";
 import { EwayBillPrint, type EwbPrintData } from "@/components/ewaybill/EwayBillPrint";
 
 type ChallanForPrint = {
@@ -18,6 +18,14 @@ type ChallanForPrint = {
   customer_address: string | null;
   shipping_address: string | null;
   customers: { gst_number: string | null; address: string | null } | null;
+};
+
+type PurchaseReturnForPrint = {
+  return_number: string | null;
+  return_date: string | null;
+  net_amount: number | null;
+  supplier_name: string | null;
+  suppliers: { gst_number: string | null; address: string | null } | null;
 };
 
 type SaleForPrint = {
@@ -86,6 +94,50 @@ export function useEwayBillPrinter(organizationId: string | undefined) {
           gstin: String(biz?.sale_settings?.einvoice_settings?.seller_gstin || biz?.gst_number || "").toUpperCase(),
           address: biz?.address || "",
         };
+        const show = (next: EwbPrintData) => {
+          setData(next);
+          requestAnimationFrame(() => {
+            waitForPrintReady(printRef, () => handlePrintRef.current(), { maxWait: 8000 });
+          });
+          // Clear the spinner even if the browser print dialog never reports back.
+          window.setTimeout(() => setPrintingId((id) => (id === ewb.id ? null : id)), 15_000);
+        };
+        if (ewb.purchase_return_id) {
+          // Step 6c: goods going back to the supplier, who is the consignee.
+          const [r, items] = await Promise.all([
+            supabase
+              .from("purchase_returns")
+              .select("return_number, return_date, net_amount, supplier_name, suppliers:supplier_id (gst_number, address)")
+              .eq("id", ewb.purchase_return_id)
+              .eq("organization_id", organizationId)
+              .maybeSingle(),
+            supabase.from("purchase_return_items").select("hsn_code, line_total").eq("return_id", ewb.purchase_return_id).is("deleted_at", null),
+          ]);
+          if (r.error) throw r.error;
+          const ret = (r.data ?? null) as unknown as PurchaseReturnForPrint | null;
+          show({
+            ewb,
+            doc: {
+              number: ret?.return_number || ewb.doc_no || "",
+              date: istDateOf(ret?.return_date) || String(ewb.doc_date || "").slice(0, 10),
+              value: Number(ret?.net_amount ?? 0),
+              supplyLabel: "Regular",
+              irn: null,
+              ackNo: null,
+              typeLabel: "Delivery Challan",
+              reason: `Outward - ${ewbSubSupplyLabel(ewb.sub_supply_type || "8", ewb.sub_supply_desc || EWB_PURCHASE_RETURN_DESC)}`,
+            },
+            seller: sellerParty,
+            buyer: {
+              name: ret?.supplier_name || "",
+              gstin: String(ret?.suppliers?.gst_number || "").trim().toUpperCase(),
+              address: ret?.suppliers?.address || "",
+            },
+            hsn: ewbHsnSummary((items.data ?? []) as Array<{ hsn_code: string | null; line_total: number | null }>),
+            printedAt: formatIstDateTime(new Date().toISOString()),
+          });
+          return;
+        }
         if (ewb.challan_id) {
           // Step 6b: a delivery challan's e-way bill.
           const [c, items] = await Promise.all([
