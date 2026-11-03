@@ -67,7 +67,14 @@ serve(async (req) => {
     const userId = await callerId(supabaseAdmin, req);
     if (!userId) return json({ error: "Unauthorized" }, 401);
     const { data: isPlatformAdmin } = await supabaseAdmin.rpc("has_role", { _user_id: userId, _role: "platform_admin" });
-    if (isPlatformAdmin !== true) return json({ error: "Platform admins only" }, 403);
+    if (isPlatformAdmin !== true) {
+      // Support staff: Admin / Manager of a shop listed in whatsapp_health_viewer_orgs (DEMO), read-only.
+      const viewerOrgId = String(body.viewerOrganizationId ?? "").trim();
+      const { data: canView } = viewerOrgId
+        ? await supabaseAdmin.rpc("can_view_all_whatsapp_health", { _user_id: userId, _org_id: viewerOrgId })
+        : { data: false };
+      if (canView !== true) return json({ error: "Platform admins only" }, 403);
+    }
     return json(await platformLinkAlerts(supabaseAdmin));
   }
 
