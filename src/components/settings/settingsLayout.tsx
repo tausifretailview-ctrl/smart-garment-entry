@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
 
 /** Insights-style pill tabs (navy active). Visual only — does not change tab panel overflow. */
 export const SETTINGS_TAB_LIST_CLASS =
@@ -133,6 +134,52 @@ export function SettingsField({
       </label>
       {children}
       {help ? <div className="text-xs text-slate-500 leading-snug">{help}</div> : null}
+    </div>
+  );
+}
+
+/** On/off option card: label + short help on the left, switch on the right. Tinted blue while ON. */
+export function SettingsToggle({
+  id,
+  label,
+  description,
+  checked,
+  onCheckedChange,
+  disabled,
+  badge,
+  children,
+  className,
+}: {
+  id: string;
+  label: string;
+  description?: ReactNode;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  disabled?: boolean;
+  badge?: string;
+  children?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "settings-toggle min-w-0 flex items-start justify-between gap-3 rounded-lg border px-3 py-2.5 transition-colors duration-150",
+        checked ? "border-blue-200 bg-blue-50/60" : "border-slate-200 bg-white hover:bg-slate-50",
+        disabled && "opacity-60",
+        className,
+      )}
+    >
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <label htmlFor={id} className="flex items-center gap-1.5 text-[13px] font-semibold text-slate-800 cursor-pointer leading-snug">
+          {label}
+          {badge ? (
+            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-amber-800">{badge}</span>
+          ) : null}
+        </label>
+        {description ? <div className="text-xs text-slate-500 leading-snug">{description}</div> : null}
+        {children}
+      </div>
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} className="mt-0.5 shrink-0" />
     </div>
   );
 }
