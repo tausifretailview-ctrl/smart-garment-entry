@@ -40,6 +40,7 @@ import {
   godownStockExcelRows,
   godownTotals,
   godownTypeInfo,
+  toGodownSummaryMap,
   type Godown,
 } from "@/utils/godowns";
 import type * as XLSXType from "xlsx";
@@ -105,7 +106,8 @@ export default function Godowns() {
   const total = stock.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / GODOWN_STOCK_PAGE));
 
-  const totals = useMemo(() => godownTotals(godowns, summary.data), [godowns, summary.data]);
+  const summaryMap = useMemo(() => toGodownSummaryMap(summary.data), [summary.data]);
+  const totals = useMemo(() => godownTotals(godowns, summaryMap), [godowns, summaryMap]);
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["godowns", orgId] });
@@ -144,7 +146,7 @@ export default function Godowns() {
     );
   }
 
-  const selectedSummary = selected ? summary.data?.get(selected.id) : undefined;
+  const selectedSummary = selected ? summaryMap.get(selected.id) : undefined;
   const isMainSelected = selected?.godown_type === "main";
   const canMove = canManage && godowns.filter((g) => g.is_active).length > 1;
   const pageStart = total === 0 ? 0 : page * GODOWN_STOCK_PAGE + 1;
@@ -233,7 +235,7 @@ export default function Godowns() {
         ) : godowns.length > 0 ? (
           <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {godowns.map((g) => {
-              const s = summary.data?.get(g.id);
+              const s = summaryMap.get(g.id);
               const info = godownTypeInfo(g.godown_type);
               const active = selected?.id === g.id;
               return (
@@ -498,7 +500,7 @@ export default function Godowns() {
           organizationId={orgId}
           godown={dialog.godown}
           godowns={godowns}
-          stockQty={dialog.godown ? summary.data?.get(dialog.godown.id)?.qty ?? 0 : 0}
+          stockQty={dialog.godown ? summaryMap.get(dialog.godown.id)?.qty ?? 0 : 0}
           onSaved={(id) => {
             toast({ title: dialog.godown ? "Godown saved" : "Godown added" });
             if (!dialog.godown) setSelectedId(id);

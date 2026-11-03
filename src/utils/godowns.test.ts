@@ -11,6 +11,7 @@ import {
   godownTypeInfo,
   isMissingGodownSql,
   sortGodowns,
+  toGodownSummaryMap,
   type Godown,
 } from "./godowns";
 
@@ -122,5 +123,18 @@ describe("Godowns page cards", () => {
     expect(godownCardStripe("job_work")).toBe("bg-violet-500");
     expect(godownCardStripe("damaged")).toBe("bg-rose-500");
     expect(godownCardStripe(null)).toBe("bg-sky-500");
+  });
+});
+
+describe("Godowns page summary after a reload", () => {
+  it("reads the summary whether the cache gives back a Map, a plain object or nothing", () => {
+    const row = { godown_id: "bhw", items: 6, qty: 6, stock_value: 500, short_items: 0 };
+    const live = new Map([["bhw", row]]);
+    expect(toGodownSummaryMap(live)).toBe(live);
+    expect(toGodownSummaryMap({}).size).toBe(0);
+    expect(toGodownSummaryMap(undefined).size).toBe(0);
+    expect(toGodownSummaryMap(null).size).toBe(0);
+    expect(toGodownSummaryMap({ a: { ...row, qty: "6.5" } }).get("bhw")?.qty).toBe(6.5);
+    expect(toGodownSummaryMap([row, { junk: 1 }]).get("bhw")).toEqual(row);
   });
 });
