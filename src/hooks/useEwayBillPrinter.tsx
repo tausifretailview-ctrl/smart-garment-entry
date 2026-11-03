@@ -7,7 +7,8 @@ import { INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS } from "@/utils/thermalReceiptPri
 import { waitForPrintReady } from "@/utils/printReady";
 import { saleSupplyShortLabel, saleSupplyTypeOf } from "@/utils/industrialMode";
 import { ewbHsnSummary, formatIstDateTime, istDateOf, type EwayBillRow } from "@/utils/ewayBill";
-import { EWB_PURCHASE_RETURN_DESC, ewbSubSupplyLabel } from "../../supabase/functions/_shared/ewayBill";
+import { EWB_PURCHASE_RETURN_DESC, ewbSubSupplyLabel, godownEwbAddress } from "../../supabase/functions/_shared/ewayBill";
+import { fetchGodownMove, fetchGodownMoveItems } from "@/utils/godownTransfer";
 import { EwayBillPrint, type EwbPrintData } from "@/components/ewaybill/EwayBillPrint";
 
 type ChallanForPrint = {
@@ -102,6 +103,43 @@ export function useEwayBillPrinter(organizationId: string | undefined) {
           // Clear the spinner even if the browser print dialog never reports back.
           window.setTimeout(() => setPrintingId((id) => (id === ewb.id ? null : id)), 15_000);
         };
+        if (ewb.godown_move_id) {
+          // Phase 3 step 3b: goods moved between the shop's own godowns, both sides on its GSTIN.
+          const [move, items] = await Promise.all([fetchGodownMove(ewb.godown_move_id), fetchGodownMoveItems(ewb.godown_move_id)]);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: places, error: placeError } = await (supabase as any)
+            .from("godowns")
+            .select("id, name, godown_type, address, pincode")
+            .eq("organization_id", organizationId)
+            .in("id", [move.from_godown_id, move.to_godown_id]);
+          if (placeError) throw placeError;
+          type Place = { id: string; name: string; godown_type: string; address: string | null; pincode: string | null };
+          const list = (places ?? []) as Place[];
+          const from = list.find((g) => g.id === move.from_godown_id);
+          const to = list.find((g) => g.id === move.to_godown_id);
+          show({
+            ewb,
+            doc: {
+              number: move.move_no || ewb.doc_no || "",
+              date: String(move.move_date || ewb.doc_date || "").slice(0, 10),
+              value: Number(move.total_value ?? 0),
+              supplyLabel: "Regular",
+              irn: null,
+              ackNo: null,
+              typeLabel: "Delivery Challan",
+              reason: `Outward - ${ewbSubSupplyLabel("5")}`,
+            },
+            seller: { ...sellerParty, address: from ? godownEwbAddress(from, sellerParty.address) : sellerParty.address },
+            buyer: {
+              name: `${sellerParty.name}${to ? ` (${to.name})` : ""}`,
+              gstin: sellerParty.gstin,
+              address: to ? godownEwbAddress(to, sellerParty.address) : "",
+            },
+            hsn: ewbHsnSummary(items.map((i) => ({ hsn_code: i.hsn_code, line_total: i.value }))),
+            printedAt: formatIstDateTime(new Date().toISOString()),
+          });
+          return;
+        }
         if (ewb.purchase_return_id) {
           // Step 6c: goods going back to the supplier, who is the consignee.
           const [r, items] = await Promise.all([

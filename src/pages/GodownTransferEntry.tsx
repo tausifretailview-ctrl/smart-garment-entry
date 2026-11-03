@@ -44,6 +44,9 @@ import {
   type GodownTransport,
 } from "@/utils/godownTransfer";
 import { challanShopOf, printGodownTransferChallan } from "@/utils/godownTransferPrint";
+import { useEwayBillOn } from "@/hooks/useEwayBillOn";
+import { EWB_VALUE_LIMIT } from "@/utils/ewayBill";
+import { GodownTransferEwayBillDialog } from "@/components/ewaybill/GodownTransferEwayBillDialog";
 
 const TH = cn(INSIGHTS_NEUTRAL_TH, "h-11 !text-[13px]");
 const todayYmd = () => format(new Date(), "yyyy-MM-dd");
@@ -109,7 +112,9 @@ const GodownTransferEntry = () => {
   const [highlight, setHighlight] = useState(0);
   const [searching, setSearching] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [saved, setSaved] = useState<{ id: string; move_no: string; total_qty: number } | null>(null);
+  const [saved, setSaved] = useState<{ id: string; move_no: string; move_date: string; total_qty: number; total_value: number } | null>(null);
+  const [ewbFor, setEwbFor] = useState<{ id: string; move_no: string; move_date: string; total_value: number } | null>(null);
+  const ewbOn = useEwayBillOn();
   const [printing, setPrinting] = useState(false);
   const scanRef = useRef<HTMLInputElement>(null);
 
@@ -271,7 +276,7 @@ const GodownTransferEntry = () => {
       setNote("");
       setTransport({});
       setQtyMap({});
-      setSaved({ id: res.id, move_no: res.move_no, total_qty: res.total_qty });
+      setSaved({ id: res.id, move_no: res.move_no, move_date: date, total_qty: res.total_qty, total_value: res.total_value });
       for (const key of ["godown-summary", "godown-stock", "godown-transfers", "godown-transfer-stats"]) {
         void queryClient.invalidateQueries({ queryKey: [key, orgId] });
       }
@@ -687,6 +692,9 @@ const GodownTransferEntry = () => {
             <AlertDialogDescription>
               {formatGodownQty(saved?.total_qty ?? 0)} moved. Print the delivery challan to send with the goods: one copy, or three copies
               (consignee, transporter, your file) as GST Rule 55 asks.
+              {ewbOn && saved && saved.total_value > EWB_VALUE_LIMIT
+                ? ` Worth ${formatGodownValue(saved.total_value)}: make the e-way bill before the vehicle leaves.`
+                : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2 sm:gap-2">
@@ -698,6 +706,19 @@ const GodownTransferEntry = () => {
             >
               New transfer
             </AlertDialogCancel>
+            {ewbOn && saved && saved.total_value > EWB_VALUE_LIMIT ? (
+              <Button
+                variant="outline"
+                className="border-teal-200 text-teal-700 hover:bg-teal-50"
+                onClick={() => {
+                  setEwbFor({ id: saved.id, move_no: saved.move_no, move_date: saved.move_date, total_value: saved.total_value });
+                  setSaved(null);
+                }}
+              >
+                <Truck className="mr-1.5 h-4 w-4" />
+                E-way bill
+              </Button>
+            ) : null}
             <Button variant="outline" disabled={printing} onClick={() => void printSaved(true)}>
               3 copies
             </Button>
@@ -708,6 +729,23 @@ const GodownTransferEntry = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {orgId ? (
+        <GodownTransferEwayBillDialog
+          open={!!ewbFor}
+          onOpenChange={(o) => {
+            if (!o) {
+              setEwbFor(null);
+              setTimeout(() => scanRef.current?.focus(), 50);
+            }
+          }}
+          organizationId={orgId}
+          move={ewbFor}
+          ewayBill={null}
+          missingSql={false}
+          onChanged={() => undefined}
+        />
+      ) : null}
     </div>
   );
 };

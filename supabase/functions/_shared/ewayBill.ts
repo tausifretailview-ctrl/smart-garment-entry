@@ -990,6 +990,81 @@ export function purchaseReturnEwbLines(opts: {
   return { lines, netAmount: saved > 0 ? saved : r2(total(lines)), inclusive: useInclusive };
 }
 
+/* Godown transfers (Phase 3 step 3b) ----------------------------------- */
+
+/** One godown transfer line as read for its e-way bill (value at purchase rate). */
+export type EwbGodownLineInput = {
+  description: string;
+  hsn: string;
+  qty: number;
+  unit: string;
+  value: number;
+};
+
+/**
+ * E-way bill lines of a godown transfer: goods moving between the shop's own godowns on one
+ * GSTIN ("For own use"). Nothing is sold, so no GST is charged: each line goes at its value with
+ * a 0% rate, and the transfer's value is the sum of its lines.
+ */
+export function godownTransferEwbLines(items: EwbGodownLineInput[]): { lines: EwbDirectLine[]; netAmount: number } {
+  const lines: EwbDirectLine[] = items
+    .filter((i) => numOf(i.value) > 0)
+    .map((i) => ({
+      description: String(i.description ?? ""),
+      hsn: String(i.hsn ?? "").trim(),
+      qty: numOf(i.qty) || 1,
+      unit: String(i.unit ?? "").trim() || "PCS",
+      taxable: r2(numOf(i.value)),
+      gstPercent: 0,
+      gstAmount: 0,
+    }));
+  return { lines, netAmount: r2(lines.reduce((s, l) => s + l.taxable, 0)) };
+}
+
+/** A godown as the e-way bill needs it. */
+export type EwbGodownPlace = {
+  name: string;
+  godown_type: string;
+  address: string | null;
+  pincode: string | null;
+};
+
+/**
+ * Address of a godown for the e-way bill, ending with its PIN code. Main falls back to the shop
+ * address; a PIN saved on the godown wins over one typed in its address.
+ */
+export function godownEwbAddress(g: EwbGodownPlace, shopAddress: string | null | undefined): string {
+  const own = String(g.address ?? "").replace(/\s+/g, " ").trim();
+  const base = own || (g.godown_type === "main" ? String(shopAddress ?? "").replace(/\s+/g, " ").trim() : "");
+  const pin = String(g.pincode ?? "").trim();
+  if (!/^[1-9]\d{5}$/.test(pin)) return base;
+  const withoutPin = base.replace(/(^|\D)\d{6}(?!\d)/g, "$1").replace(/\s+/g, " ").replace(/[\s,.-]+$/, "").trim();
+  return withoutPin ? `${withoutPin} ${pin}` : pin;
+}
+
+/** From and To addresses of a godown transfer, or what to fix in Inventory > Godowns first. */
+export function godownTransferEwbPlaces(
+  from: EwbGodownPlace,
+  to: EwbGodownPlace,
+  shopAddress: string | null | undefined,
+): { ok: true; from: string; to: string } | { ok: false; field: "seller" | "toPin"; error: string } {
+  const check = (g: EwbGodownPlace, field: "seller" | "toPin") => {
+    const address = godownEwbAddress(g, shopAddress);
+    if (!ewbPinIn(address)) {
+      return { ok: false as const, field, error: `${g.name} has no 6-digit PIN code. Add it in Inventory > Godowns.` };
+    }
+    if (ewbTownIn(address).length < 3) {
+      return { ok: false as const, field, error: `${g.name} needs an address ending with its town, e.g. "Plot 12, Kalher, Bhiwandi". Add it in Inventory > Godowns.` };
+    }
+    return { ok: true as const, address };
+  };
+  const f = check(from, "seller");
+  if (f.ok === false) return f;
+  const t = check(to, "toPin");
+  if (t.ok === false) return t;
+  return { ok: true, from: f.address, to: t.address };
+}
+
 /** The document an e-way bill is made from: a sale bill (default), a delivery challan or a purchase return. */
 export type EwbDirectDoc = {
   type: "INV" | "CHL";

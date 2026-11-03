@@ -20,6 +20,7 @@ import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { useIndustrialMode } from "@/hooks/useIndustrialMode";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useEwayBillOn } from "@/hooks/useEwayBillOn";
 import { useSettings } from "@/hooks/useSettings";
 import { useToast } from "@/hooks/use-toast";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
@@ -55,6 +56,8 @@ import {
   type GodownTransferFilters,
 } from "@/utils/godownTransfer";
 import { challanShopOf, printGodownTransferChallan } from "@/utils/godownTransferPrint";
+import { EWB_VALUE_LIMIT, fetchEwayBillsForGodownMoves, formatEwbNo } from "@/utils/ewayBill";
+import { GodownTransferEwayBillDialog } from "@/components/ewaybill/GodownTransferEwayBillDialog";
 
 const DATE_PRESETS: Array<{ id: TransferDatePreset; label: string }> = [
   { id: "today", label: "Today" },
@@ -134,6 +137,7 @@ export default function GodownTransfers() {
   const [cancelRow, setCancelRow] = useState<GodownMoveRow | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [printingId, setPrintingId] = useState<string | null>(null);
+  const [ewbMove, setEwbMove] = useState<GodownMoveRow | null>(null);
 
   useEffect(() => {
     const id = window.setTimeout(() => setDebounced(search.trim()), 300);
@@ -176,8 +180,20 @@ export default function GodownTransfers() {
   const total = moves.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / GODOWN_TRANSFER_PAGE));
 
+  // E-way bills of the transfers on this page, only with the E-Way Bill switch on (Settings > Sale).
+  const ewbOn = useEwayBillOn();
+  const moveIdsKey = useMemo(() => (ewbOn ? rows.map((r) => r.id).sort().join(",") : ""), [ewbOn, rows]);
+  const ewbs = useQuery({
+    queryKey: ["godown-transfer-eway-bills", orgId, moveIdsKey],
+    queryFn: () => fetchEwayBillsForGodownMoves(orgId, moveIdsKey.split(",")),
+    enabled: ewbOn && !!orgId && moveIdsKey.length > 0,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const ewbOf = (id: string) => ewbs.data?.rows.get(id) ?? null;
+
   const refreshAll = () => {
-    for (const key of ["godowns", "godown-summary", "godown-stock", "godown-transfers", "godown-transfer-stats"]) {
+    for (const key of ["godowns", "godown-summary", "godown-stock", "godown-transfers", "godown-transfer-stats", "godown-transfer-eway-bills"]) {
       void queryClient.invalidateQueries({ queryKey: [key, orgId] });
     }
   };
@@ -375,7 +391,7 @@ export default function GodownTransfers() {
                     <TableHead className="w-[120px] text-right">Value</TableHead>
                     <TableHead className="w-[130px]">Vehicle</TableHead>
                     <TableHead className="w-[100px]">Status</TableHead>
-                    <TableHead className="w-[120px] text-right" />
+                    <TableHead className="w-[150px] text-right" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -383,6 +399,9 @@ export default function GodownTransfers() {
                     const open = openId === m.id;
                     const t = transportOf(m.transport);
                     const cancelled = m.status === "cancelled";
+                    const ewb = ewbOn ? ewbOf(m.id) : null;
+                    const activeEwb = ewb?.status === "active" ? ewb : null;
+                    const showEwb = ewbOn && !cancelled && (!!ewb || m.total_value > EWB_VALUE_LIMIT);
                     return (
                       <Fragment key={m.id}>
                         <TableRow
@@ -406,7 +425,10 @@ export default function GodownTransfers() {
                           <TableCell className="py-2 text-right tabular-nums">{m.item_count}</TableCell>
                           <TableCell className="py-2 text-right font-semibold tabular-nums">{formatGodownQty(m.total_qty)}</TableCell>
                           <TableCell className="py-2 text-right tabular-nums">{formatGodownValue(m.total_value)}</TableCell>
-                          <TableCell className="py-2 font-mono text-xs">{t.vehicle_no || "—"}</TableCell>
+                          <TableCell className="py-2 font-mono text-xs">
+                            {t.vehicle_no || "—"}
+                            {activeEwb ? <div className="font-sans text-[10px] font-semibold text-teal-700">EWB {formatEwbNo(activeEwb.ewb_no)}</div> : null}
+                          </TableCell>
                           <TableCell className="py-2">
                             <span
                               className={cn(
@@ -431,13 +453,26 @@ export default function GodownTransfers() {
                                   <DropdownMenuItem onClick={() => void print(m, true)}>Challan, 3 copies (Rule 55)</DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
+                              {showEwb ? (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className={cn("h-8 w-8", activeEwb ? "text-teal-600" : "text-slate-400 hover:text-teal-600")}
+                                  onClick={() => setEwbMove(m)}
+                                  title={activeEwb ? `E-way bill ${formatEwbNo(activeEwb.ewb_no)}` : "Generate e-way bill"}
+                                  aria-label={activeEwb ? "Open e-way bill" : "Generate e-way bill"}
+                                >
+                                  <Truck className="h-4 w-4" />
+                                </Button>
+                              ) : null}
                               {canManage && canCancelMove(m) ? (
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                  className="h-8 w-8 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
                                   onClick={() => setCancelRow(m)}
-                                  title="Cancel transfer"
+                                  disabled={!!activeEwb}
+                                  title={activeEwb ? `Cancel e-way bill ${formatEwbNo(activeEwb.ewb_no)} first` : "Cancel transfer"}
                                   aria-label={`Cancel ${m.move_no ?? "transfer"}`}
                                 >
                                   <XCircle className="h-4 w-4" />
@@ -501,6 +536,18 @@ export default function GodownTransfers() {
           ) : null}
         </Card>
       </div>
+
+      {orgId ? (
+        <GodownTransferEwayBillDialog
+          open={!!ewbMove}
+          onOpenChange={(o) => !o && setEwbMove(null)}
+          organizationId={orgId}
+          move={ewbMove ? { id: ewbMove.id, move_no: ewbMove.move_no, move_date: ewbMove.move_date, total_value: ewbMove.total_value } : null}
+          ewayBill={ewbMove ? ewbOf(ewbMove.id) : null}
+          missingSql={!!ewbs.data?.missingSql}
+          onChanged={() => void ewbs.refetch()}
+        />
+      ) : null}
 
       <AlertDialog open={!!cancelRow} onOpenChange={(o) => !o && !cancelling && setCancelRow(null)}>
         <AlertDialogContent>

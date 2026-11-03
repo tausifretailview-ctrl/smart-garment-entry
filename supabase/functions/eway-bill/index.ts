@@ -12,6 +12,8 @@
 // why the goods move: job work, own use, others…), linked by eway_bills.challan_id.
 // Step 6c: the same for a purchase return (goods back to the supplier, CHL + "Others:
 // Purchase return"), linked by eway_bills.purchase_return_id.
+// Phase 3 step 3b: the same for goods moved between the shop's own godowns (CHL, "For own
+// use", both sides on the shop GSTIN, godown addresses), linked by eway_bills.godown_move_id.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import {
   indiaTodayIso,
@@ -26,6 +28,8 @@ import {
   EWB_PURCHASE_RETURN_DESC,
   buildDirectEwbPayload,
   challanEwbLines,
+  godownTransferEwbLines,
+  godownTransferEwbPlaces,
   purchaseReturnEwbLines,
   buildEwbByIrnPayload,
   buildEwbCancelPayload,
@@ -55,7 +59,7 @@ const corsHeaders = {
 };
 
 type IrnAction = 'generate' | 'sync';
-type EwbApiAction = 'test' | 'vehicle' | 'cancel' | 'extend' | 'direct' | 'challan' | 'purchase_return';
+type EwbApiAction = 'test' | 'vehicle' | 'cancel' | 'extend' | 'direct' | 'challan' | 'purchase_return' | 'godown_transfer';
 
 interface EwbRequest {
   /**
@@ -64,11 +68,13 @@ interface EwbRequest {
    * direct: new EWB for a sale bill without an e-invoice (saleId).
    * challan: new EWB for a delivery challan (challanId), with why the goods move (subSupply).
    * purchase_return: new EWB for a purchase return (purchaseReturnId); subSupply.desc is the reason.
+   * godown_transfer: new EWB "For own use" for goods moved between the shop's godowns (godownMoveId).
    */
   action: IrnAction | EwbApiAction;
   saleId?: string;
   challanId?: string;
   purchaseReturnId?: string;
+  godownMoveId?: string;
   /** challan: NIC outward sub supply type (4 job work, 5 own use, 8 others…) and, for 8, a reason. */
   subSupply?: { code?: string | null; desc?: string | null };
   ewayBillId?: string;
@@ -83,7 +89,7 @@ interface EwbRequest {
 }
 
 const IRN_ACTIONS: string[] = ['generate', 'sync'];
-const EWB_API_ACTIONS: string[] = ['test', 'vehicle', 'cancel', 'extend', 'direct', 'challan', 'purchase_return'];
+const EWB_API_ACTIONS: string[] = ['test', 'vehicle', 'cancel', 'extend', 'direct', 'challan', 'purchase_return', 'godown_transfer'];
 /** E-way bill API actions on a sale bill (the rest act on an e-way bill). */
 const SALE_EWB_ACTIONS: string[] = ['direct'];
 
@@ -672,6 +678,161 @@ async function purchaseReturnEwayBill(ctx: {
   return json({ success: true, ewbNo: info.ewbNo, ewbDate: info.ewbDate, validTill: info.validTill, partAOnly });
 }
 
+const MISSING_3B_SQL = 'Run the Phase 3 step 3b SQL first: it links e-way bills to godown transfers.';
+
+/**
+ * Phase 3 step 3b: e-way bill for goods moved between the shop's own godowns (godown_moves),
+ * through genewaybill as a delivery challan "For own use" (sub type 5). Both sides carry the
+ * shop's GSTIN; the addresses are the two godowns'. No GST is charged: lines go at their value
+ * (purchase rate) with 0% GST.
+ */
+async function godownTransferEwayBill(ctx: {
+  // deno-lint-ignore no-explicit-any
+  supabase: any;
+  organizationId: string;
+  moveId: string;
+  userId: string;
+  seller: { name: string; address: string };
+  testMode: boolean;
+  creds: EwbApiCreds;
+  ip: string;
+  transport: EwbTransportInput;
+}): Promise<Response> {
+  const { supabase, organizationId, moveId } = ctx;
+  const { data: move, error: moveError } = await supabase
+    .from('godown_moves')
+    .select('id, move_no, move_date, from_godown_id, to_godown_id, ref_type, status')
+    .eq('id', moveId)
+    .eq('organization_id', organizationId)
+    .maybeSingle();
+  if (moveError) {
+    if (/godown_moves|does not exist|schema cache/i.test(moveError.message || '')) {
+      return json({ success: false, code: 'MISSING_SQL', error: 'Run the Phase 3 step 3a SQL first: it adds the godown tables.' });
+    }
+    throw new Error(`Could not read the transfer: ${moveError.message}`);
+  }
+  if (!move) return json({ success: false, error: 'This transfer was not found.' });
+  if (move.status !== 'done') return json({ success: false, error: 'This transfer is cancelled, so it needs no e-way bill.' });
+
+  const { data: existing, error: existingError } = await supabase
+    .from('eway_bills')
+    .select('id, ewb_no')
+    .eq('organization_id', organizationId)
+    .eq('godown_move_id', moveId)
+    .eq('status', 'active')
+    .limit(1)
+    .maybeSingle();
+  if (existingError) {
+    if (/godown_move|eway_bills|does not exist|schema cache/i.test(existingError.message || '')) {
+      return json({ success: false, code: 'MISSING_SQL', error: MISSING_3B_SQL });
+    }
+    throw new Error(`Could not read e-way bills: ${existingError.message}`);
+  }
+  if (existing) return json({ success: false, code: 'ALREADY', error: `This transfer already has e-way bill ${existing.ewb_no}.`, ewbNo: existing.ewb_no });
+
+  const [{ data: places, error: placeError }, { data: items, error: itemsError }] = await Promise.all([
+    supabase
+      .from('godowns')
+      .select('id, name, godown_type, address, pincode')
+      .eq('organization_id', organizationId)
+      .in('id', [move.from_godown_id, move.to_godown_id]),
+    supabase.from('godown_move_items').select('product_id, qty, value').eq('move_id', moveId),
+  ]);
+  if (placeError) throw new Error(`Could not read the godowns: ${placeError.message}`);
+  if (itemsError) throw new Error(`Could not read the transfer lines: ${itemsError.message}`);
+  // deno-lint-ignore no-explicit-any
+  const from = ((places ?? []) as any[]).find((g) => g.id === move.from_godown_id);
+  // deno-lint-ignore no-explicit-any
+  const to = ((places ?? []) as any[]).find((g) => g.id === move.to_godown_id);
+  if (!from || !to) return json({ success: false, error: 'The godowns of this transfer were not found.' });
+  const where = godownTransferEwbPlaces(from, to, ctx.seller.address);
+  if (where.ok === false) {
+    const bad = where as { field: string; error: string };
+    return json({ success: false, code: 'INVALID', field: bad.field, error: bad.error });
+  }
+  const addr = where as { from: string; to: string };
+
+  // deno-lint-ignore no-explicit-any
+  const rows = (items ?? []) as any[];
+  const ids = [...new Set(rows.map((i) => String(i.product_id ?? '')).filter(Boolean))];
+  // deno-lint-ignore no-explicit-any
+  const productById = new Map<string, any>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await supabase
+      .from('products')
+      .select('id, product_name, uom, hsn_code')
+      .eq('organization_id', organizationId)
+      .in('id', ids.slice(i, i + 200));
+    if (error) throw new Error(`Could not read the transfer products: ${error.message}`);
+    for (const p of data ?? []) productById.set(String(p.id), p);
+  }
+  const { lines, netAmount } = godownTransferEwbLines(
+    rows.map((i) => {
+      const p = productById.get(String(i.product_id ?? ''));
+      const hsn = String(p?.hsn_code ?? '').replace(/\s+/g, '');
+      return {
+        description: String(p?.product_name ?? ''),
+        hsn,
+        qty: Number(i.qty) || 0,
+        unit: einvoiceUnit(String(p?.uom ?? ''), hsn),
+        value: Number(i.value) || 0,
+      };
+    }),
+  );
+
+  const built = buildDirectEwbPayload({
+    docNo: move.move_no,
+    docDate: String(move.move_date ?? '').slice(0, 10),
+    today: indiaTodayIso(),
+    seller: { gstin: ctx.creds.gstin, name: ctx.seller.name, address: addr.from },
+    buyer: { gstin: ctx.creds.gstin, name: ctx.seller.name, address: addr.to },
+    shipTo: null,
+    lines,
+    netAmount,
+    transport: ctx.transport,
+    doc: { type: 'CHL', subSupplyType: '5', subSupplyDesc: null, noun: 'transfer' },
+  });
+  if (built.ok === false) {
+    const bad = built as { field: string; error: string };
+    return json({ success: false, code: 'INVALID', field: bad.field, error: bad.error });
+  }
+  const { payload, partAOnly } = built as { payload: Record<string, unknown>; partAOnly: boolean };
+
+  const baseUrl = ctx.testMode ? 'https://staging.perione.in' : 'https://api.perione.in';
+  const auth = await ewbApiAuth(baseUrl, ctx.creds, ctx.ip);
+  if (auth.ok === false) return json({ success: false, code: 'AUTH_FAILED', error: (auth as { error: string }).error });
+  const res = await ewbApiPost(baseUrl, 'genewaybill', ctx.creds, ctx.ip, payload);
+  if (res.ok === false) return json({ success: false, error: (res as { error: string }).error });
+  const info = ewbGenReplyInfo((res as { data: Record<string, unknown> }).data);
+  if (!info) return json({ success: false, error: 'The e-way bill system did not send an e-way bill number. Check the portal before trying again.' });
+
+  const row: Record<string, unknown> = {
+    organization_id: organizationId,
+    sale_id: null,
+    godown_move_id: moveId,
+    doc_type: 'CHL',
+    doc_no: move.move_no,
+    doc_date: String(move.move_date ?? '').slice(0, 10) || null,
+    sub_supply_type: '5',
+    sub_supply_desc: null,
+    irn: null,
+    ewb_no: info.ewbNo,
+    ewb_date: info.ewbDate ?? new Date().toISOString(),
+    valid_till: info.validTill,
+    status: 'active',
+    generated_via: 'direct',
+    test_mode: ctx.testMode,
+    created_by: ctx.userId,
+    updated_at: new Date().toISOString(),
+    ...transportColumns(ctx.transport),
+  };
+  const { error: saveError } = await supabase.from('eway_bills').upsert(row, { onConflict: 'organization_id,ewb_no,test_mode' });
+  if (saveError) {
+    return json({ success: false, ewbNo: info.ewbNo, error: `E-way bill ${info.ewbNo} was made but could not be saved: ${saveError.message}. Note the number down.` });
+  }
+  return json({ success: true, ewbNo: info.ewbNo, ewbDate: info.ewbDate, validTill: info.validTill, partAOnly });
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
@@ -684,15 +845,18 @@ Deno.serve(async (req) => {
     const saleId = String(body.saleId ?? '');
     const challanId = String(body.challanId ?? '');
     const purchaseReturnId = String(body.purchaseReturnId ?? '');
+    const godownMoveId = String(body.godownMoveId ?? '');
     const isIrnAction = IRN_ACTIONS.includes(action);
     if (!isIrnAction && !EWB_API_ACTIONS.includes(action)) return json({ success: false, error: 'Unknown action' }, 400);
     const onSale = isIrnAction || SALE_EWB_ACTIONS.includes(action);
     const onChallan = action === 'challan';
     const onPurchaseReturn = action === 'purchase_return';
+    const onGodownMove = action === 'godown_transfer';
     if (onSale && !UUID.test(saleId)) return json({ success: false, error: 'Invalid saleId' }, 400);
     if (onChallan && !UUID.test(challanId)) return json({ success: false, error: 'Invalid challanId' }, 400);
     if (onPurchaseReturn && !UUID.test(purchaseReturnId)) return json({ success: false, error: 'Invalid purchaseReturnId' }, 400);
-    if (action !== 'test' && !onSale && !onChallan && !onPurchaseReturn && !UUID.test(String(body.ewayBillId ?? ''))) {
+    if (onGodownMove && !UUID.test(godownMoveId)) return json({ success: false, error: 'Invalid godownMoveId' }, 400);
+    if (action !== 'test' && !onSale && !onChallan && !onPurchaseReturn && !onGodownMove && !UUID.test(String(body.ewayBillId ?? ''))) {
       return json({ success: false, error: 'Invalid ewayBillId' }, 400);
     }
     if (!organizationId || !UUID.test(organizationId)) return json({ success: false, error: 'Invalid organizationId' }, 400);
@@ -809,6 +973,21 @@ Deno.serve(async (req) => {
           transport: body.transport ?? { mode: 'road' },
           shipTo: body.shipTo ?? null,
           reason: body.subSupply?.desc ?? null,
+        });
+      }
+
+      if (action === 'godown_transfer') {
+        return await godownTransferEwayBill({
+          // deno-lint-ignore no-explicit-any
+          supabase: supabase as any,
+          organizationId,
+          moveId: godownMoveId,
+          userId: user.id,
+          seller: { name: String(settingsData?.business_name ?? ''), address: String(settingsData?.address ?? '') },
+          testMode: ewbSettings.test_mode ?? true,
+          creds,
+          ip,
+          transport: body.transport ?? { mode: 'road' },
         });
       }
 

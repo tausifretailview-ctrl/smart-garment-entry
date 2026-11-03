@@ -32,6 +32,8 @@ export type EwayBillRow = {
   challan_id?: string | null;
   /** Step 6c: the purchase return it was made for (goods back to the supplier). */
   purchase_return_id?: string | null;
+  /** Phase 3 step 3b: the godown transfer it was made for (own use, read only where that SQL has run). */
+  godown_move_id?: string | null;
   /** Step 6b: why the goods move on a challan (NIC sub supply type) and the "Others" reason. */
   sub_supply_type?: string | null;
   sub_supply_desc?: string | null;
@@ -137,7 +139,7 @@ const CHALLAN_EWB_COLS = `${EWB_COLS}, challan_id, purchase_return_id, sub_suppl
 /** E-way bill of each given document, by its link column: its active one, else its latest cancelled one. */
 async function fetchEwayBillsByLink(
   organizationId: string,
-  column: "challan_id" | "purchase_return_id",
+  column: "challan_id" | "purchase_return_id" | "godown_move_id",
   docIds: string[],
 ): Promise<{ rows: Map<string, EwayBillRow>; missingSql: boolean }> {
   const rows = new Map<string, EwayBillRow>();
@@ -148,7 +150,7 @@ async function fetchEwayBillsByLink(
     const client: any = supabase;
     const { data, error } = await client
       .from("eway_bills")
-      .select(CHALLAN_EWB_COLS)
+      .select(column === "godown_move_id" ? `${CHALLAN_EWB_COLS}, godown_move_id` : CHALLAN_EWB_COLS)
       .eq("organization_id", organizationId)
       .in(column, unique.slice(i, i + 200))
       .order("created_at", { ascending: false });
@@ -174,6 +176,11 @@ export function fetchEwayBillsForChallans(organizationId: string, challanIds: st
 /** E-way bill of each given purchase return (step 6c). */
 export function fetchEwayBillsForPurchaseReturns(organizationId: string, returnIds: string[]) {
   return fetchEwayBillsByLink(organizationId, "purchase_return_id", returnIds);
+}
+
+/** E-way bill of each given godown transfer (Phase 3 step 3b); missingSql until that SQL runs. */
+export function fetchEwayBillsForGodownMoves(organizationId: string, moveIds: string[]) {
+  return fetchEwayBillsByLink(organizationId, "godown_move_id", moveIds);
 }
 
 /* ------------------------------------------------------------------ */
@@ -255,11 +262,13 @@ export async function invokeEwayBill(body: {
    * generate / sync: from the bill's IRN. test / vehicle / cancel / extend: e-way bill API (step 5b).
    * direct: a bill without an e-invoice, on the e-way bill API (step 6a). challan: a delivery challan (step 6b).
    * purchase_return: goods going back to the supplier (step 6c); subSupply.desc is the reason.
+   * godown_transfer: goods moved between the shop's own godowns, "For own use" (Phase 3 step 3b).
    */
-  action: "generate" | "sync" | "test" | "vehicle" | "cancel" | "extend" | "direct" | "challan" | "purchase_return";
+  action: "generate" | "sync" | "test" | "vehicle" | "cancel" | "extend" | "direct" | "challan" | "purchase_return" | "godown_transfer";
   saleId?: string;
   challanId?: string;
   purchaseReturnId?: string;
+  godownMoveId?: string;
   subSupply?: { code: string; desc?: string | null };
   ewayBillId?: string;
   organizationId: string;
@@ -358,6 +367,13 @@ export type EwbRegisterPurchaseReturn = {
   net_amount: number | null;
 };
 
+export type EwbRegisterGodownMove = {
+  id: string;
+  move_no: string | null;
+  move_date: string | null;
+  total_value: number | null;
+};
+
 export type EwayBillRegisterRow = EwayBillRow & {
   doc_no: string | null;
   doc_date: string | null;
@@ -368,26 +384,38 @@ export type EwayBillRegisterRow = EwayBillRow & {
   sales: EwbRegisterSale | null;
   delivery_challans?: EwbRegisterChallan | null;
   purchase_returns?: EwbRegisterPurchaseReturn | null;
+  godown_moves?: EwbRegisterGodownMove | null;
 };
 
 const REGISTER_COLS = `${EWB_COLS}, doc_no, doc_date, doc_type, irn, generated_via, sales:sale_id (id, sale_number, sale_date, customer_id, customer_name, net_amount, irn, einvoice_status, einvoice_test_mode)`;
 /** With the step 6b SQL: the challan and the purchase return too. */
 const REGISTER_COLS_6B = `${REGISTER_COLS}, challan_id, purchase_return_id, sub_supply_type, sub_supply_desc, delivery_challans:challan_id (id, challan_number, challan_date, challan_type, customer_name, net_amount), purchase_returns:purchase_return_id (id, return_number, return_date, supplier_name, net_amount)`;
 
-/** Remembered per page load once the step 6b columns are found missing, so lists don't ask twice. */
-let registerColsHave6b = true;
+/** With the Phase 3 step 3b SQL: the godown transfer too. */
+const REGISTER_COLS_3B = `${REGISTER_COLS_6B}, godown_move_id, godown_moves:godown_move_id (id, move_no, move_date, total_value)`;
+
+/** Richest first; a level whose columns are missing is skipped for the rest of the page load. */
+const REGISTER_COL_LEVELS = [REGISTER_COLS_3B, REGISTER_COLS_6B, REGISTER_COLS];
+let registerColsLevel = 0;
+
+/** The step 3b SQL (eway_bills.godown_move_id) has not run. */
+export function isMissingGodownEwbColumn(message: string | null | undefined): boolean {
+  return /godown_move/i.test(String(message ?? "")) || isMissingChallanEwbColumn(message);
+}
 
 /**
- * Runs a register-style eway_bills read with the challan columns, and again without them where
- * the step 6b SQL has not run, so the register and alerts work the same as before it.
+ * Runs a register-style eway_bills read with the godown transfer and challan columns, and again
+ * without them where the step 3b / 6b SQL has not run, so the register and alerts work the same
+ * as before it.
  */
 async function withRegisterCols<T>(
   read: (cols: string) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
 ): Promise<{ data: T[] | null; error: { message: string } | null }> {
-  if (registerColsHave6b) {
-    const first = await read(REGISTER_COLS_6B);
-    if (!first.error || isMissingEwayBillTableOnly(first.error.message) || !isMissingChallanEwbColumn(first.error.message)) return first;
-    registerColsHave6b = false;
+  const last = REGISTER_COL_LEVELS.length - 1;
+  while (registerColsLevel < last) {
+    const res = await read(REGISTER_COL_LEVELS[registerColsLevel]);
+    if (!res.error || isMissingEwayBillTableOnly(res.error.message) || !isMissingGodownEwbColumn(res.error.message)) return res;
+    registerColsLevel += 1;
   }
   return read(REGISTER_COLS);
 }
@@ -397,9 +425,9 @@ function isMissingEwayBillTableOnly(message: string | null | undefined): boolean
   return /relation "?(public\.)?eway_bills"? does not exist|table 'public\.eway_bills'/i.test(String(message ?? ""));
 }
 
-/** The document an e-way bill belongs to: a sale bill, a delivery challan, a purchase return, or only what was saved on it. */
+/** The document an e-way bill belongs to: a sale bill, a delivery challan, a purchase return, a godown transfer, or only what was saved on it. */
 export type EwbDocInfo = {
-  kind: "bill" | "challan" | "purchase_return";
+  kind: "bill" | "challan" | "purchase_return" | "godown_transfer";
   id: string | null;
   number: string;
   date: string;
@@ -416,6 +444,17 @@ export function ewbDocOf(row: EwayBillRegisterRow): EwbDocInfo {
       date: String(row.sales.sale_date || row.doc_date || ""),
       party: row.sales.customer_name || "",
       value: row.sales.net_amount,
+    };
+  }
+  const gm = row.godown_moves ?? null;
+  if (gm || row.godown_move_id) {
+    return {
+      kind: "godown_transfer",
+      id: gm?.id ?? row.godown_move_id ?? null,
+      number: gm?.move_no || row.doc_no || "",
+      date: String(gm?.move_date || row.doc_date || ""),
+      party: "Own godown",
+      value: gm ? gm.total_value : null,
     };
   }
   const pr = row.purchase_returns ?? null;
@@ -604,6 +643,7 @@ export const EWB_DOC_KIND_NAME: Record<EwbDocInfo["kind"], string> = {
   bill: "Sale bill",
   challan: "Delivery challan",
   purchase_return: "Purchase return",
+  godown_transfer: "Godown transfer",
 };
 
 /** One row per e-way bill for the register's Excel file. */
@@ -696,6 +736,7 @@ export function ewbMatchesSearch(row: EwayBillRegisterRow, q: string): boolean {
     row.delivery_challans?.customer_name,
     row.purchase_returns?.return_number,
     row.purchase_returns?.supplier_name,
+    row.godown_moves?.move_no,
     row.transporter_name,
     row.transporter_id,
     row.trans_doc_no,
