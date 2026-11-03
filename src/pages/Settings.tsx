@@ -3420,10 +3420,6 @@ export default function Settings() {
                       }
                     />
 
-                    <p className="col-span-full text-xs text-muted-foreground">
-                      Thermal Receipt Style is under <strong className="text-foreground">Settings → POS → POS print</strong>{" "}
-                      (same style for sale + POS thermal).
-                    </p>
                   </SettingsGrid>
                 </SettingsSection>
 
@@ -3623,8 +3619,8 @@ export default function Settings() {
                     <div className="rounded-lg border border-dashed p-3 bg-muted/20 space-y-1">
                       <p className="text-sm font-medium">Invoice templates</p>
                       <p className="text-xs text-muted-foreground">
-                        Sale Invoice Template is under Print Format above. POS Invoice Template and Thermal Receipt Style are
-                        under Settings → POS. Use the Sale / POS toggle on the live preview to check both designs.
+                        Sale Invoice Template is under Print Format above. POS Invoice Template is under Settings →
+                        POS. Use the Sale / POS toggle on the live preview to check both designs.
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {settings.sale_settings?.invoice_template === "retail-pos-80mm"
