@@ -327,6 +327,14 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
     layout: "layout",
     roles: ["admin", "manager"],
   },
+  // Shop-to-shop Stock Transfer dashboard. Registered so the page chunk is warmed
+  // after login / on sidebar hover and the pane stays mounted: as a plain <Outlet>
+  // route it cold-loaded and faded in on every open (white flash before it showed).
+  "stock-transfer": {
+    loader: () => import("@/pages/StockTransfer"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
   // Admin-only. Must be registered: the sidebar already prefetches this path,
   // and an unregistered lazy route suspends the app-wide boundary (blank shell).
   "recycle-bin": {

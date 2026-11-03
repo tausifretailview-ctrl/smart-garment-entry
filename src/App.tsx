@@ -791,7 +791,9 @@ const App = () => {
                     <ProtectedRoute>
                       <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                         <Layout>
-                          <StockTransfer />
+                          <Suspense fallback={<LazyFallback />}>
+                            <StockTransfer />
+                          </Suspense>
                         </Layout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>
