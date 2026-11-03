@@ -41,8 +41,13 @@ jobs:
       # (`const canary: number = "nope"`) while it read `npx tsc --noEmit`.
       # `vite build` does not typecheck either (esbuild strips types), so nothing
       # in CI was checking types at all.
+      # tsc -b on the whole app needs a little over Node's default ~2 GB heap; at the default
+      # it died with "JavaScript heap out of memory" on some runs (3 Nov 2026). 4 GB fits the
+      # runner's memory with room to spare.
       - name: Typecheck
         run: npm run typecheck
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
 
       - name: Test
         run: npm test
