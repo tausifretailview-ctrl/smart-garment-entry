@@ -143,6 +143,7 @@ const DialogA11ySpotCheck = import.meta.env.DEV
 const StockAdjustment = lazyWithRetry(() => import("./pages/StockAdjustment"));
 const StockTransfer = lazyWithRetry(() => import("./pages/StockTransfer"));
 const StockTransferEntry = lazyWithRetry(() => import("./pages/StockTransferEntry"));
+const Godowns = lazyWithRetry(() => import("./pages/Godowns"));
 const StockAnalysis = lazyWithRetry(() => import("./pages/StockAnalysis"));
 const StockAgeingReport = lazyWithRetry(() => import("./pages/StockAgeingReport"));
 const StockSettlement = lazyWithRetry(() => import("./pages/StockSettlement"));
@@ -829,6 +830,18 @@ const App = () => {
                   }
                 />
 
+                <Route
+                  path="godowns"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <Godowns />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="manufacturing"
                   element={

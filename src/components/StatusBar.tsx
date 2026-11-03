@@ -39,6 +39,7 @@ const getCurrentPageName = (path: string): string => {
     'delivery-challan-entry': 'Delivery Challan',
     'debit-notes': 'Debit Notes',
     'eway-bills': 'E-Way Bills',
+    'godowns': 'Godowns',
     'settings': 'Settings',
     'gst-reports': 'GST Reports',
     'gst-analysis': 'GST Analysis',

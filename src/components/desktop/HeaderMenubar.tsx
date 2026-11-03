@@ -387,6 +387,9 @@ export function HeaderMenubar({
                 Stock Transfer
               </MenubarItem>
             )}
+            {industrialOn && (organizationRole === "admin" || organizationRole === "manager") && (
+              <MenubarItem onClick={() => orgNavigate("/godowns")}>Godowns</MenubarItem>
+            )}
             {showManufacturing && (
               <MenubarItem onClick={() => orgNavigate("/manufacturing")}>
                 Manufacturing
