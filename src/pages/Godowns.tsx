@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  ArrowLeftRight,
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
@@ -17,6 +18,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { GodownDialog } from "@/components/godowns/GodownDialog";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
@@ -56,6 +58,7 @@ export default function Godowns() {
   const sharedShell = useSharedAppShell();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { orgNavigate } = useOrgNavigation();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -184,6 +187,16 @@ export default function Godowns() {
             >
               {list.isFetching || summary.isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               Refresh
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5 border-slate-200 text-sm"
+              onClick={() => orgNavigate("/godown-transfers")}
+              disabled={missingSql}
+            >
+              <ArrowLeftRight className="h-4 w-4" />
+              Transfers
             </Button>
             {canManage ? (
               <Button
@@ -326,10 +339,22 @@ export default function Godowns() {
                   className="no-uppercase h-9 border-slate-200 bg-slate-50 pl-9 text-sm focus:bg-white"
                 />
               </div>
+              {canManage && godowns.filter((g) => g.is_active).length > 1 ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto h-9 gap-1.5 border-teal-200 text-sm text-teal-700 hover:bg-teal-50"
+                  onClick={() => orgNavigate(`/godown-transfer-entry?from=${encodeURIComponent(selected.id)}`)}
+                  disabled={!isMainSelected && total === 0}
+                >
+                  <ArrowLeftRight className="h-4 w-4" />
+                  Move stock
+                </Button>
+              ) : null}
               <Button
                 variant="outline"
                 size="sm"
-                className="ml-auto h-9 gap-1.5 border-slate-200 text-sm"
+                className={cn("h-9 gap-1.5 border-slate-200 text-sm", !(canManage && godowns.filter((g) => g.is_active).length > 1) && "ml-auto")}
                 onClick={() => void exportExcel()}
                 disabled={exporting || total === 0}
               >
@@ -353,7 +378,7 @@ export default function Godowns() {
                     ? "No item matches the search."
                     : isMainSelected
                       ? "No stock in the shop yet."
-                      : `Nothing in ${selected.name} yet. Moving stock between godowns comes with the next step, Godown transfer.`}
+                      : `Nothing in ${selected.name} yet. Use Move stock on Main to send goods here.`}
                 </div>
               ) : (
                 <Table>

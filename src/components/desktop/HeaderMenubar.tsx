@@ -390,6 +390,9 @@ export function HeaderMenubar({
             {industrialOn && (organizationRole === "admin" || organizationRole === "manager") && (
               <MenubarItem onClick={() => orgNavigate("/godowns")}>Godowns</MenubarItem>
             )}
+            {industrialOn && (organizationRole === "admin" || organizationRole === "manager") && (
+              <MenubarItem onClick={() => orgNavigate("/godown-transfers")}>Godown Transfers</MenubarItem>
+            )}
             {showManufacturing && (
               <MenubarItem onClick={() => orgNavigate("/manufacturing")}>
                 Manufacturing
