@@ -1,4 +1,5 @@
-import { appPrint } from "@/utils/appPrint";
+import { appPrint, isElectron } from "@/utils/appPrint";
+import { printHtmlInFrame } from "@/utils/printHtmlFrame";
 import type { Godown } from "@/utils/godowns";
 import { CHALLAN_COPIES, buildGodownChallanHtml, fetchGodownMove, fetchGodownMoveItems } from "@/utils/godownTransfer";
 
@@ -34,6 +35,11 @@ export async function printGodownTransferChallan(opts: {
     items,
     copies: opts.allCopies ? [...CHALLAN_COPIES] : [CHALLAN_COPIES[0]],
   });
+  if (!isElectron()) {
+    // Web: print in place like the bills do, without opening a new window.
+    await printHtmlInFrame(html);
+    return;
+  }
   const res = await appPrint({ type: "report", html, silent: false });
   if (!res.success && res.error) throw new Error(res.error);
 }
