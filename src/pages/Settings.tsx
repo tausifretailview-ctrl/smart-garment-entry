@@ -12,7 +12,7 @@ import type { IndustrialModeConfig } from "@/utils/industrialMode";
 import { EwayBillSettingsSection } from "@/components/ewaybill/EwayBillSettingsSection";
 import { DEFAULT_MANUFACTURER_ERP, type ManufacturerERPConfig } from "@/utils/manufacturing";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, Factory, Truck, Building2, Landmark, Layers, ShoppingCart, Receipt, Tag, ListChecks, QrCode, Barcode, Wallet } from "lucide-react";
+import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, Factory, Truck, Building2, Landmark, Layers, ShoppingCart, Receipt, Tag, ListChecks, QrCode, Barcode, Wallet, Calculator, Gift } from "lucide-react";
 import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { SaleInvoiceFormatBackupDialog } from "@/components/settings/SaleInvoiceFormatBackupDialog";
 import { InvoiceTemplateSelectItems } from "@/components/settings/InvoiceTemplateSelectItems";
@@ -2827,454 +2827,408 @@ export default function Settings() {
 
           <TabsContent value="sale" className="mt-0">
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 items-start">
-              {/* Settings Form */}
-              <Card className="h-fit settings-panel-card">
-                <CardHeader>
-                  <CardTitle>Sale Settings</CardTitle>
-                  <CardDescription>
-                    Configure sale-related preferences
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                <SettingsSection title="Sale details">
-                <div className="space-y-2">
-                    <Label htmlFor="default_tax_type">Default GST Type</Label>
-                    <Select
-                      value={resolveSaleDefaultTaxType(settings.sale_settings)}
-                      onValueChange={(v: GstTaxType) => {
-                        setInvoicePreviewChannel("sale");
-                        setSettings({
-                          ...settings,
-                          sale_settings: {
-                            ...settings.sale_settings,
-                            default_tax_type: v,
-                          },
-                        });
-                      }}
+              <div className="space-y-3 min-w-0">
+                <SettingsSection
+                  title="Sale bill defaults"
+                  subtitle="POS GST, numbering, discount and bill format are in the POS tab"
+                  icon={Receipt}
+                  tone="blue"
+                >
+                  <SettingsGrid cols={2}>
+                    <SettingsField
+                      label="Default GST Type"
+                      htmlFor="default_tax_type"
+                      help="Used for Sale Invoice. POS uses this until a separate POS GST Type is set under Settings → POS."
                     >
-                      <SelectTrigger id="default_tax_type">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="inclusive">GST Inclusive (MRP-style, GST bifurcated)</SelectItem>
-                        <SelectItem value="exclusive">GST Exclusive (taxable + GST at bottom)</SelectItem>
-                        <SelectItem value="no_gst">Without GST (no tax on bill)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Used for Sale Invoice. POS uses this until a separate POS GST Type is set under Settings → POS.
-                    </p>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  POS GST, numbering, default discount, cashier options, and bill format are under Settings → POS.
-                </p>
-                <div className="space-y-2">
-                  <Label htmlFor="invoice_numbering_format">Sale Invoice Numbering Format</Label>
-                  <Input
-                    id="invoice_numbering_format"
-                    value={settings.sale_settings?.invoice_numbering_format || ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          invoice_numbering_format: e.target.value,
-                        },
-                      })
-                    }
-                    placeholder="Default: INV/YY-YY/N"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Available placeholders: {"{YYYY}"} (year), {"{MM}"} (month), {"{####}"} (auto-increment). Leave empty for default INV/25-26/1 format.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="invoice_series_start">Sale Invoice Series Start From</Label>
-                  <Input
-                    id="invoice_series_start"
-                    value={settings.sale_settings?.invoice_series_start || ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          invoice_series_start: e.target.value,
-                        },
-                      })
-                    }
-                    placeholder="e.g., INV/25-26/100"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Last sale invoice number already issued (e.g. INV/26-27/18 → next is 19). Leave blank to continue from the highest active invoice. Do not enter a future/high number — that jumps the series (e.g. 261 → next 262). Deleted bills no longer reserve numbers.
-                  </p>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Default Entry Mode (Sale Order / Quotation)</Label>
-                  <Select
-                    value={(settings.sale_settings as any)?.defaultEntryMode || "inline"}
-                    onValueChange={(value: "grid" | "inline") =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          defaultEntryMode: value,
-                        } as any,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="grid">Size Grid (Multi-size entry)</SelectItem>
-                      <SelectItem value="inline">Inline (Single item entry)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Size Grid allows entering multiple sizes at once, Inline adds one variant at a time
-                  </p>
-                </div>
+                      <Select
+                        value={resolveSaleDefaultTaxType(settings.sale_settings)}
+                        onValueChange={(v: GstTaxType) => {
+                          setInvoicePreviewChannel("sale");
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              default_tax_type: v,
+                            },
+                          });
+                        }}
+                      >
+                        <SelectTrigger id="default_tax_type">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="inclusive">GST Inclusive (MRP-style, GST bifurcated)</SelectItem>
+                          <SelectItem value="exclusive">GST Exclusive (taxable + GST at bottom)</SelectItem>
+                          <SelectItem value="no_gst">Without GST (no tax on bill)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </SettingsField>
+                    <SettingsField
+                      label="Sale Invoice Numbering Format"
+                      htmlFor="invoice_numbering_format"
+                      help={
+                        <>
+                          Available placeholders: {"{YYYY}"} (year), {"{MM}"} (month), {"{####}"} (auto-increment). Leave empty
+                          for default INV/25-26/1 format.
+                        </>
+                      }
+                    >
+                      <Input
+                        id="invoice_numbering_format"
+                        value={settings.sale_settings?.invoice_numbering_format || ""}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              invoice_numbering_format: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="Default: INV/YY-YY/N"
+                      />
+                    </SettingsField>
+                    <SettingsField
+                      label="Sale Invoice Series Start From"
+                      htmlFor="invoice_series_start"
+                      help="Last sale invoice number already issued (e.g. INV/26-27/18 → next is 19). Leave blank to continue from the highest active invoice. Do not enter a future/high number — that jumps the series (e.g. 261 → next 262). Deleted bills no longer reserve numbers."
+                    >
+                      <Input
+                        id="invoice_series_start"
+                        value={settings.sale_settings?.invoice_series_start || ""}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              invoice_series_start: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="e.g., INV/25-26/100"
+                      />
+                    </SettingsField>
 
-                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="enable_size_grid_sales" className="text-sm font-medium">
-                      Size Grid in Sales Invoice
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Show Size Grid / Inline entry mode toggle in Sales Invoice
-                    </p>
-                  </div>
-                  <Switch
-                    id="enable_size_grid_sales"
-                    checked={(settings.sale_settings as any)?.enable_size_grid_sales !== false}
-                    onCheckedChange={(checked) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          enable_size_grid_sales: checked,
-                        } as any,
-                      })
-                    }
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="enable_customer_price_memory" className="text-sm font-medium">
-                      Customer Price Memory
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Automatically suggest last used price when selling to the same customer
-                    </p>
-                  </div>
-                  <Switch
-                    id="enable_customer_price_memory"
-                    checked={(settings.sale_settings as any)?.enable_customer_price_memory ?? false}
-                    onCheckedChange={(checked) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          enable_customer_price_memory: checked,
-                        } as any,
-                      })
-                    }
-                />
-                </div>
+                    <SettingsField
+                      label="Default Entry Mode (Sale Order / Quotation)"
+                      help="Size Grid allows entering multiple sizes at once, Inline adds one variant at a time"
+                    >
+                      <Select
+                        value={(settings.sale_settings as any)?.defaultEntryMode || "inline"}
+                        onValueChange={(value: "grid" | "inline") =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              defaultEntryMode: value,
+                            } as any,
+                          })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="grid">Size Grid (Multi-size entry)</SelectItem>
+                          <SelectItem value="inline">Inline (Single item entry)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </SettingsField>
+                  </SettingsGrid>
+                </SettingsSection>
 
-                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="allow_negative_stock_sale" className="text-sm font-medium">
-                      Allow Sale Without Stock (Negative Stock)
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Sale Bill and POS let you bill items that have no stock, with a warning. Stock goes below zero until the next purchase.
-                    </p>
-                  </div>
-                  <Switch
-                    id="allow_negative_stock_sale"
-                    checked={(settings.sale_settings as any)?.allow_negative_stock_sale === true}
-                    onCheckedChange={(checked) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          allow_negative_stock_sale: checked,
-                        } as any,
-                      })
-                    }
-                />
-                </div>
-
-                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="stock_transfer_enabled" className="text-sm font-medium">
-                      Stock Transfer
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Shows the Transfer Out column in the Stock Report (stock sent to your other shop).
-                    </p>
-                  </div>
-                  <Switch
-                    id="stock_transfer_enabled"
-                    checked={settings.sale_settings?.stock_transfer_enabled === true}
-                    onCheckedChange={(checked) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: { ...settings.sale_settings, stock_transfer_enabled: checked },
-                      })
-                    }
-                />
-                </div>
-
-                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="ask_price_on_scan" className="text-sm font-medium">
-                      Ask Price When Last Purchase Differs
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Show price selection dialog when last purchase price differs from master price during billing
-                    </p>
-                  </div>
-                  <Switch
-                    id="ask_price_on_scan"
-                    checked={(settings.sale_settings as any)?.ask_price_on_scan ?? true}
-                    disabled={
-                      ((settings.sale_settings as any)?.auto_use_last_purchase_price ??
-                        isKsFootwearSlug(currentOrganization?.slug)) === true
-                    }
-                    onCheckedChange={(checked) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          ask_price_on_scan: checked,
-                        } as any,
-                      })
-                    }
-                />
-                </div>
-
-                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="auto_use_last_purchase_price" className="text-sm font-medium">
-                      Automatically use last purchase price
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Skip the Select Price dialog and bill at last purchase sale price and MRP. On for KS Footwear by default.
-                    </p>
-                  </div>
-                  <Switch
-                    id="auto_use_last_purchase_price"
-                    checked={
-                      (settings.sale_settings as any)?.auto_use_last_purchase_price ??
-                      isKsFootwearSlug(currentOrganization?.slug)
-                    }
-                    onCheckedChange={(checked) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          auto_use_last_purchase_price: checked,
-                        } as any,
-                      })
-                    }
-                />
-                </div>
-
-                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="sale_return_use_original_price" className="text-sm font-medium">
-                      Sale Return Price
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Use original price (before discount) for sale returns. Default: OFF (uses actual paid price after discount)
-                    </p>
-                  </div>
-                  <Switch
-                    id="sale_return_use_original_price"
-                    checked={(settings.sale_settings as any)?.sale_return_use_original_price ?? false}
-                    onCheckedChange={(checked) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          sale_return_use_original_price: checked,
-                        } as any,
-                      })
-                    }
-                  />
-                </div>
-
-                <div className="space-y-3">
-                  <Label className="text-base font-semibold">Totals & Taxes</Label>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="show_total_quantity"
-                      checked={(settings.sale_settings as any)?.show_total_quantity ?? true}
+                <SettingsSection
+                  title="Billing options"
+                  subtitle="Turn on only what your shop needs"
+                  icon={ListChecks}
+                  tone="emerald"
+                >
+                  <div className="grid gap-2 p-4 sm:grid-cols-2">
+                    <SettingsToggle
+                      label="Size Grid in Sales Invoice"
+                      description="Show Size Grid / Inline entry mode toggle in Sales Invoice"
+                      id="enable_size_grid_sales"
+                      checked={(settings.sale_settings as any)?.enable_size_grid_sales !== false}
                       onCheckedChange={(checked) =>
                         setSettings({
                           ...settings,
                           sale_settings: {
                             ...settings.sale_settings,
-                            show_total_quantity: checked as boolean,
+                            enable_size_grid_sales: checked,
                           } as any,
                         })
                       }
                     />
-                    <Label htmlFor="show_total_quantity" className="font-normal cursor-pointer">
-                      Total Item Quantity
-                    </Label>
-                  </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="amount_with_decimal"
-                      checked={(settings.sale_settings as any)?.amount_with_decimal ?? true}
+                    <SettingsToggle
+                      label="Customer Price Memory"
+                      description="Automatically suggest last used price when selling to the same customer"
+                      id="enable_customer_price_memory"
+                      checked={(settings.sale_settings as any)?.enable_customer_price_memory ?? false}
                       onCheckedChange={(checked) =>
                         setSettings({
                           ...settings,
                           sale_settings: {
                             ...settings.sale_settings,
-                            amount_with_decimal: checked as boolean,
+                            enable_customer_price_memory: checked,
                           } as any,
                         })
                       }
                     />
-                    <Label htmlFor="amount_with_decimal" className="font-normal cursor-pointer">
-                      Amount with Decimal (e.g. 0.00)
-                    </Label>
-                  </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="show_received_amount"
-                      checked={(settings.sale_settings as any)?.show_received_amount ?? false}
+                    <SettingsToggle
+                      label="Allow Sale Without Stock (Negative Stock)"
+                      description="Sale Bill and POS let you bill items that have no stock, with a warning. Stock goes below zero until the next purchase."
+                      id="allow_negative_stock_sale"
+                      checked={(settings.sale_settings as any)?.allow_negative_stock_sale === true}
                       onCheckedChange={(checked) =>
                         setSettings({
                           ...settings,
                           sale_settings: {
                             ...settings.sale_settings,
-                            show_received_amount: checked as boolean,
+                            allow_negative_stock_sale: checked,
                           } as any,
                         })
                       }
                     />
-                    <Label htmlFor="show_received_amount" className="font-normal cursor-pointer">
-                      Received Amount
-                    </Label>
-                  </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="show_balance_amount"
-                      checked={(settings.sale_settings as any)?.show_balance_amount ?? false}
+                    <SettingsToggle
+                      label="Stock Transfer"
+                      description="Shows the Transfer Out column in the Stock Report (stock sent to your other shop)."
+                      id="stock_transfer_enabled"
+                      checked={settings.sale_settings?.stock_transfer_enabled === true}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: { ...settings.sale_settings, stock_transfer_enabled: checked },
+                        })
+                      }
+                    />
+
+                    <SettingsToggle
+                      label="Ask Price When Last Purchase Differs"
+                      description="Show price selection dialog when last purchase price differs from master price during billing"
+                      id="ask_price_on_scan"
+                      checked={(settings.sale_settings as any)?.ask_price_on_scan ?? true}
+                      disabled={
+                        ((settings.sale_settings as any)?.auto_use_last_purchase_price ??
+                          isKsFootwearSlug(currentOrganization?.slug)) === true
+                      }
                       onCheckedChange={(checked) =>
                         setSettings({
                           ...settings,
                           sale_settings: {
                             ...settings.sale_settings,
-                            show_balance_amount: checked as boolean,
+                            ask_price_on_scan: checked,
                           } as any,
                         })
                       }
                     />
-                    <Label htmlFor="show_balance_amount" className="font-normal cursor-pointer">
-                      Balance Amount
-                    </Label>
-                  </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="show_party_balance"
-                      checked={(settings.sale_settings as any)?.show_party_balance ?? false}
+                    <SettingsToggle
+                      label="Automatically use last purchase price"
+                      description="Skip the Select Price dialog and bill at last purchase sale price and MRP. On for KS Footwear by default."
+                      id="auto_use_last_purchase_price"
+                      checked={
+                        (settings.sale_settings as any)?.auto_use_last_purchase_price ??
+                        isKsFootwearSlug(currentOrganization?.slug)
+                      }
                       onCheckedChange={(checked) =>
                         setSettings({
                           ...settings,
                           sale_settings: {
                             ...settings.sale_settings,
-                            show_party_balance: checked as boolean,
+                            auto_use_last_purchase_price: checked,
                           } as any,
                         })
                       }
                     />
-                    <Label htmlFor="show_party_balance" className="font-normal cursor-pointer">
-                      Current Balance of Party
-                    </Label>
-                  </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="show_tax_details"
-                      checked={(settings.sale_settings as any)?.show_tax_details ?? true}
+                    <SettingsToggle
+                      label="Sale Return Price"
+                      description="Use original price (before discount) for sale returns. Default: OFF (uses actual paid price after discount)"
+                      id="sale_return_use_original_price"
+                      checked={(settings.sale_settings as any)?.sale_return_use_original_price ?? false}
                       onCheckedChange={(checked) =>
                         setSettings({
                           ...settings,
                           sale_settings: {
                             ...settings.sale_settings,
-                            show_tax_details: checked as boolean,
+                            sale_return_use_original_price: checked,
                           } as any,
                         })
                       }
                     />
-                    <Label htmlFor="show_tax_details" className="font-normal cursor-pointer">
-                      Tax Details
-                    </Label>
                   </div>
+                </SettingsSection>
 
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="show_you_saved"
-                      checked={(settings.sale_settings as any)?.show_you_saved ?? false}
-                      onCheckedChange={(checked) =>
-                        setSettings({
-                          ...settings,
-                          sale_settings: {
-                            ...settings.sale_settings,
-                            show_you_saved: checked as boolean,
-                          } as any,
-                        })
-                      }
-                    />
-                    <Label htmlFor="show_you_saved" className="font-normal cursor-pointer">
-                      You Saved
-                    </Label>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="amount_with_grouping"
-                      checked={(settings.sale_settings as any)?.amount_with_grouping ?? true}
-                      onCheckedChange={(checked) =>
-                        setSettings({
-                          ...settings,
-                          sale_settings: {
-                            ...settings.sale_settings,
-                            amount_with_grouping: checked as boolean,
-                          } as any,
-                        })
-                      }
-                    />
-                    <Label htmlFor="amount_with_grouping" className="font-normal cursor-pointer">
-                      Print Amount with Grouping
-                    </Label>
-                  </div>
-                </div>
-
-                <div className="space-y-4 pt-4 border-t">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                        <Printer className="h-4 w-4 text-blue-600" />
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="text-base font-semibold leading-none">Print Format</h3>
-                        <p className="text-xs text-muted-foreground mt-0.5">Paper size and printer settings for invoices</p>
-                      </div>
+                <SettingsSection
+                  title="Totals on printed bill"
+                  subtitle="Lines printed under the item table"
+                  icon={Calculator}
+                  tone="amber"
+                >
+                  <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3">
+                    <div className="settings-check">
+                      <Checkbox
+                        id="show_total_quantity"
+                        checked={(settings.sale_settings as any)?.show_total_quantity ?? true}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              show_total_quantity: checked as boolean,
+                            } as any,
+                          })
+                        }
+                      />
+                      <Label htmlFor="show_total_quantity" className="font-normal cursor-pointer">
+                        Total Item Quantity
+                      </Label>
                     </div>
+
+                    <div className="settings-check">
+                      <Checkbox
+                        id="amount_with_decimal"
+                        checked={(settings.sale_settings as any)?.amount_with_decimal ?? true}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              amount_with_decimal: checked as boolean,
+                            } as any,
+                          })
+                        }
+                      />
+                      <Label htmlFor="amount_with_decimal" className="font-normal cursor-pointer">
+                        Amount with Decimal (e.g. 0.00)
+                      </Label>
+                    </div>
+
+                    <div className="settings-check">
+                      <Checkbox
+                        id="show_received_amount"
+                        checked={(settings.sale_settings as any)?.show_received_amount ?? false}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              show_received_amount: checked as boolean,
+                            } as any,
+                          })
+                        }
+                      />
+                      <Label htmlFor="show_received_amount" className="font-normal cursor-pointer">
+                        Received Amount
+                      </Label>
+                    </div>
+
+                    <div className="settings-check">
+                      <Checkbox
+                        id="show_balance_amount"
+                        checked={(settings.sale_settings as any)?.show_balance_amount ?? false}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              show_balance_amount: checked as boolean,
+                            } as any,
+                          })
+                        }
+                      />
+                      <Label htmlFor="show_balance_amount" className="font-normal cursor-pointer">
+                        Balance Amount
+                      </Label>
+                    </div>
+
+                    <div className="settings-check">
+                      <Checkbox
+                        id="show_party_balance"
+                        checked={(settings.sale_settings as any)?.show_party_balance ?? false}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              show_party_balance: checked as boolean,
+                            } as any,
+                          })
+                        }
+                      />
+                      <Label htmlFor="show_party_balance" className="font-normal cursor-pointer">
+                        Current Balance of Party
+                      </Label>
+                    </div>
+
+                    <div className="settings-check">
+                      <Checkbox
+                        id="show_tax_details"
+                        checked={(settings.sale_settings as any)?.show_tax_details ?? true}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              show_tax_details: checked as boolean,
+                            } as any,
+                          })
+                        }
+                      />
+                      <Label htmlFor="show_tax_details" className="font-normal cursor-pointer">
+                        Tax Details
+                      </Label>
+                    </div>
+
+                    <div className="settings-check">
+                      <Checkbox
+                        id="show_you_saved"
+                        checked={(settings.sale_settings as any)?.show_you_saved ?? false}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              show_you_saved: checked as boolean,
+                            } as any,
+                          })
+                        }
+                      />
+                      <Label htmlFor="show_you_saved" className="font-normal cursor-pointer">
+                        You Saved
+                      </Label>
+                    </div>
+
+                    <div className="settings-check">
+                      <Checkbox
+                        id="amount_with_grouping"
+                        checked={(settings.sale_settings as any)?.amount_with_grouping ?? true}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              amount_with_grouping: checked as boolean,
+                            } as any,
+                          })
+                        }
+                      />
+                      <Label htmlFor="amount_with_grouping" className="font-normal cursor-pointer">
+                        Print Amount with Grouping
+                      </Label>
+                    </div>
+                  </div>
+                </SettingsSection>
+
+                <SettingsSection
+                  title="Print format"
+                  subtitle="Paper size, template and preview for Sale bills"
+                  icon={Printer}
+                  tone="blue"
+                  action={
                     <Button
                       type="button"
                       variant="outline"
@@ -3286,15 +3240,13 @@ export default function Settings() {
                       <History className="h-4 w-4" />
                       Backup &amp; Restore
                     </Button>
-                  </div>
-
-                  {/* Enable preview toggle */}
-                  <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/30">
-                    <div>
-                      <p className="text-sm font-medium">Invoice Preview Dialog</p>
-                      <p className="text-xs text-muted-foreground">Show preview before printing (disable for direct print)</p>
-                    </div>
-                    <Switch
+                  }
+                >
+                  <SettingsGrid cols={2}>
+                    {/* Enable preview toggle */}
+                    <SettingsToggle
+                      label="Invoice Preview Dialog"
+                      description="Show preview before printing (disable for direct print)"
                       id="show_invoice_preview"
                       checked={settings.sale_settings?.show_invoice_preview ?? true}
                       onCheckedChange={(checked) =>
@@ -3307,10 +3259,12 @@ export default function Settings() {
                         })
                       }
                     />
-                  </div>
 
-                  <div className="space-y-2">
-                      <Label htmlFor="invoice_paper_format" className="text-sm font-medium">Sale Invoice Format</Label>
+                    <SettingsField
+                      label="Sale Invoice Format"
+                      htmlFor="invoice_paper_format"
+                      help="POS bill format and POS invoice template are under Settings → POS."
+                    >
                       <Select
                         value={settings.sale_settings?.invoice_paper_format || "a4"}
                         onValueChange={(value) => {
@@ -3321,10 +3275,7 @@ export default function Settings() {
                               ...settings.sale_settings,
                               invoice_paper_format: value as any,
                               // keep sales_bill_format in sync for backward compat
-                              sales_bill_format:
-                                value === 'thermal' ? 'thermal'
-                                : value === 'a5-vertical' ? 'a5'
-                                : 'a4',
+                              sales_bill_format: value === "thermal" ? "thermal" : value === "a5-vertical" ? "a5" : "a4",
                             },
                           });
                         }}
@@ -3348,15 +3299,13 @@ export default function Settings() {
                           </SelectGroup>
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-muted-foreground">
-                        POS bill format and POS invoice template are under Settings → POS.
-                      </p>
-                  </div>
+                    </SettingsField>
 
-                  <div className="space-y-2">
-                      <Label htmlFor="sale_invoice_template" className="text-sm font-medium">
-                        Sale Invoice Template
-                      </Label>
+                    <SettingsField
+                      label="Sale Invoice Template"
+                      htmlFor="sale_invoice_template"
+                      help="Used for Sales Invoice bills (paper size above). Live preview updates on the right."
+                    >
                       <Select
                         value={resolveSaleInvoiceTemplate(settings.sale_settings)}
                         onValueChange={(value) => {
@@ -3375,28 +3324,15 @@ export default function Settings() {
                           <SelectValue placeholder="Select template" />
                         </SelectTrigger>
                         <SelectContent>
-                          <InvoiceTemplateSelectItems
-                            currentValue={resolveSaleInvoiceTemplate(settings.sale_settings)}
-                          />
+                          <InvoiceTemplateSelectItems currentValue={resolveSaleInvoiceTemplate(settings.sale_settings)} />
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-muted-foreground">
-                        Used for Sales Invoice bills (paper size above). Live preview updates on the right.
-                      </p>
-                  </div>
+                    </SettingsField>
 
-                  {resolveSaleInvoiceTemplate(settings.sale_settings) === "retail-erp-preprinted" && (
-                    <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
-                      <div className="space-y-1">
-                        <Label htmlFor="print_logo_on_preprinted_letterhead" className="text-sm font-medium">
-                          Print shop logo on letterhead
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          Off (default): keep the 2-inch top blank for physical letterpad paper. On: print the
-                          uploaded Organization Logo inside the invoice frame, flush with the column table.
-                        </p>
-                      </div>
-                      <Switch
+                    {resolveSaleInvoiceTemplate(settings.sale_settings) === "retail-erp-preprinted" && (
+                      <SettingsToggle
+                        label="Print shop logo on letterhead"
+                        description="Off (default): keep the 2-inch top blank for physical letterpad paper. On: print the uploaded Organization Logo inside the invoice frame, flush with the column table."
                         id="print_logo_on_preprinted_letterhead"
                         checked={settings.sale_settings?.print_logo_on_preprinted_letterhead === true}
                         onCheckedChange={(checked) =>
@@ -3409,52 +3345,39 @@ export default function Settings() {
                           })
                         }
                       />
-                    </div>
-                  )}
+                    )}
 
-                  <div className="space-y-2">
-                    <Label htmlFor="quotation_print_template" className="text-sm font-medium">
-                      Quotation Print Layout
-                    </Label>
-                    <Select
-                      value={settings.sale_settings?.quotation_print_template || "retail"}
-                      onValueChange={(value) => {
-                        persistQuotationPrintTemplate(
-                          value as "retail" | "it-company",
-                          currentOrganization?.id,
-                        );
-                        setSettings({
-                          ...settings,
-                          sale_settings: {
-                            ...settings.sale_settings,
-                            quotation_print_template: value as "retail" | "it-company",
-                          },
-                        });
-                      }}
+                    <SettingsField
+                      label="Quotation Print Layout"
+                      htmlFor="quotation_print_template"
+                      help="Also selectable on Print Quotation preview. Existing retail design stays available."
                     >
-                      <SelectTrigger id="quotation_print_template">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="retail">Existing (Retail) — keeps MRP / size</SelectItem>
-                        <SelectItem value="it-company">IT Company — no MRP, Sale terms</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Also selectable on Print Quotation preview. Existing retail design stays available.
-                    </p>
-                  </div>
+                      <Select
+                        value={settings.sale_settings?.quotation_print_template || "retail"}
+                        onValueChange={(value) => {
+                          persistQuotationPrintTemplate(value as "retail" | "it-company", currentOrganization?.id);
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              quotation_print_template: value as "retail" | "it-company",
+                            },
+                          });
+                        }}
+                      >
+                        <SelectTrigger id="quotation_print_template">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="retail">Existing (Retail) — keeps MRP / size</SelectItem>
+                          <SelectItem value="it-company">IT Company — no MRP, Sale terms</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </SettingsField>
 
-                  <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
-                    <div className="space-y-1">
-                      <Label htmlFor="merge_sale_terms_on_quotation" className="text-sm font-medium">
-                        Merge Sale terms into quotations
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Off (default): print only this quotation&apos;s terms. On: prepend Settings → Sale terms.
-                      </p>
-                    </div>
-                    <Switch
+                    <SettingsToggle
+                      label="Merge Sale terms into quotations"
+                      description="Off (default): print only this quotation's terms. On: prepend Settings → Sale terms."
                       id="merge_sale_terms_on_quotation"
                       checked={settings.sale_settings?.merge_sale_terms_on_quotation === true}
                       onCheckedChange={(checked) =>
@@ -3467,172 +3390,160 @@ export default function Settings() {
                         })
                       }
                     />
-                  </div>
 
-                  <p className="text-xs text-muted-foreground">
-                    Thermal Receipt Style is under{" "}
-                    <strong className="text-foreground">Settings → POS → POS print</strong> (same style for sale +
-                    POS thermal).
-                  </p>
+                    <p className="col-span-full text-xs text-muted-foreground">
+                      Thermal Receipt Style is under <strong className="text-foreground">Settings → POS → POS print</strong>{" "}
+                      (same style for sale + POS thermal).
+                    </p>
+                  </SettingsGrid>
+                </SettingsSection>
 
-                </div>
-
-                {/* Item Details Display Settings */}
-                <div className="space-y-4 pt-4 border-t">
-                  <div className="flex items-center gap-2">
-                    <div className="h-7 w-7 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0">
-                      <Package className="h-3.5 w-3.5 text-green-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-semibold leading-none">Item Details Display</h3>
-                      <p className="text-xs text-muted-foreground mt-0.5">Extra columns on the Sales Invoice and POS dashboards (not on printed bills)</p>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="show_item_brand"
-                        checked={(settings.sale_settings as any)?.show_item_brand ?? false}
-                        onCheckedChange={(checked) =>
-                          setSettings({
-                            ...settings,
-                            sale_settings: {
-                              ...settings.sale_settings,
-                              show_item_brand: checked as boolean,
-                            },
-                          })
-                        }
-                      />
-                      <Label htmlFor="show_item_brand" className="font-normal cursor-pointer">
-                        Brand
-                      </Label>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="show_item_color"
-                        checked={(settings.sale_settings as any)?.show_item_color ?? false}
-                        onCheckedChange={(checked) =>
-                          setSettings({
-                            ...settings,
-                            sale_settings: {
-                              ...settings.sale_settings,
-                              show_item_color: checked as boolean,
-                            },
-                          })
-                        }
-                      />
-                      <Label htmlFor="show_item_color" className="font-normal cursor-pointer">
-                        Color
-                      </Label>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="show_item_style"
-                        checked={(settings.sale_settings as any)?.show_item_style ?? false}
-                        onCheckedChange={(checked) =>
-                          setSettings({
-                            ...settings,
-                            sale_settings: {
-                              ...settings.sale_settings,
-                              show_item_style: checked as boolean,
-                            },
-                          })
-                        }
-                      />
-                      <Label htmlFor="show_item_style" className="font-normal cursor-pointer">
-                        Style
-                      </Label>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="show_item_barcode"
-                        checked={(settings.sale_settings as any)?.show_item_barcode ?? false}
-                        onCheckedChange={(checked) =>
-                          setSettings({
-                            ...settings,
-                            sale_settings: {
-                              ...settings.sale_settings,
-                              show_item_barcode: checked as boolean,
-                            },
-                          })
-                        }
-                      />
-                      <Label htmlFor="show_item_barcode" className="font-normal cursor-pointer">
-                        Barcode
-                      </Label>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="show_item_hsn"
-                        checked={(settings.sale_settings as any)?.show_item_hsn ?? false}
-                        onCheckedChange={(checked) =>
-                          setSettings({
-                            ...settings,
-                            sale_settings: {
-                              ...settings.sale_settings,
-                              show_item_hsn: checked as boolean,
-                            },
-                          })
-                        }
-                      />
-                      <Label htmlFor="show_item_hsn" className="font-normal cursor-pointer">
-                        HSN Code
-                      </Label>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="show_item_mrp"
-                        checked={(settings.sale_settings as any)?.show_item_mrp ?? true}
-                        onCheckedChange={(checked) =>
-                          setSettings({
-                            ...settings,
-                            sale_settings: {
-                              ...settings.sale_settings,
-                              show_item_mrp: checked as boolean,
-                            },
-                          })
-                        }
-                      />
-                      <Label htmlFor="show_item_mrp" className="font-normal cursor-pointer">
-                        MRP
-                      </Label>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="show_discount_on_rate"
-                        checked={(settings.sale_settings as any)?.show_discount_on_rate !== false}
-                        onCheckedChange={(checked) =>
-                          setSettings({
-                            ...settings,
-                            sale_settings: {
-                              ...settings.sale_settings,
-                              show_discount_on_rate: checked as boolean,
-                            },
-                          })
-                        }
-                      />
-                      <Label htmlFor="show_discount_on_rate" className="font-normal cursor-pointer">
-                        Discount on Rate
-                      </Label>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 rounded-md border border-border p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium">Invoice description sequence</p>
-                        <p className="text-xs text-muted-foreground">
-                          Tally GST A4 only. Off prints the description already on the bill. On lets you choose the order.
-                        </p>
+                <SettingsSection
+                  title="Item details on Sale / POS screens"
+                  subtitle="Extra columns on the billing screens, not on printed bills"
+                  icon={Package}
+                  tone="emerald"
+                >
+                  <div className="space-y-3 p-4">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      <div className="settings-check">
+                        <Checkbox
+                          id="show_item_brand"
+                          checked={(settings.sale_settings as any)?.show_item_brand ?? false}
+                          onCheckedChange={(checked) =>
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                show_item_brand: checked as boolean,
+                              },
+                            })
+                          }
+                        />
+                        <Label htmlFor="show_item_brand" className="font-normal cursor-pointer">
+                          Brand
+                        </Label>
                       </div>
-                      <Switch
+
+                      <div className="settings-check">
+                        <Checkbox
+                          id="show_item_color"
+                          checked={(settings.sale_settings as any)?.show_item_color ?? false}
+                          onCheckedChange={(checked) =>
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                show_item_color: checked as boolean,
+                              },
+                            })
+                          }
+                        />
+                        <Label htmlFor="show_item_color" className="font-normal cursor-pointer">
+                          Color
+                        </Label>
+                      </div>
+
+                      <div className="settings-check">
+                        <Checkbox
+                          id="show_item_style"
+                          checked={(settings.sale_settings as any)?.show_item_style ?? false}
+                          onCheckedChange={(checked) =>
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                show_item_style: checked as boolean,
+                              },
+                            })
+                          }
+                        />
+                        <Label htmlFor="show_item_style" className="font-normal cursor-pointer">
+                          Style
+                        </Label>
+                      </div>
+
+                      <div className="settings-check">
+                        <Checkbox
+                          id="show_item_barcode"
+                          checked={(settings.sale_settings as any)?.show_item_barcode ?? false}
+                          onCheckedChange={(checked) =>
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                show_item_barcode: checked as boolean,
+                              },
+                            })
+                          }
+                        />
+                        <Label htmlFor="show_item_barcode" className="font-normal cursor-pointer">
+                          Barcode
+                        </Label>
+                      </div>
+
+                      <div className="settings-check">
+                        <Checkbox
+                          id="show_item_hsn"
+                          checked={(settings.sale_settings as any)?.show_item_hsn ?? false}
+                          onCheckedChange={(checked) =>
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                show_item_hsn: checked as boolean,
+                              },
+                            })
+                          }
+                        />
+                        <Label htmlFor="show_item_hsn" className="font-normal cursor-pointer">
+                          HSN Code
+                        </Label>
+                      </div>
+
+                      <div className="settings-check">
+                        <Checkbox
+                          id="show_item_mrp"
+                          checked={(settings.sale_settings as any)?.show_item_mrp ?? true}
+                          onCheckedChange={(checked) =>
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                show_item_mrp: checked as boolean,
+                              },
+                            })
+                          }
+                        />
+                        <Label htmlFor="show_item_mrp" className="font-normal cursor-pointer">
+                          MRP
+                        </Label>
+                      </div>
+
+                      <div className="settings-check">
+                        <Checkbox
+                          id="show_discount_on_rate"
+                          checked={(settings.sale_settings as any)?.show_discount_on_rate !== false}
+                          onCheckedChange={(checked) =>
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                show_discount_on_rate: checked as boolean,
+                              },
+                            })
+                          }
+                        />
+                        <Label htmlFor="show_discount_on_rate" className="font-normal cursor-pointer">
+                          Discount on Rate
+                        </Label>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <SettingsToggle
+                        label="Invoice description sequence"
+                        description="Tally GST A4 only. Off prints the description already on the bill. On lets you choose the order."
                         id="invoice_description_sequence_enabled"
                         checked={(settings.sale_settings as any)?.invoice_description_sequence_enabled === true}
                         onCheckedChange={(checked) =>
@@ -3647,206 +3558,199 @@ export default function Settings() {
                           })
                         }
                       />
-                    </div>
-                    {(settings.sale_settings as any)?.invoice_description_sequence_enabled === true ? (
-                      <Select
-                        value={(settings.sale_settings as any)?.invoice_description_sequence || "brand_first"}
-                        onValueChange={(value) =>
-                          setSettings({
-                            ...settings,
-                            sale_settings: {
-                              ...settings.sale_settings,
-                              invoice_description_sequence: value as "product_first" | "brand_first",
-                            },
-                          })
-                        }
-                      >
-                        <SelectTrigger id="invoice_description_sequence">
-                          <SelectValue placeholder="Choose sequence" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="brand_first">Brand first, then product name</SelectItem>
-                          <SelectItem value="product_first">Product name first, then brand</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : null}
-                  </div>
-                </div>
-                  <div className="rounded-lg border border-dashed p-3 bg-muted/20 space-y-1">
-                    <p className="text-sm font-medium">Invoice templates</p>
-                    <p className="text-xs text-muted-foreground">
-                      Sale Invoice Template is under Print Format above. POS Invoice Template and Thermal Receipt
-                      Style are under Settings → POS. Use the Sale / POS toggle on the live preview to check both
-                      designs.
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {settings.sale_settings?.invoice_template === 'retail-pos-80mm'
-                        ? 'Retail POS prints on 80mm thermal roll in monospace — shop logo (if uploaded), org address/mobile/GSTIN, terms, and UPI QR when UPI ID is set.'
-                        : settings.sale_settings?.invoice_template === 'kids-80mm'
-                        ? 'Kids 80mm prints on 80mm thermal roll — product name, size, qty, sale price, MRP total, fixed footer & terms.'
-                        : settings.sale_settings?.invoice_template === 'kids-camp-80mm'
-                        ? 'Kids Camp prints on 80mm thermal roll — boxed GST invoice with barcode/HSN, cash/card/Paytm split, and 5%/18%/28% tax table.'
-                        : settings.sale_settings?.invoice_template === 'vastrakala-80mm'
-                        ? 'Vastrakala prints on 80mm thermal roll — logo, shop name, Instagram, NO/Particulars/Qty/MRP/Amount table, Tot Qty, Total Amt, MRP-based Discount, Net Amt, and terms. Toggle Show MRP Column above to turn the MRP/Discount figures on or off.'
-                        : settings.sale_settings?.invoice_template === 'retail-erp-dc'
-                          ? 'Retail ERP style DC matches Retail ERP layout without HSN, organization GSTIN, customer GSTIN, or GST tax lines. Title prints as Delivery Challan (A5).'
-                        : settings.sale_settings?.invoice_template === 'zaika'
-                          ? 'Zaika matches Retail ERP tax invoice without Size, Barcode, Qty, Rate columns, and without Received/Balance/Prev Bal or Terms & Conditions (A5).'
-                        : settings.sale_settings?.invoice_template === 'gurukrupa'
-                          ? 'Gurukrupa is A5 Retail ERP tax invoice with Sub Total, Discount, S/R Adjust and Bill Total — no Round Off.'
-                        : settings.sale_settings?.invoice_template === 'retail-erp-preprinted'
-                          ? 'Preprinted Invoice matches Retail ERP tax layout with a 2-inch top letterhead gap. Paper size follows POS Bill Format / Sale Invoice Format (A4 or A5). Leave Print shop logo on letterhead OFF if this shop already uses printed letterpad paper.'
-                        : settings.sale_settings?.invoice_template === 'real-tast'
-                          ? 'Real Tast prints on A4 — SN, Description, HSN, Qty, Rate, Amount. Set document title and terms in Sale settings below.'
-                        : settings.sale_settings?.invoice_template === 'gift_tally'
-                          ? 'Gift Tally prints on A4 — GST tax invoice with billed/shipped blocks, per-line CGST/SGST/IGST, bank details and terms.'
-                        : settings.sale_settings?.invoice_template === 'a4-gst-classic'
-                          ? 'A4 GST Classic matches textile/wholesale Tax Invoice layout — logo, UPI QR, Billed/Shipped, transport, GST summary table, bank bar and signature.'
-                        : settings.sale_settings?.invoice_template === 'wholesale-gst-a4'
-                          ? 'Wholesale GST A4 is a named A4 layout any organization can select — logo, customer GSTIN, per-rate CGST/SGST (or IGST) rows, bank details, UPI QR and editable terms. Paper is A4 only.'
-                        : settings.sale_settings?.invoice_template === 'klear-a4'
-                          ? 'Klear A4 is a named A4 layout any organization can select — one row per product with a quantity column per size, blended CGST/SGST, bank details and UPI QR. Paper is A4 only.'
-                        : settings.sale_settings?.invoice_template === 'motas-a4'
-                          ? 'Motas is a premium A4 tax invoice any organization can select — # / Description / Qty / HSN / Unit / Discount / Taxable / Tax % / Total, billing address with Invoice No, Date, Place of Supply and Due Date, HSN-wise tax summary, bank details and terms. Long bills continue on new sheets that repeat the header. Paper is A4 only.'
-                        : settings.sale_settings?.invoice_template === 'modern-wholesale'
-                          ? 'Modern Wholesale is optimized for bulk orders with size grouping (e.g., 38/2, 40/3, 42/1).'
-                          : `Sale: ${resolveSaleInvoiceTemplate(settings.sale_settings)} · POS: ${resolvePosInvoiceTemplate(settings.sale_settings)}`}
-                    </p>
-                  </div>
-
-                  {/* Wholesale Mode Settings - Show when Modern Wholesale template is selected */}
-                  {settings.sale_settings?.invoice_template === 'modern-wholesale' && (
-                    <div className="space-y-4 p-3 rounded-lg border-l-4 border-l-teal-500 bg-teal-50/50 dark:bg-teal-950/20">
-                      <div className="flex items-center gap-2">
-                        <div className="h-6 w-6 rounded bg-teal-100 flex items-center justify-center flex-shrink-0">
-                          <span className="text-[10px] font-bold text-teal-700">WHL</span>
-                        </div>
-                        <h4 className="text-sm font-semibold text-teal-700 dark:text-teal-400">Wholesale Mode Settings</h4>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="size_display_format">Size Display Format</Label>
+                      {(settings.sale_settings as any)?.invoice_description_sequence_enabled === true ? (
                         <Select
-                          value={(settings.sale_settings as any)?.size_display_format || "size/qty"}
+                          value={(settings.sale_settings as any)?.invoice_description_sequence || "brand_first"}
                           onValueChange={(value) =>
                             setSettings({
                               ...settings,
                               sale_settings: {
                                 ...settings.sale_settings,
-                                size_display_format: value as 'size/qty' | 'size×qty',
+                                invoice_description_sequence: value as "product_first" | "brand_first",
                               },
                             })
                           }
                         >
-                          <SelectTrigger id="size_display_format">
-                            <SelectValue placeholder="Select format" />
+                          <SelectTrigger id="invoice_description_sequence">
+                            <SelectValue placeholder="Choose sequence" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="size/qty">Size/Qty (38/2, 40/3, 42/1)</SelectItem>
-                            <SelectItem value="size×qty">Size×Qty (38×2, 40×3, 42×1)</SelectItem>
+                            <SelectItem value="brand_first">Brand first, then product name</SelectItem>
+                            <SelectItem value="product_first">Product name first, then brand</SelectItem>
                           </SelectContent>
                         </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="min_item_rows">Minimum Item Rows</Label>
-                        <Input
-                          id="min_item_rows"
-                          type="number"
-                          min="1"
-                          max="30"
-                          value={(settings.sale_settings as any)?.min_item_rows || 12}
-                          onChange={(e) =>
-                            setSettings({
-                              ...settings,
-                              sale_settings: {
-                                ...settings.sale_settings,
-                                min_item_rows: parseInt(e.target.value) || 12,
-                              },
-                            })
-                          }
-                          placeholder="12"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Minimum empty rows to display in item table
-                        </p>
-                      </div>
-                      
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id="show_product_color"
-                            checked={(settings.sale_settings as any)?.show_product_color ?? true}
-                            onCheckedChange={(checked) =>
-                              setSettings({
-                                ...settings,
-                                sale_settings: {
-                                  ...settings.sale_settings,
-                                  show_product_color: checked as boolean,
-                                },
-                              })
-                            }
-                          />
-                          <Label htmlFor="show_product_color" className="cursor-pointer text-sm">
-                            Show Color
-                          </Label>
-                        </div>
-
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id="show_product_brand"
-                            checked={(settings.sale_settings as any)?.show_product_brand ?? false}
-                            onCheckedChange={(checked) =>
-                              setSettings({
-                                ...settings,
-                                sale_settings: {
-                                  ...settings.sale_settings,
-                                  show_product_brand: checked as boolean,
-                                },
-                              })
-                            }
-                          />
-                          <Label htmlFor="show_product_brand" className="cursor-pointer text-sm">
-                            Show Brand
-                          </Label>
-                        </div>
-
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id="show_product_style"
-                            checked={(settings.sale_settings as any)?.show_product_style ?? false}
-                            onCheckedChange={(checked) =>
-                              setSettings({
-                                ...settings,
-                                sale_settings: {
-                                  ...settings.sale_settings,
-                                  show_product_style: checked as boolean,
-                                },
-                              })
-                            }
-                          />
-                          <Label htmlFor="show_product_style" className="cursor-pointer text-sm">
-                            Show Style
-                          </Label>
-                        </div>
-                      </div>
+                      ) : null}
                     </div>
-                  )}
-                
-                  {/* Invoice Customization Section */}
-                  <div className="space-y-4 mt-6 pt-6 border-t">
-                    <div className="flex items-center gap-2">
-                      <div className="h-7 w-7 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
-                        <Paintbrush className="h-3.5 w-3.5 text-purple-600" />
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-semibold leading-none">Invoice Customization</h3>
-                        <p className="text-xs text-muted-foreground mt-0.5">Template, colors, fonts, logo, header &amp; footer</p>
-                      </div>
+                  </div>
+                </SettingsSection>
+
+                <SettingsSection
+                  title="Invoice design"
+                  subtitle="Font, logo, title, header, footer, colours and terms"
+                  icon={Paintbrush}
+                  tone="violet"
+                >
+                  <div className="space-y-3 p-4">
+                    <div className="rounded-lg border border-dashed p-3 bg-muted/20 space-y-1">
+                      <p className="text-sm font-medium">Invoice templates</p>
+                      <p className="text-xs text-muted-foreground">
+                        Sale Invoice Template is under Print Format above. POS Invoice Template and Thermal Receipt Style are
+                        under Settings → POS. Use the Sale / POS toggle on the live preview to check both designs.
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {settings.sale_settings?.invoice_template === "retail-pos-80mm"
+                          ? "Retail POS prints on 80mm thermal roll in monospace — shop logo (if uploaded), org address/mobile/GSTIN, terms, and UPI QR when UPI ID is set."
+                          : settings.sale_settings?.invoice_template === "kids-80mm"
+                            ? "Kids 80mm prints on 80mm thermal roll — product name, size, qty, sale price, MRP total, fixed footer & terms."
+                            : settings.sale_settings?.invoice_template === "kids-camp-80mm"
+                              ? "Kids Camp prints on 80mm thermal roll — boxed GST invoice with barcode/HSN, cash/card/Paytm split, and 5%/18%/28% tax table."
+                              : settings.sale_settings?.invoice_template === "vastrakala-80mm"
+                                ? "Vastrakala prints on 80mm thermal roll — logo, shop name, Instagram, NO/Particulars/Qty/MRP/Amount table, Tot Qty, Total Amt, MRP-based Discount, Net Amt, and terms. Toggle Show MRP Column above to turn the MRP/Discount figures on or off."
+                                : settings.sale_settings?.invoice_template === "retail-erp-dc"
+                                  ? "Retail ERP style DC matches Retail ERP layout without HSN, organization GSTIN, customer GSTIN, or GST tax lines. Title prints as Delivery Challan (A5)."
+                                  : settings.sale_settings?.invoice_template === "zaika"
+                                    ? "Zaika matches Retail ERP tax invoice without Size, Barcode, Qty, Rate columns, and without Received/Balance/Prev Bal or Terms & Conditions (A5)."
+                                    : settings.sale_settings?.invoice_template === "gurukrupa"
+                                      ? "Gurukrupa is A5 Retail ERP tax invoice with Sub Total, Discount, S/R Adjust and Bill Total — no Round Off."
+                                      : settings.sale_settings?.invoice_template === "retail-erp-preprinted"
+                                        ? "Preprinted Invoice matches Retail ERP tax layout with a 2-inch top letterhead gap. Paper size follows POS Bill Format / Sale Invoice Format (A4 or A5). Leave Print shop logo on letterhead OFF if this shop already uses printed letterpad paper."
+                                        : settings.sale_settings?.invoice_template === "real-tast"
+                                          ? "Real Tast prints on A4 — SN, Description, HSN, Qty, Rate, Amount. Set document title and terms in Sale settings below."
+                                          : settings.sale_settings?.invoice_template === "gift_tally"
+                                            ? "Gift Tally prints on A4 — GST tax invoice with billed/shipped blocks, per-line CGST/SGST/IGST, bank details and terms."
+                                            : settings.sale_settings?.invoice_template === "a4-gst-classic"
+                                              ? "A4 GST Classic matches textile/wholesale Tax Invoice layout — logo, UPI QR, Billed/Shipped, transport, GST summary table, bank bar and signature."
+                                              : settings.sale_settings?.invoice_template === "wholesale-gst-a4"
+                                                ? "Wholesale GST A4 is a named A4 layout any organization can select — logo, customer GSTIN, per-rate CGST/SGST (or IGST) rows, bank details, UPI QR and editable terms. Paper is A4 only."
+                                                : settings.sale_settings?.invoice_template === "klear-a4"
+                                                  ? "Klear A4 is a named A4 layout any organization can select — one row per product with a quantity column per size, blended CGST/SGST, bank details and UPI QR. Paper is A4 only."
+                                                  : settings.sale_settings?.invoice_template === "motas-a4"
+                                                    ? "Motas is a premium A4 tax invoice any organization can select — # / Description / Qty / HSN / Unit / Discount / Taxable / Tax % / Total, billing address with Invoice No, Date, Place of Supply and Due Date, HSN-wise tax summary, bank details and terms. Long bills continue on new sheets that repeat the header. Paper is A4 only."
+                                                    : settings.sale_settings?.invoice_template === "modern-wholesale"
+                                                      ? "Modern Wholesale is optimized for bulk orders with size grouping (e.g., 38/2, 40/3, 42/1)."
+                                                      : `Sale: ${resolveSaleInvoiceTemplate(settings.sale_settings)} · POS: ${resolvePosInvoiceTemplate(settings.sale_settings)}`}
+                      </p>
                     </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="font_family">Font Family</Label>
+                    {/* Wholesale Mode Settings - Show when Modern Wholesale template is selected */}
+                    {settings.sale_settings?.invoice_template === "modern-wholesale" && (
+                      <div className="space-y-4 p-3 rounded-lg border-l-4 border-l-teal-500 bg-teal-50/50 dark:bg-teal-950/20">
+                        <div className="flex items-center gap-2">
+                          <div className="h-6 w-6 rounded bg-teal-100 flex items-center justify-center flex-shrink-0">
+                            <span className="text-[10px] font-bold text-teal-700">WHL</span>
+                          </div>
+                          <h4 className="text-sm font-semibold text-teal-700 dark:text-teal-400">Wholesale Mode Settings</h4>
+                        </div>
+
+                        <SettingsField label="Size Display Format" htmlFor="size_display_format">
+                          <Select
+                            value={(settings.sale_settings as any)?.size_display_format || "size/qty"}
+                            onValueChange={(value) =>
+                              setSettings({
+                                ...settings,
+                                sale_settings: {
+                                  ...settings.sale_settings,
+                                  size_display_format: value as "size/qty" | "size×qty",
+                                },
+                              })
+                            }
+                          >
+                            <SelectTrigger id="size_display_format">
+                              <SelectValue placeholder="Select format" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="size/qty">Size/Qty (38/2, 40/3, 42/1)</SelectItem>
+                              <SelectItem value="size×qty">Size×Qty (38×2, 40×3, 42×1)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </SettingsField>
+
+                        <SettingsField
+                          label="Minimum Item Rows"
+                          htmlFor="min_item_rows"
+                          help="Minimum empty rows to display in item table"
+                        >
+                          <Input
+                            id="min_item_rows"
+                            type="number"
+                            min="1"
+                            max="30"
+                            value={(settings.sale_settings as any)?.min_item_rows || 12}
+                            onChange={(e) =>
+                              setSettings({
+                                ...settings,
+                                sale_settings: {
+                                  ...settings.sale_settings,
+                                  min_item_rows: parseInt(e.target.value) || 12,
+                                },
+                              })
+                            }
+                            placeholder="12"
+                          />
+                        </SettingsField>
+
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="settings-check">
+                            <Checkbox
+                              id="show_product_color"
+                              checked={(settings.sale_settings as any)?.show_product_color ?? true}
+                              onCheckedChange={(checked) =>
+                                setSettings({
+                                  ...settings,
+                                  sale_settings: {
+                                    ...settings.sale_settings,
+                                    show_product_color: checked as boolean,
+                                  },
+                                })
+                              }
+                            />
+                            <Label htmlFor="show_product_color" className="cursor-pointer text-sm">
+                              Show Color
+                            </Label>
+                          </div>
+
+                          <div className="settings-check">
+                            <Checkbox
+                              id="show_product_brand"
+                              checked={(settings.sale_settings as any)?.show_product_brand ?? false}
+                              onCheckedChange={(checked) =>
+                                setSettings({
+                                  ...settings,
+                                  sale_settings: {
+                                    ...settings.sale_settings,
+                                    show_product_brand: checked as boolean,
+                                  },
+                                })
+                              }
+                            />
+                            <Label htmlFor="show_product_brand" className="cursor-pointer text-sm">
+                              Show Brand
+                            </Label>
+                          </div>
+
+                          <div className="settings-check">
+                            <Checkbox
+                              id="show_product_style"
+                              checked={(settings.sale_settings as any)?.show_product_style ?? false}
+                              onCheckedChange={(checked) =>
+                                setSettings({
+                                  ...settings,
+                                  sale_settings: {
+                                    ...settings.sale_settings,
+                                    show_product_style: checked as boolean,
+                                  },
+                                })
+                              }
+                            />
+                            <Label htmlFor="show_product_style" className="cursor-pointer text-sm">
+                              Show Style
+                            </Label>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <SettingsGrid cols={2} className="pt-0">
+                    <SettingsField label="Font Family" htmlFor="font_family" help="Choose the font style for your invoices">
                       <Select
                         value={settings.sale_settings?.font_family || "inter"}
                         onValueChange={(value) =>
@@ -3874,13 +3778,13 @@ export default function Settings() {
                           <SelectItem value="lora">Lora - Readable serif</SelectItem>
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-muted-foreground">
-                        Choose the font style for your invoices
-                      </p>
-                    </div>
+                    </SettingsField>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="logo_placement">Logo Placement</Label>
+                    <SettingsField
+                      label="Logo Placement"
+                      htmlFor="logo_placement"
+                      help="Position of your business logo on invoices"
+                    >
                       <Select
                         value={settings.sale_settings?.logo_placement || "left"}
                         onValueChange={(value) =>
@@ -3888,7 +3792,7 @@ export default function Settings() {
                             ...settings,
                             sale_settings: {
                               ...settings.sale_settings,
-                              logo_placement: value as 'left' | 'center' | 'right',
+                              logo_placement: value as "left" | "center" | "right",
                             },
                           })
                         }
@@ -3902,16 +3806,16 @@ export default function Settings() {
                           <SelectItem value="right">Right Aligned</SelectItem>
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-muted-foreground">
-                        Position of your business logo on invoices
-                      </p>
-                    </div>
+                    </SettingsField>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="invoice_document_title">Invoice document title</Label>
+                    <SettingsField
+                      label="Invoice document title"
+                      htmlFor="invoice_document_title"
+                      help="Trendzo bill: heading under the shop name. Leave blank to print ESTIMATE. Type TAX INVOICE or BILL OF SUPPLY when that shop needs it. Real Tast A4: blank stays BILL OF SUPPLY. Letter-pad: blank hides the title."
+                    >
                       <Input
                         id="invoice_document_title"
-                        value={settings.sale_settings?.invoice_document_title || ''}
+                        value={settings.sale_settings?.invoice_document_title || ""}
                         onChange={(e) =>
                           setSettings({
                             ...settings,
@@ -3924,16 +3828,16 @@ export default function Settings() {
                         maxLength={80}
                         placeholder="ESTIMATE, TAX INVOICE, BILL OF SUPPLY"
                       />
-                      <p className="text-xs text-muted-foreground">
-                        Trendzo bill: heading under the shop name. Leave blank to print ESTIMATE. Type TAX INVOICE or BILL OF SUPPLY when that shop needs it. Real Tast A4: blank stays BILL OF SUPPLY. Letter-pad: blank hides the title.
-                      </p>
-                    </div>
+                    </SettingsField>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="invoice_header_text">Custom Header Text</Label>
+                    <SettingsField
+                      label="Custom Header Text"
+                      htmlFor="invoice_header_text"
+                      help="Optional text to display at the top of invoices (max 200 chars)"
+                    >
                       <Textarea
                         id="invoice_header_text"
-                        value={settings.sale_settings?.invoice_header_text || ''}
+                        value={settings.sale_settings?.invoice_header_text || ""}
                         onChange={(e) =>
                           setSettings({
                             ...settings,
@@ -3947,16 +3851,16 @@ export default function Settings() {
                         maxLength={200}
                         placeholder="e.g., Thank you for shopping with us!"
                       />
-                      <p className="text-xs text-muted-foreground">
-                        Optional text to display at the top of invoices (max 200 chars)
-                      </p>
-                    </div>
+                    </SettingsField>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="invoice_footer_text">Custom Footer Text</Label>
+                    <SettingsField
+                      label="Custom Footer Text"
+                      htmlFor="invoice_footer_text"
+                      help="Optional text to display at the bottom of invoices (max 200 chars)"
+                    >
                       <Textarea
                         id="invoice_footer_text"
-                        value={settings.sale_settings?.invoice_footer_text || ''}
+                        value={settings.sale_settings?.invoice_footer_text || ""}
                         onChange={(e) =>
                           setSettings({
                             ...settings,
@@ -3970,111 +3874,107 @@ export default function Settings() {
                         maxLength={200}
                         placeholder="e.g., Visit us again! Follow us on social media"
                       />
-                      <p className="text-xs text-muted-foreground">
-                        Optional text to display at the bottom of invoices (max 200 chars)
-                      </p>
-                    </div>
-                  </div>
-                <div className="space-y-2">
-                  <Label htmlFor="invoice_color_scheme">Invoice Color Scheme</Label>
-                  <Select
-                    value={settings.sale_settings?.invoice_color_scheme || "blue"}
-                    onValueChange={(value) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          invoice_color_scheme: value,
-                        },
-                      })
-                    }
-                  >
-                    <SelectTrigger id="invoice_color_scheme">
-                      <SelectValue placeholder="Select color" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="blue">Blue - Professional</SelectItem>
-                      <SelectItem value="green">Green - Fresh</SelectItem>
-                      <SelectItem value="purple">Purple - Creative</SelectItem>
-                      <SelectItem value="red">Red - Bold</SelectItem>
-                      <SelectItem value="orange">Orange - Energetic</SelectItem>
-                      <SelectItem value="gray">Gray - Neutral</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                    </SettingsField>
 
-                <div className="space-y-2">
-                  <Label htmlFor="declaration_text">Invoice Declaration Text</Label>
-                  <Textarea
-                    id="declaration_text"
-                    value={settings.sale_settings?.declaration_text || 'Declaration: Composition taxable person, not eligible to collect tax on supplies.'}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          declaration_text: e.target.value,
-                        },
-                      })
-                    }
-                    rows={2}
-                  />
-                </div>
+                    <SettingsField label="Invoice Color Scheme" htmlFor="invoice_color_scheme">
+                      <Select
+                        value={settings.sale_settings?.invoice_color_scheme || "blue"}
+                        onValueChange={(value) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              invoice_color_scheme: value,
+                            },
+                          })
+                        }
+                      >
+                        <SelectTrigger id="invoice_color_scheme">
+                          <SelectValue placeholder="Select color" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="blue">Blue - Professional</SelectItem>
+                          <SelectItem value="green">Green - Fresh</SelectItem>
+                          <SelectItem value="purple">Purple - Creative</SelectItem>
+                          <SelectItem value="red">Red - Bold</SelectItem>
+                          <SelectItem value="orange">Orange - Energetic</SelectItem>
+                          <SelectItem value="gray">Gray - Neutral</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </SettingsField>
 
-                <div className="space-y-2">
-                  <Label>Invoice Terms & Conditions</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Up to 6 terms shown on invoice & thermal receipt. Leave blank to hide.
-                  </p>
-                  <div className="space-y-2">
-                    {(() => {
-                      const MAX_TERMS = 6;
-                      const existing = settings.sale_settings?.terms_list || [
-                        'GOODS ONCE SOLD WILL NOT BE TAKEN BACK.',
-                        'NO EXCHANGE WITHOUT BARCODE & BILL.',
-                        'EXCHANGE TIME: 01:00 TO 04:00 PM.',
-                        '', '', '',
-                      ];
-                      const padded = [...existing];
-                      while (padded.length < MAX_TERMS) padded.push('');
-                      const display = padded.slice(0, MAX_TERMS);
+                    <SettingsField label="Invoice Declaration Text" htmlFor="declaration_text" span="full">
+                      <Textarea
+                        id="declaration_text"
+                        value={
+                          settings.sale_settings?.declaration_text ||
+                          "Declaration: Composition taxable person, not eligible to collect tax on supplies."
+                        }
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              declaration_text: e.target.value,
+                            },
+                          })
+                        }
+                        rows={2}
+                      />
+                    </SettingsField>
 
-                      return display.map((term, index) => (
-                        <div key={index} className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground w-5 text-right shrink-0 font-medium">
-                            {index + 1}.
-                          </span>
-                          <Input
-                            value={term}
-                            onChange={(e) => {
-                              const newTerms = [...display];
-                              newTerms[index] = e.target.value;
-                              setSettings({
-                                ...settings,
-                                sale_settings: {
-                                  ...settings.sale_settings,
-                                  terms_list: newTerms,
-                                },
-                              });
-                            }}
-                            placeholder={`Term ${index + 1} (leave blank to hide)`}
-                            className="flex-1"
-                          />
-                        </div>
-                      ));
-                    })()}
-                  </div>
-                </div>
+                    <SettingsField
+                      label="Invoice Terms & Conditions"
+                      span="full"
+                      help="Up to 6 terms shown on invoice & thermal receipt. Leave blank to hide."
+                    >
+                      <div className="space-y-2">
+                        {(() => {
+                          const MAX_TERMS = 6;
+                          const existing = settings.sale_settings?.terms_list || [
+                            "GOODS ONCE SOLD WILL NOT BE TAKEN BACK.",
+                            "NO EXCHANGE WITHOUT BARCODE & BILL.",
+                            "EXCHANGE TIME: 01:00 TO 04:00 PM.",
+                            "",
+                            "",
+                            "",
+                          ];
+                          const padded = [...existing];
+                          while (padded.length < MAX_TERMS) padded.push("");
+                          const display = padded.slice(0, MAX_TERMS);
 
-                {/* Invoice Display Options */}
-                <div className="space-y-4 pt-6 border-t">
-                  <h3 className="text-lg font-semibold">Invoice Display Options</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Customize what information appears on your invoices
-                  </p>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-center space-x-2">
+                          return display.map((term, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground w-5 text-right shrink-0 font-medium">
+                                {index + 1}.
+                              </span>
+                              <Input
+                                value={term}
+                                onChange={(e) => {
+                                  const newTerms = [...display];
+                                  newTerms[index] = e.target.value;
+                                  setSettings({
+                                    ...settings,
+                                    sale_settings: {
+                                      ...settings.sale_settings,
+                                      terms_list: newTerms,
+                                    },
+                                  });
+                                }}
+                                placeholder={`Term ${index + 1} (leave blank to hide)`}
+                                className="flex-1"
+                              />
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                    </SettingsField>
+                  </SettingsGrid>
+                </SettingsSection>
+
+                <SettingsSection title="Invoice display options" subtitle="What prints on Sale bills" icon={Eye} tone="sky">
+                  <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3">
+                    <div className="settings-check">
                       <Checkbox
                         id="show_hsn_code"
                         checked={settings.sale_settings?.show_hsn_code ?? true}
@@ -4093,7 +3993,7 @@ export default function Settings() {
                       </Label>
                     </div>
 
-                    <div className="flex items-center space-x-2">
+                    <div className="settings-check">
                       <Checkbox
                         id="show_barcode"
                         checked={settings.sale_settings?.show_barcode ?? true}
@@ -4112,7 +4012,7 @@ export default function Settings() {
                       </Label>
                     </div>
 
-                    <div className="flex items-center space-x-2">
+                    <div className="settings-check">
                       <Checkbox
                         id="show_gst_breakdown"
                         checked={settings.sale_settings?.show_gst_breakdown ?? true}
@@ -4131,7 +4031,7 @@ export default function Settings() {
                       </Label>
                     </div>
 
-                    <div className="flex items-center space-x-2">
+                    <div className="settings-check">
                       <Checkbox
                         id="show_bank_details"
                         checked={settings.sale_settings?.show_bank_details ?? false}
@@ -4150,7 +4050,7 @@ export default function Settings() {
                       </Label>
                     </div>
 
-                    <div className="flex items-center space-x-2">
+                    <div className="settings-check">
                       <Checkbox
                         id="show_mrp_column"
                         checked={settings.sale_settings?.show_mrp_column ?? false}
@@ -4169,19 +4069,17 @@ export default function Settings() {
                       </Label>
                     </div>
                   </div>
-                </div>
+                </SettingsSection>
 
-                {/* Bank Details Section */}
                 {settings.sale_settings?.show_bank_details && (
-                  <div className="space-y-4 pt-6 border-t">
-                    <h3 className="text-lg font-semibold">Bank Account Details</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Bank details will appear on your invoices
-                    </p>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="bank_name">Bank Name</Label>
+                  <SettingsSection
+                    title="Bank details on bills"
+                    subtitle="Printed on Sale bills when Show Bank Details is on"
+                    icon={Landmark}
+                    tone="emerald"
+                  >
+                    <div className="settings-grid grid grid-cols-1 gap-x-4 gap-y-3 p-4 sm:grid-cols-2">
+                      <SettingsField label="Bank Name" htmlFor="bank_name">
                         <Input
                           id="bank_name"
                           value={settings.sale_settings?.bank_details?.bank_name || ""}
@@ -4199,10 +4097,9 @@ export default function Settings() {
                           }
                           placeholder="e.g., HDFC Bank"
                         />
-                      </div>
+                      </SettingsField>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="account_holder">Account Holder Name</Label>
+                      <SettingsField label="Account Holder Name" htmlFor="account_holder">
                         <Input
                           id="account_holder"
                           value={settings.sale_settings?.bank_details?.account_holder || ""}
@@ -4220,10 +4117,9 @@ export default function Settings() {
                           }
                           placeholder="e.g., John Doe"
                         />
-                      </div>
+                      </SettingsField>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="account_number">Account Number</Label>
+                      <SettingsField label="Account Number" htmlFor="account_number">
                         <Input
                           id="account_number"
                           value={settings.sale_settings?.bank_details?.account_number || ""}
@@ -4241,10 +4137,9 @@ export default function Settings() {
                           }
                           placeholder="e.g., 1234567890"
                         />
-                      </div>
+                      </SettingsField>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="ifsc_code">IFSC Code</Label>
+                      <SettingsField label="IFSC Code" htmlFor="ifsc_code">
                         <Input
                           id="ifsc_code"
                           value={settings.sale_settings?.bank_details?.ifsc_code || ""}
@@ -4262,10 +4157,9 @@ export default function Settings() {
                           }
                           placeholder="e.g., HDFC0001234"
                         />
-                      </div>
+                      </SettingsField>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="bank_branch">Branch Name</Label>
+                      <SettingsField label="Branch Name" htmlFor="bank_branch">
                         <Input
                           id="bank_branch"
                           value={(settings.sale_settings?.bank_details as any)?.branch || ""}
@@ -4283,642 +4177,657 @@ export default function Settings() {
                           }
                           placeholder="e.g., Andheri West Branch"
                         />
-                      </div>
+                      </SettingsField>
                     </div>
-                  </div>
+                  </SettingsSection>
                 )}
 
-                {/* E-Invoice Settings Section */}
-                <div className="space-y-4 pt-6 border-t">
-                  <div className="flex items-center gap-2">
-                    <Shield className="h-5 w-5 text-primary" />
-                    <h3 className="text-lg font-semibold">E-Invoice Settings (PeriOne API)</h3>
+                <SettingsSection
+                  title="E-Invoice (PeriOne API)"
+                  subtitle="IRN for B2B bills. Keys stay saved for this shop only."
+                  icon={Shield}
+                  tone="rose"
+                >
+                  <div className="space-y-3 p-4">
+                    <div className="settings-check">
+                      <Checkbox
+                        id="einvoice_enabled"
+                        checked={settings.sale_settings?.einvoice_settings?.enabled ?? false}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              einvoice_settings: {
+                                ...settings.sale_settings?.einvoice_settings,
+                                enabled: checked as boolean,
+                              } as any,
+                            },
+                          })
+                        }
+                      />
+                      <div>
+                        <Label htmlFor="einvoice_enabled" className="font-normal cursor-pointer">
+                          Enable E-Invoice Generation
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          When enabled, allows generating IRN for B2B invoices via PeriOne API
+                        </p>
+                      </div>
+                    </div>
+
+                    {settings.sale_settings?.einvoice_settings?.enabled && (
+                      <div className="space-y-4">
+                        {/* PeriOne API Credentials Section */}
+                        <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
+                          <h4 className="font-medium flex items-center gap-2">
+                            <Shield className="h-4 w-4" />
+                            PeriOne API Credentials
+                          </h4>
+                          <p className="text-xs text-muted-foreground">
+                            Enter your PeriOne API credentials. These are stored securely per organization.
+                          </p>
+
+                          <div className="settings-grid grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-2">
+                            <SettingsField label="API Email" htmlFor="api_email">
+                              <Input
+                                id="api_email"
+                                type="email"
+                                className="no-uppercase"
+                                value={settings.sale_settings?.einvoice_settings?.api_email || ""}
+                                onChange={(e) =>
+                                  setSettings({
+                                    ...settings,
+                                    sale_settings: {
+                                      ...settings.sale_settings,
+                                      einvoice_settings: {
+                                        ...settings.sale_settings?.einvoice_settings,
+                                        api_email: e.target.value,
+                                      } as any,
+                                    },
+                                  })
+                                }
+                                placeholder="tausifretailview@gmail.com"
+                              />
+                            </SettingsField>
+
+                            <SettingsField label="Username / User ID" htmlFor="api_username">
+                              <Input
+                                id="api_username"
+                                className="no-uppercase"
+                                value={settings.sale_settings?.einvoice_settings?.api_username || ""}
+                                onChange={(e) =>
+                                  setSettings({
+                                    ...settings,
+                                    sale_settings: {
+                                      ...settings.sale_settings,
+                                      einvoice_settings: {
+                                        ...settings.sale_settings?.einvoice_settings,
+                                        api_username: e.target.value,
+                                      } as any,
+                                    },
+                                  })
+                                }
+                                placeholder="Enter username"
+                              />
+                            </SettingsField>
+
+                            <SettingsField label="Password" htmlFor="api_password">
+                              <div className="relative">
+                                <Input
+                                  id="api_password"
+                                  type={showApiPassword ? "text" : "password"}
+                                  className="no-uppercase pr-10"
+                                  value={settings.sale_settings?.einvoice_settings?.api_password || ""}
+                                  onChange={(e) =>
+                                    setSettings({
+                                      ...settings,
+                                      sale_settings: {
+                                        ...settings.sale_settings,
+                                        einvoice_settings: {
+                                          ...settings.sale_settings?.einvoice_settings,
+                                          api_password: e.target.value,
+                                        } as any,
+                                      },
+                                    })
+                                  }
+                                  placeholder="••••••••"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                                  onClick={() => setShowApiPassword(!showApiPassword)}
+                                >
+                                  {showApiPassword ? (
+                                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                  ) : (
+                                    <Eye className="h-4 w-4 text-muted-foreground" />
+                                  )}
+                                </Button>
+                              </div>
+                            </SettingsField>
+
+                            <SettingsField label="Client ID" htmlFor="api_client_id">
+                              <Input
+                                id="api_client_id"
+                                className="no-uppercase"
+                                value={settings.sale_settings?.einvoice_settings?.api_client_id || ""}
+                                onChange={(e) =>
+                                  setSettings({
+                                    ...settings,
+                                    sale_settings: {
+                                      ...settings.sale_settings,
+                                      einvoice_settings: {
+                                        ...settings.sale_settings?.einvoice_settings,
+                                        api_client_id: e.target.value,
+                                      } as any,
+                                    },
+                                  })
+                                }
+                                placeholder="Enter Client ID"
+                              />
+                            </SettingsField>
+
+                            <div className="space-y-2 md:col-span-2">
+                              <Label htmlFor="api_client_secret">Client Secret</Label>
+                              <div className="relative">
+                                <Input
+                                  id="api_client_secret"
+                                  type={showClientSecret ? "text" : "password"}
+                                  value={settings.sale_settings?.einvoice_settings?.api_client_secret || ""}
+                                  onChange={(e) =>
+                                    setSettings({
+                                      ...settings,
+                                      sale_settings: {
+                                        ...settings.sale_settings,
+                                        einvoice_settings: {
+                                          ...settings.sale_settings?.einvoice_settings,
+                                          api_client_secret: e.target.value,
+                                        } as any,
+                                      },
+                                    })
+                                  }
+                                  placeholder="••••••••••••••••"
+                                  className="font-mono no-uppercase pr-10"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                                  onClick={() => setShowClientSecret(!showClientSecret)}
+                                >
+                                  {showClientSecret ? (
+                                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                  ) : (
+                                    <Eye className="h-4 w-4 text-muted-foreground" />
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3 pt-2">
+                          <div className="settings-check">
+                            <Checkbox
+                              id="einvoice_test_mode"
+                              checked={settings.sale_settings?.einvoice_settings?.test_mode ?? true}
+                              onCheckedChange={(checked) =>
+                                setSettings({
+                                  ...settings,
+                                  sale_settings: {
+                                    ...settings.sale_settings,
+                                    einvoice_settings: {
+                                      ...settings.sale_settings?.einvoice_settings,
+                                      test_mode: checked as boolean,
+                                    } as any,
+                                  },
+                                })
+                              }
+                            />
+                            <div>
+                              <Label htmlFor="einvoice_test_mode" className="font-normal cursor-pointer">
+                                Test Mode (Sandbox)
+                              </Label>
+                              <p className="text-xs text-muted-foreground">Use PeriOne Sandbox environment for testing</p>
+                            </div>
+                          </div>
+
+                          {/* Seller GSTIN Override - only show when test mode is enabled */}
+                          {settings.sale_settings?.einvoice_settings?.test_mode && (
+                            <SettingsField
+                              label="Seller GSTIN Override (Sandbox)"
+                              htmlFor="seller_gstin_override"
+                              help="Use PeriOne sandbox GSTIN for testing. Leave empty to use your Business Details GSTIN."
+                            >
+                              <Input
+                                id="seller_gstin_override"
+                                value={settings.sale_settings?.einvoice_settings?.seller_gstin || ""}
+                                onChange={(e) =>
+                                  setSettings({
+                                    ...settings,
+                                    sale_settings: {
+                                      ...settings.sale_settings,
+                                      einvoice_settings: {
+                                        ...settings.sale_settings?.einvoice_settings,
+                                        seller_gstin: e.target.value,
+                                      } as any,
+                                    },
+                                  })
+                                }
+                                placeholder="29AAGCB1286Q000"
+                                className="font-mono"
+                              />
+                            </SettingsField>
+                          )}
+
+                          <div className="settings-check">
+                            <Checkbox
+                              id="einvoice_auto_generate"
+                              checked={settings.sale_settings?.einvoice_settings?.auto_generate ?? false}
+                              onCheckedChange={(checked) =>
+                                setSettings({
+                                  ...settings,
+                                  sale_settings: {
+                                    ...settings.sale_settings,
+                                    einvoice_settings: {
+                                      ...settings.sale_settings?.einvoice_settings,
+                                      auto_generate: checked as boolean,
+                                    } as any,
+                                  },
+                                })
+                              }
+                            />
+                            <div>
+                              <Label htmlFor="einvoice_auto_generate" className="font-normal cursor-pointer">
+                                Auto-generate E-Invoice
+                              </Label>
+                              <p className="text-xs text-muted-foreground">
+                                Automatically generate E-Invoice when saving B2B sales
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Test Connection Button */}
+                        <div className="flex items-center gap-3 mt-4">
+                          <Button
+                            variant="outline"
+                            onClick={async () => {
+                              setIsTestingConnection(true);
+                              setConnectionStatus(null);
+                              try {
+                                const response = await supabase.functions.invoke("test-einvoice-connection", {
+                                  body: { organizationId: currentOrganization?.id },
+                                });
+                                if (response.error) throw new Error(response.error.message);
+                                const result = response.data;
+                                setConnectionStatus({
+                                  success: result.success,
+                                  message: result.success ? result.message : result.error,
+                                });
+                              } catch (err: any) {
+                                setConnectionStatus({ success: false, message: err.message || "Connection test failed" });
+                              } finally {
+                                setIsTestingConnection(false);
+                              }
+                            }}
+                            disabled={isTestingConnection}
+                          >
+                            {isTestingConnection ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Eye className="h-4 w-4 mr-2" />
+                            )}
+                            Test Connection
+                          </Button>
+                          {connectionStatus && (
+                            <span
+                              className={`text-sm font-medium ${connectionStatus.success ? "text-green-600" : "text-destructive"}`}
+                            >
+                              {connectionStatus.success ? "✅" : "❌"} {connectionStatus.message}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="mt-4 p-3 bg-muted/50 rounded-lg text-sm">
+                          <p className="font-medium text-muted-foreground mb-1">⚠️ Important Notes:</p>
+                          <ul className="list-disc list-inside space-y-1 text-muted-foreground text-xs">
+                            <li>API credentials are stored securely per organization</li>
+                            <li>Ensure seller GSTIN is configured in Business Settings above</li>
+                            <li>E-Invoice is mandatory for turnover {">"} ₹5 Crore</li>
+                            <li>Test in Sandbox mode (staging.perione.in) before going live</li>
+                            <li>Customer must have a valid GSTIN for B2B e-Invoice</li>
+                            <li>PeriOne contact: hello@perione.in | +91 9848799417</li>
+                          </ul>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Configure PeriOne e-Invoice integration for B2B invoices
-                  </p>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="einvoice_enabled"
-                      checked={settings.sale_settings?.einvoice_settings?.enabled ?? false}
-                      onCheckedChange={(checked) =>
+                </SettingsSection>
+
+                <SettingsSection title="E-Way Bill" icon={Truck} tone="amber">
+                  <div className="p-4">
+                    <EwayBillSettingsSection
+                      organizationId={currentOrganization?.id}
+                      value={settings.sale_settings?.einvoice_settings}
+                      einvoiceOn={settings.sale_settings?.einvoice_settings?.enabled === true}
+                      industrialOn={industrialModeAvailable && settings.sale_settings?.industrial_mode?.enabled === true}
+                      onChange={(patch) =>
                         setSettings({
                           ...settings,
                           sale_settings: {
                             ...settings.sale_settings,
                             einvoice_settings: {
                               ...settings.sale_settings?.einvoice_settings,
-                              enabled: checked as boolean,
+                              ...patch,
                             } as any,
                           },
                         })
                       }
                     />
-                    <div>
-                      <Label htmlFor="einvoice_enabled" className="font-normal cursor-pointer">
-                        Enable E-Invoice Generation
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        When enabled, allows generating IRN for B2B invoices via PeriOne API
-                      </p>
-                    </div>
                   </div>
-
-                  {settings.sale_settings?.einvoice_settings?.enabled && (
-                    <div className="space-y-4 pl-6 border-l-2 border-primary/20">
-                       {/* PeriOne API Credentials Section */}
-                       <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
-                         <h4 className="font-medium flex items-center gap-2">
-                           <Shield className="h-4 w-4" />
-                           PeriOne API Credentials
-                         </h4>
-                         <p className="text-xs text-muted-foreground">
-                           Enter your PeriOne API credentials. These are stored securely per organization.
-                         </p>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="api_email">API Email</Label>
-                             <Input
-                              id="api_email"
-                              type="email"
-                              className="no-uppercase"
-                              value={settings.sale_settings?.einvoice_settings?.api_email || ''}
-                              onChange={(e) =>
-                                setSettings({
-                                  ...settings,
-                                  sale_settings: {
-                                    ...settings.sale_settings,
-                                    einvoice_settings: {
-                                      ...settings.sale_settings?.einvoice_settings,
-                                      api_email: e.target.value,
-                                    } as any,
-                                  },
-                                })
-                              }
-                              placeholder="tausifretailview@gmail.com"
-                            />
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor="api_username">Username / User ID</Label>
-                            <Input
-                              id="api_username"
-                              className="no-uppercase"
-                              value={settings.sale_settings?.einvoice_settings?.api_username || ''}
-                              onChange={(e) =>
-                                setSettings({
-                                  ...settings,
-                                  sale_settings: {
-                                    ...settings.sale_settings,
-                                    einvoice_settings: {
-                                      ...settings.sale_settings?.einvoice_settings,
-                                      api_username: e.target.value,
-                                    } as any,
-                                  },
-                                })
-                              }
-                              placeholder="Enter username"
-                            />
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor="api_password">Password</Label>
-                            <div className="relative">
-                              <Input
-                                id="api_password"
-                                type={showApiPassword ? "text" : "password"}
-                                className="no-uppercase pr-10"
-                                value={settings.sale_settings?.einvoice_settings?.api_password || ''}
-                                onChange={(e) =>
-                                  setSettings({
-                                    ...settings,
-                                    sale_settings: {
-                                      ...settings.sale_settings,
-                                      einvoice_settings: {
-                                        ...settings.sale_settings?.einvoice_settings,
-                                        api_password: e.target.value,
-                                      } as any,
-                                    },
-                                  })
-                                }
-                                placeholder="••••••••"
-                              />
-                              <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3 hover:bg-transparent" onClick={() => setShowApiPassword(!showApiPassword)}>
-                                {showApiPassword ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
-                              </Button>
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor="api_client_id">Client ID</Label>
-                            <Input
-                              id="api_client_id"
-                              className="no-uppercase"
-                              value={settings.sale_settings?.einvoice_settings?.api_client_id || ''}
-                              onChange={(e) =>
-                                setSettings({
-                                  ...settings,
-                                  sale_settings: {
-                                    ...settings.sale_settings,
-                                    einvoice_settings: {
-                                      ...settings.sale_settings?.einvoice_settings,
-                                      api_client_id: e.target.value,
-                                    } as any,
-                                  },
-                                })
-                              }
-                              placeholder="Enter Client ID"
-                            />
-                          </div>
-                          
-                          <div className="space-y-2 md:col-span-2">
-                            <Label htmlFor="api_client_secret">Client Secret</Label>
-                            <div className="relative">
-                              <Input
-                                id="api_client_secret"
-                                type={showClientSecret ? "text" : "password"}
-                                value={settings.sale_settings?.einvoice_settings?.api_client_secret || ''}
-                                onChange={(e) =>
-                                  setSettings({
-                                    ...settings,
-                                    sale_settings: {
-                                      ...settings.sale_settings,
-                                      einvoice_settings: {
-                                        ...settings.sale_settings?.einvoice_settings,
-                                        api_client_secret: e.target.value,
-                                      } as any,
-                                    },
-                                  })
-                                }
-                                placeholder="••••••••••••••••"
-                                className="font-mono no-uppercase pr-10"
-                              />
-                              <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3 hover:bg-transparent" onClick={() => setShowClientSecret(!showClientSecret)}>
-                                {showClientSecret ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-3 pt-2">
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id="einvoice_test_mode"
-                            checked={settings.sale_settings?.einvoice_settings?.test_mode ?? true}
-                            onCheckedChange={(checked) =>
-                              setSettings({
-                                ...settings,
-                                sale_settings: {
-                                  ...settings.sale_settings,
-                                  einvoice_settings: {
-                                    ...settings.sale_settings?.einvoice_settings,
-                                    test_mode: checked as boolean,
-                                  } as any,
-                                },
-                              })
-                            }
-                          />
-                          <div>
-                            <Label htmlFor="einvoice_test_mode" className="font-normal cursor-pointer">
-                              Test Mode (Sandbox)
-                            </Label>
-                            <p className="text-xs text-muted-foreground">
-                              Use PeriOne Sandbox environment for testing
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Seller GSTIN Override - only show when test mode is enabled */}
-                        {settings.sale_settings?.einvoice_settings?.test_mode && (
-                          <div className="space-y-2">
-                            <Label htmlFor="seller_gstin_override">Seller GSTIN Override (Sandbox)</Label>
-                            <Input
-                              id="seller_gstin_override"
-                              value={settings.sale_settings?.einvoice_settings?.seller_gstin || ''}
-                              onChange={(e) =>
-                                setSettings({
-                                  ...settings,
-                                  sale_settings: {
-                                    ...settings.sale_settings,
-                                    einvoice_settings: {
-                                      ...settings.sale_settings?.einvoice_settings,
-                                      seller_gstin: e.target.value,
-                                    } as any,
-                                  },
-                                })
-                              }
-                              placeholder="29AAGCB1286Q000"
-                              className="font-mono"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Use PeriOne sandbox GSTIN for testing. Leave empty to use your Business Details GSTIN.
-                            </p>
-                          </div>
-                        )}
-
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id="einvoice_auto_generate"
-                            checked={settings.sale_settings?.einvoice_settings?.auto_generate ?? false}
-                            onCheckedChange={(checked) =>
-                              setSettings({
-                                ...settings,
-                                sale_settings: {
-                                  ...settings.sale_settings,
-                                  einvoice_settings: {
-                                    ...settings.sale_settings?.einvoice_settings,
-                                    auto_generate: checked as boolean,
-                                  } as any,
-                                },
-                              })
-                            }
-                          />
-                          <div>
-                            <Label htmlFor="einvoice_auto_generate" className="font-normal cursor-pointer">
-                              Auto-generate E-Invoice
-                            </Label>
-                            <p className="text-xs text-muted-foreground">
-                              Automatically generate E-Invoice when saving B2B sales
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Test Connection Button */}
-                      <div className="flex items-center gap-3 mt-4">
-                        <Button
-                          variant="outline"
-                          onClick={async () => {
-                            setIsTestingConnection(true);
-                            setConnectionStatus(null);
-                            try {
-                              const response = await supabase.functions.invoke('test-einvoice-connection', {
-                                body: { organizationId: currentOrganization?.id },
-                              });
-                              if (response.error) throw new Error(response.error.message);
-                              const result = response.data;
-                              setConnectionStatus({
-                                success: result.success,
-                                message: result.success ? result.message : result.error,
-                              });
-                            } catch (err: any) {
-                              setConnectionStatus({ success: false, message: err.message || 'Connection test failed' });
-                            } finally {
-                              setIsTestingConnection(false);
-                            }
-                          }}
-                          disabled={isTestingConnection}
-                        >
-                          {isTestingConnection ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Eye className="h-4 w-4 mr-2" />}
-                          Test Connection
-                        </Button>
-                        {connectionStatus && (
-                          <span className={`text-sm font-medium ${connectionStatus.success ? 'text-green-600' : 'text-destructive'}`}>
-                            {connectionStatus.success ? '✅' : '❌'} {connectionStatus.message}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="mt-4 p-3 bg-muted/50 rounded-lg text-sm">
-                        <p className="font-medium text-muted-foreground mb-1">⚠️ Important Notes:</p>
-                        <ul className="list-disc list-inside space-y-1 text-muted-foreground text-xs">
-                          <li>API credentials are stored securely per organization</li>
-                          <li>Ensure seller GSTIN is configured in Business Settings above</li>
-                          <li>E-Invoice is mandatory for turnover {">"} ₹5 Crore</li>
-                           <li>Test in Sandbox mode (staging.perione.in) before going live</li>
-                           <li>Customer must have a valid GSTIN for B2B e-Invoice</li>
-                           <li>PeriOne contact: hello@perione.in | +91 9848799417</li>
-                        </ul>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* E-Way Bill Section (any shop; with or without E-Invoice) */}
-                <div className="space-y-4 pt-6 border-t">
-                  <div className="flex items-center gap-2">
-                    <Truck className="h-5 w-5 text-primary" />
-                    <h3 className="text-lg font-semibold">E-Way Bill</h3>
-                  </div>
-                  <EwayBillSettingsSection
-                    organizationId={currentOrganization?.id}
-                    value={settings.sale_settings?.einvoice_settings}
-                    einvoiceOn={settings.sale_settings?.einvoice_settings?.enabled === true}
-                    industrialOn={industrialModeAvailable && settings.sale_settings?.industrial_mode?.enabled === true}
-                    onChange={(patch) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          einvoice_settings: {
-                            ...settings.sale_settings?.einvoice_settings,
-                            ...patch,
-                          } as any,
-                        },
-                      })
-                    }
-                  />
-                </div>
-
-                {/* Customer Points System */}
-                <div className="space-y-4 pt-6 border-t">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">🎯</span>
-                    <h3 className="text-lg font-semibold">Customer Points System</h3>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Reward your customers with loyalty points based on their purchases
-                  </p>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="enable_points_system"
-                      checked={(settings.sale_settings as any)?.enable_points_system ?? false}
-                      onCheckedChange={(checked) =>
-                        setSettings({
-                          ...settings,
-                          sale_settings: {
-                            ...settings.sale_settings,
-                            enable_points_system: checked as boolean,
-                          } as any,
-                        })
-                      }
-                    />
-                    <div>
-                      <Label htmlFor="enable_points_system" className="font-normal cursor-pointer">
-                        Enable Customer Points System
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        When enabled, customers earn points on their purchases
-                      </p>
-                    </div>
-                  </div>
-
-                  {(settings.sale_settings as any)?.enable_points_system && (
-                    <div className="space-y-4 pl-6 border-l-2 border-primary/20">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="points_ratio_amount">Amount per Point (₹)</Label>
-                          <Input
-                            id="points_ratio_amount"
-                            type="number"
-                            min="1"
-                            value={(settings.sale_settings as any)?.points_ratio_amount || 100}
-                            onChange={(e) =>
-                              setSettings({
-                                ...settings,
-                                sale_settings: {
-                                  ...settings.sale_settings,
-                                  points_ratio_amount: parseInt(e.target.value) || 100,
-                                } as any,
-                              })
-                            }
-                            placeholder="100"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Amount in rupees required to earn points
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="points_per_ratio">Points Awarded</Label>
-                          <Input
-                            id="points_per_ratio"
-                            type="number"
-                            min="1"
-                            value={(settings.sale_settings as any)?.points_per_ratio || 1}
-                            onChange={(e) =>
-                              setSettings({
-                                ...settings,
-                                sale_settings: {
-                                  ...settings.sale_settings,
-                                  points_per_ratio: parseInt(e.target.value) || 1,
-                                } as any,
-                              })
-                            }
-                            placeholder="1"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Points earned per ratio amount
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="p-3 bg-primary/5 rounded-lg">
-                        <p className="text-sm font-medium">
-                          Example: ₹{(settings.sale_settings as any)?.points_ratio_amount || 100} purchase = {(settings.sale_settings as any)?.points_per_ratio || 1} point(s)
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Customer buying ₹2,500 worth of products will earn {Math.floor(2500 / ((settings.sale_settings as any)?.points_ratio_amount || 100)) * ((settings.sale_settings as any)?.points_per_ratio || 1)} points
-                        </p>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="points_rounding">Points Rounding</Label>
-                          <Select
-                            value={(settings.sale_settings as any)?.points_rounding || "floor"}
-                            onValueChange={(value) =>
-                              setSettings({
-                                ...settings,
-                                sale_settings: {
-                                  ...settings.sale_settings,
-                                  points_rounding: value,
-                                } as any,
-                              })
-                            }
-                          >
-                            <SelectTrigger id="points_rounding">
-                              <SelectValue placeholder="Select rounding" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="floor">Round Down (Floor)</SelectItem>
-                              <SelectItem value="round">Round to Nearest</SelectItem>
-                              <SelectItem value="ceil">Round Up (Ceiling)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="min_purchase_for_points">Minimum Purchase (₹)</Label>
-                          <Input
-                            id="min_purchase_for_points"
-                            type="number"
-                            min="0"
-                            value={(settings.sale_settings as any)?.min_purchase_for_points || 0}
-                            onChange={(e) =>
-                              setSettings({
-                                ...settings,
-                                sale_settings: {
-                                  ...settings.sale_settings,
-                                  min_purchase_for_points: parseInt(e.target.value) || 0,
-                                } as any,
-                              })
-                            }
-                            placeholder="0"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Minimum invoice amount to earn points (0 = no minimum)
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Points Redemption Settings */}
-                      <div className="space-y-4 pt-4 border-t border-dashed">
-                        <h4 className="font-medium text-primary flex items-center gap-2">
-                          <span>🎁</span> Points Redemption Settings
-                        </h4>
-                        
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id="enable_points_redemption"
-                            checked={(settings.sale_settings as any)?.enable_points_redemption ?? false}
-                            onCheckedChange={(checked) =>
-                              setSettings({
-                                ...settings,
-                                sale_settings: {
-                                  ...settings.sale_settings,
-                                  enable_points_redemption: checked as boolean,
-                                } as any,
-                              })
-                            }
-                          />
-                          <div>
-                            <Label htmlFor="enable_points_redemption" className="font-normal cursor-pointer">
-                              Enable Points Redemption at Billing
-                            </Label>
-                            <p className="text-xs text-muted-foreground">
-                              Allow customers to redeem points for instant discount
-                            </p>
-                          </div>
-                        </div>
-
-                        {(settings.sale_settings as any)?.enable_points_redemption && (
-                          <div className="grid grid-cols-2 gap-4 pl-6 border-l-2 border-green-500/20">
-                            <div className="space-y-2">
-                              <Label htmlFor="points_redemption_value">1 Point = ₹</Label>
-                              <Input
-                                id="points_redemption_value"
-                                type="number"
-                                min="0.1"
-                                step="0.1"
-                                value={(settings.sale_settings as any)?.points_redemption_value || 1}
-                                onChange={(e) =>
-                                  setSettings({
-                                    ...settings,
-                                    sale_settings: {
-                                      ...settings.sale_settings,
-                                      points_redemption_value: parseFloat(e.target.value) || 1,
-                                    } as any,
-                                  })
-                                }
-                                placeholder="1"
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                Rupee value of 1 point
-                              </p>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="max_redemption_percent">Max Redemption %</Label>
-                              <Input
-                                id="max_redemption_percent"
-                                type="number"
-                                min="1"
-                                max="100"
-                                value={(settings.sale_settings as any)?.max_redemption_percent || 50}
-                                onChange={(e) =>
-                                  setSettings({
-                                    ...settings,
-                                    sale_settings: {
-                                      ...settings.sale_settings,
-                                      max_redemption_percent: parseInt(e.target.value) || 50,
-                                    } as any,
-                                  })
-                                }
-                                placeholder="50"
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                Max % of invoice payable via points
-                              </p>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="min_points_for_redemption">Min Points to Redeem</Label>
-                              <Input
-                                id="min_points_for_redemption"
-                                type="number"
-                                min="1"
-                                value={(settings.sale_settings as any)?.min_points_for_redemption ?? 1}
-                                onChange={(e) =>
-                                  setSettings({
-                                    ...settings,
-                                    sale_settings: {
-                                      ...settings.sale_settings,
-                                      min_points_for_redemption: parseInt(e.target.value) || 1,
-                                    } as any,
-                                  })
-                                }
-                                placeholder="1"
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                Minimum old points balance required to redeem (current bill earn is pending)
-                              </p>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="min_purchase_for_redemption">Min Purchase for Redemption (₹)</Label>
-                              <Input
-                                id="min_purchase_for_redemption"
-                                type="number"
-                                min="0"
-                                value={(settings.sale_settings as any)?.min_purchase_for_redemption || 0}
-                                onChange={(e) =>
-                                  setSettings({
-                                    ...settings,
-                                    sale_settings: {
-                                      ...settings.sale_settings,
-                                      min_purchase_for_redemption: parseInt(e.target.value) || 0,
-                                    } as any,
-                                  })
-                                }
-                                placeholder="0"
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                Min invoice amount for redemption (0 = no minimum)
-                              </p>
-                            </div>
-                          </div>
-                        )}
-
-                        {(settings.sale_settings as any)?.enable_points_redemption && (
-                          <div className="p-3 bg-green-500/5 rounded-lg border border-green-500/20">
-                            <p className="text-sm font-medium text-green-700 dark:text-green-400">
-                              Example: Customer with 100 points can redeem up to ₹{((settings.sale_settings as any)?.points_redemption_value || 1) * 100} discount
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              On ₹2,000 invoice, max redeemable: ₹{Math.floor(2000 * ((settings.sale_settings as any)?.max_redemption_percent || 50) / 100)} ({(settings.sale_settings as any)?.max_redemption_percent || 50}% limit)
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Gift Rewards Management */}
-                        <div className="pt-4 border-t border-dashed">
-                          <LazySettingsPanel>
-                            <LazyGiftRewardsManagement />
-                          </LazySettingsPanel>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
                 </SettingsSection>
-                </CardContent>
-              </Card>
-              
+
+                <SettingsSection
+                  title="Customer points"
+                  subtitle="Customers earn points on purchases and redeem them at billing"
+                  icon={Gift}
+                  tone="violet"
+                >
+                  <div className="space-y-3 p-4">
+                    <div className="settings-check">
+                      <Checkbox
+                        id="enable_points_system"
+                        checked={(settings.sale_settings as any)?.enable_points_system ?? false}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              enable_points_system: checked as boolean,
+                            } as any,
+                          })
+                        }
+                      />
+                      <div>
+                        <Label htmlFor="enable_points_system" className="font-normal cursor-pointer">
+                          Enable Customer Points System
+                        </Label>
+                        <p className="text-xs text-muted-foreground">When enabled, customers earn points on their purchases</p>
+                      </div>
+                    </div>
+
+                    {(settings.sale_settings as any)?.enable_points_system && (
+                      <div className="space-y-4">
+                        <div className="settings-grid grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+                          <SettingsField
+                            label="Amount per Point (₹)"
+                            htmlFor="points_ratio_amount"
+                            help="Amount in rupees required to earn points"
+                          >
+                            <Input
+                              id="points_ratio_amount"
+                              type="number"
+                              min="1"
+                              value={(settings.sale_settings as any)?.points_ratio_amount || 100}
+                              onChange={(e) =>
+                                setSettings({
+                                  ...settings,
+                                  sale_settings: {
+                                    ...settings.sale_settings,
+                                    points_ratio_amount: parseInt(e.target.value) || 100,
+                                  } as any,
+                                })
+                              }
+                              placeholder="100"
+                            />
+                          </SettingsField>
+
+                          <SettingsField
+                            label="Points Awarded"
+                            htmlFor="points_per_ratio"
+                            help="Points earned per ratio amount"
+                          >
+                            <Input
+                              id="points_per_ratio"
+                              type="number"
+                              min="1"
+                              value={(settings.sale_settings as any)?.points_per_ratio || 1}
+                              onChange={(e) =>
+                                setSettings({
+                                  ...settings,
+                                  sale_settings: {
+                                    ...settings.sale_settings,
+                                    points_per_ratio: parseInt(e.target.value) || 1,
+                                  } as any,
+                                })
+                              }
+                              placeholder="1"
+                            />
+                          </SettingsField>
+                        </div>
+
+                        <div className="p-3 bg-primary/5 rounded-lg">
+                          <p className="text-sm font-medium">
+                            Example: ₹{(settings.sale_settings as any)?.points_ratio_amount || 100} purchase ={" "}
+                            {(settings.sale_settings as any)?.points_per_ratio || 1} point(s)
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Customer buying ₹2,500 worth of products will earn{" "}
+                            {Math.floor(2500 / ((settings.sale_settings as any)?.points_ratio_amount || 100)) *
+                              ((settings.sale_settings as any)?.points_per_ratio || 1)}{" "}
+                            points
+                          </p>
+                        </div>
+
+                        <div className="settings-grid grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+                          <SettingsField label="Points Rounding" htmlFor="points_rounding">
+                            <Select
+                              value={(settings.sale_settings as any)?.points_rounding || "floor"}
+                              onValueChange={(value) =>
+                                setSettings({
+                                  ...settings,
+                                  sale_settings: {
+                                    ...settings.sale_settings,
+                                    points_rounding: value,
+                                  } as any,
+                                })
+                              }
+                            >
+                              <SelectTrigger id="points_rounding">
+                                <SelectValue placeholder="Select rounding" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="floor">Round Down (Floor)</SelectItem>
+                                <SelectItem value="round">Round to Nearest</SelectItem>
+                                <SelectItem value="ceil">Round Up (Ceiling)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </SettingsField>
+
+                          <SettingsField
+                            label="Minimum Purchase (₹)"
+                            htmlFor="min_purchase_for_points"
+                            help="Minimum invoice amount to earn points (0 = no minimum)"
+                          >
+                            <Input
+                              id="min_purchase_for_points"
+                              type="number"
+                              min="0"
+                              value={(settings.sale_settings as any)?.min_purchase_for_points || 0}
+                              onChange={(e) =>
+                                setSettings({
+                                  ...settings,
+                                  sale_settings: {
+                                    ...settings.sale_settings,
+                                    min_purchase_for_points: parseInt(e.target.value) || 0,
+                                  } as any,
+                                })
+                              }
+                              placeholder="0"
+                            />
+                          </SettingsField>
+                        </div>
+
+                        {/* Points Redemption Settings */}
+                        <div className="space-y-4 pt-4 border-t border-dashed">
+                          <h4 className="font-medium text-primary flex items-center gap-2">
+                            <span>🎁</span> Points Redemption Settings
+                          </h4>
+
+                          <div className="settings-check">
+                            <Checkbox
+                              id="enable_points_redemption"
+                              checked={(settings.sale_settings as any)?.enable_points_redemption ?? false}
+                              onCheckedChange={(checked) =>
+                                setSettings({
+                                  ...settings,
+                                  sale_settings: {
+                                    ...settings.sale_settings,
+                                    enable_points_redemption: checked as boolean,
+                                  } as any,
+                                })
+                              }
+                            />
+                            <div>
+                              <Label htmlFor="enable_points_redemption" className="font-normal cursor-pointer">
+                                Enable Points Redemption at Billing
+                              </Label>
+                              <p className="text-xs text-muted-foreground">
+                                Allow customers to redeem points for instant discount
+                              </p>
+                            </div>
+                          </div>
+
+                          {(settings.sale_settings as any)?.enable_points_redemption && (
+                            <div className="settings-grid grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+                              <SettingsField
+                                label="1 Point = ₹"
+                                htmlFor="points_redemption_value"
+                                help="Rupee value of 1 point"
+                              >
+                                <Input
+                                  id="points_redemption_value"
+                                  type="number"
+                                  min="0.1"
+                                  step="0.1"
+                                  value={(settings.sale_settings as any)?.points_redemption_value || 1}
+                                  onChange={(e) =>
+                                    setSettings({
+                                      ...settings,
+                                      sale_settings: {
+                                        ...settings.sale_settings,
+                                        points_redemption_value: parseFloat(e.target.value) || 1,
+                                      } as any,
+                                    })
+                                  }
+                                  placeholder="1"
+                                />
+                              </SettingsField>
+
+                              <SettingsField
+                                label="Max Redemption %"
+                                htmlFor="max_redemption_percent"
+                                help="Max % of invoice payable via points"
+                              >
+                                <Input
+                                  id="max_redemption_percent"
+                                  type="number"
+                                  min="1"
+                                  max="100"
+                                  value={(settings.sale_settings as any)?.max_redemption_percent || 50}
+                                  onChange={(e) =>
+                                    setSettings({
+                                      ...settings,
+                                      sale_settings: {
+                                        ...settings.sale_settings,
+                                        max_redemption_percent: parseInt(e.target.value) || 50,
+                                      } as any,
+                                    })
+                                  }
+                                  placeholder="50"
+                                />
+                              </SettingsField>
+
+                              <SettingsField
+                                label="Min Points to Redeem"
+                                htmlFor="min_points_for_redemption"
+                                help="Minimum old points balance required to redeem (current bill earn is pending)"
+                              >
+                                <Input
+                                  id="min_points_for_redemption"
+                                  type="number"
+                                  min="1"
+                                  value={(settings.sale_settings as any)?.min_points_for_redemption ?? 1}
+                                  onChange={(e) =>
+                                    setSettings({
+                                      ...settings,
+                                      sale_settings: {
+                                        ...settings.sale_settings,
+                                        min_points_for_redemption: parseInt(e.target.value) || 1,
+                                      } as any,
+                                    })
+                                  }
+                                  placeholder="1"
+                                />
+                              </SettingsField>
+
+                              <SettingsField
+                                label="Min Purchase for Redemption (₹)"
+                                htmlFor="min_purchase_for_redemption"
+                                help="Min invoice amount for redemption (0 = no minimum)"
+                              >
+                                <Input
+                                  id="min_purchase_for_redemption"
+                                  type="number"
+                                  min="0"
+                                  value={(settings.sale_settings as any)?.min_purchase_for_redemption || 0}
+                                  onChange={(e) =>
+                                    setSettings({
+                                      ...settings,
+                                      sale_settings: {
+                                        ...settings.sale_settings,
+                                        min_purchase_for_redemption: parseInt(e.target.value) || 0,
+                                      } as any,
+                                    })
+                                  }
+                                  placeholder="0"
+                                />
+                              </SettingsField>
+                            </div>
+                          )}
+
+                          {(settings.sale_settings as any)?.enable_points_redemption && (
+                            <div className="p-3 bg-green-500/5 rounded-lg border border-green-500/20">
+                              <p className="text-sm font-medium text-green-700 dark:text-green-400">
+                                Example: Customer with 100 points can redeem up to ₹
+                                {((settings.sale_settings as any)?.points_redemption_value || 1) * 100} discount
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                On ₹2,000 invoice, max redeemable: ₹
+                                {Math.floor((2000 * ((settings.sale_settings as any)?.max_redemption_percent || 50)) / 100)} (
+                                {(settings.sale_settings as any)?.max_redemption_percent || 50}% limit)
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Gift Rewards Management */}
+                          <div className="pt-4 border-t border-dashed">
+                            <LazySettingsPanel>
+                              <LazyGiftRewardsManagement />
+                            </LazySettingsPanel>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </SettingsSection>
+              </div>
+
               <SettingsInvoicePreview
                 settings={settings}
                 setSettings={setSettings}
@@ -4932,166 +4841,147 @@ export default function Settings() {
 
           <TabsContent value="pos" className="mt-0">
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 items-start">
-              <div className="flex flex-col gap-2 min-w-0">
+              <div className="flex flex-col gap-3 min-w-0">
                 <PosSettingsForm
                   settings={settings}
                   setSettings={setSettings}
                   onFocusPosPreview={() => setInvoicePreviewChannel("pos")}
                 />
-                <Card className="h-fit settings-panel-card">
-                  <CardHeader>
-                    <CardTitle>More POS options</CardTitle>
-                    <CardDescription>
-                      Moved here from Settings → Purchase and Reports. Same saved settings as before.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <SettingsSection title="POS screen">
-                      <p className="text-xs text-muted-foreground">
-                        The purchase code alphabet, date, GST and extra % options are under Settings → Purchase.
-                      </p>
-                      <div className="flex items-center space-x-2 pt-2">
-                        <Checkbox
-                          id="show_purchase_code_on_pos"
-                          checked={settings.purchase_settings?.show_purchase_code_on_pos === true}
-                          onCheckedChange={(checked) =>
-                            setSettings({
-                              ...settings,
-                              purchase_settings: {
-                                ...settings.purchase_settings,
-                                show_purchase_code_on_pos: checked === true,
-                              },
-                            })
-                          }
-                        />
-                        <Label htmlFor="show_purchase_code_on_pos" className="font-normal cursor-pointer">
-                          Show Purchase Code on POS product rows
-                        </Label>
-                      </div>
-                      <p className="text-xs text-muted-foreground ml-6">
-                        Adds a P.Code column before Size on the POS screen with the alphabet code only
-                        (e.g. SEWN), so staff can see the cost after scanning. Uses the GST and extra %
-                        options in Settings → Purchase. Not printed on the invoice. Default is off.
-                      </p>
-
-                      <div className="flex items-center space-x-2 pt-4">
-                        <Checkbox
-                          id="pos_margin_indicator_for_owner"
-                          checked={(settings.sale_settings as any)?.pos_margin_indicator_for_owner === true}
-                          onCheckedChange={(checked) =>
-                            setSettings({
-                              ...settings,
-                              sale_settings: {
-                                ...settings.sale_settings,
-                                pos_margin_indicator_for_owner: checked === true,
-                              } as any,
-                            })
-                          }
-                        />
-                        <Label htmlFor="pos_margin_indicator_for_owner" className="font-normal cursor-pointer">
-                          POS margin indicator for owner
-                        </Label>
-                      </div>
-                      <p className="text-xs text-muted-foreground ml-6">
-                        Shows live markup % (profit on purchase value) and profit on the POS screen for the owner (admin without custom
-                        User Rights). Staff still need the POS Margin Indicator right in User Rights.
-                      </p>
-                    </SettingsSection>
-                    <SettingsSection title="2nd billing details">
-                      <p className="text-xs text-muted-foreground">
-                        For shops that bill under two names. Stock, accounts and bill numbers stay in this
-                        organization. When on, POS shows a small "2nd firm" checkbox; a ticked bill prints
-                        only these details in the header.
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          id="second_firm_enabled"
-                          checked={settings.report_settings?.second_firm?.enabled === true}
-                          onCheckedChange={(checked) => updateSecondFirm({ enabled: checked })}
-                        />
-                        <Label htmlFor="second_firm_enabled">Enable 2nd firm on POS bills</Label>
-                      </div>
-                      {settings.report_settings?.second_firm?.enabled === true && (
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <div className="space-y-1">
-                            <Label htmlFor="second_firm_name">Company name</Label>
-                            <Input
-                              id="second_firm_name"
-                              value={settings.report_settings?.second_firm?.name || ""}
-                              onChange={(e) => updateSecondFirm({ name: e.target.value })}
-                              placeholder="e.g. KMS Kids"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label htmlFor="second_firm_phone">Phone number</Label>
-                            <Input
-                              id="second_firm_phone"
-                              value={settings.report_settings?.second_firm?.phone || ""}
-                              onChange={(e) => updateSecondFirm({ phone: e.target.value })}
-                            />
-                          </div>
-                          <div className="space-y-1 sm:col-span-2">
-                            <Label htmlFor="second_firm_address">Address</Label>
-                            <Textarea
-                              id="second_firm_address"
-                              rows={2}
-                              value={settings.report_settings?.second_firm?.address || ""}
-                              onChange={(e) => updateSecondFirm({ address: e.target.value })}
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label htmlFor="second_firm_gstin">GSTIN (optional)</Label>
-                            <Input
-                              id="second_firm_gstin"
-                              value={settings.report_settings?.second_firm?.gstin || ""}
-                              onChange={(e) => updateSecondFirm({ gstin: e.target.value.toUpperCase() })}
-                              placeholder="Leave blank to print no GSTIN"
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </SettingsSection>
-                    <SettingsSection title="Service product default qty">
-                      <p className="text-xs text-muted-foreground">
-                        Quantity filled in the service product popup (Quantity / MRP / Add to Cart) on
-                        Sale bill and POS. Default is 1.
-                      </p>
-                      <div className="space-y-1 max-w-[10rem]">
-                        <Label htmlFor="service_default_qty">Default qty</Label>
+                <SettingsSection
+                  title="POS screen extras"
+                  subtitle="Code letters, date and GST options for the purchase code are in the Purchase tab"
+                  icon={Eye}
+                  tone="sky"
+                >
+                  <div className="grid gap-2 p-4 sm:grid-cols-2 2xl:grid-cols-3">
+                    <SettingsToggle
+                      id="show_purchase_code_on_pos"
+                      label="Purchase code on POS rows"
+                      description="P.Code column before Size (e.g. SEWN) so staff see the cost after a scan. Not printed."
+                      checked={settings.purchase_settings?.show_purchase_code_on_pos === true}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          purchase_settings: {
+                            ...settings.purchase_settings,
+                            show_purchase_code_on_pos: checked === true,
+                          },
+                        })
+                      }
+                    />
+                    <SettingsToggle
+                      id="pos_margin_indicator_for_owner"
+                      label="Margin indicator for owner"
+                      description="Live markup % and profit on POS for the owner. Staff need the POS Margin Indicator right."
+                      checked={(settings.sale_settings as any)?.pos_margin_indicator_for_owner === true}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            pos_margin_indicator_for_owner: checked === true,
+                          } as any,
+                        })
+                      }
+                    />
+                    <SettingsField
+                      label="Service product default qty"
+                      htmlFor="service_default_qty"
+                      help="Qty filled in the service popup on Sale and POS. Default 1."
+                    >
+                      <Input
+                        id="service_default_qty"
+                        type="text"
+                        inputMode="numeric"
+                        className="max-w-[8rem]"
+                        value={
+                          settings.report_settings?.service_default_qty == null
+                            ? ""
+                            : String(settings.report_settings.service_default_qty)
+                        }
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
+                          setSettings((prev) => ({
+                            ...prev,
+                            report_settings: {
+                              ...(prev.report_settings || {}),
+                              service_default_qty: digits ? parseInt(digits, 10) : undefined,
+                            },
+                          }));
+                        }}
+                        onBlur={() => {
+                          setSettings((prev) => ({
+                            ...prev,
+                            report_settings: {
+                              ...(prev.report_settings || {}),
+                              service_default_qty: normalizeServiceDefaultQty(prev.report_settings?.service_default_qty),
+                            },
+                          }));
+                        }}
+                        placeholder="1"
+                      />
+                    </SettingsField>
+                  </div>
+                </SettingsSection>
+                <SettingsSection
+                  title="2nd billing details"
+                  subtitle="For shops that bill under two names. Stock, accounts and bill numbers stay here."
+                  icon={Building2}
+                  tone="slate"
+                  action={
+                    <div className="flex items-center gap-2">
+                      <label htmlFor="second_firm_enabled" className="text-xs font-semibold text-slate-600 cursor-pointer">
+                        2nd firm on POS bills
+                      </label>
+                      <Switch
+                        id="second_firm_enabled"
+                        checked={settings.report_settings?.second_firm?.enabled === true}
+                        onCheckedChange={(checked) => updateSecondFirm({ enabled: checked })}
+                      />
+                    </div>
+                  }
+                >
+                  {settings.report_settings?.second_firm?.enabled === true ? (
+                    <SettingsGrid cols={2}>
+                      <SettingsField label="Company name" htmlFor="second_firm_name" important>
                         <Input
-                          id="service_default_qty"
-                          type="text"
-                          inputMode="numeric"
-                          value={
-                            settings.report_settings?.service_default_qty == null
-                              ? ""
-                              : String(settings.report_settings.service_default_qty)
-                          }
-                          onChange={(e) => {
-                            const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
-                            setSettings((prev) => ({
-                              ...prev,
-                              report_settings: {
-                                ...(prev.report_settings || {}),
-                                service_default_qty: digits ? parseInt(digits, 10) : undefined,
-                              },
-                            }));
-                          }}
-                          onBlur={() => {
-                            setSettings((prev) => ({
-                              ...prev,
-                              report_settings: {
-                                ...(prev.report_settings || {}),
-                                service_default_qty: normalizeServiceDefaultQty(prev.report_settings?.service_default_qty),
-                              },
-                            }));
-                          }}
-                          placeholder="1"
+                          id="second_firm_name"
+                          value={settings.report_settings?.second_firm?.name || ""}
+                          onChange={(e) => updateSecondFirm({ name: e.target.value })}
+                          placeholder="e.g. KMS Kids"
                         />
-                      </div>
-                    </SettingsSection>
-                  </CardContent>
-                </Card>
+                      </SettingsField>
+                      <SettingsField label="Phone number" htmlFor="second_firm_phone">
+                        <Input
+                          id="second_firm_phone"
+                          value={settings.report_settings?.second_firm?.phone || ""}
+                          onChange={(e) => updateSecondFirm({ phone: e.target.value })}
+                        />
+                      </SettingsField>
+                      <SettingsField label="Address" htmlFor="second_firm_address" span="full">
+                        <Textarea
+                          id="second_firm_address"
+                          rows={2}
+                          value={settings.report_settings?.second_firm?.address || ""}
+                          onChange={(e) => updateSecondFirm({ address: e.target.value })}
+                        />
+                      </SettingsField>
+                      <SettingsField label="GSTIN (optional)" htmlFor="second_firm_gstin">
+                        <Input
+                          id="second_firm_gstin"
+                          value={settings.report_settings?.second_firm?.gstin || ""}
+                          onChange={(e) => updateSecondFirm({ gstin: e.target.value.toUpperCase() })}
+                          placeholder="Leave blank to print no GSTIN"
+                          className="font-mono"
+                        />
+                      </SettingsField>
+                    </SettingsGrid>
+                  ) : (
+                    <p className="px-4 py-3 text-xs text-slate-500">
+                      Off. When on, POS shows a small "2nd firm" tick box, and a ticked bill prints these details in the header.
+                    </p>
+                  )}
+                </SettingsSection>
               </div>
               <SettingsInvoicePreview
                 settings={settings}

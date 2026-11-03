@@ -102,4 +102,22 @@ describe("Settings premium layout (Nov 2026)", () => {
     expect(bill).toContain('id="enable_cash_drawer"');
     expect(bill).toContain("<LazyChequeFormatManagement />");
   });
+
+  it("splits Sale into titled sections and keeps the live preview", () => {
+    const sale = tab("sale");
+    for (const title of ["Sale bill defaults", "Billing options", "Print format", "Invoice design", "E-Invoice (PeriOne API)"]) {
+      expect(sale).toContain(`title="${title}"`);
+    }
+    expect(sale).not.toContain('title="Sale details"');
+    expect(sale).toContain("<SettingsInvoicePreview");
+    expect(sale).toContain('id="allow_negative_stock_sale"');
+  });
+
+  it("lays POS out in sections with switch cards", () => {
+    const posForm = read("./PosSettingsForm.tsx");
+    expect(posForm).toContain('title="Cashier & billing"');
+    expect(posForm).toContain("<SettingsToggle");
+    expect(posForm).not.toContain("SettingsRow");
+    expect(tab("pos")).toContain('title="POS screen extras"');
+  });
 });

@@ -2691,6 +2691,35 @@ main:has(.website-workspace) {
   font-size: 0.875rem;
   vertical-align: middle;
 }
+/* Tick-box option chip (Nov 2026 redesign): bordered, tinted blue when ticked */
+.settings-workspace .settings-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background: #fff;
+  transition: background-color 150ms, border-color 150ms;
+}
+.settings-workspace .settings-check:hover {
+  background: #f8fafc;
+}
+.settings-workspace .settings-check:has(> button[data-state="checked"]) {
+  border-color: #bfdbfe;
+  background: rgb(239 246 255 / 0.6);
+}
+.settings-workspace .settings-check > button[role="checkbox"] {
+  margin-top: 0.125rem;
+  flex-shrink: 0;
+}
+.settings-workspace .settings-check label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #1e293b;
+  line-height: 1.3;
+}
 
 /* Customer Balances — inline ledger full workspace panel (same width as balances list) */
 .customer-party-balances-ledger-panel {

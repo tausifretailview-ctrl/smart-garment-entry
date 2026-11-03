@@ -2,10 +2,9 @@ import { useEffect, type Dispatch, type SetStateAction } from "react";
 import { SettingOnOffHint } from "@/components/settings/SettingOnOffHint";
 import { InvoiceTemplateSelectItems } from "@/components/settings/InvoiceTemplateSelectItems";
 import { CategoryTierPricingSettings } from "@/components/settings/CategoryTierPricingSettings";
-import { SettingsFieldBlock, SettingsRow, SettingsSection } from "@/components/settings/settingsLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SettingsField, SettingsGrid, SettingsSection, SettingsToggle } from "@/components/settings/settingsLayout";
+import { Percent, Printer, Receipt, ScanLine } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -99,31 +98,24 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
   }, [posThermal, resolvedPosTemplate, sale.pos_bill_format, sale.pos_invoice_template]);
 
   return (
-    <Card className="h-fit settings-panel-card">
-      <CardHeader>
-        <CardTitle>POS Settings</CardTitle>
-        <CardDescription>
-          POS billing, discount, numbering, and bill print. Same saved keys as before — only the tab moved.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-muted-foreground">
-          Shared Sale + POS options stay under <strong className="text-foreground">Settings → Sale</strong>: Invoice
-          Preview, Totals &amp; Taxes print flags, Customer Price Memory, and last-purchase price. Thermal Receipt
-          Style is on this tab. Changing Sale options still applies to POS bills.
-        </div>
-
-        <SettingsSection title="GST & numbering">
-          <SettingsFieldBlock
-            label="POS GST Type (optional)"
+    <div className="space-y-3 min-w-0">
+      <SettingsSection
+        title="GST & bill numbers"
+        subtitle="Shared Sale + POS print options (totals, preview, price memory) stay in the Sale tab"
+        icon={Receipt}
+        tone="blue"
+      >
+        <SettingsGrid cols={3}>
+          <SettingsField
+            label="POS GST Type"
             htmlFor="default_pos_tax_type"
-            description={`Sale Default GST Type is still under Settings → Sale (${
+            help={`Sale tab GST Type is ${
               resolveSaleDefaultTaxType(sale) === "inclusive"
                 ? "Inclusive"
                 : resolveSaleDefaultTaxType(sale) === "exclusive"
                   ? "Exclusive"
                   : "Without GST"
-            }). Leave POS as “Same as Default” unless POS needs a different mode.`}
+            }. Keep “Same as Sale” unless POS needs a different mode.`}
           >
             <Select
               value={
@@ -152,11 +144,11 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
                 <SelectItem value="no_gst">Without GST (no tax on bill)</SelectItem>
               </SelectContent>
             </Select>
-          </SettingsFieldBlock>
-          <SettingsFieldBlock
-            label="POS Bill Numbering Format"
+          </SettingsField>
+          <SettingsField
+            label="POS bill numbering format"
             htmlFor="pos_numbering_format"
-            description={`Placeholders: {YYYY} (year), {MM} (month), {####} (auto-increment). Leave empty for default POS/25-26/1.`}
+            help={`{YYYY} year, {MM} month, {####} number. Blank = POS/25-26/1.`}
           >
             <Input
               id="pos_numbering_format"
@@ -164,11 +156,11 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
               onChange={(e) => patchSale({ pos_numbering_format: e.target.value })}
               placeholder="Default: POS/YY-YY/N"
             />
-          </SettingsFieldBlock>
-          <SettingsFieldBlock
-            label="POS Series Start From"
+          </SettingsField>
+          <SettingsField
+            label="POS series start from"
             htmlFor="pos_series_start"
-            description="Last POS bill number already issued (e.g. POS/26-27/50 → next is 51). Leave blank to start from 1 when no active POS bills exist. Deleted bills no longer reserve numbers."
+            help="Last POS bill already issued (POS/26-27/50 → next 51). Blank starts from 1."
           >
             <Input
               id="pos_series_start"
@@ -176,32 +168,16 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
               onChange={(e) => patchSale({ pos_series_start: e.target.value })}
               placeholder="e.g., POS/36-27/11"
             />
-          </SettingsFieldBlock>
-        </SettingsSection>
+          </SettingsField>
+        </SettingsGrid>
+      </SettingsSection>
 
-        <SettingsSection title="Default discount">
-          <SettingsRow
-            label="Default POS flat discount in rupees"
-            htmlFor="default_discount_in_rupees"
-            description="Off by default — the value below is a percentage. When enabled, it is a fixed ₹ discount on new POS bills."
-            hint={
-              <SettingOnOffHint
-                active={flatDiscount ? "on" : "off"}
-                on="New POS bills start with a rupee discount."
-                off="New POS bills start with a percent discount."
-              />
-            }
-          >
-            <Switch
-              id="default_discount_in_rupees"
-              checked={flatDiscount}
-              onCheckedChange={(checked) => patchSale({ default_discount_in_rupees: checked })}
-            />
-          </SettingsRow>
-          <SettingsFieldBlock
-            label={`Default Discount (${flatDiscount ? "₹" : "%"})`}
+      <SettingsSection title="Default discount" subtitle="Filled in on every new POS bill" icon={Percent} tone="amber">
+        <SettingsGrid cols={2}>
+          <SettingsField
+            label={`Default discount (${flatDiscount ? "₹" : "%"})`}
             htmlFor="default_discount"
-            description="Applied on new POS bills. Sale Invoice numbering and GST stay under Settings → Sale."
+            important
           >
             <Input
               id="default_discount"
@@ -212,215 +188,177 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
               value={sale.default_discount || ""}
               onChange={(e) => patchSale({ default_discount: parseFloat(e.target.value) || 0 })}
               placeholder={flatDiscount ? "e.g., 50" : "e.g., 5"}
+              className="max-w-[10rem]"
             />
-          </SettingsFieldBlock>
-        </SettingsSection>
-
-        <SettingsSection title="Cashier / billing">
-          <SettingsRow
-            label="Allow invoice date change in POS"
-            htmlFor="pos_allow_date_change"
-            description="Date picker on the POS billing bar. Invoice number sequence is unaffected."
-            hint={
-              <SettingOnOffHint
-                active={sale.pos_allow_date_change === true ? "on" : "off"}
-                on="Cashiers can backdate the POS invoice date."
-                off="Invoice date stays today; no date picker on POS."
-              />
-            }
+          </SettingsField>
+          <SettingsToggle
+            id="default_discount_in_rupees"
+            label="Discount in rupees (₹)"
+            checked={flatDiscount}
+            onCheckedChange={(checked) => patchSale({ default_discount_in_rupees: checked })}
           >
-            <Switch
-              id="pos_allow_date_change"
-              checked={sale.pos_allow_date_change === true}
-              onCheckedChange={(checked) => patchSale({ pos_allow_date_change: checked })}
+            <SettingOnOffHint
+              compact
+              active={flatDiscount ? "on" : "off"}
+              on="New POS bills start with a rupee discount."
+              off="New POS bills start with a percent discount."
             />
-          </SettingsRow>
+          </SettingsToggle>
+        </SettingsGrid>
+      </SettingsSection>
 
-          <SettingsRow
-            label="Allow POS edit unit price"
-            htmlFor="allow_pos_edit_unit_price"
-            description="Off by default. Admins/managers always allowed when on; cashiers need the Edit POS unit price special right."
-            hint={
-              <SettingOnOffHint
-                active={sale.allow_pos_edit_unit_price === true ? "on" : "off"}
-                on="Permitted users can type Unit Price on the POS cart."
-                off="Unit Price on POS is not editable."
-              />
-            }
+      <SettingsSection title="Cashier & billing" subtitle="What cashiers can do on the POS screen" icon={ScanLine} tone="emerald">
+        <div className="grid gap-2 p-4 sm:grid-cols-2">
+          <SettingsToggle
+            id="pos_allow_date_change"
+            label="Allow invoice date change"
+            checked={sale.pos_allow_date_change === true}
+            onCheckedChange={(checked) => patchSale({ pos_allow_date_change: checked })}
           >
-            <Switch
-              id="allow_pos_edit_unit_price"
-              checked={sale.allow_pos_edit_unit_price === true}
-              onCheckedChange={(checked) => patchSale({ allow_pos_edit_unit_price: checked })}
+            <SettingOnOffHint
+              compact
+              active={sale.pos_allow_date_change === true ? "on" : "off"}
+              on="Cashiers can backdate the POS invoice date."
+              off="Invoice date stays today; no date picker on POS."
             />
-          </SettingsRow>
+          </SettingsToggle>
 
-          {sale.allow_pos_edit_unit_price === true && (
-            <SettingsRow
-              label="Confirm when unit price is below MRP by (%)"
-              htmlFor="pos_unit_price_override_confirm_pct"
-              description="Confirmation dialog when typed unit price is more than this percent below MRP. Default 30."
-            >
-              <Input
-                id="pos_unit_price_override_confirm_pct"
-                type="number"
-                min={1}
-                max={99}
-                step={1}
-                className="w-20 h-9 text-right"
-                value={sale.pos_unit_price_override_confirm_pct ?? 30}
-                onChange={(e) => {
-                  const raw = parseFloat(e.target.value);
-                  const pct = Number.isFinite(raw) ? Math.min(99, Math.max(1, Math.round(raw))) : 30;
-                  patchSale({ pos_unit_price_override_confirm_pct: pct });
-                }}
-              />
-            </SettingsRow>
-          )}
-
-          <SettingsRow
-            label="POS quick price-code search (no-barcode shops)"
-            htmlFor="pos_quick_price_code"
-            description="Type a price code like J900 or a name like Jeans. Other shops leave this off — normal POS search unchanged."
-            hint={
-              <SettingOnOffHint
-                active={sale.pos_quick_price_code === true ? "on" : "off"}
-                on="POS accepts price-code and name+price shortcuts (sale price, MRP, or product default)."
-                off="Normal POS barcode/search only — no price-code shortcuts."
-              />
-            }
+          <SettingsToggle
+            id="allow_pos_edit_unit_price"
+            label="Allow editing unit price"
+            description="Cashiers also need the Edit POS unit price right."
+            checked={sale.allow_pos_edit_unit_price === true}
+            onCheckedChange={(checked) => patchSale({ allow_pos_edit_unit_price: checked })}
           >
-            <Switch
-              id="pos_quick_price_code"
-              checked={sale.pos_quick_price_code === true}
-              onCheckedChange={(checked) => patchSale({ pos_quick_price_code: checked })}
-            />
-          </SettingsRow>
+            {sale.allow_pos_edit_unit_price === true ? (
+              <div className="mt-2 flex items-center gap-2">
+                <label htmlFor="pos_unit_price_override_confirm_pct" className="text-xs font-semibold text-slate-700">
+                  Confirm when below MRP by
+                </label>
+                <Input
+                  id="pos_unit_price_override_confirm_pct"
+                  type="number"
+                  min={1}
+                  max={99}
+                  step={1}
+                  className="w-16 h-8 text-right"
+                  value={sale.pos_unit_price_override_confirm_pct ?? 30}
+                  onChange={(e) => {
+                    const raw = parseFloat(e.target.value);
+                    const pct = Number.isFinite(raw) ? Math.min(99, Math.max(1, Math.round(raw))) : 30;
+                    patchSale({ pos_unit_price_override_confirm_pct: pct });
+                  }}
+                />
+                <span className="text-xs text-slate-500">%</span>
+              </div>
+            ) : null}
+          </SettingsToggle>
 
-          <SettingsRow
-            label="Keep salesman after POS save"
-            htmlFor="pos_retain_salesman"
-            description="Off by default. Explicit Clear / New Sale still clears."
-            hint={
-              <SettingOnOffHint
-                active={sale.pos_retain_salesman === true ? "on" : "off"}
-                on="Selected salesperson stays for the next bill (Alt+M to change)."
-                off="Salesperson clears after each save."
-              />
-            }
+          <SettingsToggle
+            id="pos_quick_price_code"
+            label="Quick price-code search"
+            description="For no-barcode shops: type J900 or Jeans."
+            checked={sale.pos_quick_price_code === true}
+            onCheckedChange={(checked) => patchSale({ pos_quick_price_code: checked })}
           >
-            <Switch
-              id="pos_retain_salesman"
-              checked={sale.pos_retain_salesman === true}
-              onCheckedChange={(checked) => patchSale({ pos_retain_salesman: checked })}
+            <SettingOnOffHint
+              compact
+              active={sale.pos_quick_price_code === true ? "on" : "off"}
+              on="POS accepts price-code and name+price shortcuts."
+              off="Normal POS barcode/search only."
             />
-          </SettingsRow>
+          </SettingsToggle>
 
-          <SettingsRow
-            label="Per-line salesperson in POS cart"
-            htmlFor="pos_per_line_salesman"
-            description="Shows a compact salesman dropdown on each cart line. Off by default."
-            hint={
-              <SettingOnOffHint
-                active={sale.pos_per_line_salesman === true ? "on" : "off"}
-                on="Each line can assign a different salesperson; bill header remains the default."
-                off="One salesperson per bill (header only)."
-              />
-            }
+          <SettingsToggle
+            id="pos_goods_ask_qty_dialog"
+            label="Ask qty / discount on scan"
+            description="IMEI scans and service codes (1–9) are not affected."
+            checked={sale.pos_goods_ask_qty_dialog === true}
+            onCheckedChange={(checked) => patchSale({ pos_goods_ask_qty_dialog: checked })}
           >
-            <Switch
-              id="pos_per_line_salesman"
-              checked={sale.pos_per_line_salesman === true}
-              onCheckedChange={(checked) => patchSale({ pos_per_line_salesman: checked })}
+            <SettingOnOffHint
+              compact
+              active={sale.pos_goods_ask_qty_dialog === true ? "on" : "off"}
+              on="Search picks and barcode scans ask qty and discount first."
+              off="Search picks and barcode scans add the item at once."
             />
-          </SettingsRow>
+          </SettingsToggle>
+
+          <SettingsToggle
+            id="pos_retain_salesman"
+            label="Keep salesman after save"
+            checked={sale.pos_retain_salesman === true}
+            onCheckedChange={(checked) => patchSale({ pos_retain_salesman: checked })}
+          >
+            <SettingOnOffHint
+              compact
+              active={sale.pos_retain_salesman === true ? "on" : "off"}
+              on="Salesperson stays for the next bill (Alt+M to change)."
+              off="Salesperson clears after each save."
+            />
+          </SettingsToggle>
+
+          <SettingsToggle
+            id="pos_per_line_salesman"
+            label="Salesperson on each cart line"
+            checked={sale.pos_per_line_salesman === true}
+            onCheckedChange={(checked) => patchSale({ pos_per_line_salesman: checked })}
+          >
+            <SettingOnOffHint
+              compact
+              active={sale.pos_per_line_salesman === true ? "on" : "off"}
+              on="Each line can have its own salesperson."
+              off="One salesperson per bill."
+            />
+          </SettingsToggle>
 
           {showMrp ? (
-            <SettingsRow
-              label="POS barcode scan — use MRP as price"
-              htmlFor="pos_barcode_price_mode"
-              description="Shown because MRP is enabled under Settings → Product. Last-purchase sale price is not applied when On (KS Footwear included)."
-              hint={
-                <SettingOnOffHint
-                  active={mrpAsPrice ? "on" : "off"}
-                  on="Every POS add (barcode, search, or pick) uses MRP as the selling rate with no line discount."
-                  off="Uses Sale Price; MRP vs Sale Price discount shows when MRP is higher."
-                />
-              }
+            <SettingsToggle
+              id="pos_barcode_price_mode"
+              label="Use MRP as selling price"
+              description="Last-purchase sale price is not used when on."
+              checked={mrpAsPrice}
+              onCheckedChange={(checked) => patchSale({ pos_barcode_price_mode: checked ? "mrp" : "sale_price" })}
             >
-              <Switch
-                id="pos_barcode_price_mode"
-                checked={mrpAsPrice}
-                onCheckedChange={(checked) =>
-                  patchSale({ pos_barcode_price_mode: checked ? "mrp" : "sale_price" })
-                }
+              <SettingOnOffHint
+                compact
+                active={mrpAsPrice ? "on" : "off"}
+                on="Every POS add uses MRP with no line discount."
+                off="Uses Sale Price; MRP discount shows when MRP is higher."
               />
-            </SettingsRow>
+            </SettingsToggle>
           ) : (
-            <div className="px-3 py-2.5 text-xs text-muted-foreground border-b border-slate-100">
-              POS “use MRP as price” appears here after you enable the MRP field under Settings → Product.
+            <div className="rounded-lg border border-dashed border-slate-200 px-3 py-2.5 text-xs text-slate-500">
+              “Use MRP as selling price” shows here after you turn on the MRP field in Settings → Purchase.
             </div>
           )}
 
-          <SettingsRow
-            label="POS goods qty / discount dialog (search & barcode scan)"
-            htmlFor="pos_goods_ask_qty_dialog"
-            description="When enabled, picking a regular product from the POS search dropdown or scanning its barcode opens a Quantity + Price + Discount (₹) dialog. IMEI / serial scans and service codes (1–9) are unchanged."
-            hint={
-              <SettingOnOffHint
-                active={sale.pos_goods_ask_qty_dialog === true ? "on" : "off"}
-                on="Search-dropdown picks and barcode scans ask qty and discount before adding to cart."
-                off="Search-dropdown picks and barcode scans add the item immediately."
-              />
+          <SettingsToggle
+            id="pos_dashboard_show_purchase_code"
+            label="P.Code on POS Dashboard"
+            description="Coded purchase price in Sale Items on the POS Dashboard. Never printed."
+            checked={sale.pos_dashboard_show_purchase_code === true}
+            onCheckedChange={(checked) => patchSale({ pos_dashboard_show_purchase_code: checked })}
+          />
+        </div>
+        <div className="border-t border-slate-100 px-4 py-3">
+          <CategoryTierPricingSettings
+            enabled={sale.pos_category_tier_pricing === true}
+            onEnabledChange={(checked) =>
+              patchSale({
+                pos_category_tier_pricing: checked,
+                ...(checked ? {} : { pos_scheme_auto_calculate_discount: false }),
+              })
             }
-          >
-            <Switch
-              id="pos_goods_ask_qty_dialog"
-              checked={sale.pos_goods_ask_qty_dialog === true}
-              onCheckedChange={(checked) => patchSale({ pos_goods_ask_qty_dialog: checked })}
-            />
-          </SettingsRow>
+            autoCalculateDiscount={sale.pos_scheme_auto_calculate_discount === true}
+            onAutoCalculateDiscountChange={(checked) => patchSale({ pos_scheme_auto_calculate_discount: checked })}
+          />
+        </div>
+      </SettingsSection>
 
-          <div className="px-3 py-2.5">
-            <CategoryTierPricingSettings
-              enabled={sale.pos_category_tier_pricing === true}
-              onEnabledChange={(checked) =>
-                patchSale({
-                  pos_category_tier_pricing: checked,
-                  ...(checked ? {} : { pos_scheme_auto_calculate_discount: false }),
-                })
-              }
-              autoCalculateDiscount={sale.pos_scheme_auto_calculate_discount === true}
-              onAutoCalculateDiscountChange={(checked) =>
-                patchSale({ pos_scheme_auto_calculate_discount: checked })
-              }
-            />
-          </div>
-        </SettingsSection>
-
-        <SettingsSection title="POS Dashboard">
-          <SettingsRow
-            label="Show purchase price code on POS Dashboard"
-            htmlFor="pos_dashboard_show_purchase_code"
-            description="Adds a P.Code column to the Sale Items list when you open a bill on the POS Dashboard. Uses the purchase code alphabet, GST and extra % from Settings → Purchase, so the letters match the barcode label. Off by default."
-            hint={
-              <SettingOnOffHint
-                active={sale.pos_dashboard_show_purchase_code === true ? "on" : "off"}
-                on="Each sold item shows its coded purchase price (e.g. BAA). Never printed on the bill."
-                off="No purchase code column on the POS Dashboard."
-              />
-            }
-          >
-            <Switch
-              id="pos_dashboard_show_purchase_code"
-              checked={sale.pos_dashboard_show_purchase_code === true}
-              onCheckedChange={(checked) => patchSale({ pos_dashboard_show_purchase_code: checked })}
-            />
-          </SettingsRow>
-        </SettingsSection>
-
-        <SettingsSection title="POS print">
-          <SettingsFieldBlock label="POS Bill Format" htmlFor="pos_bill_format">
+      <SettingsSection title="POS print" subtitle="Bill paper and design. The preview on the right updates live." icon={Printer} tone="violet">
+        <SettingsGrid cols={3}>
+          <SettingsField label="POS bill format" htmlFor="pos_bill_format" important>
             <Select
               value={sale.pos_bill_format || "thermal"}
               onValueChange={(value) => {
@@ -453,11 +391,11 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
                 </SelectGroup>
               </SelectContent>
             </Select>
-          </SettingsFieldBlock>
-          <SettingsFieldBlock
-            label="POS Invoice Template"
+          </SettingsField>
+          <SettingsField
+            label="POS invoice template"
             htmlFor="pos_invoice_template"
-            description="Same named templates as Sale, grouped by A4 / A5 / Thermal. Any organization can select Klear A4 or Wholesale GST A4; that sets POS Bill Format to A4."
+            help="An A4 design (Klear, Wholesale GST) sets the bill format to A4."
           >
             <Select
               value={resolvedPosTemplate}
@@ -484,27 +422,11 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
                 <InvoiceTemplateSelectItems currentValue={resolvedPosTemplate} />
               </SelectContent>
             </Select>
-          </SettingsFieldBlock>
-          {resolvedPosTemplate === "retail-erp-preprinted" && (
-            <SettingsFieldBlock
-              label="Print shop logo on letterhead"
-              htmlFor="pos_print_logo_on_preprinted_letterhead"
-              description="Off (default): keep the 2-inch top blank for physical letterpad paper. On: print the uploaded Organization Logo inside the invoice frame, flush with the column table."
-            >
-              <Switch
-                id="pos_print_logo_on_preprinted_letterhead"
-                checked={sale.print_logo_on_preprinted_letterhead === true}
-                onCheckedChange={(checked) => {
-                  onFocusPosPreview();
-                  patchSale({ print_logo_on_preprinted_letterhead: checked });
-                }}
-              />
-            </SettingsFieldBlock>
-          )}
-          <SettingsFieldBlock
-            label="Thermal Receipt Style"
+          </SettingsField>
+          <SettingsField
+            label="Thermal receipt style"
             htmlFor="thermal_receipt_style"
-            description="Applies to thermal printers (sale + POS). Same saved value as before — only the tab moved."
+            help="Used by thermal printers for Sale and POS"
           >
             <Select
               value={sale.thermal_receipt_style || "classic"}
@@ -526,9 +448,22 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
                 <SelectItem value="new-design">New Design — Clean sans-serif, restaurant style</SelectItem>
               </SelectContent>
             </Select>
-          </SettingsFieldBlock>
-        </SettingsSection>
-      </CardContent>
-    </Card>
+          </SettingsField>
+          {resolvedPosTemplate === "retail-erp-preprinted" && (
+            <SettingsToggle
+              id="pos_print_logo_on_preprinted_letterhead"
+              label="Print shop logo on letterhead"
+              description="Off keeps the 2-inch top blank for printed letterpad paper."
+              className="col-span-full"
+              checked={sale.print_logo_on_preprinted_letterhead === true}
+              onCheckedChange={(checked) => {
+                onFocusPosPreview();
+                patchSale({ print_logo_on_preprinted_letterhead: checked });
+              }}
+            />
+          )}
+        </SettingsGrid>
+      </SettingsSection>
+    </div>
   );
 }
