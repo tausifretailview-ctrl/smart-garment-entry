@@ -2588,52 +2588,6 @@ export default function Settings() {
                   />
                 </div>
 
-                <div className="flex items-center space-x-2 pt-2">
-                  <Checkbox
-                    id="show_purchase_code_on_pos"
-                    checked={settings.purchase_settings?.show_purchase_code_on_pos === true}
-                    onCheckedChange={(checked) =>
-                      setSettings({
-                        ...settings,
-                        purchase_settings: {
-                          ...settings.purchase_settings,
-                          show_purchase_code_on_pos: checked === true,
-                        },
-                      })
-                    }
-                  />
-                  <Label htmlFor="show_purchase_code_on_pos" className="font-normal cursor-pointer">
-                    Show Purchase Code on POS product rows
-                  </Label>
-                </div>
-                <p className="text-xs text-muted-foreground ml-6">
-                  Adds a P.Code column before Size on the POS screen with the alphabet code only
-                  (e.g. SEWN), so staff can see the cost after scanning. Uses the GST and extra %
-                  options above. Not printed on the invoice. Default is off.
-                </p>
-
-                <div className="flex items-center space-x-2 pt-4">
-                  <Checkbox
-                    id="pos_margin_indicator_for_owner"
-                    checked={(settings.sale_settings as any)?.pos_margin_indicator_for_owner === true}
-                    onCheckedChange={(checked) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          pos_margin_indicator_for_owner: checked === true,
-                        } as any,
-                      })
-                    }
-                  />
-                  <Label htmlFor="pos_margin_indicator_for_owner" className="font-normal cursor-pointer">
-                    POS margin indicator for owner
-                  </Label>
-                </div>
-                <p className="text-xs text-muted-foreground ml-6">
-                  Shows live markup % (profit on purchase value) and profit on the POS screen for the owner (admin without custom
-                  User Rights). Staff still need the POS Margin Indicator right in User Rights.
-                </p>
                 
                 <div className="flex items-center space-x-2 pt-4">
                   <Checkbox
@@ -3467,7 +3421,7 @@ export default function Settings() {
                     </div>
                     <div>
                       <h3 className="text-sm font-semibold leading-none">Item Details Display</h3>
-                      <p className="text-xs text-muted-foreground mt-0.5">Fields shown on bills and dashboards</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Extra columns on the Sales Invoice and POS dashboards (not on printed bills)</p>
                     </div>
                   </div>
                   
@@ -4920,6 +4874,160 @@ export default function Settings() {
                   setSettings={setSettings}
                   onFocusPosPreview={() => setInvoicePreviewChannel("pos")}
                 />
+                <Card className="h-fit settings-panel-card">
+                  <CardHeader>
+                    <CardTitle>More POS options</CardTitle>
+                    <CardDescription>
+                      Moved here from Settings → Purchase and Reports. Same saved settings as before.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <SettingsSection title="POS screen">
+                      <p className="text-xs text-muted-foreground">
+                        The purchase code alphabet, date, GST and extra % options are under Settings → Purchase.
+                      </p>
+                      <div className="flex items-center space-x-2 pt-2">
+                        <Checkbox
+                          id="show_purchase_code_on_pos"
+                          checked={settings.purchase_settings?.show_purchase_code_on_pos === true}
+                          onCheckedChange={(checked) =>
+                            setSettings({
+                              ...settings,
+                              purchase_settings: {
+                                ...settings.purchase_settings,
+                                show_purchase_code_on_pos: checked === true,
+                              },
+                            })
+                          }
+                        />
+                        <Label htmlFor="show_purchase_code_on_pos" className="font-normal cursor-pointer">
+                          Show Purchase Code on POS product rows
+                        </Label>
+                      </div>
+                      <p className="text-xs text-muted-foreground ml-6">
+                        Adds a P.Code column before Size on the POS screen with the alphabet code only
+                        (e.g. SEWN), so staff can see the cost after scanning. Uses the GST and extra %
+                        options in Settings → Purchase. Not printed on the invoice. Default is off.
+                      </p>
+
+                      <div className="flex items-center space-x-2 pt-4">
+                        <Checkbox
+                          id="pos_margin_indicator_for_owner"
+                          checked={(settings.sale_settings as any)?.pos_margin_indicator_for_owner === true}
+                          onCheckedChange={(checked) =>
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                pos_margin_indicator_for_owner: checked === true,
+                              } as any,
+                            })
+                          }
+                        />
+                        <Label htmlFor="pos_margin_indicator_for_owner" className="font-normal cursor-pointer">
+                          POS margin indicator for owner
+                        </Label>
+                      </div>
+                      <p className="text-xs text-muted-foreground ml-6">
+                        Shows live markup % (profit on purchase value) and profit on the POS screen for the owner (admin without custom
+                        User Rights). Staff still need the POS Margin Indicator right in User Rights.
+                      </p>
+                    </SettingsSection>
+                    <SettingsSection title="2nd billing details">
+                      <p className="text-xs text-muted-foreground">
+                        For shops that bill under two names. Stock, accounts and bill numbers stay in this
+                        organization. When on, POS shows a small "2nd firm" checkbox; a ticked bill prints
+                        only these details in the header.
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="second_firm_enabled"
+                          checked={settings.report_settings?.second_firm?.enabled === true}
+                          onCheckedChange={(checked) => updateSecondFirm({ enabled: checked })}
+                        />
+                        <Label htmlFor="second_firm_enabled">Enable 2nd firm on POS bills</Label>
+                      </div>
+                      {settings.report_settings?.second_firm?.enabled === true && (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="space-y-1">
+                            <Label htmlFor="second_firm_name">Company name</Label>
+                            <Input
+                              id="second_firm_name"
+                              value={settings.report_settings?.second_firm?.name || ""}
+                              onChange={(e) => updateSecondFirm({ name: e.target.value })}
+                              placeholder="e.g. KMS Kids"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="second_firm_phone">Phone number</Label>
+                            <Input
+                              id="second_firm_phone"
+                              value={settings.report_settings?.second_firm?.phone || ""}
+                              onChange={(e) => updateSecondFirm({ phone: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-1 sm:col-span-2">
+                            <Label htmlFor="second_firm_address">Address</Label>
+                            <Textarea
+                              id="second_firm_address"
+                              rows={2}
+                              value={settings.report_settings?.second_firm?.address || ""}
+                              onChange={(e) => updateSecondFirm({ address: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="second_firm_gstin">GSTIN (optional)</Label>
+                            <Input
+                              id="second_firm_gstin"
+                              value={settings.report_settings?.second_firm?.gstin || ""}
+                              onChange={(e) => updateSecondFirm({ gstin: e.target.value.toUpperCase() })}
+                              placeholder="Leave blank to print no GSTIN"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </SettingsSection>
+                    <SettingsSection title="Service product default qty">
+                      <p className="text-xs text-muted-foreground">
+                        Quantity filled in the service product popup (Quantity / MRP / Add to Cart) on
+                        Sale bill and POS. Default is 1.
+                      </p>
+                      <div className="space-y-1 max-w-[10rem]">
+                        <Label htmlFor="service_default_qty">Default qty</Label>
+                        <Input
+                          id="service_default_qty"
+                          type="text"
+                          inputMode="numeric"
+                          value={
+                            settings.report_settings?.service_default_qty == null
+                              ? ""
+                              : String(settings.report_settings.service_default_qty)
+                          }
+                          onChange={(e) => {
+                            const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
+                            setSettings((prev) => ({
+                              ...prev,
+                              report_settings: {
+                                ...(prev.report_settings || {}),
+                                service_default_qty: digits ? parseInt(digits, 10) : undefined,
+                              },
+                            }));
+                          }}
+                          onBlur={() => {
+                            setSettings((prev) => ({
+                              ...prev,
+                              report_settings: {
+                                ...(prev.report_settings || {}),
+                                service_default_qty: normalizeServiceDefaultQty(prev.report_settings?.service_default_qty),
+                              },
+                            }));
+                          }}
+                          placeholder="1"
+                        />
+                      </div>
+                    </SettingsSection>
+                  </CardContent>
+                </Card>
               </div>
               <SettingsInvoicePreview
                 settings={settings}
@@ -5062,123 +5170,6 @@ export default function Settings() {
                   )}
                 </div>
                 
-                {/* Social Media Links for WhatsApp */}
-                <div className="space-y-4 pt-4 border-t">
-                  <h4 className="text-sm font-semibold">Social Media Links (for WhatsApp Messages)</h4>
-                  <p className="text-xs text-muted-foreground">
-                    Filled links are added at the end of every WhatsApp bill message
-                  </p>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="instagram_link">Instagram Link</Label>
-                    <Input
-                      id="instagram_link"
-                      value={settings.bill_barcode_settings?.instagram_link || ""}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          bill_barcode_settings: {
-                            ...settings.bill_barcode_settings,
-                            instagram_link: e.target.value,
-                          },
-                        })
-                      }
-                      placeholder="e.g., https://instagram.com/yourstore"
-                      className="no-uppercase"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="facebook_link">Facebook Link</Label>
-                    <Input
-                      id="facebook_link"
-                      value={settings.bill_barcode_settings?.facebook_link || ""}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          bill_barcode_settings: {
-                            ...settings.bill_barcode_settings,
-                            facebook_link: e.target.value,
-                          },
-                        })
-                      }
-                      placeholder="e.g., https://facebook.com/yourstore"
-                      className="no-uppercase"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="website_link">Website Link</Label>
-                    <Input
-                      id="website_link"
-                      value={settings.bill_barcode_settings?.website_link || ""}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          bill_barcode_settings: {
-                            ...settings.bill_barcode_settings,
-                            website_link: e.target.value,
-                          },
-                        })
-                      }
-                      placeholder="e.g., https://yourstore.com"
-                      className="no-uppercase"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="google_review_link">Google Review Link</Label>
-                    <Input
-                      id="google_review_link"
-                      value={settings.bill_barcode_settings?.google_review_link || ""}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          bill_barcode_settings: {
-                            ...settings.bill_barcode_settings,
-                            google_review_link: e.target.value,
-                          },
-                        })
-                      }
-                      placeholder="e.g., https://g.page/yourstore/review"
-                      className="no-uppercase"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="whatsapp_group_link">WhatsApp Group Link</Label>
-                    <Input
-                      id="whatsapp_group_link"
-                      value={settings.bill_barcode_settings?.whatsapp_group_link || ""}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          bill_barcode_settings: {
-                            ...settings.bill_barcode_settings,
-                            whatsapp_group_link: e.target.value,
-                          },
-                        })
-                      }
-                      onBlur={async (e) => {
-                        const orgId = currentOrganization?.id;
-                        if (!orgId) return;
-                        const { data } = await supabase
-                          .from("whatsapp_api_settings")
-                          .select("id, social_links")
-                          .eq("organization_id", orgId)
-                          .maybeSingle();
-                        if (!data) return;
-                        await supabase
-                          .from("whatsapp_api_settings")
-                          .update({ social_links: { ...((data as any).social_links || {}), whatsapp_group: e.target.value.trim() } } as any)
-                          .eq("id", (data as any).id)
-                          .eq("organization_id", orgId);
-                      }}
-                      placeholder="e.g., https://chat.whatsapp.com/xxxx"
-                      className="no-uppercase"
-                    />
-                  </div>
-                </div>
                 <p className="text-xs text-muted-foreground">Invoice header/footer text is configured in the Sale tab → Invoice Customization section</p>
                 <div className="space-y-2">
                   <Label htmlFor="barcode_format">Default Barcode Label Format (for Direct Printing)</Label>
@@ -6276,113 +6267,7 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="reports">
-            <div className="mb-3">
-              <OwnerAlertsSettings />
-            </div>
-
-            <Card className="h-fit settings-panel-card">
-              <CardHeader>
-                <CardTitle>Report Settings</CardTitle>
-                <CardDescription>
-                  Configure report preferences
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <SettingsSection title="2nd billing details">
-                  <p className="text-xs text-muted-foreground">
-                    For shops that bill under two names. Stock, accounts and bill numbers stay in this
-                    organization. When on, POS shows a small "2nd firm" checkbox; a ticked bill prints
-                    only these details in the header.
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="second_firm_enabled"
-                      checked={settings.report_settings?.second_firm?.enabled === true}
-                      onCheckedChange={(checked) => updateSecondFirm({ enabled: checked })}
-                    />
-                    <Label htmlFor="second_firm_enabled">Enable 2nd firm on POS bills</Label>
-                  </div>
-                  {settings.report_settings?.second_firm?.enabled === true && (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="space-y-1">
-                        <Label htmlFor="second_firm_name">Company name</Label>
-                        <Input
-                          id="second_firm_name"
-                          value={settings.report_settings?.second_firm?.name || ""}
-                          onChange={(e) => updateSecondFirm({ name: e.target.value })}
-                          placeholder="e.g. KMS Kids"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="second_firm_phone">Phone number</Label>
-                        <Input
-                          id="second_firm_phone"
-                          value={settings.report_settings?.second_firm?.phone || ""}
-                          onChange={(e) => updateSecondFirm({ phone: e.target.value })}
-                        />
-                      </div>
-                      <div className="space-y-1 sm:col-span-2">
-                        <Label htmlFor="second_firm_address">Address</Label>
-                        <Textarea
-                          id="second_firm_address"
-                          rows={2}
-                          value={settings.report_settings?.second_firm?.address || ""}
-                          onChange={(e) => updateSecondFirm({ address: e.target.value })}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="second_firm_gstin">GSTIN (optional)</Label>
-                        <Input
-                          id="second_firm_gstin"
-                          value={settings.report_settings?.second_firm?.gstin || ""}
-                          onChange={(e) => updateSecondFirm({ gstin: e.target.value.toUpperCase() })}
-                          placeholder="Leave blank to print no GSTIN"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </SettingsSection>
-                <SettingsSection title="Service product default qty">
-                  <p className="text-xs text-muted-foreground">
-                    Quantity filled in the service product popup (Quantity / MRP / Add to Cart) on
-                    Sale bill and POS. Default is 1.
-                  </p>
-                  <div className="space-y-1 max-w-[10rem]">
-                    <Label htmlFor="service_default_qty">Default qty</Label>
-                    <Input
-                      id="service_default_qty"
-                      type="text"
-                      inputMode="numeric"
-                      value={
-                        settings.report_settings?.service_default_qty == null
-                          ? ""
-                          : String(settings.report_settings.service_default_qty)
-                      }
-                      onChange={(e) => {
-                        const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
-                        setSettings((prev) => ({
-                          ...prev,
-                          report_settings: {
-                            ...(prev.report_settings || {}),
-                            service_default_qty: digits ? parseInt(digits, 10) : undefined,
-                          },
-                        }));
-                      }}
-                      onBlur={() => {
-                        setSettings((prev) => ({
-                          ...prev,
-                          report_settings: {
-                            ...(prev.report_settings || {}),
-                            service_default_qty: normalizeServiceDefaultQty(prev.report_settings?.service_default_qty),
-                          },
-                        }));
-                      }}
-                      placeholder="1"
-                    />
-                  </div>
-                </SettingsSection>
-              </CardContent>
-            </Card>
+            <OwnerAlertsSettings />
           </TabsContent>
 
           <TabsContent value="users">
@@ -6437,6 +6322,123 @@ export default function Settings() {
                     </div>
                   </SettingsSection>
                 )}
+                <SettingsSection title="Social media links">
+                  <div className="space-y-4">
+                    <p className="text-xs text-muted-foreground">
+                      Filled links are added at the end of every WhatsApp bill message
+                    </p>
+                  
+                    <div className="space-y-2">
+                      <Label htmlFor="instagram_link">Instagram Link</Label>
+                      <Input
+                        id="instagram_link"
+                        value={settings.bill_barcode_settings?.instagram_link || ""}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              instagram_link: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="e.g., https://instagram.com/yourstore"
+                        className="no-uppercase"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="facebook_link">Facebook Link</Label>
+                      <Input
+                        id="facebook_link"
+                        value={settings.bill_barcode_settings?.facebook_link || ""}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              facebook_link: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="e.g., https://facebook.com/yourstore"
+                        className="no-uppercase"
+                      />
+                    </div>
+                  
+                    <div className="space-y-2">
+                      <Label htmlFor="website_link">Website Link</Label>
+                      <Input
+                        id="website_link"
+                        value={settings.bill_barcode_settings?.website_link || ""}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              website_link: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="e.g., https://yourstore.com"
+                        className="no-uppercase"
+                      />
+                    </div>
+                  
+                    <div className="space-y-2">
+                      <Label htmlFor="google_review_link">Google Review Link</Label>
+                      <Input
+                        id="google_review_link"
+                        value={settings.bill_barcode_settings?.google_review_link || ""}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              google_review_link: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="e.g., https://g.page/yourstore/review"
+                        className="no-uppercase"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="whatsapp_group_link">WhatsApp Group Link</Label>
+                      <Input
+                        id="whatsapp_group_link"
+                        value={settings.bill_barcode_settings?.whatsapp_group_link || ""}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              whatsapp_group_link: e.target.value,
+                            },
+                          })
+                        }
+                        onBlur={async (e) => {
+                          const orgId = currentOrganization?.id;
+                          if (!orgId) return;
+                          const { data } = await supabase
+                            .from("whatsapp_api_settings")
+                            .select("id, social_links")
+                            .eq("organization_id", orgId)
+                            .maybeSingle();
+                          if (!data) return;
+                          await supabase
+                            .from("whatsapp_api_settings")
+                            .update({ social_links: { ...((data as any).social_links || {}), whatsapp_group: e.target.value.trim() } } as any)
+                            .eq("id", (data as any).id)
+                            .eq("organization_id", orgId);
+                        }}
+                        placeholder="e.g., https://chat.whatsapp.com/xxxx"
+                        className="no-uppercase"
+                      />
+                    </div>
+                  </div>
+                </SettingsSection>
                 <SettingsSection title="Extra features">
                   <div className="divide-y">
                     {[

@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  BarChart2,
+  Bell,
   Building2,
   CreditCard,
   MessageCircle,
@@ -41,7 +41,7 @@ export const SETTINGS_TAB_ITEMS: SettingsTabItem[] = [
   { id: "pos", label: "POS", icon: Store },
   { id: "bill", label: "Bill & Barcode", icon: Printer },
   { id: "payment", label: "Payment", icon: CreditCard },
-  { id: "reports", label: "Reports", icon: BarChart2 },
+  { id: "reports", label: "Alerts", icon: Bell },
   { id: "users", label: "User Rights", icon: Users },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
   { id: "branding", label: "Branding", icon: Palette },
