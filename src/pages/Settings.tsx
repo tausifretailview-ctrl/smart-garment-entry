@@ -12,7 +12,7 @@ import type { IndustrialModeConfig } from "@/utils/industrialMode";
 import { EwayBillSettingsSection } from "@/components/ewaybill/EwayBillSettingsSection";
 import { DEFAULT_MANUFACTURER_ERP, type ManufacturerERPConfig } from "@/utils/manufacturing";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, Factory, Truck } from "lucide-react";
+import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, Factory, Truck, Building2, Landmark, Layers } from "lucide-react";
 import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { SaleInvoiceFormatBackupDialog } from "@/components/settings/SaleInvoiceFormatBackupDialog";
 import { InvoiceTemplateSelectItems } from "@/components/settings/InvoiceTemplateSelectItems";
@@ -29,13 +29,12 @@ import { BillTabSheetPresetOptions } from "@/components/settings/BillTabSheetPre
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   SETTINGS_TAB_ITEMS,
-  SETTINGS_TAB_SUBTITLE,
   coerceSettingsTab,
   isVisibleSettingsTab,
 } from "@/components/settings/settingsChrome";
 import { normalizeServiceDefaultQty } from "@/utils/serviceDefaultQty";
 import { isPhotoImportEnabled } from "@/utils/purchasePhotoImport";
-import { SETTINGS_TAB_LIST_CLASS, SETTINGS_TAB_TRIGGER_CLASS, SettingsSection } from "@/components/settings/settingsLayout";
+import { SETTINGS_TAB_LIST_CLASS, SETTINGS_TAB_TRIGGER_CLASS, SettingsField, SettingsGrid, SettingsSection } from "@/components/settings/settingsLayout";
 import { OwnerAlertsSettings } from "@/components/settings/OwnerAlertsSettings";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1386,16 +1385,18 @@ export default function Settings() {
               <Home className="h-4 w-4" />
             </Button>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
-                <SettingsIcon className="h-5 w-5 shrink-0" />
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight leading-none flex items-center gap-2">
+                <span className="h-8 w-8 rounded-lg bg-blue-600 text-white grid place-items-center shrink-0 shadow-sm">
+                  <SettingsIcon className="h-4 w-4" />
+                </span>
                 Settings
               </h1>
-              <p className="text-sm text-muted-foreground mt-1 truncate">{SETTINGS_TAB_SUBTITLE}</p>
+              <p className="text-xs text-slate-500 mt-1 truncate">Saved settings apply to this shop only</p>
             </div>
           </div>
           <Button
             size="sm"
-            className="h-9 text-sm shrink-0"
+            className="h-9 px-4 text-sm font-semibold shrink-0 bg-blue-600 hover:bg-blue-700 shadow-sm"
             onClick={handleSave}
             disabled={loading}
           >
@@ -1439,132 +1440,143 @@ export default function Settings() {
           </TabsList>
 
           <TabsContent value="company">
-            <Card className="h-fit settings-panel-card">
-              <CardHeader>
-                <CardTitle>Company Profile</CardTitle>
-                <CardDescription>
-                  Manage your business information
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <SettingsSection title="Company profile">
-                <div className="space-y-2">
-                  <Label htmlFor="business_name">Business Name</Label>
-                  <Input
-                    id="business_name"
-                    className="no-uppercase"
-                    value={settings.business_name || ""}
-                    onChange={(e) =>
-                      setSettings({ ...settings, business_name: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="address">Address</Label>
-                  <Textarea
-                    id="address"
-                    value={settings.address || ""}
-                    onChange={(e) =>
-                      setSettings({ ...settings, address: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="mobile_number">Mobile Number</Label>
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 items-start">
+              <SettingsSection
+                className="xl:col-span-2"
+                title="Business details"
+                subtitle="Printed on every bill, quotation and report"
+                icon={Building2}
+                tone="blue"
+              >
+                <SettingsGrid cols={3}>
+                  <SettingsField label="Business Name" htmlFor="business_name" required important span={2}>
+                    <Input
+                      id="business_name"
+                      className="no-uppercase"
+                      value={settings.business_name || ""}
+                      onChange={(e) =>
+                        setSettings({ ...settings, business_name: e.target.value })
+                      }
+                    />
+                  </SettingsField>
+                  <SettingsField label="GST Number" htmlFor="gst_number" important badge="ON BILLS">
+                    <Input
+                      id="gst_number"
+                      value={settings.gst_number || ""}
+                      onChange={(e) =>
+                        setSettings({ ...settings, gst_number: e.target.value })
+                      }
+                      placeholder="e.g. 27ABCDE1234F1Z5"
+                      className="font-mono"
+                    />
+                  </SettingsField>
+                  <SettingsField label="Address" htmlFor="address" span="full">
+                    <Textarea
+                      id="address"
+                      rows={2}
+                      value={settings.address || ""}
+                      onChange={(e) =>
+                        setSettings({ ...settings, address: e.target.value })
+                      }
+                    />
+                  </SettingsField>
+                  <SettingsField label="Mobile Number" htmlFor="mobile_number" required>
                     <Input
                       id="mobile_number"
+                      inputMode="tel"
                       value={settings.mobile_number || ""}
                       onChange={(e) =>
                         setSettings({ ...settings, mobile_number: e.target.value })
                       }
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="owner_phone">Owner WhatsApp Number</Label>
+                  </SettingsField>
+                  <SettingsField
+                    label="Owner WhatsApp Number"
+                    htmlFor="owner_phone"
+                    help={
+                      <>
+                        Send <strong className="text-slate-700">report, sales, stock, credit, expenses, week, staff</strong> or{" "}
+                        <strong className="text-slate-700">hi</strong> to get today's tally.
+                      </>
+                    }
+                  >
                     <Input
                       id="owner_phone"
+                      inputMode="tel"
                       value={settings.owner_phone || ""}
                       onChange={(e) =>
                         setSettings({ ...settings, owner_phone: e.target.value })
                       }
                       placeholder="e.g. 9876543210"
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Owner can message this WhatsApp number with commands:
-                      <strong className="text-foreground"> report, sales, stock, credit, expenses, week, staff, help</strong>
-                      <br />
-                      Type <em>"hi"</em> or <em>"report"</em> to get today's full tally instantly.
-                    </p>
-                  </div>
+                  </SettingsField>
+                  <SettingsField label="Email ID" htmlFor="email_id">
+                    <Input
+                      id="email_id"
+                      type="email"
+                      className="no-uppercase"
+                      value={settings.email_id || ""}
+                      onChange={(e) =>
+                        setSettings({ ...settings, email_id: e.target.value })
+                      }
+                    />
+                  </SettingsField>
+                </SettingsGrid>
+              </SettingsSection>
+              <SettingsSection
+                title="Receiving bank accounts"
+                subtitle="UPI, card and bank receipts"
+                icon={Landmark}
+                tone="emerald"
+              >
+                <div className="p-4">
+                  <CompanyProfileBankAccounts embedded />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email_id">Email ID</Label>
-                  <Input
-                    id="email_id"
-                    type="email"
-                    value={settings.email_id || ""}
-                    onChange={(e) =>
-                      setSettings({ ...settings, email_id: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="gst_number">GST Number</Label>
-                  <Input
-                    id="gst_number"
-                    value={settings.gst_number || ""}
-                    onChange={(e) =>
-                      setSettings({ ...settings, gst_number: e.target.value })
-                    }
-                  />
-                </div>
-                <CompanyProfileBankAccounts />
-                </SettingsSection>
-              </CardContent>
-            </Card>
+              </SettingsSection>
+            </div>
           </TabsContent>
 
           <TabsContent value="branding">
-            <Card className="h-fit settings-panel-card">
-              <CardHeader>
-                <CardTitle>Organization Branding</CardTitle>
-                <CardDescription>
-                  Customize your organization's login page and brand identity
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <SettingsSection title="Branding">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="org_logo">Organization Logo</Label>
-                    <div className="flex items-center gap-4">
-                      {settings.bill_barcode_settings?.logo_url && (
-                        <img
-                          src={settings.bill_barcode_settings.logo_url}
-                          alt="Organization logo"
-                          className="h-20 w-20 object-contain rounded-md border"
-                        />
-                      )}
-                      <div className="flex-1">
-                        <Input
-                          id="org_logo"
-                          type="file"
-                          accept="image/*"
-                          onChange={handleLogoUpload}
-                          disabled={uploadingLogo}
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Upload your organization logo (max 2MB, JPG/PNG)
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">This logo also prints on invoices and barcode labels</p>
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 items-start">
+              <SettingsSection
+                className="xl:col-span-2"
+                title="Brand identity"
+                subtitle="Logo, colour and name on your login page, bills and labels"
+                icon={Paintbrush}
+                tone="violet"
+              >
+                <SettingsGrid cols={2}>
+                  <SettingsField
+                    label="Organization Logo"
+                    htmlFor="org_logo"
+                    important
+                    span={2}
+                    help="JPG or PNG, max 2 MB. Also prints on invoices and barcode labels."
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-16 w-16 shrink-0 rounded-lg border border-slate-200 bg-slate-50 grid place-items-center overflow-hidden">
+                        {settings.bill_barcode_settings?.logo_url ? (
+                          <img
+                            src={settings.bill_barcode_settings.logo_url}
+                            alt="Organization logo"
+                            className="h-full w-full object-contain"
+                          />
+                        ) : (
+                          <Paintbrush className="h-5 w-5 text-slate-300" />
+                        )}
                       </div>
+                      <Input
+                        id="org_logo"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                        disabled={uploadingLogo}
+                        className="flex-1"
+                      />
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="brand_color">Primary Brand Color</Label>
-                    <div className="flex items-center gap-4">
+                  </SettingsField>
+                  <SettingsField label="Primary Brand Color" htmlFor="brand_color" help="Used on your login page">
+                    <div className="flex items-center gap-2">
                       <Input
                         id="brand_color"
                         type="color"
@@ -1578,7 +1590,7 @@ export default function Settings() {
                             },
                           })
                         }
-                        className="w-24 h-10"
+                        className="w-14 shrink-0 p-1 cursor-pointer"
                       />
                       <Input
                         type="text"
@@ -1593,16 +1605,15 @@ export default function Settings() {
                           })
                         }
                         placeholder="#3b82f6"
-                        className="font-mono"
+                        className="font-mono no-uppercase"
                       />
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      This color will be used on your organization's login page
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="login_display_name">Login Page Display Name</Label>
+                  </SettingsField>
+                  <SettingsField
+                    label="Login Page Display Name"
+                    htmlFor="login_display_name"
+                    help="Leave empty to use the business name"
+                  >
                     <Input
                       id="login_display_name"
                       value={settings.bill_barcode_settings?.login_display_name || settings.business_name || ""}
@@ -1617,49 +1628,39 @@ export default function Settings() {
                       }
                       placeholder="Enter the name to show on login page"
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Leave empty to use the business name
-                    </p>
+                  </SettingsField>
+                </SettingsGrid>
+              </SettingsSection>
+              <SettingsSection title="Login page preview" subtitle="How customers and staff see it" icon={Eye} tone="sky">
+                <div className="p-4 bg-slate-50">
+                  <div className="mx-auto max-w-xs rounded-xl bg-white p-5 shadow-md">
+                    {settings.bill_barcode_settings?.logo_url && (
+                      <div className="flex justify-center mb-3">
+                        <img
+                          src={settings.bill_barcode_settings.logo_url}
+                          alt="Logo preview"
+                          className="h-14 w-auto object-contain"
+                        />
+                      </div>
+                    )}
+                    <h2
+                      className="text-lg font-bold text-center mb-1"
+                      style={{ color: settings.bill_barcode_settings?.brand_color || "#3b82f6" }}
+                    >
+                      {settings.bill_barcode_settings?.login_display_name || settings.business_name || "Your Organization"}
+                    </h2>
+                    <p className="text-xs text-center text-muted-foreground">Sign in to access your account</p>
                   </div>
                 </div>
-
-                <div className="pt-4 border-t">
-                  <h3 className="text-sm font-semibold mb-2">Preview</h3>
-                  <div className="p-6 rounded-lg border bg-muted/50">
-                    <div className="max-w-sm mx-auto bg-background rounded-lg shadow-lg p-6">
-                      {settings.bill_barcode_settings?.logo_url && (
-                        <div className="flex justify-center mb-4">
-                          <img
-                            src={settings.bill_barcode_settings.logo_url}
-                            alt="Logo preview"
-                            className="h-16 w-auto object-contain"
-                          />
-                        </div>
-                      )}
-                      <h2 
-                        className="text-xl font-bold text-center mb-2"
-                        style={{ color: settings.bill_barcode_settings?.brand_color || "#3b82f6" }}
-                      >
-                        {settings.bill_barcode_settings?.login_display_name || settings.business_name || "Your Organization"}
-                      </h2>
-                      <p className="text-sm text-center text-muted-foreground">
-                        Sign in to access your account
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                {/* Authorised Stamp / Signature Section */}
-                <div className="pt-6 border-t">
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="h-7 w-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center">
-                      <Pencil className="h-3.5 w-3.5 text-indigo-700 dark:text-indigo-300" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold">Authorised Stamp / Signature</p>
-                      <p className="text-xs text-muted-foreground">Upload a stamp or signature image that appears on invoices</p>
-                    </div>
-                  </div>
-
+              </SettingsSection>
+              <SettingsSection
+                className="xl:col-span-3"
+                title="Authorised Stamp / Signature"
+                subtitle="Upload a stamp or signature image that appears on invoices"
+                icon={Pencil}
+                tone="amber"
+              >
+                <div className="p-4">
                   <div className="space-y-4">
                     {/* Upload area */}
                     <div className="flex items-start gap-4">
@@ -1802,25 +1803,15 @@ export default function Settings() {
                     </div>
                   </div>
                 </div>
-                </SettingsSection>
-              </CardContent>
-            </Card>
-
+              </SettingsSection>
+            </div>
           </TabsContent>
 
           <TabsContent value="product">
-            <Card className="h-fit settings-panel-card">
-              <CardHeader>
-                <CardTitle>Product Settings</CardTitle>
-                <CardDescription>
-                  Configure product-related preferences
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <SettingsSection title="Product details">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="default_margin">Default Profit Margin (%)</Label>
+            <div className="space-y-3">
+              <SettingsSection title="Product defaults" subtitle="Used when you add a new product" icon={Package} tone="violet">
+                <SettingsGrid cols={4}>
+                  <SettingsField label="Default Profit Margin (%)" htmlFor="default_margin">
                     <Input
                       id="default_margin"
                       type="number"
@@ -1839,9 +1830,13 @@ export default function Settings() {
                       }
                       placeholder="e.g., 20"
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="low_stock_threshold">Low Stock Alert Threshold</Label>
+                  </SettingsField>
+                  <SettingsField
+                    label="Low Stock Alert at"
+                    htmlFor="low_stock_threshold"
+                    important
+                    help="Owner alert when stock falls to this qty"
+                  >
                     <Input
                       id="low_stock_threshold"
                       type="number"
@@ -1858,11 +1853,9 @@ export default function Settings() {
                       }
                       placeholder="e.g., 10"
                     />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="default_size_group">Default Size Group</Label>
-                  <Select
+                  </SettingsField>
+                  <SettingsField label="Default Size Group" htmlFor="default_size_group" help="Add Product starts with this size group">
+                    <Select
                     value={settings.product_settings?.default_size_group || "none"}
                     onValueChange={(value) =>
                       setSettings({
@@ -1890,21 +1883,15 @@ export default function Settings() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Size group Add Product starts with for new products
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="service_quick_entry_dialog" className="text-sm font-medium">
-                      Ask Qty &amp; Price for Service Products
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      When ON, billing a service product opens a dialog to enter quantity &amp; price. Turn OFF to add service items instantly using the price defined at product entry.
-                    </p>
-                  </div>
-                  <Switch
+                  </SettingsField>
+                  <SettingsField
+                    label="Service products"
+                    htmlFor="service_quick_entry_dialog"
+                    help="ON: billing a service asks qty &amp; price. OFF: adds it at the saved price."
+                  >
+                    <div className="flex h-9 items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3">
+                      <span className="text-[13px] font-semibold text-slate-700">Ask Qty &amp; Price</span>
+                      <Switch
                     id="service_quick_entry_dialog"
                     checked={settings.product_settings?.service_quick_entry_dialog !== false}
                     onCheckedChange={(checked) =>
@@ -1917,12 +1904,18 @@ export default function Settings() {
                       })
                     }
                   />
-                </div>
+                    </div>
+                  </SettingsField>
+                </SettingsGrid>
+              </SettingsSection>
 
-                <div className="space-y-4 mt-6 pt-6 border-t">
-                  <h3 className="text-lg font-semibold">Product Entry Form Fields</h3>
-                  <p className="text-sm text-muted-foreground">Customize field labels and enable/disable fields</p>
-                  
+              <SettingsSection
+                title="Product entry form fields"
+                subtitle="Rename a field or switch it off on Add Product"
+                icon={Layers}
+                tone="amber"
+              >
+                <div className="grid grid-cols-1 gap-2.5 p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
                   {[
                     { key: 'category', defaultLabel: 'Category' },
                     { key: 'brand', defaultLabel: 'Brand' },
@@ -1935,12 +1928,26 @@ export default function Settings() {
                       defaultEnabled: false,
                       hint: 'Prints the product Style beside IMEI/Barcode on the Tally A4 bill',
                     },
-                  ].map((field) => (
-                    <div key={field.key} className="flex items-center gap-4 p-4 border rounded-lg">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
+                  ].map((field) => {
+                    const enabled = settings.product_settings?.fields?.[field.key as keyof NonNullable<typeof settings.product_settings.fields>]?.enabled ?? (field.defaultEnabled ?? true);
+                    return (
+                    <div
+                      key={field.key}
+                      className={cn(
+                        "rounded-lg border p-2.5 space-y-2 transition-colors",
+                        enabled ? "border-slate-200 bg-white" : "border-slate-200 bg-slate-50",
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <Label
+                          htmlFor={`enable_${field.key}`}
+                          className="cursor-pointer text-[11px] font-bold uppercase tracking-wide text-slate-500"
+                        >
+                          {field.defaultLabel}
+                        </Label>
+                        <Switch
                           id={`enable_${field.key}`}
-                          checked={settings.product_settings?.fields?.[field.key as keyof NonNullable<typeof settings.product_settings.fields>]?.enabled ?? (field.defaultEnabled ?? true)}
+                          checked={enabled}
                           onCheckedChange={(checked) => {
                             setSettings({
                               ...settings,
@@ -1957,41 +1964,36 @@ export default function Settings() {
                             });
                           }}
                         />
-                        <Label htmlFor={`enable_${field.key}`} className="cursor-pointer">
-                          Enable
-                        </Label>
                       </div>
-                      <div className="flex-1 space-y-1">
-                        <Label htmlFor={`label_${field.key}`}>Field Label</Label>
-                        {field.hint ? <p className="text-xs text-muted-foreground">{field.hint}</p> : null}
-                        <Input
-                          id={`label_${field.key}`}
-                          value={settings.product_settings?.fields?.[field.key as keyof NonNullable<typeof settings.product_settings.fields>]?.label || field.defaultLabel}
-                          onChange={(e) => {
-                            setSettings({
-                              ...settings,
-                              product_settings: {
-                                ...settings.product_settings,
-                                fields: {
-                                  ...settings.product_settings?.fields,
-                                  [field.key]: {
-                                    label: e.target.value,
-                                    enabled: settings.product_settings?.fields?.[field.key as keyof NonNullable<typeof settings.product_settings.fields>]?.enabled ?? (field.defaultEnabled ?? true),
-                                  },
+                      <Input
+                        id={`label_${field.key}`}
+                        aria-label={`${field.defaultLabel} label`}
+                        value={settings.product_settings?.fields?.[field.key as keyof NonNullable<typeof settings.product_settings.fields>]?.label || field.defaultLabel}
+                        onChange={(e) => {
+                          setSettings({
+                            ...settings,
+                            product_settings: {
+                              ...settings.product_settings,
+                              fields: {
+                                ...settings.product_settings?.fields,
+                                [field.key]: {
+                                  label: e.target.value,
+                                  enabled,
                                 },
                               },
-                            });
-                          }}
-                          placeholder={field.defaultLabel}
-                          disabled={!(settings.product_settings?.fields?.[field.key as keyof NonNullable<typeof settings.product_settings.fields>]?.enabled ?? (field.defaultEnabled ?? true))}
-                        />
-                      </div>
+                            },
+                          });
+                        }}
+                        placeholder={field.defaultLabel}
+                        disabled={!enabled}
+                      />
+                      {field.hint ? <p className="text-[11px] leading-snug text-slate-500">{field.hint}</p> : null}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
-                </SettingsSection>
-              </CardContent>
-            </Card>
+              </SettingsSection>
+            </div>
 
             {/* Mobile ERP / IMEI Tracking Mode */}
             <Card className="mt-3 h-fit settings-panel-card">
