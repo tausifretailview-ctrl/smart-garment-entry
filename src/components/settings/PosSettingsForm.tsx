@@ -395,6 +395,7 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
           <SettingsField
             label="POS invoice template"
             htmlFor="pos_invoice_template"
+            span={2}
             help="An A4 design (Klear, Wholesale GST) sets the bill format to A4."
           >
             <Select
@@ -420,32 +421,6 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
               </SelectTrigger>
               <SelectContent>
                 <InvoiceTemplateSelectItems currentValue={resolvedPosTemplate} />
-              </SelectContent>
-            </Select>
-          </SettingsField>
-          <SettingsField
-            label="Thermal receipt style"
-            htmlFor="thermal_receipt_style"
-            help="Used by thermal printers for Sale and POS"
-          >
-            <Select
-              value={sale.thermal_receipt_style || "classic"}
-              onValueChange={(value) => {
-                onFocusPosPreview();
-                patchSale({
-                  thermal_receipt_style: value as SaleSlice["thermal_receipt_style"],
-                });
-              }}
-            >
-              <SelectTrigger id="thermal_receipt_style">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="classic">Classic — Professional 80mm retail</SelectItem>
-                <SelectItem value="compact">Compact — Sans-serif, denser</SelectItem>
-                <SelectItem value="modern">Modern — Stylish, pill headers</SelectItem>
-                <SelectItem value="tvs">TVS 80mm — Bold columns, clear print</SelectItem>
-                <SelectItem value="new-design">New Design — Clean sans-serif, restaurant style</SelectItem>
               </SelectContent>
             </Select>
           </SettingsField>

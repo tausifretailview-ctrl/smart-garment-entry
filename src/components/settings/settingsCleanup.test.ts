@@ -132,4 +132,10 @@ describe("Settings premium layout (Nov 2026)", () => {
     expect(settingsPage).toContain("onPointerEnter={() => preloadSettingsTab(id)}");
     expect(settingsPage).toContain("payment: [loadPaymentGatewayPanel]");
   });
+
+  it("drops Thermal receipt style from POS and gives the POS template two columns", () => {
+    const posForm = read("./PosSettingsForm.tsx");
+    expect(posForm).not.toContain('htmlFor="thermal_receipt_style"');
+    expect(posForm).toMatch(/htmlFor="pos_invoice_template"\s+span=\{2\}/);
+  });
 });
