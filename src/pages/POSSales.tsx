@@ -2060,103 +2060,108 @@ export default function POSSales() {
     return () => window.removeEventListener(POS_OPEN_SALESMAN_PICKER_EVENT, onOpenSalesman);
   }, [location.pathname]);
 
-  // Keyboard shortcuts for POS actions
+  // Keyboard shortcuts for POS actions.
+  // The handler is refreshed every render through a ref so F1–F11 always see the
+  // latest bill state. A dependency list here left F-key saves using an old
+  // closure — e.g. a salesman picked with Alt+M after scanning was not saved.
+  const posShortcutKeyHandlerRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  posShortcutKeyHandlerRef.current = (e: KeyboardEvent) => {
+    // Tab cache keeps POS mounted while other screens are open — only handle keys on active POS route.
+    if (!isPosSalesRoute(location.pathname)) return;
+    if (isSaving) return;
+    if (
+      document.querySelector(
+        '[role="dialog"], [role="alertdialog"], [data-radix-popper-content-wrapper]',
+      )
+    ) {
+      return;
+    }
+
+    // F1 - Cash Payment (Save & Print)
+    if (e.key === 'F1') {
+      e.preventDefault();
+      handlePaymentAndPrint('cash');
+    }
+    // F2 - UPI Payment (Save & Print)
+    else if (e.key === 'F2') {
+      e.preventDefault();
+      handlePaymentAndPrint('upi');
+    }
+    // F3 - Card Payment (Save & Print)
+    else if (e.key === 'F3') {
+      e.preventDefault();
+      handlePaymentAndPrint('card');
+    }
+    // F4 - Credit (Pay Later)
+    else if (e.key === 'F4') {
+      e.preventDefault();
+      handlePaymentAndPrint('pay_later');
+    }
+    // F5 - Sale Return
+    else if (e.key === 'F5') {
+      e.preventDefault();
+      setShowFloatingSaleReturn(true);
+    }
+    // F6 - Mix Payment
+    else if (e.key === 'F6') {
+      e.preventDefault();
+      handleMixPayment();
+    }
+    // F7 - Hold Bill
+    else if (e.key === 'F7') {
+      e.preventDefault();
+      if (items.length === 0 || isHeldSale) {
+        setShowHoldPanel(prev => !prev);
+      } else {
+        handleHoldBill();
+      }
+    }
+    // F8 - Cashier Report
+    else if (e.key === 'F8') {
+      e.preventDefault();
+      setShowFloatingCashierReport(true);
+    }
+    // F9 - Print Estimate (no save)
+    else if (e.key === 'F9') {
+      e.preventDefault();
+      if (items.length > 0) {
+        handleEstimatePrintRef.current?.();
+      }
+    }
+    // Esc - Clear cart or go to POS Dashboard
+    else if (e.key === 'Escape') {
+      e.preventDefault();
+      const hasItems = items.some(i => i.productId !== '');
+      if (hasItems) {
+        handleClearAll();
+      } else {
+        orgNavigatePOS('/pos-dashboard');
+      }
+    }
+    // Ctrl+P - Print saved invoice
+    else if (e.ctrlKey && e.key === 'p') {
+      e.preventDefault();
+      if (savedInvoiceData) {
+        handlePrintFromDialog();
+      }
+    }
+    // F10 - Add New Customer
+    else if (e.key === 'F10') {
+      e.preventDefault();
+      openAddCustomerDialog();
+    }
+    // F11 - Size-wise Stock Report
+    else if (e.key === 'F11') {
+      e.preventDefault();
+      setShowFloatingStockReport(true);
+    }
+  };
+
   useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      // Tab cache keeps POS mounted while other screens are open — only handle keys on active POS route.
-      if (!isPosSalesRoute(location.pathname)) return;
-      if (isSaving) return;
-      if (
-        document.querySelector(
-          '[role="dialog"], [role="alertdialog"], [data-radix-popper-content-wrapper]',
-        )
-      ) {
-        return;
-      }
-
-      // F1 - Cash Payment (Save & Print)
-      if (e.key === 'F1') {
-        e.preventDefault();
-        handlePaymentAndPrint('cash');
-      }
-      // F2 - UPI Payment (Save & Print)
-      else if (e.key === 'F2') {
-        e.preventDefault();
-        handlePaymentAndPrint('upi');
-      }
-      // F3 - Card Payment (Save & Print)
-      else if (e.key === 'F3') {
-        e.preventDefault();
-        handlePaymentAndPrint('card');
-      }
-      // F4 - Credit (Pay Later)
-      else if (e.key === 'F4') {
-        e.preventDefault();
-        handlePaymentAndPrint('pay_later');
-      }
-      // F5 - Sale Return
-      else if (e.key === 'F5') {
-        e.preventDefault();
-        setShowFloatingSaleReturn(true);
-      }
-      // F6 - Mix Payment
-      else if (e.key === 'F6') {
-        e.preventDefault();
-        handleMixPayment();
-      }
-      // F7 - Hold Bill
-      else if (e.key === 'F7') {
-        e.preventDefault();
-        if (items.length === 0 || isHeldSale) {
-          setShowHoldPanel(prev => !prev);
-        } else {
-          handleHoldBill();
-        }
-      }
-      // F8 - Cashier Report
-      else if (e.key === 'F8') {
-        e.preventDefault();
-        setShowFloatingCashierReport(true);
-      }
-      // F9 - Print Estimate (no save)
-      else if (e.key === 'F9') {
-        e.preventDefault();
-        if (items.length > 0) {
-          handleEstimatePrintRef.current?.();
-        }
-      }
-      // Esc - Clear cart or go to POS Dashboard
-      else if (e.key === 'Escape') {
-        e.preventDefault();
-        const hasItems = items.some(i => i.productId !== '');
-        if (hasItems) {
-          handleClearAll();
-        } else {
-          orgNavigatePOS('/pos-dashboard');
-        }
-      }
-      // Ctrl+P - Print saved invoice
-      else if (e.ctrlKey && e.key === 'p') {
-        e.preventDefault();
-        if (savedInvoiceData) {
-          handlePrintFromDialog();
-        }
-      }
-      // F10 - Add New Customer
-      else if (e.key === 'F10') {
-        e.preventDefault();
-        openAddCustomerDialog();
-      }
-      // F11 - Size-wise Stock Report
-      else if (e.key === 'F11') {
-        e.preventDefault();
-        setShowFloatingStockReport(true);
-      }
-    };
-
+    const handleKeyPress = (e: KeyboardEvent) => posShortcutKeyHandlerRef.current(e);
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [items, customerName, flatDiscountValue, roundOff, paymentMethod, savedInvoiceData, isSaving, location.pathname]);
+  }, []);
 
   // Apply defaults when settings load — only for empty new bills (never stomp an active cart
   // or force Flat Disc mode back to % after the cashier toggles %/₹).
