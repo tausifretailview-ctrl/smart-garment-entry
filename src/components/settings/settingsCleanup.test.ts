@@ -120,4 +120,16 @@ describe("Settings premium layout (Nov 2026)", () => {
     expect(posForm).not.toContain("SettingsRow");
     expect(tab("pos")).toContain('title="POS screen extras"');
   });
+
+  it("gives WhatsApp, Alerts and User Rights titled sections", () => {
+    expect(tab("whatsapp")).toContain('title="Links on WhatsApp bills"');
+    expect(tab("whatsapp")).toContain("<SettingsToggle");
+    expect(tab("users")).toContain('navigate("/user-rights")');
+    expect(tab("reports")).toContain("<OwnerAlertsSettings />");
+  });
+
+  it("warms each tab's code on hover so switching tabs skips the skeleton", () => {
+    expect(settingsPage).toContain("onPointerEnter={() => preloadSettingsTab(id)}");
+    expect(settingsPage).toContain("payment: [loadPaymentGatewayPanel]");
+  });
 });
