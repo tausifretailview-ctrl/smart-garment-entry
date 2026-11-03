@@ -40,6 +40,8 @@ const getCurrentPageName = (path: string): string => {
     'debit-notes': 'Debit Notes',
     'eway-bills': 'E-Way Bills',
     'godowns': 'Godowns',
+    'godown-transfers': 'Godown Transfers',
+    'godown-transfer-entry': 'Godown Transfer',
     'settings': 'Settings',
     'gst-reports': 'GST Reports',
     'gst-analysis': 'GST Analysis',

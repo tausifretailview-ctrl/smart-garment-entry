@@ -1,6 +1,6 @@
 /** Bill / voucher entry routes that should use the full viewport (no sidebar gutter). */
 export const ENTRY_FULLSCREEN_PATH =
-  /\/(sales-invoice|purchase-entry|sale-return-entry|purchase-return-entry|quotation-entry|sale-order-entry|delivery-challan-entry|purchase-order-entry|stock-transfer-entry)(\/|$)/;
+  /\/(sales-invoice|purchase-entry|sale-return-entry|purchase-return-entry|quotation-entry|sale-order-entry|delivery-challan-entry|purchase-order-entry|stock-transfer-entry|godown-transfer-entry)(\/|$)/;
 
 /** POS + primary bill entry — full viewport: no sidebar or global header; window tab strip stays visible. */
 export const NO_SIDEBAR_ENTRY_PATH =
@@ -56,7 +56,7 @@ export function isSidebarOnlyWorkspacePath(pathname: string): boolean {
 
 /** Voucher entry screens: keep left sidebar, hide global header + shortcut bar + window tabs. */
 export const ENTRY_SIDEBAR_ONLY_PATH =
-  /\/(quotation-entry|delivery-challan-entry|sale-return-entry|purchase-order-entry|stock-transfer-entry)(\/|$)/;
+  /\/(quotation-entry|delivery-challan-entry|sale-return-entry|purchase-order-entry|stock-transfer-entry|godown-transfer-entry)(\/|$)/;
 
 export function isEntrySidebarOnlyPath(pathname: string): boolean {
   return ENTRY_SIDEBAR_ONLY_PATH.test(pathname);

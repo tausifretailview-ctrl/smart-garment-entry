@@ -13,6 +13,8 @@ export interface TransferSearchResult extends TransferScanVariant {
   category: string | null;
   style: string | null;
   mrp: number | null;
+  /** Unit (KGS, MTR, PCS…), for the godown transfer screen. */
+  uom?: string | null;
 }
 
 export const TRANSFER_BARCODE_PATTERN = /^[A-Z]{2,4}[0-9]{5,}$|^[0-9]{6,}$/;
@@ -62,7 +64,7 @@ export async function searchTransferProducts(orgId: string, raw: string): Promis
   const { data, error } = await supabase
     .from("product_variants")
     .select(
-      "id, size, color, barcode, stock_qty, pur_price, sale_price, mrp, product_id, products (product_name, brand, category, style, product_type, deleted_at)",
+      "id, size, color, barcode, stock_qty, pur_price, sale_price, mrp, product_id, products (product_name, brand, category, style, product_type, deleted_at, uom)",
     )
     .eq("organization_id", orgId)
     .is("deleted_at", null)
@@ -92,6 +94,7 @@ export async function searchTransferProducts(orgId: string, raw: string): Promis
       brand: (v.products?.brand ?? null) as string | null,
       category: (v.products?.category ?? null) as string | null,
       style: (v.products?.style ?? null) as string | null,
+      uom: (v.products?.uom ?? null) as string | null,
     }));
 
   const score = (r: TransferSearchResult) =>

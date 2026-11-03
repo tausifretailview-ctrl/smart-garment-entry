@@ -144,6 +144,8 @@ const StockAdjustment = lazyWithRetry(() => import("./pages/StockAdjustment"));
 const StockTransfer = lazyWithRetry(() => import("./pages/StockTransfer"));
 const StockTransferEntry = lazyWithRetry(() => import("./pages/StockTransferEntry"));
 const Godowns = lazyWithRetry(() => import("./pages/Godowns"));
+const GodownTransfers = lazyWithRetry(() => import("./pages/GodownTransfers"));
+const GodownTransferEntry = lazyWithRetry(() => import("./pages/GodownTransferEntry"));
 const StockAnalysis = lazyWithRetry(() => import("./pages/StockAnalysis"));
 const StockAgeingReport = lazyWithRetry(() => import("./pages/StockAgeingReport"));
 const StockSettlement = lazyWithRetry(() => import("./pages/StockSettlement"));
@@ -838,6 +840,30 @@ const App = () => {
                         <Layout>
                           <Godowns />
                         </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="godown-transfers"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <GodownTransfers />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="godown-transfer-entry"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <FullScreenLayout>
+                          <GodownTransferEntry />
+                        </FullScreenLayout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>
                   }
