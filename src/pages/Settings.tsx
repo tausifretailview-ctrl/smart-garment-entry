@@ -12,7 +12,7 @@ import type { IndustrialModeConfig } from "@/utils/industrialMode";
 import { EwayBillSettingsSection } from "@/components/ewaybill/EwayBillSettingsSection";
 import { DEFAULT_MANUFACTURER_ERP, type ManufacturerERPConfig } from "@/utils/manufacturing";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, Factory, Truck, Building2, Landmark, Layers, ShoppingCart, Receipt, Tag, ListChecks, QrCode, Barcode, Wallet, Calculator, Gift } from "lucide-react";
+import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, Factory, Truck, Building2, Landmark, Layers, ShoppingCart, Receipt, Tag, ListChecks, QrCode, Barcode, Wallet, Calculator, Gift, MessageCircle, Link2, Sparkles, Store } from "lucide-react";
 import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { SaleInvoiceFormatBackupDialog } from "@/components/settings/SaleInvoiceFormatBackupDialog";
 import { InvoiceTemplateSelectItems } from "@/components/settings/InvoiceTemplateSelectItems";
@@ -85,12 +85,12 @@ import {
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { mergeActivityNavigationState } from "@/lib/activityCenterNavigation";
 
-const LazyUserManagement = lazyWithRetry(() =>
-  import("@/components/UserManagement").then((m) => ({ default: m.UserManagement })),
-);
-const LazySizeGroupManagement = lazyWithRetry(() =>
-  import("@/components/SizeGroupManagement").then((m) => ({ default: m.SizeGroupManagement })),
-);
+const loadUserManagementPanel = () =>
+  import("@/components/UserManagement").then((m) => ({ default: m.UserManagement }));
+const LazyUserManagement = lazyWithRetry(loadUserManagementPanel);
+const loadSizeGroupPanel = () =>
+  import("@/components/SizeGroupManagement").then((m) => ({ default: m.SizeGroupManagement }));
+const LazySizeGroupManagement = lazyWithRetry(loadSizeGroupPanel);
 const { Panel: WhatsAppTemplatePanel, preload: preloadWhatsAppTemplatePanel } = createSettingsPanel(() =>
   import("@/components/WhatsAppTemplateSettings").then((m) => ({ default: m.WhatsAppTemplateSettings })),
 );
@@ -112,18 +112,45 @@ function preloadWhatsAppTab() {
 }
 import { CompanyProfileBankAccounts } from "@/components/settings/CompanyProfileBankAccounts";
 
-const LazyDesktopPrintSettings = lazyWithRetry(() =>
-  import("@/components/DesktopPrintSettings").then((m) => ({ default: m.DesktopPrintSettings })),
-);
-const LazyGiftRewardsManagement = lazyWithRetry(() =>
-  import("@/components/GiftRewardsManagement").then((m) => ({ default: m.GiftRewardsManagement })),
-);
-const LazyChequeFormatManagement = lazyWithRetry(() =>
-  import("@/components/ChequeFormatManagement").then((m) => ({ default: m.ChequeFormatManagement })),
-);
-const LazyPaymentGatewaySettings = lazyWithRetry(() =>
-  import("@/components/PaymentGatewaySettings").then((m) => ({ default: m.PaymentGatewaySettings })),
-);
+const loadDesktopPrintPanel = () =>
+  import("@/components/DesktopPrintSettings").then((m) => ({ default: m.DesktopPrintSettings }));
+const LazyDesktopPrintSettings = lazyWithRetry(loadDesktopPrintPanel);
+const loadGiftRewardsPanel = () =>
+  import("@/components/GiftRewardsManagement").then((m) => ({ default: m.GiftRewardsManagement }));
+const LazyGiftRewardsManagement = lazyWithRetry(loadGiftRewardsPanel);
+const loadChequeFormatPanel = () =>
+  import("@/components/ChequeFormatManagement").then((m) => ({ default: m.ChequeFormatManagement }));
+const LazyChequeFormatManagement = lazyWithRetry(loadChequeFormatPanel);
+const loadPaymentGatewayPanel = () =>
+  import("@/components/PaymentGatewaySettings").then((m) => ({ default: m.PaymentGatewaySettings }));
+const LazyPaymentGatewaySettings = lazyWithRetry(loadPaymentGatewayPanel);
+
+/**
+ * Chunks each Settings tab needs. Hovering or focusing a tab starts the download so the
+ * click opens the tab without a grey skeleton; all of them also warm on idle after the page
+ * opens. A failed speculative warm is ignored: the real render retries on its own.
+ */
+const SETTINGS_TAB_PRELOADERS: Partial<Record<string, Array<() => Promise<unknown>>>> = {
+  product: [loadSizeGroupPanel],
+  sale: [loadGiftRewardsPanel],
+  bill: [loadDesktopPrintPanel, loadChequeFormatPanel],
+  users: [loadUserManagementPanel],
+  payment: [loadPaymentGatewayPanel],
+};
+
+function preloadSettingsTab(tabId: string) {
+  if (tabId === "whatsapp" || tabId === "reports") {
+    preloadWhatsAppTab();
+    return;
+  }
+  for (const load of SETTINGS_TAB_PRELOADERS[tabId] ?? []) {
+    void load().catch(() => {});
+  }
+}
+
+function preloadAllSettingsTabs() {
+  for (const id of Object.keys(SETTINGS_TAB_PRELOADERS)) preloadSettingsTab(id);
+}
 
 function SettingsPanelFallback() {
   return <FormPageSkeleton groups={1} fieldsPerGroup={4} className="p-4" />;
@@ -538,7 +565,13 @@ export default function Settings() {
 
   useEffect(() => {
     if (!shouldAllowSpeculativeChunkPrefetch()) return;
-    return scheduleIdleWork(preloadWhatsAppTab, { minDelay: 2_500 });
+    return scheduleIdleWork(
+      () => {
+        preloadWhatsAppTab();
+        preloadAllSettingsTabs();
+      },
+      { minDelay: 2_500 },
+    );
   }, []);
 
   useEffect(() => {
@@ -1422,16 +1455,12 @@ export default function Settings() {
                 key={id}
                 value={id}
                 className={cn(SETTINGS_TAB_TRIGGER_CLASS, "flex items-center")}
-                {...(id === "whatsapp"
-                  ? {
-                      onPointerEnter: preloadWhatsAppTab,
-                      onFocus: preloadWhatsAppTab,
-                      onPointerDown: () => {
-                        pauseBackgroundPrefetch(15_000);
-                        preloadWhatsAppTab();
-                      },
-                    }
-                  : {})}
+                onPointerEnter={() => preloadSettingsTab(id)}
+                onFocus={() => preloadSettingsTab(id)}
+                onPointerDown={() => {
+                  pauseBackgroundPrefetch(15_000);
+                  preloadSettingsTab(id);
+                }}
               >
                 <Icon className="h-3.5 w-3.5" />
                 {label}
@@ -5612,308 +5641,328 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="reports">
-            <OwnerAlertsSettings />
-            <Card className="mt-3 h-fit settings-panel-card">
-              <CardContent className="space-y-3 pt-4">
-                <SettingsSection title="Customer page & notifications">
-                  <div className="px-3 py-2.5">
-                    <CustomerPagePanel />
-                  </div>
-                </SettingsSection>
-              </CardContent>
-            </Card>
+            <div className="space-y-3">
+              <OwnerAlertsSettings />
+              <SettingsSection title="Customer page & notifications" subtitle="Your shop page for customers and the messages they get" icon={Store} tone="sky">
+                <div className="p-4">
+                  <CustomerPagePanel />
+                </div>
+              </SettingsSection>
+            </div>
           </TabsContent>
 
           <TabsContent value="users">
-            <Card className="h-fit settings-panel-card">
-              <CardHeader>
-                <CardTitle>User Rights Management</CardTitle>
-                <CardDescription>
-                  Manage user roles and configure granular permissions
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <SettingsSection title="User rights">
-                <div className="border rounded-lg p-4 bg-muted/50">
-                  <h3 className="font-medium mb-2">Configure User Permissions</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Set granular permissions for each user including menu access, special rights like modify, delete, WhatsApp, accounting, delivery module, and dashboard customization.
-                  </p>
+            <div className="space-y-3">
+              <SettingsSection
+                title="User rights"
+                subtitle="Menu access and special rights (modify, delete, WhatsApp, accounts, delivery, dashboard) for each login"
+                icon={Shield}
+                tone="blue"
+                action={
                   <Button
+                    size="sm"
                     onPointerDown={() => prefetchTabPage("user-rights", { intent: true })}
                     onClick={() => navigate("/user-rights")}
                   >
                     <Shield className="h-4 w-4 mr-2" />
                     Manage User Rights
                   </Button>
+                }
+              >
+                <div className="p-4">
+                  <LazySettingsPanel>
+                    <LazyUserManagement />
+                  </LazySettingsPanel>
                 </div>
-                <LazySettingsPanel>
-                  <LazyUserManagement />
-                </LazySettingsPanel>
-                </SettingsSection>
-              </CardContent>
-            </Card>
+              </SettingsSection>
+            </div>
           </TabsContent>
 
           <TabsContent value="whatsapp">
-            <Card className="h-fit settings-panel-card">
-              <CardHeader>
-                <CardTitle>WhatsApp Integration</CardTitle>
-                <CardDescription>
-                  Configure WhatsApp Business API and message templates
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <SettingsSection title="WhatsApp API">
-                  <div className="px-3 py-2.5">
-                    <WhatsAppAPIPanel />
+            <div className="space-y-3">
+              <SettingsSection
+                title="WhatsApp connection"
+                subtitle="Link your number and send bills on WhatsApp"
+                icon={MessageCircle}
+                tone="emerald"
+              >
+                <div className="p-4">
+                  <WhatsAppAPIPanel />
+                </div>
+              </SettingsSection>
+              {SHOW_WHATSAPP_MESSAGE_TEMPLATES && (
+                <SettingsSection title="Message templates" icon={FileText} tone="slate">
+                  <div className="p-4">
+                    <WhatsAppTemplatePanel />
                   </div>
                 </SettingsSection>
-                {SHOW_WHATSAPP_MESSAGE_TEMPLATES && (
-                  <SettingsSection title="Message templates">
-                    <div className="px-3 py-2.5">
-                      <WhatsAppTemplatePanel />
-                    </div>
-                  </SettingsSection>
-                )}
-                <SettingsSection title="Social media links">
-                  <div className="space-y-4">
-                    <p className="text-xs text-muted-foreground">
-                      Filled links are added at the end of every WhatsApp bill message
-                    </p>
-                  
-                    <div className="space-y-2">
-                      <Label htmlFor="instagram_link">Instagram Link</Label>
-                      <Input
-                        id="instagram_link"
-                        value={settings.bill_barcode_settings?.instagram_link || ""}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            bill_barcode_settings: {
-                              ...settings.bill_barcode_settings,
-                              instagram_link: e.target.value,
-                            },
-                          })
-                        }
-                        placeholder="e.g., https://instagram.com/yourstore"
-                        className="no-uppercase"
-                      />
-                    </div>
+              )}
+              <SettingsSection
+                title="Links on WhatsApp bills"
+                subtitle="Filled links are added at the end of every WhatsApp bill message"
+                icon={Link2}
+                tone="sky"
+              >
+                <SettingsGrid cols={3}>
+                  <SettingsField label="Instagram Link" htmlFor="instagram_link">
+                    <Input
+                      id="instagram_link"
+                      value={settings.bill_barcode_settings?.instagram_link || ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...settings.bill_barcode_settings,
+                            instagram_link: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder="e.g., https://instagram.com/yourstore"
+                      className="no-uppercase"
+                    />
+                  </SettingsField>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="facebook_link">Facebook Link</Label>
-                      <Input
-                        id="facebook_link"
-                        value={settings.bill_barcode_settings?.facebook_link || ""}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            bill_barcode_settings: {
-                              ...settings.bill_barcode_settings,
-                              facebook_link: e.target.value,
-                            },
-                          })
-                        }
-                        placeholder="e.g., https://facebook.com/yourstore"
-                        className="no-uppercase"
-                      />
-                    </div>
-                  
-                    <div className="space-y-2">
-                      <Label htmlFor="website_link">Website Link</Label>
-                      <Input
-                        id="website_link"
-                        value={settings.bill_barcode_settings?.website_link || ""}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            bill_barcode_settings: {
-                              ...settings.bill_barcode_settings,
-                              website_link: e.target.value,
-                            },
-                          })
-                        }
-                        placeholder="e.g., https://yourstore.com"
-                        className="no-uppercase"
-                      />
-                    </div>
-                  
-                    <div className="space-y-2">
-                      <Label htmlFor="google_review_link">Google Review Link</Label>
-                      <Input
-                        id="google_review_link"
-                        value={settings.bill_barcode_settings?.google_review_link || ""}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            bill_barcode_settings: {
-                              ...settings.bill_barcode_settings,
-                              google_review_link: e.target.value,
-                            },
-                          })
-                        }
-                        placeholder="e.g., https://g.page/yourstore/review"
-                        className="no-uppercase"
-                      />
-                    </div>
+                  <SettingsField label="Facebook Link" htmlFor="facebook_link">
+                    <Input
+                      id="facebook_link"
+                      value={settings.bill_barcode_settings?.facebook_link || ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...settings.bill_barcode_settings,
+                            facebook_link: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder="e.g., https://facebook.com/yourstore"
+                      className="no-uppercase"
+                    />
+                  </SettingsField>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="whatsapp_group_link">WhatsApp Group Link</Label>
-                      <Input
-                        id="whatsapp_group_link"
-                        value={settings.bill_barcode_settings?.whatsapp_group_link || ""}
-                        onChange={(e) =>
+                  <SettingsField label="Website Link" htmlFor="website_link">
+                    <Input
+                      id="website_link"
+                      value={settings.bill_barcode_settings?.website_link || ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...settings.bill_barcode_settings,
+                            website_link: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder="e.g., https://yourstore.com"
+                      className="no-uppercase"
+                    />
+                  </SettingsField>
+
+                  <SettingsField label="Google Review Link" htmlFor="google_review_link">
+                    <Input
+                      id="google_review_link"
+                      value={settings.bill_barcode_settings?.google_review_link || ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...settings.bill_barcode_settings,
+                            google_review_link: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder="e.g., https://g.page/yourstore/review"
+                      className="no-uppercase"
+                    />
+                  </SettingsField>
+
+                  <SettingsField label="WhatsApp Group Link" span={2} htmlFor="whatsapp_group_link">
+                    <Input
+                      id="whatsapp_group_link"
+                      value={settings.bill_barcode_settings?.whatsapp_group_link || ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...settings.bill_barcode_settings,
+                            whatsapp_group_link: e.target.value,
+                          },
+                        })
+                      }
+                      onBlur={async (e) => {
+                        const orgId = currentOrganization?.id;
+                        if (!orgId) return;
+                        const { data } = await supabase
+                          .from("whatsapp_api_settings")
+                          .select("id, social_links")
+                          .eq("organization_id", orgId)
+                          .maybeSingle();
+                        if (!data) return;
+                        await supabase
+                          .from("whatsapp_api_settings")
+                          .update({
+                            social_links: { ...((data as any).social_links || {}), whatsapp_group: e.target.value.trim() },
+                          } as any)
+                          .eq("id", (data as any).id)
+                          .eq("organization_id", orgId);
+                      }}
+                      placeholder="e.g., https://chat.whatsapp.com/xxxx"
+                      className="no-uppercase"
+                    />
+                  </SettingsField>
+                </SettingsGrid>
+              </SettingsSection>
+              <SettingsSection
+                title="Extra features"
+                subtitle="Click Save Settings after changing"
+                icon={Sparkles}
+                tone="violet"
+              >
+                <div className="grid gap-2 p-4 sm:grid-cols-2">
+                  {[
+                    {
+                      key: "bulk_whatsapp_enabled" as const,
+                      label: "Bulk WhatsApp",
+                      hint: "Shows the Bulk WhatsApp page in the menu: send offers to many customers from your own linked number.",
+                    },
+                    {
+                      key: "gift_vouchers_enabled" as const,
+                      label: "Gift vouchers",
+                      hint: "Shows Gift Voucher on Advance Booking and the Voucher button on POS to sell and redeem gift vouchers.",
+                    },
+                  ].map((f) => (
+                    <SettingsToggle
+                      key={f.key}
+                      id={f.key}
+                      label={f.label}
+                      description={f.hint}
+                      checked={settings.sale_settings?.[f.key] === true}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: { ...settings.sale_settings, [f.key]: checked },
+                        })
+                      }
+                    />
+                  ))}
+                </div>
+              </SettingsSection>
+              <SettingsSection title="Automatic messages" subtitle="Wishes and the counter join QR" icon={Gift} tone="amber">
+                <div className="grid gap-3 p-4 lg:grid-cols-2">
+                  <div className="space-y-2 rounded-lg border border-slate-200 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="auto_birthday_wish_enabled" className="text-sm font-semibold">
+                          Birthday and anniversary wishes
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Every morning customers with a birthday or anniversary today (from Customer Master) get a wish, with
+                          your offer and bonus points.
+                        </p>
+                      </div>
+                      <Switch
+                        id="auto_birthday_wish_enabled"
+                        checked={settings.sale_settings?.auto_birthday_wish_enabled === true}
+                        onCheckedChange={(checked) =>
                           setSettings({
                             ...settings,
-                            bill_barcode_settings: {
-                              ...settings.bill_barcode_settings,
-                              whatsapp_group_link: e.target.value,
-                            },
+                            sale_settings: { ...settings.sale_settings, auto_birthday_wish_enabled: checked },
                           })
                         }
-                        onBlur={async (e) => {
-                          const orgId = currentOrganization?.id;
-                          if (!orgId) return;
-                          const { data } = await supabase
-                            .from("whatsapp_api_settings")
-                            .select("id, social_links")
-                            .eq("organization_id", orgId)
-                            .maybeSingle();
-                          if (!data) return;
-                          await supabase
-                            .from("whatsapp_api_settings")
-                            .update({ social_links: { ...((data as any).social_links || {}), whatsapp_group: e.target.value.trim() } } as any)
-                            .eq("id", (data as any).id)
-                            .eq("organization_id", orgId);
-                        }}
-                        placeholder="e.g., https://chat.whatsapp.com/xxxx"
-                        className="no-uppercase"
                       />
                     </div>
-                  </div>
-                </SettingsSection>
-                <SettingsSection title="Extra features">
-                  <div className="divide-y">
-                    {[
-                      {
-                        key: "bulk_whatsapp_enabled" as const,
-                        label: "Bulk WhatsApp",
-                        hint: "Shows the Bulk WhatsApp page in the menu: send offers to many customers from your own linked number.",
-                      },
-                      {
-                        key: "gift_vouchers_enabled" as const,
-                        label: "Gift vouchers",
-                        hint: "Shows Gift Voucher on Advance Booking and the Voucher button on POS to sell and redeem gift vouchers.",
-                      },
-                    ].map((f) => (
-                      <div key={f.key} className="flex items-start justify-between gap-3 px-3 py-2.5">
-                        <div className="space-y-0.5">
-                          <Label htmlFor={f.key} className="text-sm font-semibold">
-                            {f.label}
+                    {settings.sale_settings?.auto_birthday_wish_enabled === true && (
+                      <div className="grid gap-2 sm:grid-cols-[1fr_10rem]">
+                        <div className="space-y-1">
+                          <Label htmlFor="auto_birthday_offer" className="text-xs">
+                            Offer line (optional)
                           </Label>
-                          <p className="text-xs text-muted-foreground">{f.hint}</p>
+                          <Input
+                            id="auto_birthday_offer"
+                            maxLength={300}
+                            placeholder="Show this message at the counter for 10% off this week."
+                            value={settings.sale_settings?.auto_birthday_offer ?? ""}
+                            onChange={(e) =>
+                              setSettings({
+                                ...settings,
+                                sale_settings: { ...settings.sale_settings, auto_birthday_offer: e.target.value },
+                              })
+                            }
+                          />
                         </div>
-                        <Switch
-                          id={f.key}
-                          checked={settings.sale_settings?.[f.key] === true}
-                          onCheckedChange={(checked) =>
+                        <div className="space-y-1">
+                          <Label htmlFor="auto_birthday_points" className="text-xs">
+                            Bonus points
+                          </Label>
+                          <Input
+                            id="auto_birthday_points"
+                            type="number"
+                            min={0}
+                            value={settings.sale_settings?.auto_birthday_points ?? 0}
+                            onChange={(e) =>
+                              setSettings({
+                                ...settings,
+                                sale_settings: {
+                                  ...settings.sale_settings,
+                                  auto_birthday_points: Math.max(0, Number(e.target.value) || 0),
+                                },
+                              })
+                            }
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground sm:col-span-2">
+                          Bonus points are added only when the points system is on in Sale settings.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-2 rounded-lg border border-slate-200 p-3">
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-semibold">Counter &quot;Scan to join&quot; QR</p>
+                      <p className="text-xs text-muted-foreground">
+                        Print this at the counter. The customer scans it and sends JOIN, gets a welcome reply and is saved in
+                        Customer Master. Customers who message you first are the safest to send offers to. Reply STOP stops
+                        offers and wishes for them.
+                      </p>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-[10rem_1fr] sm:items-start">
+                      <div className="space-y-1">
+                        <Label htmlFor="join_welcome_points" className="text-xs">
+                          Welcome points
+                        </Label>
+                        <Input
+                          id="join_welcome_points"
+                          type="number"
+                          min={0}
+                          value={settings.sale_settings?.join_welcome_points ?? 0}
+                          onChange={(e) =>
                             setSettings({
                               ...settings,
-                              sale_settings: { ...settings.sale_settings, [f.key]: checked },
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                join_welcome_points: Math.max(0, Number(e.target.value) || 0),
+                              },
                             })
                           }
                         />
                       </div>
-                    ))}
-                  </div>
-                  <p className="px-3 pb-2.5 text-xs text-muted-foreground">Click Save Settings after changing.</p>
-                </SettingsSection>
-                <SettingsSection title="Automatic messages">
-                  <div className="divide-y">
-                    <div className="space-y-2 px-3 py-2.5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-0.5">
-                          <Label htmlFor="auto_birthday_wish_enabled" className="text-sm font-semibold">
-                            Birthday and anniversary wishes
-                          </Label>
-                          <p className="text-xs text-muted-foreground">
-                            Every morning customers with a birthday or anniversary today (from Customer Master) get a wish, with your offer and bonus points.
-                          </p>
-                        </div>
-                        <Switch
-                          id="auto_birthday_wish_enabled"
-                          checked={settings.sale_settings?.auto_birthday_wish_enabled === true}
-                          onCheckedChange={(checked) =>
-                            setSettings({ ...settings, sale_settings: { ...settings.sale_settings, auto_birthday_wish_enabled: checked } })
-                          }
-                        />
-                      </div>
-                      {settings.sale_settings?.auto_birthday_wish_enabled === true && (
-                        <div className="grid gap-2 sm:grid-cols-[1fr_10rem]">
-                          <div className="space-y-1">
-                            <Label htmlFor="auto_birthday_offer" className="text-xs">Offer line (optional)</Label>
-                            <Input
-                              id="auto_birthday_offer"
-                              maxLength={300}
-                              placeholder="Show this message at the counter for 10% off this week."
-                              value={settings.sale_settings?.auto_birthday_offer ?? ""}
-                              onChange={(e) =>
-                                setSettings({ ...settings, sale_settings: { ...settings.sale_settings, auto_birthday_offer: e.target.value } })
-                              }
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label htmlFor="auto_birthday_points" className="text-xs">Bonus points</Label>
-                            <Input
-                              id="auto_birthday_points"
-                              type="number"
-                              min={0}
-                              value={settings.sale_settings?.auto_birthday_points ?? 0}
-                              onChange={(e) =>
-                                setSettings({ ...settings, sale_settings: { ...settings.sale_settings, auto_birthday_points: Math.max(0, Number(e.target.value) || 0) } })
-                              }
-                            />
-                          </div>
-                          <p className="text-xs text-muted-foreground sm:col-span-2">
-                            Bonus points are added only when the points system is on in Sale settings.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                    <div className="space-y-2 px-3 py-2.5">
-                      <div className="space-y-0.5">
-                        <p className="text-sm font-semibold">Counter &quot;Scan to join&quot; QR</p>
-                        <p className="text-xs text-muted-foreground">
-                          Print this at the counter. The customer scans it and sends JOIN, gets a welcome reply and is saved in Customer Master. Customers who message you first are the safest to send offers to. Reply STOP stops offers and wishes for them.
-                        </p>
-                      </div>
-                      <div className="grid gap-2 sm:grid-cols-[10rem_1fr] sm:items-start">
-                        <div className="space-y-1">
-                          <Label htmlFor="join_welcome_points" className="text-xs">Welcome points</Label>
-                          <Input
-                            id="join_welcome_points"
-                            type="number"
-                            min={0}
-                            value={settings.sale_settings?.join_welcome_points ?? 0}
-                            onChange={(e) =>
-                              setSettings({ ...settings, sale_settings: { ...settings.sale_settings, join_welcome_points: Math.max(0, Number(e.target.value) || 0) } })
-                            }
-                          />
-                        </div>
-                        <JoinQrCard
-                          shopName={settings.business_name || ""}
-                          points={(settings.sale_settings as { enable_points_system?: boolean } | undefined)?.enable_points_system ? Number(settings.sale_settings?.join_welcome_points || 0) : 0}
-                        />
-                      </div>
+                      <JoinQrCard
+                        shopName={settings.business_name || ""}
+                        points={
+                          (settings.sale_settings as { enable_points_system?: boolean } | undefined)?.enable_points_system
+                            ? Number(settings.sale_settings?.join_welcome_points || 0)
+                            : 0
+                        }
+                      />
                     </div>
                   </div>
-                  <p className="px-3 pb-2.5 text-xs text-muted-foreground">
-                    Works with Ezzy ERP WhatsApp or WappConnect (join QR: Ezzy ERP WhatsApp only). Messages go a few at a time from your linked number to keep it safe. Click Save Settings after changing.
-                  </p>
-                </SettingsSection>
-              </CardContent>
-            </Card>
+                </div>
+                <p className="px-4 pb-3 text-xs text-slate-500">
+                  Works with Ezzy ERP WhatsApp or WappConnect (join QR: Ezzy ERP WhatsApp only). Messages go a few at a time
+                  from your linked number to keep it safe. Click Save Settings after changing.
+                </p>
+              </SettingsSection>
+            </div>
           </TabsContent>
 
           <TabsContent value="payment">
