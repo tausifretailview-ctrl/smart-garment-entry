@@ -18,24 +18,14 @@ import {
   splitPaymentSiblings,
   type SupplierPaymentVoucherLike,
 } from "@/utils/supplierPaymentDelete";
+import { invalidateSupplierPaymentViewsAfterMutation } from "@/utils/supplierPaymentViews";
 
-/** Query keys that show supplier dues, bill paid status or the day book. */
-export function invalidateSupplierPaymentQueries(queryClient: ReturnType<typeof useQueryClient>) {
-  for (const key of [
-    "voucher-entries",
-    "supplier-bills",
-    "supplier-balance",
-    "supplier-balance-snapshot",
-    "supplier-balance-map",
-    "suppliers-with-balance",
-    "supplier-ledger",
-    "supplier-bill-payment-voucher-drift",
-    "purchase-bills",
-    "purchase-summary",
-    "journal-vouchers",
-  ]) {
-    void queryClient.invalidateQueries({ queryKey: [key] });
-  }
+/** Refresh supplier dues, purchase bill paid status and the day book (here + other tabs). */
+export function invalidateSupplierPaymentQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  organizationId?: string | null,
+) {
+  invalidateSupplierPaymentViewsAfterMutation(queryClient, organizationId);
 }
 
 /**
@@ -66,7 +56,7 @@ export function useSupplierPaymentDelete(
       setDeleting(null);
     },
     onError: (error: any) => toast.error(error?.message || "Could not delete payment"),
-    onSettled: () => invalidateSupplierPaymentQueries(queryClient),
+    onSettled: () => invalidateSupplierPaymentQueries(queryClient, organizationId),
   });
 
   const requestDelete = (v: SupplierPaymentVoucherLike) => {

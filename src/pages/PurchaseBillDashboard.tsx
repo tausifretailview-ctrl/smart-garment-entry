@@ -106,6 +106,10 @@ import { barcodePrintingPathWithBill } from "@/utils/barcodePurchaseBillItems";
 import { normalizePurchaseBillDate } from "@/utils/purchaseCodeEncoder";
 import { stashPurchaseBarcodePrintPayload } from "@/utils/barcodePurchaseBillContext";
 import { invalidateAndRefetchWithQueryFn } from "@/utils/refetchQueriesWithFn";
+import {
+  invalidateSupplierPaymentViewsAfterMutation,
+  refetchOnMountIfInvalidated,
+} from "@/utils/supplierPaymentViews";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
 
 /** Purchase bills table — hidden by default; enable via Columns menu. */
@@ -763,6 +767,8 @@ const PurchaseBillDashboard = () => {
     // Keep tab-return cache; Entry save already invalidates purchase-bills (stale → refetch).
     // Forcing refetchOnMount:true re-fetched on every visit and starved the UI with Syncing…
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+    // …but a payment / save made elsewhere invalidates it: then refetch on open.
+    refetchOnMount: refetchOnMountIfInvalidated,
   });
 
   const bills = billsQueryData?.bills ?? [];
@@ -814,6 +820,7 @@ const PurchaseBillDashboard = () => {
     },
     enabled: purchaseQueriesEnabled && !!billsQueryData && !pageSummaryLooksValid,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+    refetchOnMount: refetchOnMountIfInvalidated,
   });
 
   const { data: purchaseReturnAdjustByBill = {} } = useOrgQuery<
@@ -1577,10 +1584,15 @@ const PurchaseBillDashboard = () => {
         description: `₹${amount.toFixed(2)} payment recorded successfully`,
       });
 
+      // Show the new paid amount / status on the row at once; the list and tiles refetch after.
+      const paidBillId = selectedBillForPayment.id;
+      patchPurchaseBillsCache((b) =>
+        b.id === paidBillId ? { ...b, paid_amount: newTotalPaid, payment_status: newStatus } : b,
+      );
       setShowPaymentDialog(false);
       setSelectedBillForPayment(null);
-      void queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
-      await fetchBills();
+      // Supplier Payment tab, Supplier Ledger, dues and summary tiles; pings other tabs.
+      invalidateSupplierPaymentViewsAfterMutation(queryClient, currentOrganization.id);
     } catch (error: any) {
       toast({
         title: "Error",
