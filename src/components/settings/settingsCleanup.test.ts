@@ -112,4 +112,12 @@ describe("Settings premium layout (Nov 2026)", () => {
     expect(sale).toContain("<SettingsInvoicePreview");
     expect(sale).toContain('id="allow_negative_stock_sale"');
   });
+
+  it("lays POS out in sections with switch cards", () => {
+    const posForm = read("./PosSettingsForm.tsx");
+    expect(posForm).toContain('title="Cashier & billing"');
+    expect(posForm).toContain("<SettingsToggle");
+    expect(posForm).not.toContain("SettingsRow");
+    expect(tab("pos")).toContain('title="POS screen extras"');
+  });
 });
