@@ -48,7 +48,6 @@ import {
   Megaphone,
   Calculator,
   Layers,
-  Percent,
   Building2,
   Archive,
   Eye,
@@ -300,14 +299,10 @@ const DesktopDashboard = () => {
   };
   
   const canViewGrossProfit = isAdmin || hasSpecialPermission("view_gross_profit");
-  const canViewAccountTally =
-    !permissionsLoading && (permissions === null || hasMenuAccess("daily_tally"));
   const canViewNetProfit =
     !permissionsLoading && (permissions === null || hasMenuAccess("net_profit_analysis"));
   const canViewSupplierBalance =
     !permissionsLoading && (permissions === null || hasMenuAccess("supplier_party_balances"));
-  const canViewDiscountScheme =
-    !permissionsLoading && (permissions === null || hasMenuAccess("discount_scheme_dashboard"));
   
   const { start: startDate, end: endDate, label: dateLabel } = getDateRange(
     dateRange,
@@ -977,20 +972,6 @@ const DesktopDashboard = () => {
             )}
             {figuresHidden ? "Show" : "Hide"}
           </Button>
-          {canViewAccountTally && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/account-tally")}
-              onPointerEnter={() => prefetchTabPage("account-tally")}
-              onTouchStart={() => prefetchTabPage("account-tally", { intent: true })}
-              title="Day close: cash sale, card & UPI, cash count, handover and closing balance"
-              className="h-9 shrink-0 border-teal-200 bg-teal-50 text-sm font-medium text-teal-800 hover:bg-teal-100"
-            >
-              <Wallet className="mr-1.5 h-4 w-4" />
-              Account Tally
-            </Button>
-          )}
           {canViewNetProfit && (
             <Button
               variant="outline"
@@ -1017,20 +998,6 @@ const DesktopDashboard = () => {
             >
               <Building2 className="mr-1.5 h-4 w-4" />
               Supplier Balance
-            </Button>
-          )}
-          {canViewDiscountScheme && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/discount-scheme-dashboard")}
-              onPointerEnter={() => prefetchTabPage("discount-scheme-dashboard")}
-              onTouchStart={() => prefetchTabPage("discount-scheme-dashboard", { intent: true })}
-              title="Open Discount Scheme (Sales)"
-              className="h-9 shrink-0 border-sky-200 bg-sky-50 text-sm font-medium text-sky-800 hover:bg-sky-100"
-            >
-              <Percent className="mr-1.5 h-4 w-4" />
-              Discount Scheme
             </Button>
           )}
         </div>
