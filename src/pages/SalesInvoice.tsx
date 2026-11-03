@@ -13,6 +13,9 @@ import {
   type SaleB2BDetailsForm,
 } from "@/utils/industrialMode";
 import { SaleB2BDetailsBand } from "@/components/sales/SaleB2BDetailsBand";
+import { DocGodownBar } from "@/components/godowns/DocGodownBar";
+import { useDocGodown } from "@/hooks/useDocGodown";
+import { godownDocCheckLines } from "@/utils/godownDocs";
 import { fetchQuotationWithItems } from "@/utils/quotationListQueries";
 import type { Json } from "@/integrations/supabase/types";
 import { flushSync } from "react-dom";
@@ -551,6 +554,13 @@ export default function SalesInvoice() {
   const mobileERP = useMobileERP();
   const [financerDetails, setFinancerDetails] = useState<FinancerDetails | null>(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  // Industrial mode with godowns: the godown this bill's goods go out of (Phase 3 step 3d).
+  const saleGodown = useDocGodown({
+    refType: "sale",
+    organizationId: currentOrganization?.id,
+    editDocId: editingInvoiceId,
+    toast,
+  });
   const isInitializingEditRef = useRef(false);
   /** Share of each line removed by the bill-level (flat) discount — set from totals each render. */
   const billDiscountRatioRef = useRef(0);
@@ -3515,6 +3525,11 @@ Thank you for choosing us!`;
       return;
     }
 
+    // Industrial mode with godowns: the place the goods go out of must have them.
+    if (saleGodown.visible && !(await saleGodown.checkBeforeSave(godownDocCheckLines(filledItems)))) {
+      return;
+    }
+
     setIsSaving(true);
     let newSaleIdForRollback: string | null = null;
     // Keep the bill in Drafts if the save stalls (shop network) or fails, so a reload or
@@ -3704,6 +3719,8 @@ Thank you for choosing us!`;
           title: "Invoice Updated",
           description: "Invoice has been updated successfully",
         });
+        // Goods out of a godown: move only the difference (warnings replace the toast above).
+        await saleGodown.syncAfterSave(editingInvoiceId, true);
 
         scheduleInvoiceDashboardRefresh();
 
@@ -3833,6 +3850,8 @@ Thank you for choosing us!`;
         await insertSaleItemsInChunks(supabase, saleItems as Record<string, unknown>[]);
         newSaleIdForRollback = null;
         keepDraftOnFailure = false;
+        // Goods out of a godown (Industrial mode). Never throws: the bill is already saved.
+        await saleGodown.syncAfterSave(String(saleData.id), false);
 
         // Post after sale_items exist: the journal reads them for GST, revenue and COGS.
         if (accountingEngineOn) {
@@ -5240,6 +5259,20 @@ Thank you for choosing us!`;
                 ),
               )
             }
+          />
+        )}
+        {saleGodown.visible && (
+          <DocGodownBar
+            className="mt-2"
+            label="Dispatch from"
+            choices={saleGodown.choices}
+            value={saleGodown.value}
+            mainId={saleGodown.mainId}
+            onChange={saleGodown.setValue}
+            loading={saleGodown.loading}
+            disabled={isSaving}
+            mainHint="Goods go out of the shop stock (Main), as before."
+            godownHint={(name) => `When you save, the goods on this bill go out of ${name}.`}
           />
         )}
       </section>

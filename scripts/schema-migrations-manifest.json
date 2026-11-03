@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-11-03",
-  "count": 919,
-  "fileCount": 937,
+  "count": 920,
+  "fileCount": 938,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -922,7 +922,8 @@
     "20270401120000",
     "20270402120000",
     "20270403120000",
-    "20270404120000"
+    "20270404120000",
+    "20270405120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1861,7 +1862,8 @@
     "20270401120000_eway_bill_challans.sql",
     "20270402120000_industrial_godowns.sql",
     "20270403120000_eway_bill_godown_moves.sql",
-    "20270404120000_godown_purchase_receive.sql"
+    "20270404120000_godown_purchase_receive.sql",
+    "20270405120000_godown_sale_dispatch.sql"
   ],
   "duplicateVersions": [
     {

@@ -149,8 +149,6 @@ export default function Godowns() {
   const canMove = canManage && godowns.filter((g) => g.is_active).length > 1;
   const pageStart = total === 0 ? 0 : page * GODOWN_STOCK_PAGE + 1;
   const pageEnd = Math.min(total, (page + 1) * GODOWN_STOCK_PAGE);
-  const summaryText = (n: number, kind: "items" | "qty" | "value") =>
-    summary.data ? (kind === "value" ? formatGodownValue(n) : kind === "qty" ? formatGodownQty(n) : n.toLocaleString("en-IN")) : "…";
 
   return (
     <div
@@ -169,7 +167,12 @@ export default function Godowns() {
             </h1>
             <p className="mt-1 truncate text-sm text-muted-foreground">
               Stock in each place of this shop, on one GSTIN
-              {godowns.length > 0 ? ` · ${godowns.length} place${godowns.length === 1 ? "" : "s"}` : ""}
+              {summary.data ? (
+                <span className="text-slate-400">
+                  {" "}
+                  · {totals.all.items.toLocaleString("en-IN")} item lines · {formatGodownValue(totals.all.value)} at purchase rate
+                </span>
+              ) : null}
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -217,55 +220,6 @@ export default function Godowns() {
           <div className="flex shrink-0 items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             {list.error instanceof Error ? list.error.message : "Could not read the godowns"}
-          </div>
-        ) : null}
-
-        {/* Totals strip */}
-        {!missingSql && godowns.length > 0 ? (
-          <div className="grid w-full shrink-0 grid-cols-2 gap-2 lg:grid-cols-4">
-            <div className="min-w-0 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 px-3 py-2 shadow-sm">
-              <p className="text-xs font-medium leading-none text-white/80">Total stock value</p>
-              <p className="mt-1 truncate text-base font-black leading-tight tabular-nums text-white sm:text-lg">
-                {summaryText(totals.all.value, "value")}
-              </p>
-              <p className="mt-0.5 truncate text-[10px] text-white/70">
-                {summaryText(totals.all.items, "items")} item lines · {summaryText(totals.all.qty, "qty")} qty · at purchase rate
-              </p>
-            </div>
-            <div className="min-w-0 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 px-3 py-2 shadow-sm">
-              <p className="text-xs font-medium leading-none text-white/80">Main (shop)</p>
-              <p className="mt-1 truncate text-base font-black leading-tight tabular-nums text-white sm:text-lg">
-                {summaryText(totals.main.value, "value")}
-              </p>
-              <p className="mt-0.5 truncate text-[10px] text-white/70">
-                {summaryText(totals.main.items, "items")} item lines · {summaryText(totals.main.qty, "qty")} qty
-              </p>
-            </div>
-            <div className="min-w-0 rounded-lg bg-gradient-to-br from-violet-500 to-violet-600 px-3 py-2 shadow-sm">
-              <p className="text-xs font-medium leading-none text-white/80">
-                In godowns ({totals.others.count.toLocaleString("en-IN")})
-              </p>
-              <p className="mt-1 truncate text-base font-black leading-tight tabular-nums text-white sm:text-lg">
-                {summaryText(totals.others.value, "value")}
-              </p>
-              <p className="mt-0.5 truncate text-[10px] text-white/70">
-                {summaryText(totals.others.items, "items")} item lines · {summaryText(totals.others.qty, "qty")} qty
-              </p>
-            </div>
-            <div
-              className={cn(
-                "min-w-0 rounded-lg bg-gradient-to-br px-3 py-2 shadow-sm",
-                totals.shortItems > 0 ? "from-red-500 to-red-600" : "from-slate-600 to-slate-700",
-              )}
-            >
-              <p className="text-xs font-medium leading-none text-white/80">Main below zero</p>
-              <p className="mt-1 truncate text-base font-black leading-tight tabular-nums text-white sm:text-lg">
-                {summary.data ? `${totals.shortItems.toLocaleString("en-IN")} item${totals.shortItems === 1 ? "" : "s"}` : "…"}
-              </p>
-              <p className="mt-0.5 truncate text-[10px] text-white/70">
-                {totals.shortItems > 0 ? "More sits in godowns than the shop has: check these" : "All good: nothing to check"}
-              </p>
-            </div>
           </div>
         ) : null}
 
