@@ -29,6 +29,8 @@ const VOLATILE_PREFIXES = [
   "barcode-stock-scan",
   // Set/array of locked variants — Set dehydrates to {} and broke POS scan (.has).
   "open-settlement-variant-ids",
+  // Godowns page summary is a Map — it dehydrates to {} and crashed the page (.get) after a reload.
+  "godown-summary",
   "purchase-return-linked-bills",
   "purchase-return-cn-amounts",
   "purchase-returns",

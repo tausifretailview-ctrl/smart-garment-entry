@@ -235,6 +235,28 @@ export async function fetchGodowns(organizationId: string): Promise<{ godowns: G
   return { godowns: sortGodowns((data ?? []) as Godown[]), missingSql: false };
 }
 
+/**
+ * The summary as a Map, whatever the query cache holds. A Map does not survive the saved
+ * (IndexedDB) query cache: it comes back as a plain object after a reload, which crashed the page.
+ */
+export function toGodownSummaryMap(v: unknown): Map<string, GodownSummary> {
+  if (v instanceof Map) return v as Map<string, GodownSummary>;
+  const out = new Map<string, GodownSummary>();
+  const list = Array.isArray(v) ? v : v && typeof v === "object" ? Object.values(v as Record<string, unknown>) : [];
+  for (const r of list) {
+    if (!r || typeof r !== "object" || !("godown_id" in r)) continue;
+    const x = r as GodownSummary;
+    out.set(String(x.godown_id), {
+      godown_id: String(x.godown_id),
+      items: Number(x.items) || 0,
+      qty: Number(x.qty) || 0,
+      stock_value: Number(x.stock_value) || 0,
+      short_items: Number(x.short_items) || 0,
+    });
+  }
+  return out;
+}
+
 export async function fetchGodownSummary(organizationId: string): Promise<Map<string, GodownSummary>> {
   const { data, error } = await db().rpc("get_godown_summary", { p_organization_id: organizationId });
   if (error) throw error;
