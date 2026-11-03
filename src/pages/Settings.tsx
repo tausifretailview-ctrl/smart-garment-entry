@@ -12,7 +12,7 @@ import type { IndustrialModeConfig } from "@/utils/industrialMode";
 import { EwayBillSettingsSection } from "@/components/ewaybill/EwayBillSettingsSection";
 import { DEFAULT_MANUFACTURER_ERP, type ManufacturerERPConfig } from "@/utils/manufacturing";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, Factory, Truck, Building2, Landmark, Layers, ShoppingCart, Receipt, Tag, ListChecks } from "lucide-react";
+import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, Factory, Truck, Building2, Landmark, Layers, ShoppingCart, Receipt, Tag, ListChecks, QrCode, Barcode, Wallet } from "lucide-react";
 import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { SaleInvoiceFormatBackupDialog } from "@/components/settings/SaleInvoiceFormatBackupDialog";
 import { InvoiceTemplateSelectItems } from "@/components/settings/InvoiceTemplateSelectItems";
@@ -5108,20 +5108,14 @@ export default function Settings() {
             <LazySettingsPanel>
               <LazyDesktopPrintSettings />
             </LazySettingsPanel>
-            <Card className="h-fit settings-panel-card">
-              <CardHeader>
-                <CardTitle>Bill & Barcode Settings</CardTitle>
-                <CardDescription>
-                  Configure billing and barcode preferences
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <SettingsSection title="Bill & barcode">
-                <div className="space-y-2">
-                  <Label>UPI ID</Label>
-                  <p className="text-xs text-muted-foreground">
-                    POS and Sale invoice QR codes use the UPI ID marked default. Only one can be default at a time.
-                  </p>
+            <div className="space-y-3">
+              <SettingsSection
+                title="UPI payment QR"
+                subtitle="POS and Sale bills print the QR of the UPI ID marked Default"
+                icon={QrCode}
+                tone="emerald"
+              >
+                <SettingsGrid cols={3}>
                   <RadioGroup
                     value={coerceActiveUpiId(settings.bill_barcode_settings)}
                     onValueChange={(next) => {
@@ -5135,7 +5129,7 @@ export default function Settings() {
                         ),
                       });
                     }}
-                    className="gap-3"
+                    className="grid gap-x-4 gap-y-3 sm:col-span-2 sm:grid-cols-2"
                   >
                     {(["primary", "secondary"] as const).map((slot) => {
                       const fieldId = slot === "primary" ? "upi_id" : "upi_id_2";
@@ -5148,10 +5142,12 @@ export default function Settings() {
                         slot,
                       );
                       return (
-                        <div key={slot} className="space-y-1.5">
-                          <Label htmlFor={fieldId} className="text-sm font-normal">
-                            {slot === "primary" ? "UPI ID 1" : "UPI ID 2"}
-                          </Label>
+                        <SettingsField
+                          key={slot}
+                          label={slot === "primary" ? "UPI ID 1" : "UPI ID 2"}
+                          htmlFor={fieldId}
+                          important={slot === "primary"}
+                        >
                           <div className="flex items-center gap-3">
                             <Input
                               id={fieldId}
@@ -5172,15 +5168,14 @@ export default function Settings() {
                                   ? "e.g., yourname@paytm"
                                   : "Optional second UPI ID"
                               }
-                              className="no-uppercase"
+                              className="no-uppercase font-mono"
                             />
                             <label
                               htmlFor={`${fieldId}_default`}
-                              className={`flex shrink-0 items-center gap-1.5 text-xs ${
-                                selectable
-                                  ? "cursor-pointer"
-                                  : "cursor-not-allowed text-muted-foreground"
-                              }`}
+                              className={cn(
+                                "flex shrink-0 items-center gap-1.5 text-xs font-semibold",
+                                selectable ? "cursor-pointer text-slate-700" : "cursor-not-allowed text-muted-foreground",
+                              )}
                             >
                               <RadioGroupItem
                                 value={slot}
@@ -5190,311 +5185,309 @@ export default function Settings() {
                               Default
                             </label>
                           </div>
-                        </div>
+                        </SettingsField>
                       );
                     })}
                   </RadioGroup>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="flex items-center gap-2">
-                    DC Invoice UPI ID
-                    <span className="text-xs font-normal text-muted-foreground">
-                      Personal account for DC/cash invoices
-                    </span>
-                  </Label>
-                  <Input
-                    value={settings.bill_barcode_settings?.dc_upi_id || ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        bill_barcode_settings: {
-                          ...settings.bill_barcode_settings,
-                          dc_upi_id: e.target.value,
-                        },
-                      })
-                    }
-                    placeholder="personal@upi  (leave blank to use Company UPI ID)"
-                    className="font-mono no-uppercase"
-                  />
-                  <p className="text-xs text-amber-600 flex items-center gap-1">
-                    ⚠️ This UPI ID will appear on DC purchase invoices only.
-                    Keep your personal account separate from business account.
-                  </p>
-                  {settings.bill_barcode_settings?.dc_upi_id ? (
-                    <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1 flex items-center gap-1">
-                      ✅ DC invoices will use: <span className="font-mono font-bold">
-                        {settings.bill_barcode_settings.dc_upi_id}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="text-xs text-muted-foreground bg-muted rounded px-2 py-1">
-                      DC invoices will use company UPI: {resolveCompanyUpiId(settings.bill_barcode_settings) || 'not set'}
-                    </div>
-                  )}
-                </div>
-                
-                <p className="text-xs text-muted-foreground">Invoice header/footer text is configured in the Sale tab → Invoice Customization section</p>
-                <div className="space-y-2">
-                  <Label htmlFor="barcode_format">Default Barcode Label Format (for Direct Printing)</Label>
-                  <Select
-                    value={settings.bill_barcode_settings?.barcode_format || "a4_12x4"}
-                    onValueChange={(value) =>
-                      setSettings({
-                        ...settings,
-                        bill_barcode_settings: {
-                          ...settings.bill_barcode_settings,
-                          barcode_format: value,
-                        },
-                      })
+                  <SettingsField
+                    label="DC invoice UPI ID"
+                    htmlFor="dc_upi_id"
+                    help={
+                      settings.bill_barcode_settings?.dc_upi_id ? (
+                        <span className="text-emerald-700">
+                          DC bills use <span className="font-mono font-semibold">{settings.bill_barcode_settings.dc_upi_id}</span>
+                        </span>
+                      ) : (
+                        <>DC bills use the company UPI: {resolveCompanyUpiId(settings.bill_barcode_settings) || "not set"}</>
+                      )
                     }
                   >
-                    <SelectTrigger id="barcode_format">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="novajet48">Novajet 48 (8 cols, 33x19mm)</SelectItem>
-                      <SelectItem value="novajet40">Novajet 40 (5 cols × 8 rows, 39x35mm)</SelectItem>
-                      <SelectItem value="novajet65">Novajet 65 (5 cols, 38x21mm)</SelectItem>
-                      <SelectItem value="a4_12x4">NovaJet MPL 48L (48×24mm, 4×12)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                   <p className="text-xs text-muted-foreground">Used when printing barcodes directly from Purchase Bills</p>
-                   <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleTestPrintBarcodes}
-                    className="mt-2"
-                   >
-                     <Eye className="h-4 w-4 mr-2" />
-                     Test Print Preview
-                   </Button>
-                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="barcode_default_print_tab">Default Barcode Printing Tab</Label>
-                  <Select
-                    value={(() => {
-                      const tab = settings.bill_barcode_settings?.barcode_default_print_tab || "auto";
-                      if (
-                        tab === "precision_1up" ||
-                        tab === "precision_2up" ||
-                        tab === "precision_3up" ||
-                        tab === "precision_footwear" ||
-                        tab === "standard" ||
-                        tab === "precision" ||
-                        tab === "auto"
-                      ) {
-                        // Prefer explicit precision_* tab; if legacy "precision", derive from landing
-                        if (tab === "precision") {
-                          const landing =
-                            settings.bill_barcode_settings?.default_thermal_landing || "thermal";
-                          if (landing === "footwear") return "precision_footwear";
-                          if (landing === "thermal2up") return "precision_2up";
-                          if (landing === "thermal3up") return "precision_3up";
-                          return "precision_1up";
-                        }
-                        return tab;
-                      }
-                      return "auto";
-                    })()}
-                    onValueChange={(value) => {
-                      const landing:
-                        | "thermal"
-                        | "thermal2up"
-                        | "thermal3up"
-                        | "footwear"
-                        | undefined =
-                        value === "precision_1up"
-                          ? "thermal"
-                          : value === "precision_2up"
-                            ? "thermal2up"
-                            : value === "precision_3up"
-                              ? "thermal3up"
-                              : value === "precision_footwear"
-                                ? "footwear"
-                                : value === "precision"
-                                  ? settings.bill_barcode_settings?.default_thermal_landing || "thermal"
-                                  : undefined;
-
-                      let nextPresetId = settings.bill_barcode_settings?.default_precision_preset_id;
-                      if (landing) {
-                        const matchingDefault = settingsDbPresets.find(
-                          (p) => p.isDefault && inferPrecisionPrintMode(p) === landing,
-                        );
-                        const firstForMode = settingsDbPresets.find(
-                          (p) => inferPrecisionPrintMode(p) === landing,
-                        );
-                        const keepCurrent =
-                          nextPresetId &&
-                          settingsDbPresets.some(
-                            (p) =>
-                              p.id === nextPresetId && inferPrecisionPrintMode(p) === landing,
-                          );
-                        nextPresetId =
-                          matchingDefault?.id ||
-                          (keepCurrent ? nextPresetId : undefined) ||
-                          firstForMode?.id ||
-                          undefined;
-                      }
-
-                      setSettings({
-                        ...settings,
-                        bill_barcode_settings: {
-                          ...settings.bill_barcode_settings,
-                          barcode_default_print_tab: value as BillBarcodeSettings["barcode_default_print_tab"],
-                          ...(landing
-                            ? {
-                                default_thermal_landing: landing,
-                                precision_print_mode: landing,
-                                default_precision_preset_id: nextPresetId,
-                              }
-                            : {}),
-                        },
-                      });
-                    }}
-                  >
-                    <SelectTrigger id="barcode_default_print_tab">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="auto">Auto (recommended)</SelectItem>
-                      <SelectItem value="standard">Standard Printing</SelectItem>
-                      <SelectItem value="precision_1up">Precision Pro — Thermal (1-Up)</SelectItem>
-                      <SelectItem value="precision_2up">Precision Pro — Thermal (2-Up)</SelectItem>
-                      <SelectItem value="precision_3up">Precision Pro — Thermal (3-Up)</SelectItem>
-                      <SelectItem value="precision_footwear">Precision Pro — Footwear + Pair</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Auto opens <b>Standard</b> when an A4 sheet design is the default (laser), otherwise{" "}
-                    <b>Precision Pro</b>. Pick a Precision Pro option to always open that mode
-                    (1-Up / 2-Up / 3-Up / Footwear + Pair).
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="default_standard_sheet_type">Default Sheet Type (Standard Printing)</Label>
-                  <Select
-                    value={settings.bill_barcode_settings?.default_standard_sheet_type || "__none__"}
-                    onValueChange={(value) =>
-                      setSettings({
-                        ...settings,
-                        bill_barcode_settings: {
-                          ...settings.bill_barcode_settings,
-                          default_standard_sheet_type: value === "__none__" ? undefined : value,
-                        },
-                      })
-                    }
-                  >
-                    <SelectTrigger id="default_standard_sheet_type">
-                      <SelectValue placeholder="Select sheet type" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[400px]">
-                      <SelectItem value="__none__">None (use last saved default on page)</SelectItem>
-                      {STANDARD_SHEET_TYPE_OPTIONS.map((group) => (
-                        <SelectGroup key={group.group}>
-                          <SelectLabel>{group.group}</SelectLabel>
-                          {group.options.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      ))}
-                      {visitedTabs.has("bill") ? <BillTabSheetPresetOptions /> : null}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Auto-selects this Sheet Type &amp; layout when the Barcode Printing page opens on the{" "}
-                    <b>Standard Printing</b> tab.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="default_precision_preset_id">Default Label Design (Precision Pro)</Label>
-                  <Select
-                    value={settings.bill_barcode_settings?.default_precision_preset_id || "__none__"}
-                    onValueChange={(value) => {
-                      if (value === "__none__") {
+                    <Input
+                      id="dc_upi_id"
+                      value={settings.bill_barcode_settings?.dc_upi_id || ""}
+                      onChange={(e) =>
                         setSettings({
                           ...settings,
                           bill_barcode_settings: {
                             ...settings.bill_barcode_settings,
-                            default_precision_preset_id: undefined,
+                            dc_upi_id: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder="Blank = company UPI ID"
+                      className="font-mono no-uppercase"
+                    />
+                  </SettingsField>
+                </SettingsGrid>
+              </SettingsSection>
+
+              <SettingsSection
+                title="Barcode labels"
+                subtitle="What the Barcode Printing page opens with"
+                icon={Barcode}
+                tone="violet"
+                action={
+                  <Button type="button" variant="outline" size="sm" onClick={handleTestPrintBarcodes}>
+                    <Eye className="h-4 w-4 mr-2" />
+                    Test Print Preview
+                  </Button>
+                }
+              >
+                <SettingsGrid cols={3}>
+                  <SettingsField
+                    label="Default Barcode Printing tab"
+                    htmlFor="barcode_default_print_tab"
+                    important
+                    help="Auto opens Standard when an A4 sheet design is default, otherwise Precision Pro."
+                  >
+                    <Select
+                      value={(() => {
+                        const tab = settings.bill_barcode_settings?.barcode_default_print_tab || "auto";
+                        if (
+                          tab === "precision_1up" ||
+                          tab === "precision_2up" ||
+                          tab === "precision_3up" ||
+                          tab === "precision_footwear" ||
+                          tab === "standard" ||
+                          tab === "precision" ||
+                          tab === "auto"
+                        ) {
+                          // Prefer explicit precision_* tab; if legacy "precision", derive from landing
+                          if (tab === "precision") {
+                            const landing =
+                              settings.bill_barcode_settings?.default_thermal_landing || "thermal";
+                            if (landing === "footwear") return "precision_footwear";
+                            if (landing === "thermal2up") return "precision_2up";
+                            if (landing === "thermal3up") return "precision_3up";
+                            return "precision_1up";
+                          }
+                          return tab;
+                        }
+                        return "auto";
+                      })()}
+                      onValueChange={(value) => {
+                        const landing:
+                          | "thermal"
+                          | "thermal2up"
+                          | "thermal3up"
+                          | "footwear"
+                          | undefined =
+                          value === "precision_1up"
+                            ? "thermal"
+                            : value === "precision_2up"
+                              ? "thermal2up"
+                              : value === "precision_3up"
+                                ? "thermal3up"
+                                : value === "precision_footwear"
+                                  ? "footwear"
+                                  : value === "precision"
+                                    ? settings.bill_barcode_settings?.default_thermal_landing || "thermal"
+                                    : undefined;
+
+                        let nextPresetId = settings.bill_barcode_settings?.default_precision_preset_id;
+                        if (landing) {
+                          const matchingDefault = settingsDbPresets.find(
+                            (p) => p.isDefault && inferPrecisionPrintMode(p) === landing,
+                          );
+                          const firstForMode = settingsDbPresets.find(
+                            (p) => inferPrecisionPrintMode(p) === landing,
+                          );
+                          const keepCurrent =
+                            nextPresetId &&
+                            settingsDbPresets.some(
+                              (p) =>
+                                p.id === nextPresetId && inferPrecisionPrintMode(p) === landing,
+                            );
+                          nextPresetId =
+                            matchingDefault?.id ||
+                            (keepCurrent ? nextPresetId : undefined) ||
+                            firstForMode?.id ||
+                            undefined;
+                        }
+
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...settings.bill_barcode_settings,
+                            barcode_default_print_tab: value as BillBarcodeSettings["barcode_default_print_tab"],
+                            ...(landing
+                              ? {
+                                  default_thermal_landing: landing,
+                                  precision_print_mode: landing,
+                                  default_precision_preset_id: nextPresetId,
+                                }
+                              : {}),
                           },
                         });
-                        return;
-                      }
-                      const preset = settingsDbPresets.find((p) => p.id === value);
-                      const mode = preset
-                        ? (inferPrecisionPrintMode(preset) as PrecisionPrintMode)
-                        : "thermal";
-                      const landing =
-                        mode === "thermal2up" ||
-                        mode === "thermal3up" ||
-                        mode === "thermal" ||
-                        mode === "footwear"
-                          ? mode
-                          : settings.bill_barcode_settings?.default_thermal_landing || "thermal";
-                      const tabForMode =
-                        landing === "footwear"
-                          ? "precision_footwear"
-                          : landing === "thermal3up"
-                            ? "precision_3up"
-                            : landing === "thermal2up"
-                              ? "precision_2up"
-                              : "precision_1up";
-                      setSettings({
-                        ...settings,
-                        bill_barcode_settings: {
-                          ...settings.bill_barcode_settings,
-                          default_precision_preset_id: value,
-                          default_thermal_landing: landing,
-                          precision_print_mode: landing,
-                          barcode_default_print_tab: tabForMode,
-                        },
-                      });
-                    }}
+                      }}
+                    >
+                      <SelectTrigger id="barcode_default_print_tab">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">Auto (recommended)</SelectItem>
+                        <SelectItem value="standard">Standard Printing</SelectItem>
+                        <SelectItem value="precision_1up">Precision Pro — Thermal (1-Up)</SelectItem>
+                        <SelectItem value="precision_2up">Precision Pro — Thermal (2-Up)</SelectItem>
+                        <SelectItem value="precision_3up">Precision Pro — Thermal (3-Up)</SelectItem>
+                        <SelectItem value="precision_footwear">Precision Pro — Footwear + Pair</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </SettingsField>
+                  <SettingsField
+                    label="Default sheet type (Standard)"
+                    htmlFor="default_standard_sheet_type"
+                    help="Picked when Barcode Printing opens on Standard Printing"
                   >
-                    <SelectTrigger id="default_precision_preset_id">
-                      <SelectValue placeholder="Select label design" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">None (use mode default on page)</SelectItem>
-                      {settingsDbPresets
-                        .filter((p) => {
-                          if (!p.id) return false;
-                          const landing =
-                            settings.bill_barcode_settings?.default_thermal_landing || "thermal";
-                          return (
-                            inferPrecisionPrintMode(p) === landing ||
-                            p.id === settings.bill_barcode_settings?.default_precision_preset_id
-                          );
+                    <Select
+                      value={settings.bill_barcode_settings?.default_standard_sheet_type || "__none__"}
+                      onValueChange={(value) =>
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...settings.bill_barcode_settings,
+                            default_standard_sheet_type: value === "__none__" ? undefined : value,
+                          },
                         })
-                        .map((p) => (
-                          <SelectItem key={p.id} value={p.id!}>
-                            {p.name}
-                            {p.isDefault ? " ★" : ""} · {p.width}×{p.height}mm ·{" "}
-                            {getPrecisionPrintModeDisplayName(inferPrecisionPrintMode(p))}
-                          </SelectItem>
+                      }
+                    >
+                      <SelectTrigger id="default_standard_sheet_type">
+                        <SelectValue placeholder="Select sheet type" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[400px]">
+                        <SelectItem value="__none__">None (use last saved default on page)</SelectItem>
+                        {STANDARD_SHEET_TYPE_OPTIONS.map((group) => (
+                          <SelectGroup key={group.group}>
+                            <SelectLabel>{group.group}</SelectLabel>
+                            {group.options.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
                         ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Auto-loads this design when Precision Pro opens. Same as “Set as default” on the
-                    Barcode Printing page. Click <b>Save</b> (top) to apply. Designs listed match the
-                    Default Barcode Printing Tab above (Thermal or Footwear + Pair).{" "}
-                    {settingsDbPresets.filter(
-                      (p) =>
-                        inferPrecisionPrintMode(p) ===
-                        (settings.bill_barcode_settings?.default_thermal_landing || "thermal"),
-                    ).length === 0
-                      ? "No saved designs for this mode yet — create one on Barcode Printing first."
-                      : null}
-                  </p>
-                </div>
-                 <div className="space-y-2">
-                   <Label htmlFor="barcode_digits">Barcode Digit Length</Label>
-                   <Select
+                        {visitedTabs.has("bill") ? <BillTabSheetPresetOptions /> : null}
+                      </SelectContent>
+                    </Select>
+                  </SettingsField>
+                  <SettingsField
+                    label="Default label design (Precision Pro)"
+                    htmlFor="default_precision_preset_id"
+                    help={
+                      <>
+                        Same as “Set as default” on Barcode Printing. Lists designs for the Default Barcode Printing tab.{" "}
+                        {settingsDbPresets.filter(
+                          (p) =>
+                            inferPrecisionPrintMode(p) ===
+                            (settings.bill_barcode_settings?.default_thermal_landing || "thermal"),
+                        ).length === 0
+                          ? "No saved designs for this mode yet — create one on Barcode Printing first."
+                          : null}
+                      </>
+                    }
+                  >
+                    <Select
+                      value={settings.bill_barcode_settings?.default_precision_preset_id || "__none__"}
+                      onValueChange={(value) => {
+                        if (value === "__none__") {
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              default_precision_preset_id: undefined,
+                            },
+                          });
+                          return;
+                        }
+                        const preset = settingsDbPresets.find((p) => p.id === value);
+                        const mode = preset
+                          ? (inferPrecisionPrintMode(preset) as PrecisionPrintMode)
+                          : "thermal";
+                        const landing =
+                          mode === "thermal2up" ||
+                          mode === "thermal3up" ||
+                          mode === "thermal" ||
+                          mode === "footwear"
+                            ? mode
+                            : settings.bill_barcode_settings?.default_thermal_landing || "thermal";
+                        const tabForMode =
+                          landing === "footwear"
+                            ? "precision_footwear"
+                            : landing === "thermal3up"
+                              ? "precision_3up"
+                              : landing === "thermal2up"
+                                ? "precision_2up"
+                                : "precision_1up";
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...settings.bill_barcode_settings,
+                            default_precision_preset_id: value,
+                            default_thermal_landing: landing,
+                            precision_print_mode: landing,
+                            barcode_default_print_tab: tabForMode,
+                          },
+                        });
+                      }}
+                    >
+                      <SelectTrigger id="default_precision_preset_id">
+                        <SelectValue placeholder="Select label design" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">None (use mode default on page)</SelectItem>
+                        {settingsDbPresets
+                          .filter((p) => {
+                            if (!p.id) return false;
+                            const landing =
+                              settings.bill_barcode_settings?.default_thermal_landing || "thermal";
+                            return (
+                              inferPrecisionPrintMode(p) === landing ||
+                              p.id === settings.bill_barcode_settings?.default_precision_preset_id
+                            );
+                          })
+                          .map((p) => (
+                            <SelectItem key={p.id} value={p.id!}>
+                              {p.name}
+                              {p.isDefault ? " ★" : ""} · {p.width}×{p.height}mm ·{" "}
+                              {getPrecisionPrintModeDisplayName(inferPrecisionPrintMode(p))}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </SettingsField>
+                  <SettingsField
+                    label="Label format (direct print from Purchase)"
+                    htmlFor="barcode_format"
+                  >
+                    <Select
+                      value={settings.bill_barcode_settings?.barcode_format || "a4_12x4"}
+                      onValueChange={(value) =>
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...settings.bill_barcode_settings,
+                            barcode_format: value,
+                          },
+                        })
+                      }
+                    >
+                      <SelectTrigger id="barcode_format">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="novajet48">Novajet 48 (8 cols, 33x19mm)</SelectItem>
+                        <SelectItem value="novajet40">Novajet 40 (5 cols × 8 rows, 39x35mm)</SelectItem>
+                        <SelectItem value="novajet65">Novajet 65 (5 cols, 38x21mm)</SelectItem>
+                        <SelectItem value="a4_12x4">NovaJet MPL 48L (48×24mm, 4×12)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </SettingsField>
+                  <SettingsField
+                    label="Barcode digit length"
+                    htmlFor="barcode_digits"
+                    help="Grows by itself when the series is full (8 → 9 → 10)"
+                  >
+                    <Select
                       value={String(settings.bill_barcode_settings?.barcode_digits || "8")}
                       onValueChange={(value) =>
                         setSettings({
@@ -5518,233 +5511,214 @@ export default function Settings() {
                         <SelectItem value="13">13 Digits</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-muted-foreground">Starting digit length for barcodes. Auto-scales to next digit when series is full (e.g. 8→9→10).</p>
-                 </div>
-
-                {/* Enable/Disable Barcode Prompt after Purchase Save */}
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="enable_barcode_prompt" className="cursor-pointer">
-                      Show Barcode Print Prompt After Purchase Save
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      When enabled, a dialog will appear after saving a purchase bill asking if you want to print barcode labels
-                    </p>
+                  </SettingsField>
+                  <div className="settings-field min-w-0 flex items-end">
+                    <SettingsToggle
+                      id="enable_barcode_prompt"
+                      label="Ask to print labels after purchase save"
+                      className="w-full"
+                      checked={settings.bill_barcode_settings?.enable_barcode_prompt !== false}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...settings.bill_barcode_settings,
+                            enable_barcode_prompt: checked,
+                          },
+                        })
+                      }
+                    />
                   </div>
-                  <Switch
-                    id="enable_barcode_prompt"
-                    checked={settings.bill_barcode_settings?.enable_barcode_prompt !== false}
-                    onCheckedChange={(checked) =>
-                      setSettings({
-                        ...settings,
-                        bill_barcode_settings: {
-                          ...settings.bill_barcode_settings,
-                          enable_barcode_prompt: checked,
-                        },
-                      })
-                    }
-                  />
-                </div>
+                </SettingsGrid>
+              </SettingsSection>
 
-                {/* Cash Drawer Settings */}
-                <Card className="border-dashed">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      💵 Cash Drawer Settings
-                    </CardTitle>
-                    <CardDescription>
-                      Configure automatic cash drawer opening after POS receipt printing
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label htmlFor="enable_cash_drawer" className="cursor-pointer">
-                          Open Cash Drawer After Print
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          Automatically opens the cash drawer after printing a POS receipt
-                        </p>
+              <div className="grid gap-3 xl:grid-cols-2">
+                <SettingsSection
+                  title="Cash drawer"
+                  subtitle="Opens the drawer after a POS receipt prints"
+                  icon={Wallet}
+                  tone="amber"
+                  action={
+                    <Switch
+                      id="enable_cash_drawer"
+                      checked={settings.bill_barcode_settings?.enable_cash_drawer === true}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...settings.bill_barcode_settings,
+                            enable_cash_drawer: checked,
+                          },
+                        })
+                      }
+                    />
+                  }
+                >
+                  {settings.bill_barcode_settings?.enable_cash_drawer ? (
+                    <SettingsGrid cols={2}>
+                      <SettingsField
+                        label="Drawer pin"
+                        htmlFor="cash_drawer_pin"
+                        help="Most drawers (incl. RUGTEK) use Pin 2. Try Pin 5 if it does not open."
+                      >
+                        <Select
+                          value={settings.bill_barcode_settings?.cash_drawer_pin || 'pin2'}
+                          onValueChange={(value: 'pin2' | 'pin5') =>
+                            setSettings({
+                              ...settings,
+                              bill_barcode_settings: {
+                                ...settings.bill_barcode_settings,
+                                cash_drawer_pin: value,
+                              },
+                            })
+                          }
+                        >
+                          <SelectTrigger id="cash_drawer_pin">
+                            <SelectValue placeholder="Select drawer pin" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pin2">Pin 2 (Most common - RUGTEK)</SelectItem>
+                            <SelectItem value="pin5">Pin 5 (Alternative)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </SettingsField>
+                      <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600 space-y-1">
+                        <p className="font-semibold text-slate-700">Needs</p>
+                        <ul className="list-disc list-inside space-y-0.5">
+                          <li>QZ Tray installed on the POS computer</li>
+                          <li>Drawer cabled to the thermal printer (RJ11/RJ12)</li>
+                          <li>Printer that supports ESC/POS</li>
+                        </ul>
                       </div>
-                      <Switch
-                        id="enable_cash_drawer"
-                        checked={settings.bill_barcode_settings?.enable_cash_drawer === true}
-                        onCheckedChange={(checked) =>
-                          setSettings({
-                            ...settings,
-                            bill_barcode_settings: {
-                              ...settings.bill_barcode_settings,
-                              enable_cash_drawer: checked,
-                            },
-                          })
-                        }
-                      />
-                    </div>
-
-                    {settings.bill_barcode_settings?.enable_cash_drawer && (
-                      <>
-                        <div className="space-y-2">
-                          <Label>Drawer Pin</Label>
-                          <Select
-                            value={settings.bill_barcode_settings?.cash_drawer_pin || 'pin2'}
-                            onValueChange={(value: 'pin2' | 'pin5') =>
-                              setSettings({
-                                ...settings,
-                                bill_barcode_settings: {
-                                  ...settings.bill_barcode_settings,
-                                  cash_drawer_pin: value,
-                                },
-                              })
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select drawer pin" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="pin2">Pin 2 (Most common - RUGTEK)</SelectItem>
-                              <SelectItem value="pin5">Pin 5 (Alternative)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <p className="text-xs text-muted-foreground">
-                            Most cash drawers including RUGTEK use Pin 2. Try Pin 5 if drawer doesn't open.
-                          </p>
-                        </div>
-
-                        <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-2">
-                          <p className="font-medium">Setup Requirements:</p>
-                          <ul className="list-disc list-inside text-muted-foreground space-y-1">
-                            <li>QZ Tray must be installed on the POS computer</li>
-                            <li>Cash drawer connected to thermal printer via RJ11/RJ12 cable</li>
-                            <li>Thermal printer must support ESC/POS commands</li>
-                          </ul>
-                        </div>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-
-
-
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label>Custom Barcode Templates</Label>
-                    <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
-                      <DialogTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setEditingTemplate(null);
-                            setTemplateName("");
-                            setTemplateSheetType("a4_12x4");
-                          }}
-                        >
-                          <Plus className="h-4 w-4 mr-2" />
-                          New Template
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>{editingTemplate ? "Edit Template" : "Create Template"}</DialogTitle>
-                          <DialogDescription>
-                            Save a custom barcode label template with specific format for reuse across print jobs
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div className="space-y-2">
-                            <Label>Template Name</Label>
-                            <Input
-                              value={templateName}
-                              onChange={(e) => setTemplateName(e.target.value)}
-                              placeholder="e.g., Clothing Labels, Product Tags"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Label Format</Label>
-                            <select
-                              value={templateSheetType}
-                              onChange={(e) => setTemplateSheetType(e.target.value)}
-                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            >
-                              <option value="novajet48">Novajet 48 (8 cols, 33x19mm)</option>
-                              <option value="novajet40">Novajet 40 (5 cols × 8 rows, 39x35mm)</option>
-                              <option value="novajet65">Novajet 65 (5 cols, 38x21mm)</option>
-                              <option value="a4_12x4">NovaJet MPL 48L (48×24mm, 4×12)</option>
-                            </select>
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => setShowTemplateDialog(false)}>
-                            Cancel
-                          </Button>
-                          <Button onClick={handleSaveTemplate}>
-                            <Save className="h-4 w-4 mr-2" />
-                            Save Template
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                  
-                  {barcodeTemplates.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No custom templates saved yet</p>
+                    </SettingsGrid>
                   ) : (
-                    <div className="space-y-2">
-                      {barcodeTemplates.map((template) => (
-                        <div
-                          key={template.id}
-                          className="flex items-center justify-between p-3 border rounded-lg bg-card"
-                        >
-                          <div>
-                            <p className="font-medium">{template.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {template.sheetType === 'novajet48' && 'Novajet 48 (8 cols, 33x19mm)'}
-                              {template.sheetType === 'novajet40' && 'Novajet 40 (5 cols × 8 rows, 39x35mm)'}
-                              {template.sheetType === 'novajet65' && 'Novajet 65 (5 cols, 38x21mm)'}
-                              {template.sheetType === 'a4_12x4' && 'NovaJet MPL 48L (48×24mm, 4×12)'}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEditTemplate(template)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteTemplate(template.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <p className="px-4 py-3 text-xs text-slate-500">Off. Turn on the switch to pick the drawer pin.</p>
                   )}
-                </div>
+                </SettingsSection>
 
-                {/* Cheque Printing Section */}
-                <div className="pt-6 border-t">
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="h-7 w-7 rounded-lg bg-amber-100 flex items-center justify-center">
-                      <FileText className="h-3.5 w-3.5 text-amber-700" />
-                    </div>
-                    <div><p className="text-sm font-semibold">Cheque Printing Format</p><p className="text-xs text-muted-foreground">Configure cheque layout for payment vouchers</p></div>
+                <SettingsSection
+                  title="Custom barcode templates"
+                  subtitle="Saved label formats you reuse when printing"
+                  icon={Layers}
+                  tone="sky"
+                  action={
+                      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+                        <DialogTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setEditingTemplate(null);
+                              setTemplateName("");
+                              setTemplateSheetType("a4_12x4");
+                            }}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            New Template
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>{editingTemplate ? "Edit Template" : "Create Template"}</DialogTitle>
+                            <DialogDescription>
+                              Save a custom barcode label template with specific format for reuse across print jobs
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label>Template Name</Label>
+                              <Input
+                                value={templateName}
+                                onChange={(e) => setTemplateName(e.target.value)}
+                                placeholder="e.g., Clothing Labels, Product Tags"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Label Format</Label>
+                              <select
+                                value={templateSheetType}
+                                onChange={(e) => setTemplateSheetType(e.target.value)}
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                              >
+                                <option value="novajet48">Novajet 48 (8 cols, 33x19mm)</option>
+                                <option value="novajet40">Novajet 40 (5 cols × 8 rows, 39x35mm)</option>
+                                <option value="novajet65">Novajet 65 (5 cols, 38x21mm)</option>
+                                <option value="a4_12x4">NovaJet MPL 48L (48×24mm, 4×12)</option>
+                              </select>
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => setShowTemplateDialog(false)}>
+                              Cancel
+                            </Button>
+                            <Button onClick={handleSaveTemplate}>
+                              <Save className="h-4 w-4 mr-2" />
+                              Save Template
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                  }
+                >
+                  <div className="p-4">
+                    {barcodeTemplates.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No custom templates saved yet</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {barcodeTemplates.map((template) => (
+                          <div
+                            key={template.id}
+                            className="flex items-center justify-between p-3 border rounded-lg bg-card"
+                          >
+                            <div>
+                              <p className="font-medium">{template.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {template.sheetType === 'novajet48' && 'Novajet 48 (8 cols, 33x19mm)'}
+                                {template.sheetType === 'novajet40' && 'Novajet 40 (5 cols × 8 rows, 39x35mm)'}
+                                {template.sheetType === 'novajet65' && 'Novajet 65 (5 cols, 38x21mm)'}
+                                {template.sheetType === 'a4_12x4' && 'NovaJet MPL 48L (48×24mm, 4×12)'}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditTemplate(template)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteTemplate(template.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
+                </SettingsSection>
+              </div>
+
+              <SettingsSection
+                title="Cheque printing format"
+                subtitle="Cheque layout for payment vouchers"
+                icon={FileText}
+                tone="slate"
+              >
+                <div className="p-4">
                   <LazySettingsPanel>
                     <LazyChequeFormatManagement />
                   </LazySettingsPanel>
                 </div>
-                </SettingsSection>
-              </CardContent>
-            </Card>
+              </SettingsSection>
+            </div>
           </TabsContent>
 
           <TabsContent value="reports">
