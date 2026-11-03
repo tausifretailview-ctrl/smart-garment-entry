@@ -3125,7 +3125,7 @@ const POSDashboard = () => {
         const pdfHeight = pdf.internal.pageSize.getHeight();
         const scaledHeight = (canvas.height * pdfWidth) / canvas.width;
         if (scaledHeight <= pdfHeight * 1.05) {
-          pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, Math.min(scaledHeight, pdfHeight));
+          pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, Math.min(scaledHeight, pdfHeight), undefined, "FAST");
         } else {
           const pixelsPerPage = (pdfHeight / scaledHeight) * canvas.height;
           const totalPages = Math.ceil(scaledHeight / pdfHeight);
@@ -3140,7 +3140,7 @@ const POSDashboard = () => {
             const ctx = pageCanvas.getContext('2d');
             if (ctx) {
               ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceH, 0, 0, canvas.width, Math.ceil(sourceH));
-              pdf.addImage(pageCanvas.toDataURL('image/png'), "PNG", 0, 0, pdfWidth, sliceH);
+              pdf.addImage(pageCanvas.toDataURL('image/png'), "PNG", 0, 0, pdfWidth, sliceH, undefined, "FAST");
             }
           }
         }

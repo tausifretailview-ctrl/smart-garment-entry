@@ -4,6 +4,14 @@
  * is used — prefer JPEG + modest scale while keeping clone border/font fixes.
  */
 
+/**
+ * jsPDF stores PNG images UNCOMPRESSED unless addImage gets a compression mode:
+ * one A4 sheet at scale 2 became a ~11 MB PDF (KISHORE SHOE MALL, INV/26-27/278).
+ * "FAST" is lossless Flate, so print quality is identical and the file drops to a few
+ * hundred KB. Harmless for JPEG (already compressed).
+ */
+export const PDF_IMAGE_COMPRESSION = "FAST" as const;
+
 export type InvoicePdfRasterOptions = {
   mobileOptimized?: boolean;
   wappConnectPdf?: boolean;
