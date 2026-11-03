@@ -1708,26 +1708,6 @@ export default function Settings() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="sku_format">Auto-Generate SKU Format</Label>
-                  <Input
-                    id="sku_format"
-                    value={settings.product_settings?.sku_format || ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        product_settings: {
-                          ...settings.product_settings,
-                          sku_format: e.target.value,
-                        },
-                      })
-                    }
-                    placeholder="e.g., PRD-{YYYY}-{####}"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Available placeholders: {"{YYYY}"} (year), {"{MM}"} (month), {"{####}"} (auto-increment number)
-                  </p>
-                </div>
-                <div className="space-y-2">
                   <Label htmlFor="default_size_group">Default Size Group</Label>
                   <Select
                     value={settings.product_settings?.default_size_group || "none"}
@@ -2175,33 +2155,6 @@ export default function Settings() {
               <CardContent className="space-y-3">
                 <SettingsSection title="Purchase details">
                 <div className="space-y-2">
-                  <Label htmlFor="payment_terms">Default Payment Terms</Label>
-                  <Select
-                    value={settings.purchase_settings?.payment_terms || ""}
-                    onValueChange={(value) =>
-                      setSettings({
-                        ...settings,
-                        purchase_settings: {
-                          ...settings.purchase_settings,
-                          payment_terms: value,
-                        },
-                      })
-                    }
-                  >
-                    <SelectTrigger id="payment_terms">
-                      <SelectValue placeholder="Select payment terms" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="immediate">Immediate</SelectItem>
-                      <SelectItem value="net15">Net 15</SelectItem>
-                      <SelectItem value="net30">Net 30</SelectItem>
-                      <SelectItem value="net45">Net 45</SelectItem>
-                      <SelectItem value="net60">Net 60</SelectItem>
-                      <SelectItem value="net90">Net 90</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
                   <Label htmlFor="default_tax_rate">Default Tax Rate (%)</Label>
                   <Input
                     id="default_tax_rate"
@@ -2635,52 +2588,6 @@ export default function Settings() {
                   />
                 </div>
 
-                <div className="flex items-center space-x-2 pt-2">
-                  <Checkbox
-                    id="show_purchase_code_on_pos"
-                    checked={settings.purchase_settings?.show_purchase_code_on_pos === true}
-                    onCheckedChange={(checked) =>
-                      setSettings({
-                        ...settings,
-                        purchase_settings: {
-                          ...settings.purchase_settings,
-                          show_purchase_code_on_pos: checked === true,
-                        },
-                      })
-                    }
-                  />
-                  <Label htmlFor="show_purchase_code_on_pos" className="font-normal cursor-pointer">
-                    Show Purchase Code on POS product rows
-                  </Label>
-                </div>
-                <p className="text-xs text-muted-foreground ml-6">
-                  Adds a P.Code column before Size on the POS screen with the alphabet code only
-                  (e.g. SEWN), so staff can see the cost after scanning. Uses the GST and extra %
-                  options above. Not printed on the invoice. Default is off.
-                </p>
-
-                <div className="flex items-center space-x-2 pt-4">
-                  <Checkbox
-                    id="pos_margin_indicator_for_owner"
-                    checked={(settings.sale_settings as any)?.pos_margin_indicator_for_owner === true}
-                    onCheckedChange={(checked) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          pos_margin_indicator_for_owner: checked === true,
-                        } as any,
-                      })
-                    }
-                  />
-                  <Label htmlFor="pos_margin_indicator_for_owner" className="font-normal cursor-pointer">
-                    POS margin indicator for owner
-                  </Label>
-                </div>
-                <p className="text-xs text-muted-foreground ml-6">
-                  Shows live markup % (profit on purchase value) and profit on the POS screen for the owner (admin without custom
-                  User Rights). Staff still need the POS Margin Indicator right in User Rights.
-                </p>
                 
                 <div className="flex items-center space-x-2 pt-4">
                   <Checkbox
@@ -3111,30 +3018,6 @@ export default function Settings() {
 
                 <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
                   <div className="space-y-0.5">
-                    <Label htmlFor="auto_apply_advance" className="text-sm font-medium">
-                      Auto-Apply Advance Balance
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Automatically apply advance balance to oldest pending invoice when new payment is received (like Tally bill-by-bill settlement)
-                    </p>
-                  </div>
-                  <Switch
-                    id="auto_apply_advance"
-                    checked={(settings.sale_settings as any)?.auto_apply_advance ?? false}
-                    onCheckedChange={(checked) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          auto_apply_advance: checked,
-                        } as any,
-                      })
-                    }
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                  <div className="space-y-0.5">
                     <Label htmlFor="sale_return_use_original_price" className="text-sm font-medium">
                       Sale Return Price
                     </Label>
@@ -3524,155 +3407,10 @@ export default function Settings() {
                     POS thermal).
                   </p>
 
-                  {/* Default Printer Selection — quick setup for direct printing */}
-                  <div className="space-y-3 pt-3 border-t border-dashed">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <p className="text-sm font-medium">Default Printer (Direct Print)</p>
-                        <p className="text-xs text-muted-foreground">
-                          Set default printer to skip browser print dialog. Requires QZ Tray installed.
-                        </p>
-                      </div>
-                      <Switch
-                        checked={settings.bill_barcode_settings?.enable_direct_print === true}
-                        onCheckedChange={(checked) =>
-                          setSettings({
-                            ...settings,
-                            bill_barcode_settings: {
-                              ...settings.bill_barcode_settings,
-                              enable_direct_print: checked,
-                              direct_print_auto_print: checked, // auto-enable auto print
-                            },
-                          })
-                        }
-                      />
-                    </div>
-
-                    {settings.bill_barcode_settings?.enable_direct_print && (
-                      <div className="space-y-3">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1.5">
-                            <Label className="text-xs">Sale Invoice Printer</Label>
-                            <Select
-                              value={settings.bill_barcode_settings?.direct_print_sale_printer || ''}
-                              onValueChange={(value) =>
-                                setSettings({
-                                  ...settings,
-                                  bill_barcode_settings: {
-                                    ...settings.bill_barcode_settings,
-                                    direct_print_sale_printer: value,
-                                  },
-                                })
-                              }
-                            >
-                              <SelectTrigger className="h-8 text-xs">
-                                <SelectValue placeholder="Select printer..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {detectedPrinters.map(p => (
-                                  <SelectItem key={p} value={p}>{p}</SelectItem>
-                                ))}
-                                {detectedPrinters.length === 0 && (
-                                  <div className="p-2 text-xs text-muted-foreground">Click "Detect Printers" first</div>
-                                )}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label className="text-xs">POS Bill Printer</Label>
-                            <Select
-                              value={settings.bill_barcode_settings?.direct_print_pos_printer || ''}
-                              onValueChange={(value) =>
-                                setSettings({
-                                  ...settings,
-                                  bill_barcode_settings: {
-                                    ...settings.bill_barcode_settings,
-                                    direct_print_pos_printer: value,
-                                  },
-                                })
-                              }
-                            >
-                              <SelectTrigger className="h-8 text-xs">
-                                <SelectValue placeholder="Select printer..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {detectedPrinters.map(p => (
-                                  <SelectItem key={p} value={p}>{p}</SelectItem>
-                                ))}
-                                {detectedPrinters.length === 0 && (
-                                  <div className="p-2 text-xs text-muted-foreground">Click "Detect Printers" first</div>
-                                )}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-xs"
-                            onClick={async () => {
-                              const { getQZPrinters } = await import('@/utils/directInvoicePrint');
-                              const printers = await getQZPrinters();
-                              if (printers.length === 0) {
-                                toast({
-                                  title: "No Printers Found",
-                                  description: "Make sure QZ Tray app is running on this computer (system tray). Download from qz.io/download if not installed.",
-                                  variant: "destructive",
-                                });
-                              } else {
-                                setDetectedPrinters(printers);
-                                toast({
-                                  title: `${printers.length} Printer(s) Detected`,
-                                  description: "Select your printers from the dropdowns above.",
-                                });
-                              }
-                            }}
-                          >
-                            🔍 Detect Printers
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-xs"
-                            onClick={async () => {
-                              const { printTestReceipt } = await import('@/utils/directInvoicePrint');
-                              const printer = settings.bill_barcode_settings?.direct_print_pos_printer 
-                                || settings.bill_barcode_settings?.direct_print_sale_printer;
-                              if (!printer) {
-                                toast({ title: "Select a printer first", variant: "destructive" });
-                                return;
-                              }
-                              const paper = (settings.bill_barcode_settings?.direct_print_pos_paper || '80mm') as any;
-                              await printTestReceipt(printer, paper);
-                            }}
-                          >
-                            🖨️ Test Print
-                          </Button>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-xs font-medium">Auto Print After Save</p>
-                            <p className="text-[11px] text-muted-foreground">Print instantly without confirmation dialog</p>
-                          </div>
-                          <Switch
-                            checked={settings.bill_barcode_settings?.direct_print_auto_print === true}
-                            onCheckedChange={(checked) =>
-                              setSettings({
-                                ...settings,
-                                bill_barcode_settings: {
-                                  ...settings.bill_barcode_settings,
-                                  direct_print_auto_print: checked,
-                                },
-                              })
-                            }
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Direct printing (printer selection, Auto Print After Save) is under{" "}
+                    <strong className="text-foreground">Settings → Bill &amp; Barcode → Direct Printing</strong>.
+                  </p>
                 </div>
 
                 {/* Item Details Display Settings */}
@@ -3683,7 +3421,7 @@ export default function Settings() {
                     </div>
                     <div>
                       <h3 className="text-sm font-semibold leading-none">Item Details Display</h3>
-                      <p className="text-xs text-muted-foreground mt-0.5">Fields shown on bills and dashboards</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Extra columns on the Sales Invoice and POS dashboards (not on printed bills)</p>
                     </div>
                   </div>
                   
@@ -3869,28 +3607,6 @@ export default function Settings() {
                       </Select>
                     ) : null}
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="sales_tax_rate">Sales Tax Rate (%)</Label>
-                  <Input
-                    id="sales_tax_rate"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    value={settings.sale_settings?.sales_tax_rate || ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          sales_tax_rate: parseFloat(e.target.value) || 0,
-                        },
-                      })
-                    }
-                    placeholder="e.g., 18"
-                  />
                 </div>
                   <div className="rounded-lg border border-dashed p-3 bg-muted/20 space-y-1">
                     <p className="text-sm font-medium">Invoice templates</p>
@@ -5158,6 +4874,160 @@ export default function Settings() {
                   setSettings={setSettings}
                   onFocusPosPreview={() => setInvoicePreviewChannel("pos")}
                 />
+                <Card className="h-fit settings-panel-card">
+                  <CardHeader>
+                    <CardTitle>More POS options</CardTitle>
+                    <CardDescription>
+                      Moved here from Settings → Purchase and Reports. Same saved settings as before.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <SettingsSection title="POS screen">
+                      <p className="text-xs text-muted-foreground">
+                        The purchase code alphabet, date, GST and extra % options are under Settings → Purchase.
+                      </p>
+                      <div className="flex items-center space-x-2 pt-2">
+                        <Checkbox
+                          id="show_purchase_code_on_pos"
+                          checked={settings.purchase_settings?.show_purchase_code_on_pos === true}
+                          onCheckedChange={(checked) =>
+                            setSettings({
+                              ...settings,
+                              purchase_settings: {
+                                ...settings.purchase_settings,
+                                show_purchase_code_on_pos: checked === true,
+                              },
+                            })
+                          }
+                        />
+                        <Label htmlFor="show_purchase_code_on_pos" className="font-normal cursor-pointer">
+                          Show Purchase Code on POS product rows
+                        </Label>
+                      </div>
+                      <p className="text-xs text-muted-foreground ml-6">
+                        Adds a P.Code column before Size on the POS screen with the alphabet code only
+                        (e.g. SEWN), so staff can see the cost after scanning. Uses the GST and extra %
+                        options in Settings → Purchase. Not printed on the invoice. Default is off.
+                      </p>
+
+                      <div className="flex items-center space-x-2 pt-4">
+                        <Checkbox
+                          id="pos_margin_indicator_for_owner"
+                          checked={(settings.sale_settings as any)?.pos_margin_indicator_for_owner === true}
+                          onCheckedChange={(checked) =>
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                pos_margin_indicator_for_owner: checked === true,
+                              } as any,
+                            })
+                          }
+                        />
+                        <Label htmlFor="pos_margin_indicator_for_owner" className="font-normal cursor-pointer">
+                          POS margin indicator for owner
+                        </Label>
+                      </div>
+                      <p className="text-xs text-muted-foreground ml-6">
+                        Shows live markup % (profit on purchase value) and profit on the POS screen for the owner (admin without custom
+                        User Rights). Staff still need the POS Margin Indicator right in User Rights.
+                      </p>
+                    </SettingsSection>
+                    <SettingsSection title="2nd billing details">
+                      <p className="text-xs text-muted-foreground">
+                        For shops that bill under two names. Stock, accounts and bill numbers stay in this
+                        organization. When on, POS shows a small "2nd firm" checkbox; a ticked bill prints
+                        only these details in the header.
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="second_firm_enabled"
+                          checked={settings.report_settings?.second_firm?.enabled === true}
+                          onCheckedChange={(checked) => updateSecondFirm({ enabled: checked })}
+                        />
+                        <Label htmlFor="second_firm_enabled">Enable 2nd firm on POS bills</Label>
+                      </div>
+                      {settings.report_settings?.second_firm?.enabled === true && (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="space-y-1">
+                            <Label htmlFor="second_firm_name">Company name</Label>
+                            <Input
+                              id="second_firm_name"
+                              value={settings.report_settings?.second_firm?.name || ""}
+                              onChange={(e) => updateSecondFirm({ name: e.target.value })}
+                              placeholder="e.g. KMS Kids"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="second_firm_phone">Phone number</Label>
+                            <Input
+                              id="second_firm_phone"
+                              value={settings.report_settings?.second_firm?.phone || ""}
+                              onChange={(e) => updateSecondFirm({ phone: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-1 sm:col-span-2">
+                            <Label htmlFor="second_firm_address">Address</Label>
+                            <Textarea
+                              id="second_firm_address"
+                              rows={2}
+                              value={settings.report_settings?.second_firm?.address || ""}
+                              onChange={(e) => updateSecondFirm({ address: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="second_firm_gstin">GSTIN (optional)</Label>
+                            <Input
+                              id="second_firm_gstin"
+                              value={settings.report_settings?.second_firm?.gstin || ""}
+                              onChange={(e) => updateSecondFirm({ gstin: e.target.value.toUpperCase() })}
+                              placeholder="Leave blank to print no GSTIN"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </SettingsSection>
+                    <SettingsSection title="Service product default qty">
+                      <p className="text-xs text-muted-foreground">
+                        Quantity filled in the service product popup (Quantity / MRP / Add to Cart) on
+                        Sale bill and POS. Default is 1.
+                      </p>
+                      <div className="space-y-1 max-w-[10rem]">
+                        <Label htmlFor="service_default_qty">Default qty</Label>
+                        <Input
+                          id="service_default_qty"
+                          type="text"
+                          inputMode="numeric"
+                          value={
+                            settings.report_settings?.service_default_qty == null
+                              ? ""
+                              : String(settings.report_settings.service_default_qty)
+                          }
+                          onChange={(e) => {
+                            const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
+                            setSettings((prev) => ({
+                              ...prev,
+                              report_settings: {
+                                ...(prev.report_settings || {}),
+                                service_default_qty: digits ? parseInt(digits, 10) : undefined,
+                              },
+                            }));
+                          }}
+                          onBlur={() => {
+                            setSettings((prev) => ({
+                              ...prev,
+                              report_settings: {
+                                ...(prev.report_settings || {}),
+                                service_default_qty: normalizeServiceDefaultQty(prev.report_settings?.service_default_qty),
+                              },
+                            }));
+                          }}
+                          placeholder="1"
+                        />
+                      </div>
+                    </SettingsSection>
+                  </CardContent>
+                </Card>
               </div>
               <SettingsInvoicePreview
                 settings={settings}
@@ -5300,123 +5170,6 @@ export default function Settings() {
                   )}
                 </div>
                 
-                {/* Social Media Links for WhatsApp */}
-                <div className="space-y-4 pt-4 border-t">
-                  <h4 className="text-sm font-semibold">Social Media Links (for WhatsApp Messages)</h4>
-                  <p className="text-xs text-muted-foreground">
-                    Filled links are added at the end of every WhatsApp bill message
-                  </p>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="instagram_link">Instagram Link</Label>
-                    <Input
-                      id="instagram_link"
-                      value={settings.bill_barcode_settings?.instagram_link || ""}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          bill_barcode_settings: {
-                            ...settings.bill_barcode_settings,
-                            instagram_link: e.target.value,
-                          },
-                        })
-                      }
-                      placeholder="e.g., https://instagram.com/yourstore"
-                      className="no-uppercase"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="facebook_link">Facebook Link</Label>
-                    <Input
-                      id="facebook_link"
-                      value={settings.bill_barcode_settings?.facebook_link || ""}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          bill_barcode_settings: {
-                            ...settings.bill_barcode_settings,
-                            facebook_link: e.target.value,
-                          },
-                        })
-                      }
-                      placeholder="e.g., https://facebook.com/yourstore"
-                      className="no-uppercase"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="website_link">Website Link</Label>
-                    <Input
-                      id="website_link"
-                      value={settings.bill_barcode_settings?.website_link || ""}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          bill_barcode_settings: {
-                            ...settings.bill_barcode_settings,
-                            website_link: e.target.value,
-                          },
-                        })
-                      }
-                      placeholder="e.g., https://yourstore.com"
-                      className="no-uppercase"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="google_review_link">Google Review Link</Label>
-                    <Input
-                      id="google_review_link"
-                      value={settings.bill_barcode_settings?.google_review_link || ""}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          bill_barcode_settings: {
-                            ...settings.bill_barcode_settings,
-                            google_review_link: e.target.value,
-                          },
-                        })
-                      }
-                      placeholder="e.g., https://g.page/yourstore/review"
-                      className="no-uppercase"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="whatsapp_group_link">WhatsApp Group Link</Label>
-                    <Input
-                      id="whatsapp_group_link"
-                      value={settings.bill_barcode_settings?.whatsapp_group_link || ""}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          bill_barcode_settings: {
-                            ...settings.bill_barcode_settings,
-                            whatsapp_group_link: e.target.value,
-                          },
-                        })
-                      }
-                      onBlur={async (e) => {
-                        const orgId = currentOrganization?.id;
-                        if (!orgId) return;
-                        const { data } = await supabase
-                          .from("whatsapp_api_settings")
-                          .select("id, social_links")
-                          .eq("organization_id", orgId)
-                          .maybeSingle();
-                        if (!data) return;
-                        await supabase
-                          .from("whatsapp_api_settings")
-                          .update({ social_links: { ...((data as any).social_links || {}), whatsapp_group: e.target.value.trim() } } as any)
-                          .eq("id", (data as any).id)
-                          .eq("organization_id", orgId);
-                      }}
-                      placeholder="e.g., https://chat.whatsapp.com/xxxx"
-                      className="no-uppercase"
-                    />
-                  </div>
-                </div>
                 <p className="text-xs text-muted-foreground">Invoice header/footer text is configured in the Sale tab → Invoice Customization section</p>
                 <div className="space-y-2">
                   <Label htmlFor="barcode_format">Default Barcode Label Format (for Direct Printing)</Label>
@@ -5803,66 +5556,6 @@ export default function Settings() {
                         </div>
                       </>
                     )}
-                  </CardContent>
-                </Card>
-
-                {/* USB Receipt Printing — Windows Reality Check */}
-                <Card className="border-dashed">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      🖨️ Direct Bill Printing — Setup Guide
-                    </CardTitle>
-                    <CardDescription>
-                      Print receipts instantly without browser print dialog
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="p-3 bg-destructive/10 rounded-lg space-y-1.5">
-                      <p className="text-sm font-medium text-destructive">⚠️ Why "Connect USB Printer" shows Access Denied</p>
-                      <p className="text-xs text-muted-foreground">
-                        Windows installs a printer driver the moment you plug in a USB thermal printer.
-                        That driver blocks direct USB access from the browser — this is a Windows
-                        security design and cannot be bypassed in code. This affects all browsers
-                        including Chrome and Edge.
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">✅ Correct Solution — QZ Tray (Free, works with all printers)</p>
-                      <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1.5">
-                        <li>Download QZ Tray from qz.io/download — free, 8MB install</li>
-                        <li>Run the installer — it starts automatically with Windows</li>
-                        <li>Come back to Settings → scroll to "Direct Printing (QZ Tray)" below</li>
-                        <li>Click "Detect Printers" → select your thermal printer</li>
-                        <li>Enable "Auto Print After Save" — bills print instantly, no dialog</li>
-                      </ol>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        QZ Tray works WITH the Windows printer driver, not around it.
-                        It handles Epson TM-T82, TVS RP3200, Sam4s Ellix, Rugtek RP76 and all standard thermal printers.
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Comparison:</p>
-                      <div className="grid grid-cols-4 gap-1 text-xs">
-                        <div className="font-medium p-1.5 bg-muted rounded">Method</div>
-                        <div className="font-medium p-1.5 bg-muted rounded">Works on Windows</div>
-                        <div className="font-medium p-1.5 bg-muted rounded">Setup required</div>
-                        <div className="p-1.5"></div>
-                        <div className="p-1.5">Browser print</div>
-                        <div className="p-1.5">✅ Always</div>
-                        <div className="p-1.5">None</div>
-                        <div className="p-1.5"></div>
-                        <div className="p-1.5">QZ Tray</div>
-                        <div className="p-1.5">✅ Yes</div>
-                        <div className="p-1.5">8MB install</div>
-                        <div className="p-1.5"></div>
-                        <div className="p-1.5">WebUSB</div>
-                        <div className="p-1.5">❌ Blocked by driver</div>
-                        <div className="p-1.5">Remove printer driver</div>
-                        <div className="p-1.5"></div>
-                      </div>
-                    </div>
                   </CardContent>
                 </Card>
 
@@ -6574,113 +6267,7 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="reports">
-            <div className="mb-3">
-              <OwnerAlertsSettings />
-            </div>
-
-            <Card className="h-fit settings-panel-card">
-              <CardHeader>
-                <CardTitle>Report Settings</CardTitle>
-                <CardDescription>
-                  Configure report preferences
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <SettingsSection title="2nd billing details">
-                  <p className="text-xs text-muted-foreground">
-                    For shops that bill under two names. Stock, accounts and bill numbers stay in this
-                    organization. When on, POS shows a small "2nd firm" checkbox; a ticked bill prints
-                    only these details in the header.
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="second_firm_enabled"
-                      checked={settings.report_settings?.second_firm?.enabled === true}
-                      onCheckedChange={(checked) => updateSecondFirm({ enabled: checked })}
-                    />
-                    <Label htmlFor="second_firm_enabled">Enable 2nd firm on POS bills</Label>
-                  </div>
-                  {settings.report_settings?.second_firm?.enabled === true && (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="space-y-1">
-                        <Label htmlFor="second_firm_name">Company name</Label>
-                        <Input
-                          id="second_firm_name"
-                          value={settings.report_settings?.second_firm?.name || ""}
-                          onChange={(e) => updateSecondFirm({ name: e.target.value })}
-                          placeholder="e.g. KMS Kids"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="second_firm_phone">Phone number</Label>
-                        <Input
-                          id="second_firm_phone"
-                          value={settings.report_settings?.second_firm?.phone || ""}
-                          onChange={(e) => updateSecondFirm({ phone: e.target.value })}
-                        />
-                      </div>
-                      <div className="space-y-1 sm:col-span-2">
-                        <Label htmlFor="second_firm_address">Address</Label>
-                        <Textarea
-                          id="second_firm_address"
-                          rows={2}
-                          value={settings.report_settings?.second_firm?.address || ""}
-                          onChange={(e) => updateSecondFirm({ address: e.target.value })}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="second_firm_gstin">GSTIN (optional)</Label>
-                        <Input
-                          id="second_firm_gstin"
-                          value={settings.report_settings?.second_firm?.gstin || ""}
-                          onChange={(e) => updateSecondFirm({ gstin: e.target.value.toUpperCase() })}
-                          placeholder="Leave blank to print no GSTIN"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </SettingsSection>
-                <SettingsSection title="Service product default qty">
-                  <p className="text-xs text-muted-foreground">
-                    Quantity filled in the service product popup (Quantity / MRP / Add to Cart) on
-                    Sale bill and POS. Default is 1.
-                  </p>
-                  <div className="space-y-1 max-w-[10rem]">
-                    <Label htmlFor="service_default_qty">Default qty</Label>
-                    <Input
-                      id="service_default_qty"
-                      type="text"
-                      inputMode="numeric"
-                      value={
-                        settings.report_settings?.service_default_qty == null
-                          ? ""
-                          : String(settings.report_settings.service_default_qty)
-                      }
-                      onChange={(e) => {
-                        const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
-                        setSettings((prev) => ({
-                          ...prev,
-                          report_settings: {
-                            ...(prev.report_settings || {}),
-                            service_default_qty: digits ? parseInt(digits, 10) : undefined,
-                          },
-                        }));
-                      }}
-                      onBlur={() => {
-                        setSettings((prev) => ({
-                          ...prev,
-                          report_settings: {
-                            ...(prev.report_settings || {}),
-                            service_default_qty: normalizeServiceDefaultQty(prev.report_settings?.service_default_qty),
-                          },
-                        }));
-                      }}
-                      placeholder="1"
-                    />
-                  </div>
-                </SettingsSection>
-              </CardContent>
-            </Card>
+            <OwnerAlertsSettings />
           </TabsContent>
 
           <TabsContent value="users">
@@ -6735,6 +6322,123 @@ export default function Settings() {
                     </div>
                   </SettingsSection>
                 )}
+                <SettingsSection title="Social media links">
+                  <div className="space-y-4">
+                    <p className="text-xs text-muted-foreground">
+                      Filled links are added at the end of every WhatsApp bill message
+                    </p>
+                  
+                    <div className="space-y-2">
+                      <Label htmlFor="instagram_link">Instagram Link</Label>
+                      <Input
+                        id="instagram_link"
+                        value={settings.bill_barcode_settings?.instagram_link || ""}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              instagram_link: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="e.g., https://instagram.com/yourstore"
+                        className="no-uppercase"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="facebook_link">Facebook Link</Label>
+                      <Input
+                        id="facebook_link"
+                        value={settings.bill_barcode_settings?.facebook_link || ""}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              facebook_link: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="e.g., https://facebook.com/yourstore"
+                        className="no-uppercase"
+                      />
+                    </div>
+                  
+                    <div className="space-y-2">
+                      <Label htmlFor="website_link">Website Link</Label>
+                      <Input
+                        id="website_link"
+                        value={settings.bill_barcode_settings?.website_link || ""}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              website_link: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="e.g., https://yourstore.com"
+                        className="no-uppercase"
+                      />
+                    </div>
+                  
+                    <div className="space-y-2">
+                      <Label htmlFor="google_review_link">Google Review Link</Label>
+                      <Input
+                        id="google_review_link"
+                        value={settings.bill_barcode_settings?.google_review_link || ""}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              google_review_link: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="e.g., https://g.page/yourstore/review"
+                        className="no-uppercase"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="whatsapp_group_link">WhatsApp Group Link</Label>
+                      <Input
+                        id="whatsapp_group_link"
+                        value={settings.bill_barcode_settings?.whatsapp_group_link || ""}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              whatsapp_group_link: e.target.value,
+                            },
+                          })
+                        }
+                        onBlur={async (e) => {
+                          const orgId = currentOrganization?.id;
+                          if (!orgId) return;
+                          const { data } = await supabase
+                            .from("whatsapp_api_settings")
+                            .select("id, social_links")
+                            .eq("organization_id", orgId)
+                            .maybeSingle();
+                          if (!data) return;
+                          await supabase
+                            .from("whatsapp_api_settings")
+                            .update({ social_links: { ...((data as any).social_links || {}), whatsapp_group: e.target.value.trim() } } as any)
+                            .eq("id", (data as any).id)
+                            .eq("organization_id", orgId);
+                        }}
+                        placeholder="e.g., https://chat.whatsapp.com/xxxx"
+                        className="no-uppercase"
+                      />
+                    </div>
+                  </div>
+                </SettingsSection>
                 <SettingsSection title="Extra features">
                   <div className="divide-y">
                     {[
