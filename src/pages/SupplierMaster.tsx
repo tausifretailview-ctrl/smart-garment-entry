@@ -1015,11 +1015,12 @@ const SupplierMaster = () => {
                     Add Supplier
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-lg">
+                <DialogContent className="w-[96vw] sm:max-w-4xl max-h-[92dvh] overflow-y-auto gap-3 p-5 sm:p-6">
                   <DialogHeader>
                     <DialogTitle>{editingSupplier ? "Edit Supplier" : "Add New Supplier"}</DialogTitle>
                   </DialogHeader>
-                  <form onSubmit={handleSubmit} className="space-y-4">
+                  <form onSubmit={handleSubmit} className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
                     <div>
                       <Label htmlFor="supplier_name">Supplier Name *</Label>
                       <Input id="supplier_name" value={formData.supplier_name} onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })} required className="h-9" />
@@ -1037,10 +1038,6 @@ const SupplierMaster = () => {
                       <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="h-9" />
                     </div>
                     <div>
-                      <Label htmlFor="address">Address</Label>
-                      <Textarea id="address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="min-h-[60px]" />
-                    </div>
-                    <div>
                       <Label htmlFor="gst_number">GST Number</Label>
                       <Input id="gst_number" value={formData.gst_number} onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })} className="h-9" />
                     </div>
@@ -1048,18 +1045,25 @@ const SupplierMaster = () => {
                       <Label htmlFor="supplier_code">Supplier Code</Label>
                       <Input id="supplier_code" value={formData.supplier_code} onChange={(e) => setFormData({ ...formData, supplier_code: e.target.value })} placeholder="Optional — shown on barcode labels" className="h-9" />
                     </div>
+                    <div className="sm:col-span-2">
+                      <Label htmlFor="address">Address</Label>
+                      <Textarea id="address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="min-h-[60px]" />
+                    </div>
                     <div>
                       <Label htmlFor="opening_balance">Opening Balance (₹)</Label>
                       <Input id="opening_balance" type="number" step="0.01" value={formData.opening_balance} onChange={(e) => setFormData({ ...formData, opening_balance: e.target.value })} placeholder="Payable to supplier" className="h-9" />
                       <p className="text-[10px] text-muted-foreground mt-0.5">Positive = Payable to supplier</p>
                     </div>
-                    <Button type="submit" className="w-full h-9" disabled={supplierSubmitPending}>
+                    </div>
+                    <div className="flex justify-end pt-1">
+                    <Button type="submit" className="w-full sm:w-64 h-9" disabled={supplierSubmitPending}>
                       {supplierSubmitPending
                         ? editingSupplier
                           ? "Updating…"
                           : "Creating…"
                         : `${editingSupplier ? "Update" : "Create"} Supplier`}
                     </Button>
+                    </div>
                   </form>
                 </DialogContent>
               </Dialog>

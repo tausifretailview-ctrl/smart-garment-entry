@@ -382,13 +382,14 @@ const EmployeeMaster = () => {
                     Add Employee
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="w-[96vw] sm:max-w-4xl max-h-[92dvh] overflow-y-auto gap-3 p-5 sm:p-6">
                   <DialogHeader>
                     <DialogTitle className="text-xl">
                       {editingEmployee ? "Edit Employee" : "Add New Employee"}
                     </DialogTitle>
                   </DialogHeader>
-                  <form onSubmit={handleSubmit} className="space-y-4 text-base">
+                  <form onSubmit={handleSubmit} className="space-y-3 text-base">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
                     <div>
                       <Label htmlFor="employee_name">Employee Name *</Label>
                       <Input
@@ -411,8 +412,8 @@ const EmployeeMaster = () => {
                     <div className="space-y-1">
                       <Label htmlFor="commission_percent">
                         Commission %{" "}
-                        <span className="text-sm text-muted-foreground ml-2 font-normal">
-                          default 1% = ₹1 per ₹100 sale
+                        <span className="text-xs text-muted-foreground ml-1 font-normal">
+                          (default 1%)
                         </span>
                       </Label>
                       <div className="flex items-center gap-3">
@@ -426,11 +427,11 @@ const EmployeeMaster = () => {
                           onChange={(e) =>
                             setFormData({ ...formData, commission_percent: parseFloat(e.target.value) || 0 })
                           }
-                          className="w-28 h-10 text-base"
+                          className="w-24 h-10 text-base"
                           placeholder="1.0"
                         />
                         <span className="text-sm text-muted-foreground">
-                          = ₹{(formData.commission_percent || 0).toFixed(2)} earned per ₹100 sale
+                          = ₹{(formData.commission_percent || 0).toFixed(2)} per ₹100 sale
                         </span>
                       </div>
                     </div>
@@ -454,15 +455,6 @@ const EmployeeMaster = () => {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="address">Address</Label>
-                      <Textarea
-                        id="address"
-                        value={formData.address}
-                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                        className="text-base"
-                      />
-                    </div>
-                    <div>
                       <Label htmlFor="joining_date">Joining Date</Label>
                       <Input
                         id="joining_date"
@@ -470,6 +462,16 @@ const EmployeeMaster = () => {
                         value={formData.joining_date}
                         onChange={(e) => setFormData({ ...formData, joining_date: e.target.value })}
                         className="h-10 text-base"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label htmlFor="address">Address</Label>
+                      <Textarea
+                        id="address"
+                        value={formData.address}
+                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                        rows={2}
+                        className="text-base min-h-[2.5rem]"
                       />
                     </div>
                     <div>
@@ -487,7 +489,9 @@ const EmployeeMaster = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 items-start">
+                    <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
                       <div className="space-y-0.5">
                         <Label
                           htmlFor="field_sales_access"
@@ -534,9 +538,12 @@ const EmployeeMaster = () => {
                         </p>
                       </div>
                     )}
-                    <Button type="submit" className="w-full h-11 text-base">
+                    </div>
+                    <div className="flex justify-end pt-1">
+                    <Button type="submit" className="w-full sm:w-64 h-11 text-base">
                       {editingEmployee ? "Update" : "Create"} Employee
                     </Button>
+                    </div>
                   </form>
                 </DialogContent>
               </Dialog>
