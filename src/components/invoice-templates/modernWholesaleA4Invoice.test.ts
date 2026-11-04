@@ -54,6 +54,17 @@ describe("ModernWholesaleTemplate A4 pages", () => {
     expect(rowsOnLastPage(render(24))).toBeLessThanOrEqual(10);
   });
 
+  it("fills page 1 before moving rows to page 2", () => {
+    // 11 rows used to split 6 + 5, leaving most of page 1 blank.
+    const html = render(11);
+    const pages = html.split('class="invoice-page modern-wholesale-page"');
+    expect(pageCount(html)).toBe(2);
+    expect((pages[1].match(/PUL\d+-PUL-RLX-LD/g) || []).length).toBe(10);
+    expect(rowsOnLastPage(html)).toBe(1);
+    // 24 rows: 14 + 10 (fits the last-page limit as is).
+    expect(rowsOnLastPage(render(24))).toBe(10);
+  });
+
   it("prints amount in words with a single Only", () => {
     const html = render(3);
     expect(html).toContain("Rupees Only");
