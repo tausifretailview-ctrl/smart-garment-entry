@@ -5,15 +5,23 @@
  * Before the save, godown_doc_check says what the picked godown does not have; right after it,
  * godown_sync_doc takes the goods from that godown (or only the difference on an edit).
  * Deleting, cancelling or restoring the bill is followed by a database trigger.
+ *
+ * Part 2 covers the Delivery Challan. A challan moves no stock, so it only keeps the godown it
+ * was sent from; the invoice made from it later goes out of that godown.
  */
 import { supabase } from "@/integrations/supabase/client";
-import { isMissingGodownSql } from "./godowns";
+import { godownErrorText, isMissingGodownSql } from "./godowns";
 
 // The godown tables and functions (Phase 3 SQL) are not in the generated DB types yet.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = (): any => supabase;
 
-export type GodownDocType = "sale";
+export type GodownDocType = "sale" | "challan";
+
+/** Whether saving the document takes stock (a delivery challan does not). */
+export function godownDocTakesStock(refType: GodownDocType): boolean {
+  return refType === "sale";
+}
 
 export type GodownDocShortLine = {
   variant_id: string;
@@ -153,4 +161,58 @@ export async function syncDocGodown(refType: GodownDocType, docId: string, godow
   const { data, error } = await db().rpc("godown_sync_doc", { p_ref_type: refType, p_doc_id: docId, p_godown_id: godownId });
   if (error) throw error;
   return parseGodownDocResult(data);
+}
+
+/** Godown names of the given documents that went out of a godown other than Main, by document id. */
+export async function fetchDocGodownNames(refType: GodownDocType, docIds: string[]): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  const unique = Array.from(new Set(docIds.filter(Boolean)));
+  for (let i = 0; i < unique.length; i += 200) {
+    const { data, error } = await db()
+      .from("godown_doc_places")
+      .select("doc_id, godowns(name)")
+      .eq("ref_type", refType)
+      .in("doc_id", unique.slice(i, i + 200));
+    if (error) {
+      if (isMissingGodownSql(error.message)) return out;
+      throw error;
+    }
+    for (const r of (data ?? []) as { doc_id: string; godowns?: { name?: string | null } | null }[]) {
+      const name = r.godowns?.name;
+      if (r.doc_id && name) out[String(r.doc_id)] = String(name);
+    }
+  }
+  return out;
+}
+
+/**
+ * An invoice made from a delivery challan goes out of the godown the challan was sent from.
+ * Call after the invoice and its lines are saved. Never throws; returns what to tell the user,
+ * or null when nothing worth a message happened (also when the challan went out of Main).
+ */
+export async function syncSaleFromChallanGodown(
+  challanId: string,
+  saleId: string,
+): Promise<{ title: string; description: string } | null> {
+  const failed = (e: unknown) => {
+    const text = godownErrorText(e);
+    return {
+      title: "Invoice made. Goods went out of Main",
+      description: isMissingGodownSql(text)
+        ? 'Run the Phase 3 step 3d-1 SQL first, then open the invoice, pick the godown in "Dispatch from" and save.'
+        : `${text.replace(/\.$/, "")}. Open the invoice, pick the godown in "Dispatch from" and save.`,
+    };
+  };
+  let godownId: string | null;
+  try {
+    godownId = await fetchDocGodown("challan", challanId);
+  } catch (e) {
+    return failed(e);
+  }
+  if (!godownId) return null;
+  try {
+    return godownDocSyncWarning(await syncDocGodown("sale", saleId, godownId));
+  } catch (e) {
+    return failed(e);
+  }
 }

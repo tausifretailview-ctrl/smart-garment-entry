@@ -94,6 +94,21 @@ export function isVolatileOrSensitiveKey(queryKey: readonly unknown[]): boolean 
   return false;
 }
 
+/**
+ * True when query data is, or directly holds, a Map or Set (for example `{ rows: Map }`).
+ * JSON turns those into `{}`, so after a reload the page's `.get` / `.has` crashed
+ * (Godowns page, e-way bill lists). Such queries are never saved; they load fresh.
+ * Looks one level deep only, and never walks arrays, so it stays cheap on big lists.
+ */
+export function holdsMapOrSet(data: unknown): boolean {
+  if (data instanceof Map || data instanceof Set) return true;
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  for (const v of Object.values(data as Record<string, unknown>)) {
+    if (v instanceof Map || v instanceof Set) return true;
+  }
+  return false;
+}
+
 /** Changes every deploy — mismatched cache is discarded on restore. */
 export const APP_BUILD_BUSTER =
   typeof __APP_BUILD_ID__ !== "undefined" ? __APP_BUILD_ID__ : "dev";

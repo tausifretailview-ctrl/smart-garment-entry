@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-11-03",
-  "count": 921,
-  "fileCount": 939,
+  "generatedAt": "2026-11-04",
+  "count": 922,
+  "fileCount": 940,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -924,7 +924,8 @@
     "20270403120000",
     "20270404120000",
     "20270405120000",
-    "20270406120000"
+    "20270406120000",
+    "20270407120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1865,7 +1866,8 @@
     "20270403120000_eway_bill_godown_moves.sql",
     "20270404120000_godown_purchase_receive.sql",
     "20270405120000_godown_sale_dispatch.sql",
-    "20270406120000_whatsapp_health_support_view.sql"
+    "20270406120000_whatsapp_health_support_view.sql",
+    "20270407120000_godown_challan_dispatch.sql"
   ],
   "duplicateVersions": [
     {

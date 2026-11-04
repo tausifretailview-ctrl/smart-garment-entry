@@ -8,18 +8,19 @@ import {
   fetchDocGodown,
   godownDocShortMessage,
   godownDocSyncWarning,
+  godownDocTakesStock,
   syncDocGodown,
   type GodownDocType,
 } from "@/utils/godownDocs";
 
 type Toast = (t: { title: string; description?: string; variant?: "default" | "destructive"; duration?: number }) => unknown;
 
-const SQL_STEP: Record<GodownDocType, string> = { sale: "3d-1" };
+const SQL_STEP: Record<GodownDocType, string> = { sale: "3d-1", challan: "3d-2" };
 
 /**
  * "Dispatch from" godown for a document that sends goods out (Industrial mode, Phase 3 step 3d).
  * Does nothing, and reads nothing, unless Industrial mode is on and the shop has a godown
- * besides Main.
+ * besides Main. A delivery challan moves no stock: it only keeps the pick, with no stock check.
  */
 export function useDocGodown(opts: {
   refType: GodownDocType;
@@ -87,6 +88,7 @@ export function useDocGodown(opts: {
   const checkBeforeSave = useCallback(
     async (lines: { variant_id: string; qty: number }[]): Promise<boolean> => {
       const s = stateRef.current;
+      if (!godownDocTakesStock(refType)) return true;
       if (!s.visible || !s.mainId || lines.length === 0) return true;
       if (s.editDocId && !s.docLoaded) return true;
       const target = s.value || s.mainId;
@@ -136,11 +138,16 @@ export function useDocGodown(opts: {
         if (warn) toast({ title: warn.title, description: warn.description, variant: "destructive", duration: 12000 });
       } catch (e) {
         const text = godownErrorText(e);
+        const takesStock = godownDocTakesStock(refType);
         toast({
-          title: "Bill saved. Goods went out of Main",
+          title: takesStock ? "Bill saved. Goods went out of Main" : "Challan saved without its godown",
           description: isMissingGodownSql(text)
-            ? `Run the Phase 3 step ${SQL_STEP[refType]} SQL first, then open this bill and save it again.`
-            : `${text.replace(/\.$/, "")}. Open the bill and save again, or move the stock in Godown Transfers.`,
+            ? takesStock
+              ? `Run the Phase 3 step ${SQL_STEP[refType]} SQL first, then open this bill and save it again.`
+              : `Run the Phase 3 step ${SQL_STEP[refType]} SQL first. The invoice made from this challan will go out of Main.`
+            : takesStock
+              ? `${text.replace(/\.$/, "")}. Open the bill and save again, or move the stock in Godown Transfers.`
+              : `${text.replace(/\.$/, "")}. The invoice made from this challan will go out of Main.`,
           variant: "destructive",
           duration: 12000,
         });

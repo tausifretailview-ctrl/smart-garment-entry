@@ -15,7 +15,7 @@ import {
 import { toast as showToast } from "@/hooks/use-toast";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { clearMissingQueryFnError, isMissingQueryFnError } from "@/utils/refetchQueriesWithFn";
-import { APP_BUILD_BUSTER, isVolatileOrSensitiveKey, persister, readPersistCacheCharLength } from "@/lib/queryPersister";
+import { APP_BUILD_BUSTER, holdsMapOrSet, isVolatileOrSensitiveKey, persister, readPersistCacheCharLength } from "@/lib/queryPersister";
 import { markPersistRestoreComplete } from "@/lib/mainThreadViolationProbe";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -489,7 +489,7 @@ const App = () => {
         buster: APP_BUILD_BUSTER,
         dehydrateOptions: {
           shouldDehydrateQuery: (q) =>
-            q.state.status === "success" && !isVolatileOrSensitiveKey(q.queryKey),
+            q.state.status === "success" && !isVolatileOrSensitiveKey(q.queryKey) && !holdsMapOrSet(q.state.data),
         },
       }}
       onSuccess={() => {

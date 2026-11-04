@@ -111,3 +111,55 @@ export function DocGodownField(props: {
     </div>
   );
 }
+
+/** The same pick inline, for a band that already has its own frame (Delivery Challan). */
+export function DocGodownInline(props: {
+  id: string;
+  label: string;
+  choices: Godown[];
+  value: string | null;
+  mainId: string | null;
+  onChange: (id: string) => void;
+  mainHint: string;
+  godownHint: (name: string) => string;
+  disabled?: boolean;
+  loading?: boolean;
+  className?: string;
+}) {
+  const { id, label, choices, value, mainId, onChange, mainHint, godownHint, disabled, loading, className } = props;
+  const picked = choices.find((g) => g.id === value) ?? null;
+  const isMain = !value || value === mainId;
+  const hint = isMain ? mainHint : godownHint(picked?.name ?? "this godown");
+
+  return (
+    <div className={cn("flex items-center gap-1.5", className)}>
+      <label htmlFor={id} className="flex items-center gap-1.5 whitespace-nowrap text-[13px] font-bold text-sky-900">
+        <Warehouse className={cn("h-4 w-4 shrink-0", isMain ? "text-sky-700" : "text-emerald-600")} />
+        {label}
+      </label>
+      <Select value={value ?? ""} onValueChange={onChange} disabled={disabled || loading}>
+        <SelectTrigger
+          id={id}
+          data-field="doc-godown"
+          title={hint}
+          className={cn(
+            "h-9 w-52 bg-white text-sm",
+            isMain ? "" : "border-emerald-400 bg-emerald-50 font-semibold text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200",
+          )}
+        >
+          <SelectValue placeholder="Main" />
+        </SelectTrigger>
+        <SelectContent className="z-50 bg-background">
+          {choices.map((g) => (
+            <SelectItem key={g.id} value={g.id}>
+              {g.name}
+              {g.godown_type === "job_work" || g.godown_type === "damaged" ? ` (${godownTypeInfo(g.godown_type).label})` : ""}
+              {!g.is_active ? " (closed)" : ""}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" /> : null}
+    </div>
+  );
+}
