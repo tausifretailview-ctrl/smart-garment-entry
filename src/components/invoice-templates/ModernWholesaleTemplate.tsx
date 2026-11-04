@@ -546,7 +546,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             
             {showGSTBreakdown && <td style={cellStyle}>&nbsp;</td>}
             {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "5.5pt" : "7pt" }}>
-              {(cgstAmount + sgstAmount) > 0 ? (cgstAmount + sgstAmount).toFixed(2) : ''}
+              {(cgstAmount + sgstAmount + igstAmount) > 0 ? (cgstAmount + sgstAmount + igstAmount).toFixed(2) : ''}
             </td>}
             <td style={{ ...cellStyle, textAlign: "right", fontWeight: "900", fontSize: isA5 ? "7pt" : "8pt", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", paddingRight: isA5 ? "5px" : "6px" }}>{formatCurrencyPlain(subtotal)}</td>
           </tr>
@@ -723,6 +723,12 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
                 <tr>
                   <td style={{ padding: isA5 ? "1px 2px 1px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>SGST:</td>
                   <td style={{ textAlign: "right", padding: isA5 ? "1px 4px 1px 2px" : "4px 4px 4px 4px" }}>{formatCurrencyWithRs(sgstAmount)}</td>
+                </tr>
+              )}
+              {igstAmount > 0 && (
+                <tr>
+                  <td style={{ padding: isA5 ? "1px 2px 1px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>IGST:</td>
+                  <td style={{ textAlign: "right", padding: isA5 ? "1px 4px 1px 2px" : "4px 4px 4px 4px" }}>{formatCurrencyWithRs(igstAmount)}</td>
                 </tr>
               )}
               {saleReturnAdjust > 0 && (
