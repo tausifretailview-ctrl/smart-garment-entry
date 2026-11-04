@@ -16,7 +16,7 @@ const items = (count: number) =>
     total: 210,
   }));
 
-const render = (count: number) =>
+const render = (count: number, extra: Record<string, unknown> = {}) =>
   renderToStaticMarkup(
     createElement(ModernWholesaleTemplate, {
       businessName: "KS FOOTWEAR",
@@ -32,6 +32,7 @@ const render = (count: number) =>
       cgstAmount: count * 5,
       sgstAmount: count * 5,
       format: "a4",
+      ...extra,
     }),
   );
 
@@ -69,5 +70,13 @@ describe("ModernWholesaleTemplate A4 pages", () => {
     const html = render(3);
     expect(html).toContain("Rupees Only");
     expect(html).not.toContain("Only Only");
+  });
+
+  it("shows the IGST line in the totals box for an interstate bill", () => {
+    const html = render(3, { cgstAmount: 0, sgstAmount: 0, igstAmount: 31.5 });
+    expect(html).toContain("IGST:");
+    expect(html).not.toContain("CGST:");
+    // Total row GST column carries the IGST too.
+    expect(html).toContain(">31.50<");
   });
 });
