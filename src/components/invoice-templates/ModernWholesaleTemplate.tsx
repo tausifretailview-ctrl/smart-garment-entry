@@ -293,11 +293,11 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       } 
       // Otherwise, fill this page fully and continue
       else {
-        // Fewer than a full page left but too many for the last page: split the
-        // rest across two pages so the last page keeps room for the totals box.
-        const takeCount = remaining.length <= itemsPerPage
-          ? Math.max(remaining.length - lastPageMaxItems, Math.ceil(remaining.length / 2))
-          : itemsPerPage;
+        // Fewer than a full page left but too many for the last page: fill this
+        // page as far as it goes and carry just the rest (at least one row) to
+        // the last page with the totals box. Splitting in half left page 1 with
+        // only 6 rows and a blank sheet on an 11-item bill.
+        const takeCount = Math.min(itemsPerPage, remaining.length - 1);
         pages.push(remaining.slice(0, takeCount));
         pageStartIndices.push(currentStart);
         currentStart += takeCount;
