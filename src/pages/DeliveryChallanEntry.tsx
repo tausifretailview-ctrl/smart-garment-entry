@@ -74,6 +74,9 @@ import {
   isChallanType,
   type ChallanType,
 } from "@/utils/industrialMode";
+import { DocGodownInline } from "@/components/godowns/DocGodownBar";
+import { useDocGodown } from "@/hooks/useDocGodown";
+import { fetchVariantGodownQty } from "@/utils/godownTransfer";
 
 interface LineItem {
   id: string;
@@ -145,6 +148,15 @@ export default function DeliveryChallanEntry() {
   const [isSaving, setIsSaving] = useState(false);
   const savingRef = useRef(false);
   const [editingChallanId, setEditingChallanId] = useState<string | null>(null);
+  // Industrial mode with godowns: the godown the goods are sent from (Phase 3 step 3d-2).
+  const challanGodown = useDocGodown({
+    refType: "challan",
+    organizationId: currentOrganization?.id,
+    editDocId: editingChallanId,
+    toast,
+  });
+  const stockPlaceId = challanGodown.visible ? challanGodown.value : null;
+  const stockPlaceName = stockPlaceId ? (challanGodown.choices.find((g) => g.id === stockPlaceId)?.name ?? "") : "";
   const [originalItemsForEdit, setOriginalItemsForEdit] = useState<Array<{ variantId: string; quantity: number }>>([]);
   const [salesman, setSalesman] = useState<string>("");
   const [flatDiscountPercent, setFlatDiscountPercent] = useState<number>(0);
@@ -663,20 +675,39 @@ export default function DeliveryChallanEntry() {
     if (!currentOrganization?.id || !variantIdsKey) return;
 
     const variantIds = variantIdsKey.split(",").filter(Boolean);
+    let alive = true;
+    const placeStock = async (): Promise<Map<string, number> | null> => {
+      if (!stockPlaceId) return null;
+      try {
+        const rows = await fetchVariantGodownQty(currentOrganization.id, variantIds);
+        const byVariant = new Map<string, number>(variantIds.map((id) => [id, 0]));
+        for (const r of rows) {
+          if (r.godown_id === stockPlaceId) byVariant.set(String(r.variant_id), Number(r.qty) || 0);
+        }
+        return byVariant;
+      } catch {
+        return null;
+      }
+    };
     const refreshLiveStock = async () => {
-      const { data, error } = await supabase
-        .from("product_variants")
-        .select("id, stock_qty")
-        .eq("organization_id", currentOrganization.id)
-        .in("id", variantIds);
-      if (error || !data) return;
-
-      const stockByVariant = new Map(data.map((row) => [row.id, Number(row.stock_qty) || 0]));
+      // With a "Dispatch from" pick, the Stock column shows that place's stock.
+      let stockByVariant = await placeStock();
+      if (!stockByVariant) {
+        const { data, error } = await supabase
+          .from("product_variants")
+          .select("id, stock_qty")
+          .eq("organization_id", currentOrganization.id)
+          .in("id", variantIds);
+        if (error || !data) return;
+        stockByVariant = new Map(data.map((row) => [row.id, Number(row.stock_qty) || 0]));
+      }
+      if (!alive) return;
+      const stock = stockByVariant;
       setLineItems((prev) => {
         let changed = false;
         const next = prev.map((item) => {
-          if (!item.variantId || !stockByVariant.has(item.variantId)) return item;
-          const stockQty = stockByVariant.get(item.variantId)!;
+          if (!item.variantId || !stock.has(item.variantId)) return item;
+          const stockQty = stock.get(item.variantId)!;
           if (item.stockQty === stockQty) return item;
           changed = true;
           return { ...item, stockQty };
@@ -694,10 +725,11 @@ export default function DeliveryChallanEntry() {
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
+      alive = false;
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [currentOrganization?.id, variantIdsKey]);
+  }, [currentOrganization?.id, variantIdsKey, stockPlaceId]);
 
   const grossAmount = billableItems.reduce((sum, item) => sum + item.quantity * item.salePrice, 0);
   const lineItemDiscount = billableItems.reduce(
@@ -837,6 +869,7 @@ export default function DeliveryChallanEntry() {
           })
           .eq("id", editingChallanId);
 
+        await challanGodown.syncAfterSave(editingChallanId, true);
         toast({ title: "Challan Updated", description: "Delivery challan has been updated" });
         if (shouldPrint) {
           triggerPrint(challanBadge, billableItems, {
@@ -917,6 +950,7 @@ export default function DeliveryChallanEntry() {
             });
           }
         }
+        await challanGodown.syncAfterSave(String(challanData.id), false);
 
         if (selectedSaleOrderId) {
           for (const item of billableItems) {
@@ -1181,6 +1215,23 @@ export default function DeliveryChallanEntry() {
                   </SelectContent>
                 </Select>
               </div>
+              {challanGodown.visible && (
+                <DocGodownInline
+                  id="dc-dispatch-from"
+                  label="Dispatch from"
+                  className="self-center sm:ml-2 sm:border-l sm:border-sky-200 sm:pl-3"
+                  choices={challanGodown.choices}
+                  value={challanGodown.value}
+                  mainId={challanGodown.mainId}
+                  onChange={challanGodown.setValue}
+                  loading={challanGodown.loading}
+                  disabled={isSaving}
+                  mainHint="Goods go from the shop (Main). The Stock column shows Main's stock."
+                  godownHint={(name) =>
+                    `Goods go from ${name}. The Stock column shows ${name}'s stock, and the invoice made from this challan takes them out of ${name}.`
+                  }
+                />
+              )}
               <p className="self-center text-xs text-slate-500">
                 Prints as <span className="font-semibold text-slate-700">{challanPrintTitle(challanType)}</span>.{" "}
                 {challanTypeHint(challanType)}
@@ -1233,7 +1284,12 @@ export default function DeliveryChallanEntry() {
                     <th className="text-left text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 min-w-[200px]">Product</th>
                     <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-28">Barcode</th>
                     <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">Size</th>
-                    <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">Stock</th>
+                    <th
+                      className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16"
+                      title={stockPlaceName ? `Stock in ${stockPlaceName}` : "Shop stock"}
+                    >
+                      Stock
+                    </th>
                     <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-20">Qty</th>
                     <th className="text-right text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-24">Rate</th>
                     <th className="text-right text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">Disc%</th>

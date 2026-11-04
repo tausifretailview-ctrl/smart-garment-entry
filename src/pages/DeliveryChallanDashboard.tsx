@@ -51,6 +51,7 @@ import { postSaleJournalInBackground } from "@/utils/accounting/journalService";
 import { useEwayBillOn } from "@/hooks/useEwayBillOn";
 import { ChallanEwayBillDialog, type EwbChallanInfo } from "@/components/ewaybill/ChallanEwayBillDialog";
 import { fetchEwayBillsForChallans, formatEwbNo } from "@/utils/ewayBill";
+import { fetchDocGodownNames, syncSaleFromChallanGodown } from "@/utils/godownDocs";
 
 export default function DeliveryChallanDashboard() {
   const { toast } = useToast();
@@ -210,6 +211,20 @@ export default function DeliveryChallanDashboard() {
     );
   });
 
+  // Industrial mode: the godown each challan was sent from ("Dispatch from", Phase 3 step 3d-2).
+  const challanPlaceKey = useMemo(
+    () => (industrialMode.enabled ? (challansData || []).map((c: any) => String(c.id)).sort().join(",") : ""),
+    [industrialMode.enabled, challansData],
+  );
+  const { data: challanPlaces } = useQuery({
+    queryKey: ["challan-godown-places", currentOrganization?.id ?? "", challanPlaceKey],
+    queryFn: () => fetchDocGodownNames("challan", challanPlaceKey.split(",")),
+    enabled: industrialMode.enabled && !!currentOrganization?.id && challanPlaceKey.length > 0,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const challanPlaceName = (id: unknown): string => (challanPlaces && challanPlaces[String(id)]) || "";
+
   // E-way bills of the challans in this period (step 6b), only with the E-Way Bill switch on.
   const challanIdsKey = useMemo(
     () => (ewbOn ? (challansData || []).map((c: any) => String(c.id)).sort().join(",") : ""),
@@ -340,6 +355,9 @@ export default function DeliveryChallanDashboard() {
       const { error: itemsError } = await supabase.from('sale_items').insert(saleItemsData);
       if (itemsError) throw itemsError;
 
+      // Industrial mode: the invoice goes out of the godown the challan was sent from.
+      const godownNote = industrialMode.enabled ? await syncSaleFromChallanGodown(String(challan.id), String(saleData.id)) : null;
+
       if (isAccountingEngineEnabled(orgSettings as { accounting_engine_enabled?: boolean } | null)) {
         postSaleJournalInBackground(
           saleData.id,
@@ -365,6 +383,9 @@ export default function DeliveryChallanDashboard() {
         title: "Invoice Created",
         description: `Invoice ${saleNumber} created from challan ${challan.challan_number}`
       });
+      if (godownNote) {
+        toast({ variant: "destructive", title: godownNote.title, description: godownNote.description, duration: 12000 });
+      }
 
       refetch();
     } catch (error: any) {
@@ -562,6 +583,16 @@ export default function DeliveryChallanDashboard() {
                         <TableCell className="font-semibold text-teal-800">
                           <div>{challan.challan_number}</div>
                           {challanTypeBadge(challan)}
+                          {challanPlaceName(challan.id) && (
+                            <span
+                              className={cn(
+                                "mt-0.5 inline-block rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-800 ring-1 ring-emerald-200",
+                                challanTypeBadge(challan) && "ml-1",
+                              )}
+                            >
+                              From {challanPlaceName(challan.id)}
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell className="tabular-nums">{format(new Date(challan.challan_date), 'dd/MM/yyyy')}</TableCell>
                         <TableCell>
@@ -663,6 +694,11 @@ export default function DeliveryChallanDashboard() {
                     or stay with you, so they are not normally billed.
                   </span>
                 )}
+              {convertConfirm && challanPlaceName(convertConfirm.id) && (
+                <span className="mt-2 block font-semibold text-emerald-700">
+                  The invoice takes the goods out of {challanPlaceName(convertConfirm.id)}, the godown this challan was sent from.
+                </span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
