@@ -450,6 +450,9 @@ export default function SalesInvoice() {
   const dropdownDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Synchronous staged qty per variant — avoids stale lineItems closure during rapid barcode scans. */
   const stagedQtyByVariantRef = useRef<Map<string, number>>(new Map());
+  /** Latest searchAndAddProduct — scan/Enter handlers are memoised once and would otherwise
+   *  call the first render's copy (e.g. one that does not know an invoice is being edited). */
+  const searchAndAddProductRef = useRef<(searchTerm: string) => void | Promise<void>>(() => {});
   
   // Barcode scanner detection for instant add (like POS)
   const { recordKeystroke, reset: resetScannerDetection, detectScannerInput, scheduleAutoSubmit, cancelAutoSubmit, markSubmitted } = useBarcodeScanner();
@@ -554,6 +557,8 @@ export default function SalesInvoice() {
   const mobileERP = useMobileERP();
   const [financerDetails, setFinancerDetails] = useState<FinancerDetails | null>(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  const editingInvoiceIdRef = useRef(editingInvoiceId);
+  editingInvoiceIdRef.current = editingInvoiceId;
   // Industrial mode with godowns: the godown this bill's goods go out of (Phase 3 step 3d).
   const saleGodown = useDocGodown({
     refType: "sale",
@@ -566,6 +571,17 @@ export default function SalesInvoice() {
   const billDiscountRatioRef = useRef(0);
   const hasManuallyAddedNewItemRef = useRef(false);
   const [originalItemsForEdit, setOriginalItemsForEdit] = useState<Array<{ variantId: string; quantity: number }>>([]);
+  // Edit mode: pieces already on the saved bill come back on save, so they count as available.
+  // Read through refs — scan handlers are memoised and must not see a stale "not editing" state.
+  const originalItemsForEditRef = useRef(originalItemsForEdit);
+  originalItemsForEditRef.current = originalItemsForEdit;
+  const editFreedQty = (variantId: string | undefined | null): number => {
+    if (!variantId || !editingInvoiceIdRef.current) return 0;
+    return originalItemsForEditRef.current.reduce(
+      (sum, o) => (o.variantId === variantId ? sum + (Number(o.quantity) || 0) : sum),
+      0,
+    );
+  };
   const [recordedReceiptAmount, setRecordedReceiptAmount] = useState(0);
   const [originalNetAmount, setOriginalNetAmount] = useState(0);
   const [showPaidLineEditDialog, setShowPaidLineEditDialog] = useState(false);
@@ -1963,12 +1979,7 @@ export default function SalesInvoice() {
       }
 
       // In edit mode, calculate freed stock from original invoice for this variant
-      let freedQty = 0;
-      if (editingInvoiceId && originalItemsForEdit.length > 0) {
-        freedQty = originalItemsForEdit
-          .filter(orig => orig.variantId === variant.id)
-          .reduce((sum, orig) => sum + orig.quantity, 0);
-      }
+      const freedQty = editFreedQty(variant.id);
 
       // Stock validation with freed quantity
       const stockCheck = await checkStock(variant.id, qty, freedQty);
@@ -2076,7 +2087,7 @@ export default function SalesInvoice() {
     if (isScannerLike || (value.length >= 4 && timeSinceLastKeystroke < 50)) {
       // Schedule auto-submit for scanners that don't send Enter
       scheduleAutoSubmit(value, (val) => {
-        searchAndAddProduct(val);
+        searchAndAddProductRef.current(val);
         setSearchInput("");
         resetScannerDetection();
         setTimeout(() => barcodeInputRef.current?.focus(), 50);
@@ -2101,7 +2112,7 @@ export default function SalesInvoice() {
       cancelAutoSubmit();
       markSubmitted(rawValue);
       
-      searchAndAddProduct(rawValue);
+      searchAndAddProductRef.current(rawValue);
       resetScannerDetection();
     }
   }, [resetScannerDetection, cancelAutoSubmit, markSubmitted]);
@@ -2249,12 +2260,7 @@ export default function SalesInvoice() {
       const stockQty = Number(foundVariant.stock_qty) || 0;
 
       if (!isServiceOrCombo) {
-        let freedQty = 0;
-        if (editingInvoiceId && originalItemsForEdit.length > 0) {
-          freedQty = originalItemsForEdit
-            .filter((orig) => orig.variantId === foundVariant.id)
-            .reduce((sum, orig) => sum + orig.quantity, 0);
-        }
+        const freedQty = editFreedQty(foundVariant.id);
         const alreadyStaged = stagedQtyByVariantRef.current.get(foundVariant.id) || 0;
         const requestedQty = alreadyStaged + 1;
         const availableStock = stockQty + freedQty;
@@ -2323,6 +2329,7 @@ export default function SalesInvoice() {
     originalItemsForEdit,
     allowNegativeStock,
   ]);
+  searchAndAddProductRef.current = searchAndAddProduct;
 
   const addProductToInvoice = async (
     product: any,
@@ -2405,12 +2412,7 @@ export default function SalesInvoice() {
     }
 
     // In edit mode, calculate freed stock from original invoice for this variant
-    let freedQty = 0;
-    if (editingInvoiceId && originalItemsForEdit.length > 0) {
-      freedQty = originalItemsForEdit
-        .filter(orig => orig.variantId === variant.id)
-        .reduce((sum, orig) => sum + orig.quantity, 0);
-    }
+    const freedQty = editFreedQty(variant.id);
 
     // Stock guard BEFORE any price prompt or staging — never add an out-of-stock product.
     // Message shows immediately on scan/select; the item is not added to the bill.
@@ -2908,12 +2910,7 @@ export default function SalesInvoice() {
     if (!item || !item.variantId) return;
     
     // In edit mode, calculate freed stock from original invoice for this variant
-    let freedQty = 0;
-    if (editingInvoiceId && originalItemsForEdit.length > 0) {
-      freedQty = originalItemsForEdit
-        .filter(orig => orig.variantId === item.variantId)
-        .reduce((sum, orig) => sum + orig.quantity, 0);
-    }
+    const freedQty = editFreedQty(item.variantId);
     
     // Real-time stock validation with freed quantity
     const stockCheck = await checkStock(item.variantId, quantity, freedQty);
