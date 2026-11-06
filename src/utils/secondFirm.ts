@@ -68,6 +68,7 @@ export function applyPrintFirmToSettings<T extends SettingsLike>(settings: T, pr
       ...(settings.bill_barcode_settings || {}),
       logo_url: "",
       stamp_image_base64: "",
+      fssai_number: "",
     },
   } as T;
 }

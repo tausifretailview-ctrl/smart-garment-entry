@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-11-04",
-  "count": 922,
-  "fileCount": 940,
+  "generatedAt": "2026-11-06",
+  "count": 923,
+  "fileCount": 941,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -925,7 +925,8 @@
     "20270404120000",
     "20270405120000",
     "20270406120000",
-    "20270407120000"
+    "20270407120000",
+    "20270408120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1867,7 +1868,8 @@
     "20270404120000_godown_purchase_receive.sql",
     "20270405120000_godown_sale_dispatch.sql",
     "20270406120000_whatsapp_health_support_view.sql",
-    "20270407120000_godown_challan_dispatch.sql"
+    "20270407120000_godown_challan_dispatch.sql",
+    "20270408120000_customer_fssai_number.sql"
   ],
   "duplicateVersions": [
     {
