@@ -111,6 +111,7 @@ function preloadWhatsAppTab() {
   preloadCustomerPagePanel();
 }
 import { CompanyProfileBankAccounts } from "@/components/settings/CompanyProfileBankAccounts";
+import { fssaiWarning } from "@/utils/fssai";
 
 const loadDesktopPrintPanel = () =>
   import("@/components/DesktopPrintSettings").then((m) => ({ default: m.DesktopPrintSettings }));
@@ -395,6 +396,8 @@ interface SaleSettings {
 
 interface BillBarcodeSettings {
   logo_url?: string;
+  /** Food shops: FSSAI licence number, printed under the address on sale bills when filled. */
+  fssai_number?: string;
   header_text?: string;
   footer_text?: string;
   barcode_width?: number;
@@ -1548,6 +1551,31 @@ export default function Settings() {
                       onChange={(e) =>
                         setSettings({ ...settings, email_id: e.target.value })
                       }
+                    />
+                  </SettingsField>
+                  <SettingsField
+                    label="FSSAI Number"
+                    htmlFor="fssai_number"
+                    help={
+                      fssaiWarning(settings.bill_barcode_settings?.fssai_number || "") ||
+                      "Food shops only. Printed under your address on sale bills when filled."
+                    }
+                  >
+                    <Input
+                      id="fssai_number"
+                      inputMode="numeric"
+                      value={settings.bill_barcode_settings?.fssai_number || ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...(settings.bill_barcode_settings || {}),
+                            fssai_number: e.target.value.replace(/\s+/g, ""),
+                          } as BillBarcodeSettings,
+                        })
+                      }
+                      placeholder="e.g. 11521999000123 (optional)"
+                      className="font-mono"
                     />
                   </SettingsField>
                 </SettingsGrid>

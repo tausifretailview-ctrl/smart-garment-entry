@@ -41,6 +41,7 @@ import { TrendzoPosThermalReceipt80mm } from './TrendzoPosThermalReceipt80mm';
 import { normalizeThermalReceiptMoney } from '@/utils/thermalReceiptSettlement';
 import { VastrakalaThermalReceipt80mm } from './VastrakalaThermalReceipt80mm';
 import { buildKidsCampGstRateBreakdown } from '@/utils/kidsCampThermalReceipt';
+import { applyShopFssaiToSettings } from '@/utils/fssai';
 import QRCode from 'qrcode';
 import { resolveCompanyUpiId, resolveInvoiceUpiId } from '@/utils/companyUpi';
 import {
@@ -291,7 +292,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
 
     useEffect(() => {
       const source = useParentOrgSettings ? props.orgSettings : fetchedOrgSettings;
-      if (source) setSettings(applyPrintFirmToSettings(source as Record<string, any>, props.printFirm));
+      if (source) setSettings(applyShopFssaiToSettings(applyPrintFirmToSettings(source as Record<string, any>, props.printFirm)));
     }, [useParentOrgSettings, props.orgSettings, fetchedOrgSettings, props.printFirm]);
 
     useEffect(() => {

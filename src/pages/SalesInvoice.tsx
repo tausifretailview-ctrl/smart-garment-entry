@@ -322,6 +322,7 @@ const customerSchema = z.object({
   address: z.string().trim().max(500).optional(),
   gst_number: z.string().trim().max(15).optional(),
   transport_details: z.string().trim().max(200).optional().or(z.literal("")),
+  fssai_number: z.string().trim().max(20).optional().or(z.literal("")),
 });
 
 function applyFlatDiscountFromInvoice(
@@ -962,6 +963,7 @@ export default function SalesInvoice() {
       address: "",
       gst_number: "",
       transport_details: "",
+      fssai_number: "",
     },
   });
 
@@ -3198,6 +3200,7 @@ export default function SalesInvoice() {
         address: values.address,
         gst_number: values.gst_number,
         transport_details: values.transport_details,
+        fssai_number: values.fssai_number,
         organization_id: currentOrganization.id,
       });
 
@@ -6189,6 +6192,20 @@ Thank you for choosing us!`;
                     <FormLabel>Transport Details</FormLabel>
                     <FormControl>
                       <Input {...field} placeholder="e.g., VRL Logistics, Navi Mumbai" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={customerForm.control}
+                name="fssai_number"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>FSSAI Number</FormLabel>
+                    <FormControl>
+                      <Input {...field} inputMode="numeric" placeholder="Food shops only (optional)" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
