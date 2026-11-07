@@ -159,7 +159,7 @@ export const QuotationPrint = React.forwardRef<HTMLDivElement, QuotationPrintPro
               {businessName}
             </h1>
             <p style={{ fontSize: isA4 ? '9pt' : isHorizontal ? '8pt' : '7pt', margin: '2px 0', lineHeight: 1.4 }}>
-              {address}
+              {(address || "").toUpperCase()}
             </p>
             <p style={{ fontSize: isA4 ? '9pt' : isHorizontal ? '8pt' : '7pt', margin: '2px 0' }}>
               <strong>Phone:</strong> {mobile} {email && `| Email: ${email}`}
@@ -213,7 +213,7 @@ export const QuotationPrint = React.forwardRef<HTMLDivElement, QuotationPrintPro
               To:
             </h3>
             <p style={{ margin: '3px 0', fontWeight: 'bold' }}>{customerName}</p>
-            {customerAddress && <p style={{ margin: '2px 0', lineHeight: 1.3 }}>{customerAddress}</p>}
+            {customerAddress && <p style={{ margin: '2px 0', lineHeight: 1.3 }}>{customerAddress.toUpperCase()}</p>}
             {customerMobile && <p style={{ margin: '2px 0' }}><strong>Phone:</strong> {customerMobile}</p>}
             {customerEmail && <p style={{ margin: '2px 0' }}><strong>Email:</strong> {customerEmail}</p>}
             {customerGSTIN && <p style={{ margin: '2px 0' }}><strong>GSTIN:</strong> {customerGSTIN}</p>}
