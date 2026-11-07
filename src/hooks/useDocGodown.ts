@@ -7,6 +7,7 @@ import {
   checkDocGodownStock,
   docGodownSyncFailMessage,
   fetchDocGodown,
+  GODOWN_DOC_PICK_LABEL,
   GODOWN_DOC_SQL_STEP,
   godownDocShortMessage,
   godownDocSyncWarning,
@@ -18,7 +19,7 @@ import {
 type Toast = (t: { title: string; description?: string; variant?: "default" | "destructive"; duration?: number }) => unknown;
 
 /**
- * The godown a document's goods go out of ("Dispatch from") or come into ("Return into")
+ * The godown a document's goods go out of ("Dispatch from", "Return from") or come into ("Return into")
  * (Industrial mode, Phase 3 step 3d). Does nothing, and reads nothing, unless Industrial mode
  * is on and the shop has a godown besides Main. A delivery challan moves no stock: it only keeps
  * the pick, with no stock check. A sale return brings goods in, so it needs no check either.
@@ -101,18 +102,23 @@ export function useDocGodown(opts: {
           godownId: target,
           lines,
         });
-        const msg = godownDocShortMessage(short, s.choices.find((g) => g.id === target)?.name ?? "Main");
+        const msg = godownDocShortMessage(
+          short,
+          s.choices.find((g) => g.id === target)?.name ?? "Main",
+          GODOWN_DOC_PICK_LABEL[refType],
+        );
         if (!msg) return true;
         toast({ title: msg.title, description: msg.description, variant: "destructive", duration: 12000 });
         return false;
       } catch (e) {
         if (target === s.mainId) return true;
         const text = godownErrorText(e);
+        const pick = GODOWN_DOC_PICK_LABEL[refType];
         toast({
           title: "Could not check the godown stock",
           description: isMissingGodownSql(text)
-            ? `Run the Phase 3 step ${GODOWN_DOC_SQL_STEP[refType]} SQL first, or pick Main in "Dispatch from".`
-            : `${text.replace(/\.$/, "")}. Try again, or pick Main in "Dispatch from".`,
+            ? `Run the Phase 3 step ${GODOWN_DOC_SQL_STEP[refType]} SQL first, or pick Main in "${pick}".`
+            : `${text.replace(/\.$/, "")}. Try again, or pick Main in "${pick}".`,
           variant: "destructive",
           duration: 12000,
         });
@@ -147,6 +153,9 @@ export function useDocGodown(opts: {
         void queryClient.invalidateQueries({ queryKey: ["godown-stock", orgId] });
         if (refType === "challan") void queryClient.invalidateQueries({ queryKey: ["challan-godown-places", orgId] });
         if (refType === "sale_return") void queryClient.invalidateQueries({ queryKey: ["sale-return-godown-places", orgId] });
+        if (refType === "purchase_return") {
+          void queryClient.invalidateQueries({ queryKey: ["purchase-return-godown-places", orgId] });
+        }
       }
     },
     [orgId, queryClient, refType, toast],

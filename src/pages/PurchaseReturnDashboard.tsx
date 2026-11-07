@@ -39,6 +39,8 @@ import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersist
 import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { useEwayBillOn } from "@/hooks/useEwayBillOn";
+import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { fetchDocGodownNames } from "@/utils/godownDocs";
 import { PurchaseReturnEwayBillDialog, type EwbPurchaseReturnInfo } from "@/components/ewaybill/PurchaseReturnEwayBillDialog";
 import { EWB_VALUE_LIMIT, fetchEwayBillsForPurchaseReturns, formatEwbNo } from "@/utils/ewayBill";
 import { cn } from "@/lib/utils";
@@ -457,6 +459,21 @@ const PurchaseReturnDashboard = () => {
     refetchOnWindowFocus: false,
   });
   const ewbOfReturn = (id: string) => returnEwb?.rows.get(String(id)) ?? null;
+
+  // Industrial mode, Phase 3 step 3d-4: the godown each return's goods went out of ("Return from").
+  const industrialOn = useIndustrialMode().enabled;
+  const returnPlaceKey = useMemo(
+    () => (industrialOn ? (returnsData?.returns || []).map((r) => String(r.id)).sort().join(",") : ""),
+    [industrialOn, returnsData],
+  );
+  const { data: returnPlaces } = useQuery({
+    queryKey: ["purchase-return-godown-places", currentOrganization?.id ?? "", returnPlaceKey],
+    queryFn: () => fetchDocGodownNames("purchase_return", returnPlaceKey.split(",")),
+    enabled: industrialOn && !!currentOrganization?.id && returnPlaceKey.length > 0,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const returnPlaceName = (id: unknown): string => (returnPlaces && returnPlaces[String(id)]) || "";
   const ewbReturnInfo: EwbPurchaseReturnInfo | null = ewbReturn
     ? {
         id: String(ewbReturn.id),
@@ -1086,6 +1103,14 @@ const PurchaseReturnDashboard = () => {
                             {returnRecord.is_dc && (
                               <span className="text-xs bg-orange-500 text-white px-2 py-0.5 rounded font-bold">
                                 DC
+                              </span>
+                            )}
+                            {returnPlaceName(returnRecord.id) && (
+                              <span
+                                className="rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-800 ring-1 ring-emerald-200 whitespace-nowrap"
+                                title={`Returned goods went out of ${returnPlaceName(returnRecord.id)}`}
+                              >
+                                From {returnPlaceName(returnRecord.id)}
                               </span>
                             )}
                           </div>
