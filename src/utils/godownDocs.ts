@@ -8,6 +8,10 @@
  *
  * Part 2 covers the Delivery Challan. A challan moves no stock, so it only keeps the godown it
  * was sent from; the invoice made from it later goes out of that godown.
+ *
+ * Part 3 covers the Sale Return, the other way round: the return saves as before (its goods
+ * come back on Main), then godown_sync_doc moves them into the picked godown. No check before
+ * the save is needed, because nothing has to be there already.
  */
 import { supabase } from "@/integrations/supabase/client";
 import { godownErrorText, isMissingGodownSql } from "./godowns";
@@ -16,9 +20,46 @@ import { godownErrorText, isMissingGodownSql } from "./godowns";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = (): any => supabase;
 
-export type GodownDocType = "sale" | "challan";
+export type GodownDocType = "sale" | "challan" | "sale_return";
 
-/** Whether saving the document takes stock (a delivery challan does not). */
+/** The Phase 3 SQL step each document needs. */
+export const GODOWN_DOC_SQL_STEP: Record<GodownDocType, string> = { sale: "3d-1", challan: "3d-2", sale_return: "3d-3" };
+
+/**
+ * What to tell the user when the godown could not be set after the document was saved.
+ * Before its own SQL step runs, the database does not know the document type yet and says
+ * "Document not found" (or "do not follow ... yet"): that also means the SQL step is missing.
+ */
+export function docGodownSyncFailMessage(refType: GodownDocType, text: string) {
+  const step = GODOWN_DOC_SQL_STEP[refType];
+  const reason = text.replace(/\.$/, "");
+  const missingSql =
+    isMissingGodownSql(text) || (refType !== "sale" && /document not found|do not follow .* yet/i.test(text));
+  if (refType === "challan") {
+    return {
+      title: "Challan saved without its godown",
+      description: missingSql
+        ? `Run the Phase 3 step ${step} SQL first. The invoice made from this challan will go out of Main.`
+        : `${reason}. The invoice made from this challan will go out of Main.`,
+    };
+  }
+  if (refType === "sale_return") {
+    return {
+      title: "Return saved. Goods stayed in Main",
+      description: missingSql
+        ? `Run the Phase 3 step ${step} SQL first, then open this return and save it again.`
+        : `${reason}. Open the return and save again, or move the stock in Godown Transfers.`,
+    };
+  }
+  return {
+    title: "Bill saved. Goods went out of Main",
+    description: missingSql
+      ? `Run the Phase 3 step ${step} SQL first, then open this bill and save it again.`
+      : `${reason}. Open the bill and save again, or move the stock in Godown Transfers.`,
+  };
+}
+
+/** Whether saving the document takes stock (a delivery challan does not; a sale return adds it). */
 export function godownDocTakesStock(refType: GodownDocType): boolean {
   return refType === "sale";
 }
@@ -109,22 +150,33 @@ export function godownDocShortMessage(short: GodownDocShortLine[], placeName: st
   };
 }
 
-/** A warning after the save when some goods could not be taken from the godown. */
-export function godownDocSyncWarning(r: GodownDocSyncResult): { title: string; description: string } | null {
+/** A warning after the save when some goods could not be moved to or from the godown. */
+export function godownDocSyncWarning(
+  r: GodownDocSyncResult,
+  refType: GodownDocType = "sale",
+): { title: string; description: string } | null {
   if (r.short.length === 0) return null;
-  const lines = r.short.slice(0, 3).map((s) =>
-    s.way === "forward"
-      ? `${fmtQty(s.qty)} of ${s.item} was not in ${s.godown || "the godown"}, so it came off Main`
-      : `${fmtQty(s.qty)} of ${s.item} could not go back to ${s.godown || "the godown"}`,
-  );
+  const goodsIn = refType === "sale_return";
+  const lines = r.short.slice(0, 3).map((s) => {
+    const qty = fmtQty(s.qty);
+    const place = s.godown || "the godown";
+    if (goodsIn) {
+      return s.way === "forward"
+        ? `${qty} of ${s.item} could not go into ${place}, so it stayed in Main`
+        : `${qty} of ${s.item} was no longer in ${place}, so it could not come out`;
+    }
+    return s.way === "forward"
+      ? `${qty} of ${s.item} was not in ${place}, so it came off Main`
+      : `${qty} of ${s.item} could not go back to ${place}`;
+  });
   const more = r.short.length > 3 ? ` and ${r.short.length - 3} more` : "";
   return {
-    title: "Bill saved. Some goods did not move",
+    title: goodsIn ? "Return saved. Some goods did not move" : "Bill saved. Some goods did not move",
     description: `${lines.join("; ")}${more}. Check Godown Transfers.`,
   };
 }
 
-/** The godown this document went out of (null = Main, or the step 3d SQL has not run). */
+/** The godown this document went out of, or came into (null = Main, or the step 3d SQL has not run). */
 export async function fetchDocGodown(refType: GodownDocType, docId: string): Promise<string | null> {
   const { data, error } = await db()
     .from("godown_doc_places")

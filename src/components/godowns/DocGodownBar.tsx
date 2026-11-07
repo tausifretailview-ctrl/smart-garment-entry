@@ -73,6 +73,9 @@ export function DocGodownField(props: {
   disabled?: boolean;
   loading?: boolean;
   className?: string;
+  /** Match the page's own labels and boxes (Sale Return uses bold black labels). */
+  labelClassName?: string;
+  triggerClassName?: string;
 }) {
   const { label, choices, value, mainId, onChange, mainHint, godownHint, disabled, loading, className } = props;
   const picked = choices.find((g) => g.id === value) ?? null;
@@ -81,7 +84,7 @@ export function DocGodownField(props: {
 
   return (
     <div className={className}>
-      <label className="mb-1 flex items-center gap-1 text-[13px] font-medium text-muted-foreground">
+      <label className={cn("mb-1 flex items-center gap-1 text-[13px] font-medium text-muted-foreground", props.labelClassName)}>
         <Warehouse className={cn("h-3.5 w-3.5 shrink-0", isMain ? "text-slate-400" : "text-emerald-600")} />
         <span className="truncate">{label}</span>
         {loading ? <Loader2 className="h-3 w-3 shrink-0 animate-spin text-slate-400" /> : null}
@@ -93,6 +96,7 @@ export function DocGodownField(props: {
           title={hint}
           className={cn(
             "h-10 text-sm",
+            props.triggerClassName,
             isMain ? "" : "border-emerald-400 bg-emerald-50 font-semibold text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200",
           )}
         >

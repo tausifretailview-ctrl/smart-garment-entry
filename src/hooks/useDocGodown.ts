@@ -5,7 +5,9 @@ import { fetchGodowns, godownErrorText, isMissingGodownSql, type Godown } from "
 import { purchaseGodownChoices, purchaseGodownNeedsSync, showPurchaseGodownPicker } from "@/utils/purchaseGodown";
 import {
   checkDocGodownStock,
+  docGodownSyncFailMessage,
   fetchDocGodown,
+  GODOWN_DOC_SQL_STEP,
   godownDocShortMessage,
   godownDocSyncWarning,
   godownDocTakesStock,
@@ -15,12 +17,11 @@ import {
 
 type Toast = (t: { title: string; description?: string; variant?: "default" | "destructive"; duration?: number }) => unknown;
 
-const SQL_STEP: Record<GodownDocType, string> = { sale: "3d-1", challan: "3d-2" };
-
 /**
- * "Dispatch from" godown for a document that sends goods out (Industrial mode, Phase 3 step 3d).
- * Does nothing, and reads nothing, unless Industrial mode is on and the shop has a godown
- * besides Main. A delivery challan moves no stock: it only keeps the pick, with no stock check.
+ * The godown a document's goods go out of ("Dispatch from") or come into ("Return into")
+ * (Industrial mode, Phase 3 step 3d). Does nothing, and reads nothing, unless Industrial mode
+ * is on and the shop has a godown besides Main. A delivery challan moves no stock: it only keeps
+ * the pick, with no stock check. A sale return brings goods in, so it needs no check either.
  */
 export function useDocGodown(opts: {
   refType: GodownDocType;
@@ -110,7 +111,7 @@ export function useDocGodown(opts: {
         toast({
           title: "Could not check the godown stock",
           description: isMissingGodownSql(text)
-            ? `Run the Phase 3 step ${SQL_STEP[refType]} SQL first, or pick Main in "Dispatch from".`
+            ? `Run the Phase 3 step ${GODOWN_DOC_SQL_STEP[refType]} SQL first, or pick Main in "Dispatch from".`
             : `${text.replace(/\.$/, "")}. Try again, or pick Main in "Dispatch from".`,
           variant: "destructive",
           duration: 12000,
@@ -134,27 +135,18 @@ export function useDocGodown(opts: {
       if (!purchaseGodownNeedsSync({ mainId: s.mainId, targetId: s.value, savedId })) return;
       try {
         const result = await syncDocGodown(refType, docId, s.value || s.mainId);
-        const warn = godownDocSyncWarning(result);
+        const warn = godownDocSyncWarning(result, refType);
         if (warn) toast({ title: warn.title, description: warn.description, variant: "destructive", duration: 12000 });
       } catch (e) {
         const text = godownErrorText(e);
-        const takesStock = godownDocTakesStock(refType);
-        toast({
-          title: takesStock ? "Bill saved. Goods went out of Main" : "Challan saved without its godown",
-          description: isMissingGodownSql(text)
-            ? takesStock
-              ? `Run the Phase 3 step ${SQL_STEP[refType]} SQL first, then open this bill and save it again.`
-              : `Run the Phase 3 step ${SQL_STEP[refType]} SQL first. The invoice made from this challan will go out of Main.`
-            : takesStock
-              ? `${text.replace(/\.$/, "")}. Open the bill and save again, or move the stock in Godown Transfers.`
-              : `${text.replace(/\.$/, "")}. The invoice made from this challan will go out of Main.`,
-          variant: "destructive",
-          duration: 12000,
-        });
+        const msg = docGodownSyncFailMessage(refType, text);
+        toast({ title: msg.title, description: msg.description, variant: "destructive", duration: 12000 });
       } finally {
         void queryClient.invalidateQueries({ queryKey: ["doc-godown", orgId] });
         void queryClient.invalidateQueries({ queryKey: ["godown-summary", orgId] });
         void queryClient.invalidateQueries({ queryKey: ["godown-stock", orgId] });
+        if (refType === "challan") void queryClient.invalidateQueries({ queryKey: ["challan-godown-places", orgId] });
+        if (refType === "sale_return") void queryClient.invalidateQueries({ queryKey: ["sale-return-godown-places", orgId] });
       }
     },
     [orgId, queryClient, refType, toast],
