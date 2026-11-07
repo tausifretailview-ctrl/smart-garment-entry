@@ -41,6 +41,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { QuotationPrint } from "@/components/QuotationPrint";
 import { QuotationPrintITCompany } from "@/components/QuotationPrintITCompany";
+import {
+  invalidateQuotationViews,
+  parseQuotationViewsChanged,
+  QUOTATION_VIEWS_CHANGED_KEY,
+} from "@/utils/quotationViews";
 import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -288,9 +293,20 @@ export default function QuotationDashboard() {
   const invalidateQuotationQueries = useCallback(() => {
     const orgId = currentOrganization?.id;
     if (!orgId) return;
-    void queryClient.invalidateQueries({ queryKey: ["quotations-list", orgId] });
-    void queryClient.invalidateQueries({ queryKey: ["quotation-summary", orgId] });
-    void queryClient.invalidateQueries({ queryKey: ["quotation-customers", orgId] });
+    invalidateQuotationViews(queryClient, orgId);
+  }, [currentOrganization?.id, queryClient]);
+
+  // A quotation saved in another browser tab: refresh this list straight away.
+  useEffect(() => {
+    const orgId = currentOrganization?.id;
+    if (!orgId) return;
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== QUOTATION_VIEWS_CHANGED_KEY) return;
+      if (parseQuotationViewsChanged(e.newValue) !== orgId) return;
+      invalidateQuotationViews(queryClient, orgId);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, [currentOrganization?.id, queryClient]);
 
   const {

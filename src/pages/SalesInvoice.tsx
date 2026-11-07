@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import { invalidateQuotationViewsAfterSave } from "@/utils/quotationViews";
 import { CustomerBalanceBadge } from "@/components/CustomerBalanceBadge";
 import { CustomerCreditChip } from "@/components/customers/CustomerCreditChip";
 import { useCustomerCreditTerms, useIndustrialMode } from "@/hooks/useIndustrialMode";
@@ -4112,6 +4113,7 @@ Thank you for choosing us!`;
         const fromQuotation = fromQuotationRef.current;
         fromQuotationRef.current = null;
         if (fromQuotation && currentOrganization?.id) {
+          const quotationOrgId = currentOrganization.id;
           void supabase
             .from("quotations")
             .update({ status: "confirmed" })
@@ -4119,6 +4121,7 @@ Thank you for choosing us!`;
             .eq("organization_id", currentOrganization.id)
             .then(({ error: qErr }) => {
               if (qErr) console.error("Quotation status update failed:", qErr);
+              else invalidateQuotationViewsAfterSave(queryClient, quotationOrgId);
             });
         }
 
