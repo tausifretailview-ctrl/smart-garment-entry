@@ -219,6 +219,14 @@ const EmployeeMaster = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.field_sales_access && !formData.user_id) {
+      toast({
+        title: "Link a login account",
+        description: "Field Sales App needs a user account linked. Pick the employee's login in \"Link User Account\", otherwise the app will not open for them.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (editingEmployee) { updateEmployee.mutate({ id: editingEmployee.id, data: formData }); }
     else { createEmployee.mutate(formData); }
   };
@@ -290,10 +298,25 @@ const EmployeeMaster = () => {
       header: "Field Sales",
       cell: ({ row }) =>
         row.original.field_sales_access ? (
-          <Badge variant="default" className="bg-green-600 text-sm px-2.5 py-0.5">
-            <Smartphone className="h-3.5 w-3.5 mr-1" />
-            Enabled
-          </Badge>
+          row.original.user_id ? (
+            <Badge
+              variant="default"
+              className="bg-green-600 text-sm px-2.5 py-0.5"
+              title={orgUsers.find((u) => u.id === row.original.user_id)?.email || "Linked"}
+            >
+              <Smartphone className="h-3.5 w-3.5 mr-1" />
+              Enabled
+            </Badge>
+          ) : (
+            <Badge
+              variant="outline"
+              className="border-amber-500 text-amber-700 text-sm px-2.5 py-0.5"
+              title="No login account linked. Edit and pick Link User Account."
+            >
+              <Smartphone className="h-3.5 w-3.5 mr-1" />
+              Not linked
+            </Badge>
+          )
         ) : (
           <Badge variant="outline" className="text-sm text-muted-foreground px-2.5 py-0.5">
             Disabled
@@ -332,7 +355,7 @@ const EmployeeMaster = () => {
       ),
       size: 110,
     },
-  ], []);
+  ], [orgUsers]);
 
   return (
     <div className="employee-master-workspace flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3">
@@ -536,6 +559,11 @@ const EmployeeMaster = () => {
                         <p className="text-sm text-muted-foreground mt-1">
                           Link this employee to a user account for Field Sales app login
                         </p>
+                        {!isLoadingUsers && orgUsers.length === 0 && (
+                          <p className="text-sm text-amber-700 mt-1">
+                            No user accounts found. Create the salesman's login in Settings &gt; Users first, then link it here.
+                          </p>
+                        )}
                       </div>
                     )}
                     </div>
