@@ -12,6 +12,9 @@
  * Part 3 covers the Sale Return, the other way round: the return saves as before (its goods
  * come back on Main), then godown_sync_doc moves them into the picked godown. No check before
  * the save is needed, because nothing has to be there already.
+ *
+ * Part 4 covers the Purchase Return, which sends goods out like a sale: checked before the save,
+ * then taken from the picked godown ("Return from").
  */
 import { supabase } from "@/integrations/supabase/client";
 import { godownErrorText, isMissingGodownSql } from "./godowns";
@@ -20,10 +23,23 @@ import { godownErrorText, isMissingGodownSql } from "./godowns";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = (): any => supabase;
 
-export type GodownDocType = "sale" | "challan" | "sale_return";
+export type GodownDocType = "sale" | "challan" | "sale_return" | "purchase_return";
 
 /** The Phase 3 SQL step each document needs. */
-export const GODOWN_DOC_SQL_STEP: Record<GodownDocType, string> = { sale: "3d-1", challan: "3d-2", sale_return: "3d-3" };
+export const GODOWN_DOC_SQL_STEP: Record<GodownDocType, string> = {
+  sale: "3d-1",
+  challan: "3d-2",
+  sale_return: "3d-3",
+  purchase_return: "3d-4",
+};
+
+/** The name of the godown pick on each document's screen. */
+export const GODOWN_DOC_PICK_LABEL: Record<GodownDocType, string> = {
+  sale: "Dispatch from",
+  challan: "Dispatch from",
+  sale_return: "Return into",
+  purchase_return: "Return from",
+};
 
 /**
  * What to tell the user when the godown could not be set after the document was saved.
@@ -41,6 +57,14 @@ export function docGodownSyncFailMessage(refType: GodownDocType, text: string) {
       description: missingSql
         ? `Run the Phase 3 step ${step} SQL first. The invoice made from this challan will go out of Main.`
         : `${reason}. The invoice made from this challan will go out of Main.`,
+    };
+  }
+  if (refType === "purchase_return") {
+    return {
+      title: "Return saved. Goods went out of Main",
+      description: missingSql
+        ? `Run the Phase 3 step ${step} SQL first, then open this return and save it again.`
+        : `${reason}. Open the return and save again, or move the stock in Godown Transfers.`,
     };
   }
   if (refType === "sale_return") {
@@ -61,7 +85,7 @@ export function docGodownSyncFailMessage(refType: GodownDocType, text: string) {
 
 /** Whether saving the document takes stock (a delivery challan does not; a sale return adds it). */
 export function godownDocTakesStock(refType: GodownDocType): boolean {
-  return refType === "sale";
+  return refType === "sale" || refType === "purchase_return";
 }
 
 export type GodownDocShortLine = {
@@ -137,7 +161,11 @@ export function godownDocCheckLines(lines: { variantId?: string | null; quantity
 }
 
 /** The message that stops a save when the picked place does not have the goods. */
-export function godownDocShortMessage(short: GodownDocShortLine[], placeName: string): { title: string; description: string } | null {
+export function godownDocShortMessage(
+  short: GodownDocShortLine[],
+  placeName: string,
+  pickLabel = "Dispatch from",
+): { title: string; description: string } | null {
   if (short.length === 0) return null;
   const lines = short.slice(0, 3).map((s) => {
     const where = s.elsewhere > 0 ? ` (${fmtQty(s.elsewhere)} in other godowns)` : "";
@@ -146,7 +174,7 @@ export function godownDocShortMessage(short: GodownDocShortLine[], placeName: st
   const more = short.length > 3 ? `; and ${short.length - 3} more` : "";
   return {
     title: `Not enough stock in ${placeName}`,
-    description: `${lines.join("; ")}${more}. Pick another godown in "Dispatch from" or move the goods first.`,
+    description: `${lines.join("; ")}${more}. Pick another godown in "${pickLabel}" or move the goods first.`,
   };
 }
 
@@ -171,7 +199,7 @@ export function godownDocSyncWarning(
   });
   const more = r.short.length > 3 ? ` and ${r.short.length - 3} more` : "";
   return {
-    title: goodsIn ? "Return saved. Some goods did not move" : "Bill saved. Some goods did not move",
+    title: refType === "sale" || refType === "challan" ? "Bill saved. Some goods did not move" : "Return saved. Some goods did not move",
     description: `${lines.join("; ")}${more}. Check Godown Transfers.`,
   };
 }

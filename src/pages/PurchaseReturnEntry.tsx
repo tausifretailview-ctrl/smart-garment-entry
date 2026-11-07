@@ -42,6 +42,10 @@ import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngine
 import { fetchAllSuppliers } from "@/utils/fetchAllRows";
 import { coerceToMap } from "@/lib/coerceToMap";
 import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
+import { useDocGodown } from "@/hooks/useDocGodown";
+import { DocGodownField } from "@/components/godowns/DocGodownBar";
+import { godownDocCheckLines } from "@/utils/godownDocs";
+import { fetchPurchaseBillGodown } from "@/utils/purchaseGodown";
 import { expandBarcodeScanCandidates, isDoubledNumericBarcode } from "@/utils/barcodeScanResolve";
 import { normalizeProductSearchTerm } from "@/utils/productDashboardBarcodeSearch";
 import {
@@ -204,6 +208,15 @@ const PurchaseReturnEntry = () => {
     null;
   const returnPreview = routeState?.returnPreview;
   const isEditMode = !!editId;
+
+  // Industrial mode, Phase 3 step 3d-4: the godown the returned goods go out of.
+  // Hidden, and reads nothing, unless Industrial mode is on and the shop has godowns.
+  const returnGodown = useDocGodown({
+    refType: "purchase_return",
+    organizationId: currentOrganization?.id,
+    editDocId: editId,
+    toast,
+  });
   
   const [loading, setLoading] = useState(false);
   const savingRef = useRef(false);
@@ -1109,6 +1122,16 @@ const PurchaseReturnEntry = () => {
       }
 
       setOriginalBillId(bill.id as string);
+      // A bill received into a godown (step 3c): its goods go back out of there unless the user picks another.
+      if (!isEditMode && returnGodown.visible && bill.id) {
+        void fetchPurchaseBillGodown(String(bill.id))
+          .then((godownId) => {
+            if (godownId && returnGodown.choices.some((g) => g.id === godownId && g.is_active)) {
+              returnGodown.setValue(godownId);
+            }
+          })
+          .catch(() => undefined);
+      }
       setLineItems(items);
       setBillLoaded(true);
       const skipNote =
@@ -1268,6 +1291,12 @@ const PurchaseReturnEntry = () => {
         }
       }
 
+      // Industrial mode: the godown picked in "Return from" must have the goods (says why if not).
+      const godownOk = await returnGodown.checkBeforeSave(
+        godownDocCheckLines(lineItems.map((item) => ({ variantId: item.sku_id, quantity: item.qty }))),
+      );
+      if (!godownOk) return;
+
       const paymentMethodForReturnRow: string | null =
         refundSettlement === "immediate_refund" ? refundPaymentMethod : null;
 
@@ -1386,6 +1415,8 @@ const PurchaseReturnEntry = () => {
           title: "Success",
           description: "Purchase return updated successfully",
         });
+        // Never throws: a problem only leaves the goods going out of Main, and the user is told so.
+        await returnGodown.syncAfterSave(editId, true);
       } else {
         // Generate fresh return number at save time to prevent duplicate key errors
         let freshReturnNumber = returnNumber;
@@ -1563,6 +1594,8 @@ const PurchaseReturnEntry = () => {
           title: "Success",
           description: "Purchase return saved successfully with credit note",
         });
+        // Never throws: a problem only leaves the goods going out of Main, and the user is told so.
+        await returnGodown.syncAfterSave(prId, false);
       }
 
       if (currentOrganization?.id) {
@@ -1722,6 +1755,23 @@ const PurchaseReturnEntry = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            {returnGodown.visible && (
+              <DocGodownField
+                label="Return from"
+                className="flex-1 min-w-[150px]"
+                labelClassName="text-[14px] font-bold text-slate-800"
+                triggerClassName="h-11 border-slate-300 text-[15px]"
+                choices={returnGodown.choices}
+                value={returnGodown.value}
+                mainId={returnGodown.mainId}
+                onChange={returnGodown.setValue}
+                loading={returnGodown.loading}
+                disabled={loading}
+                mainHint="Goods go back to the supplier out of the shop stock (Main), as before."
+                godownHint={(name) => `When you save, the returned goods go out of ${name}.`}
+              />
+            )}
           </div>
 
           <div className="mt-3 flex flex-wrap lg:flex-nowrap items-end gap-3">
