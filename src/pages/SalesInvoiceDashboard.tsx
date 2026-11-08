@@ -411,7 +411,9 @@ export default function SalesInvoiceDashboard() {
   const invoiceFilterSnapshot = useMemo(
     () => ({
       searchQuery,
-      periodFilter,
+      // "All Time" is not remembered: a shop that picked it once kept searching
+      // every year of bills (avg 450 ms, 77k calls, 8 Nov 2026). Reopen on 7 days.
+      periodFilter: periodFilter === "all" ? "weekly" : periodFilter,
       paymentStatusFilter,
       deliveryFilter,
       shopFilter,
@@ -441,7 +443,9 @@ export default function SalesInvoiceDashboard() {
     currentOrganization?.id,
     invoiceFilterSnapshot,
     (saved) => {
-      restoreDashboardFilters(saved, {
+      // Older saves may still hold "all"; open those on last 7 days too.
+      const restored = saved.periodFilter === "all" ? { ...saved, periodFilter: "weekly" } : saved;
+      restoreDashboardFilters(restored, {
         strings: [
           ["searchQuery", setSearchQuery],
           ["periodFilter", setPeriodFilter],
