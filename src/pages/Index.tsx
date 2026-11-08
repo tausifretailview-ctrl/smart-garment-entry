@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { prefetchTabPage } from "@/lib/tabPageRegistry";
 import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
+import { isNativeShell, isStandaloneDisplay } from "@/hooks/useInstallPrompt";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
 
@@ -53,6 +54,7 @@ import {
   Eye,
   EyeOff,
   Wallet,
+  Download,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -192,6 +194,8 @@ const DesktopDashboard = () => {
   const { hideDc, onlyDc } = useDcVisibility();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { hasAccess: hasFieldSalesAccess, employeeName } = useFieldSalesAccess();
+  // Hide the card's Install button only inside an installed / native shell.
+  const isFieldAppInstalled = isStandaloneDisplay() || isNativeShell();
   const { isAdmin, hasSpecialPermission, hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
   // Custom rights: Main Dashboard off → no page, no KPI values, no stats fetch.
   const canAccessMainDashboard =
@@ -1298,6 +1302,17 @@ const DesktopDashboard = () => {
                       <IndianRupee className="mr-1 h-3.5 w-3.5" />
                       Outstanding
                     </Button>
+                    {!isFieldAppInstalled && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => navigate("/salesman?install=1")}
+                        className="h-9 text-sm border-warning text-warning hover:bg-warning/10"
+                      >
+                        <Download className="mr-1 h-3.5 w-3.5" />
+                        Install App
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
