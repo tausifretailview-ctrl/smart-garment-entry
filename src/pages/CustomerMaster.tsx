@@ -109,6 +109,7 @@ import {
 } from "@/components/customers/CustomerCreditTermsFields";
 import { customerCreditTermsKey, fetchCustomerCreditTerms, useIndustrialMode } from "@/hooks/useIndustrialMode";
 import { parseCustomerCreditTermsInput, type CustomerCreditTerms } from "@/utils/industrialMode";
+import { customerFssaiPatch, normalizeFssaiNumber } from "@/utils/fssai";
 import {
   type CustomerShippingAddress,
   cleanCustomerShippingAddresses,
@@ -206,6 +207,7 @@ const CustomerMaster = () => {
     email: "",
     address: "",
     gst_number: "",
+    fssai_number: "",
     opening_balance: "",
     discount_percent: "",
     transport_details: "",
@@ -265,6 +267,7 @@ const CustomerMaster = () => {
   const [showSpecialDays, setShowSpecialDays] = useState(false);
   /** Birthday/anniversary as loaded for the customer being edited (to know when one was cleared). */
   const editingSpecialDaysRef = useRef<{ birthday: string; anniversary: string }>({ birthday: "", anniversary: "" });
+  const editingFssaiRef = useRef("");
   const [shippingAddresses, setShippingAddresses] = useState<CustomerShippingAddress[]>([]);
   const editingShippingAddressesRef = useRef<CustomerShippingAddress[]>([]);
   const [showLegacyImport, setShowLegacyImport] = useState(false);
@@ -737,6 +740,7 @@ const CustomerMaster = () => {
         transport_details: data.transport_details || null,
         portal_enabled: data.portal_enabled || false,
         organization_id: currentOrganization.id,
+        ...customerFssaiPatch(data.fssai_number),
       };
       if (enablePointsSystem) {
         customerData.points_balance = pointsBalance;
@@ -816,6 +820,7 @@ const CustomerMaster = () => {
         discount_percent: data.discount_percent ? parseFloat(data.discount_percent) : 0,
         transport_details: data.transport_details || null,
         portal_enabled: data.portal_enabled || false,
+        ...customerFssaiPatch(data.fssai_number, editingFssaiRef.current),
       };
       if (enablePointsSystem) {
         customerData.points_balance = nextPoints;
@@ -909,6 +914,7 @@ const CustomerMaster = () => {
       email: "",
       address: "",
       gst_number: "",
+      fssai_number: "",
       opening_balance: "",
       discount_percent: "",
       transport_details: "",
@@ -944,6 +950,7 @@ const CustomerMaster = () => {
       email: customer.email || "",
       address: customer.address || "",
       gst_number: customer.gst_number || "",
+      fssai_number: "",
       opening_balance: customer.opening_balance?.toString() || "",
       discount_percent: customer.discount_percent?.toString() || "",
       transport_details: (customer as any).transport_details || "",
@@ -953,6 +960,7 @@ const CustomerMaster = () => {
       anniversary: "",
     });
     editingSpecialDaysRef.current = { birthday: "", anniversary: "" };
+    editingFssaiRef.current = "";
     setShippingAddresses([]);
     editingShippingAddressesRef.current = [];
     setIsDialogOpen(true);
@@ -972,6 +980,19 @@ const CustomerMaster = () => {
           };
           editingSpecialDaysRef.current = loaded;
           setFormData((prev) => ({ ...prev, ...loaded }));
+        });
+      // FSSAI loaded on its own too, so nothing breaks before the FSSAI SQL is run.
+      void supabase
+        .from("customers")
+        .select("fssai_number" as any)
+        .eq("id", customer.id)
+        .eq("organization_id", currentOrganization.id)
+        .maybeSingle()
+        .then(({ data, error }) => {
+          if (error || !data) return;
+          const fssai = normalizeFssaiNumber((data as unknown as { fssai_number?: string | null }).fssai_number);
+          editingFssaiRef.current = fssai;
+          if (fssai) setFormData((prev) => ({ ...prev, fssai_number: fssai }));
         });
       void fetchCustomerShippingAddresses(currentOrganization.id, customer.id)
         .then((rows) => {
@@ -1857,6 +1878,7 @@ const CustomerMaster = () => {
               <div><Label htmlFor="m-address">Address</Label><Textarea id="m-address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} /></div>
               <CustomerShippingAddressesEditor value={shippingAddresses} onChange={setShippingAddresses} />
               <div><Label htmlFor="m-gst">GST Number</Label><Input id="m-gst" value={formData.gst_number} onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })} /></div>
+              <div><Label htmlFor="m-fssai">FSSAI Number</Label><Input id="m-fssai" inputMode="numeric" value={formData.fssai_number} onChange={(e) => setFormData({ ...formData, fssai_number: e.target.value })} placeholder="Food shops only (optional)" /></div>
               {industrialMode.enabled && (
                 <CustomerCreditTermsFields value={creditTermsForm} onChange={setCreditTermsForm} idPrefix="m-ct" />
               )}
@@ -2163,6 +2185,10 @@ const CustomerMaster = () => {
                       <div>
                         <Label htmlFor="transport_details" className="text-xs">Transport</Label>
                         <Input id="transport_details" value={formData.transport_details} onChange={(e) => setFormData({ ...formData, transport_details: e.target.value })} placeholder="e.g., VRL" className="h-9" />
+                      </div>
+                      <div>
+                        <Label htmlFor="fssai_number" className="text-xs">FSSAI Number</Label>
+                        <Input id="fssai_number" inputMode="numeric" value={formData.fssai_number} onChange={(e) => setFormData({ ...formData, fssai_number: e.target.value })} placeholder="Food shops (optional)" className="h-9" />
                       </div>
                       {enablePointsSystem && (
                         <div>

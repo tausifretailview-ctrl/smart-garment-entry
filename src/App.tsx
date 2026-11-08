@@ -15,7 +15,7 @@ import {
 import { toast as showToast } from "@/hooks/use-toast";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { clearMissingQueryFnError, isMissingQueryFnError } from "@/utils/refetchQueriesWithFn";
-import { APP_BUILD_BUSTER, isVolatileOrSensitiveKey, persister, readPersistCacheCharLength } from "@/lib/queryPersister";
+import { APP_BUILD_BUSTER, holdsMapOrSet, isVolatileOrSensitiveKey, persister, readPersistCacheCharLength } from "@/lib/queryPersister";
 import { markPersistRestoreComplete } from "@/lib/mainThreadViolationProbe";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -141,8 +141,12 @@ const DialogA11ySpotCheck = import.meta.env.DEV
   ? lazyWithRetry(() => import("./pages/dev/DialogA11ySpotCheck"))
   : null;
 const StockAdjustment = lazyWithRetry(() => import("./pages/StockAdjustment"));
+const DuplicatePurchaseBills = lazyWithRetry(() => import("./pages/DuplicatePurchaseBills"));
 const StockTransfer = lazyWithRetry(() => import("./pages/StockTransfer"));
 const StockTransferEntry = lazyWithRetry(() => import("./pages/StockTransferEntry"));
+const Godowns = lazyWithRetry(() => import("./pages/Godowns"));
+const GodownTransfers = lazyWithRetry(() => import("./pages/GodownTransfers"));
+const GodownTransferEntry = lazyWithRetry(() => import("./pages/GodownTransferEntry"));
 const StockAnalysis = lazyWithRetry(() => import("./pages/StockAnalysis"));
 const StockAgeingReport = lazyWithRetry(() => import("./pages/StockAgeingReport"));
 const StockSettlement = lazyWithRetry(() => import("./pages/StockSettlement"));
@@ -485,7 +489,7 @@ const App = () => {
         buster: APP_BUILD_BUSTER,
         dehydrateOptions: {
           shouldDehydrateQuery: (q) =>
-            q.state.status === "success" && !isVolatileOrSensitiveKey(q.queryKey),
+            q.state.status === "success" && !isVolatileOrSensitiveKey(q.queryKey) && !holdsMapOrSet(q.state.data),
         },
       }}
       onSuccess={() => {
@@ -771,6 +775,18 @@ const App = () => {
                   }
                 />
                 <Route
+                  path="duplicate-purchase-bills"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin"]}>
+                        <Layout>
+                          <DuplicatePurchaseBills />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="stock-adjustment"
                   element={
                     <ProtectedRoute>
@@ -788,7 +804,9 @@ const App = () => {
                     <ProtectedRoute>
                       <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                         <Layout>
-                          <StockTransfer />
+                          <Suspense fallback={<LazyFallback />}>
+                            <StockTransfer />
+                          </Suspense>
                         </Layout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>
@@ -829,6 +847,42 @@ const App = () => {
                   }
                 />
 
+                <Route
+                  path="godowns"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <Godowns />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="godown-transfers"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <GodownTransfers />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="godown-transfer-entry"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <FullScreenLayout>
+                          <GodownTransferEntry />
+                        </FullScreenLayout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="manufacturing"
                   element={

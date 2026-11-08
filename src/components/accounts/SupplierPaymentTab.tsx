@@ -25,6 +25,7 @@ import {
   recordSupplierPaymentJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { prependVouchersToCache, type SupplierVoucherCacheRow } from "@/utils/supplierPaymentViews";
 import {
   invalidateSupplierPaymentQueries,
   useSupplierPaymentDelete,
@@ -93,6 +94,10 @@ const EMPTY_SUPPLIER_SNAPSHOT = (supplierId: string): SupplierBalanceSnapshot =>
   refundsReceived: 0,
   balance: 0,
 });
+
+/** Columns the Accounts voucher list caches (see Accounts / useAccountsVoucherData). */
+const SAVED_VOUCHER_COLUMNS =
+  "id, voucher_number, voucher_date, voucher_type, total_amount, description, reference_type, reference_id, payment_method, discount_amount, discount_reason, created_at, created_by, category, paid_by, receipt_number";
 
 interface SupplierPaymentTabProps {
   organizationId: string;
@@ -585,6 +590,8 @@ export function SupplierPaymentTab({
       }
 
       const createdSupplierVoucherIds: string[] = [];
+      // Saved rows go straight into the payment list cache so the payment shows at once.
+      const savedVoucherRows: SupplierVoucherCacheRow[] = [];
 
       if (processedBills.length > 0) {
         // Bill paid/partial is synced from vouchers only after every voucher (and its ledger
@@ -623,11 +630,12 @@ export function SupplierPaymentTab({
                 payment_method: paymentMethod,
                 created_by: user?.id ?? null,
               })
-              .select("id")
+              .select(SAVED_VOUCHER_COLUMNS)
               .single();
             if (voucherError) throw voucherError;
             if (!ins?.id) throw new Error("Supplier payment voucher insert failed");
             createdSupplierVoucherIds.push(ins.id);
+            savedVoucherRows.push(ins as SupplierVoucherCacheRow);
             if (postLedger) {
               try {
                 await recordSupplierPaymentJournalEntry(
@@ -676,9 +684,10 @@ export function SupplierPaymentTab({
             payment_method: paymentMethod,
             created_by: user?.id ?? null,
           })
-          .select("id")
+          .select(SAVED_VOUCHER_COLUMNS)
           .single();
         if (error) throw error;
+        if (ins?.id) savedVoucherRows.push(ins as SupplierVoucherCacheRow);
         if (postLedger && ins?.id) {
           try {
             await recordSupplierPaymentJournalEntry(
@@ -698,22 +707,16 @@ export function SupplierPaymentTab({
           }
         }
       }
+      return savedVoucherRows;
       } finally {
         savingRef.current = false;
       }
     },
-    onSuccess: () => {
+    onSuccess: (savedVoucherRows) => {
       toast.success("Payment recorded successfully");
-      queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-bills"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-balance"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-balance-snapshot"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-balance-map"] });
-      queryClient.invalidateQueries({ queryKey: ["suppliers-with-balance"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-ledger"] });
-      queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
-      queryClient.invalidateQueries({ queryKey: ["purchase-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-bill-payment-voucher-drift"] });
+      if (organizationId) prependVouchersToCache(queryClient, organizationId, savedVoucherRows ?? []);
+      // Purchase dashboard (open or closed), supplier dues, ledger, payment list; pings other tabs.
+      invalidateSupplierPaymentQueries(queryClient, organizationId);
       resetForm();
     },
     onError: (error: any) => {
@@ -751,7 +754,7 @@ export function SupplierPaymentTab({
         setBulkDeleteOpen(false);
       }
     } finally {
-      invalidateSupplierPaymentQueries(queryClient);
+      invalidateSupplierPaymentQueries(queryClient, organizationId);
       setBulkDeleting(false);
     }
   };

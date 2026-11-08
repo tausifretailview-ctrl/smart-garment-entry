@@ -37,6 +37,9 @@ import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { cn } from "@/lib/utils";
 import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
+import { useDocGodown } from "@/hooks/useDocGodown";
+import { DocGodownField } from "@/components/godowns/DocGodownBar";
+import { fetchDocGodown } from "@/utils/godownDocs";
 import {
   canChangeSaleReturnCustomer,
   saleReturnLinesUnchanged,
@@ -99,6 +102,15 @@ export default function SaleReturnEntry() {
   const queryClient = useQueryClient();
 
   const isEditMode = !!editId;
+
+  // Industrial mode, Phase 3 step 3d-3: the godown the returned goods go back into.
+  // Hidden, and reads nothing, unless Industrial mode is on and the shop has godowns.
+  const returnGodown = useDocGodown({
+    refType: "sale_return",
+    organizationId: currentOrganization?.id,
+    editDocId: editId ?? null,
+    toast,
+  });
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<string>("");
@@ -753,6 +765,16 @@ export default function SaleReturnEntry() {
       });
 
       setOriginalSaleId(sale.id);
+      // A bill sent out of a godown: its returned goods go back there unless the user picks another.
+      if (!isEditMode && returnGodown.visible && sale.id) {
+        void fetchDocGodown("sale", String(sale.id))
+          .then((godownId) => {
+            if (godownId && returnGodown.choices.some((g) => g.id === godownId && g.is_active)) {
+              returnGodown.setValue(godownId);
+            }
+          })
+          .catch(() => undefined);
+      }
       setSaleItems(items);
       setSaleLoaded(true);
       toast({ title: 'Sale Loaded', description: `${items.length} item(s) found — select which to return` });
@@ -1039,6 +1061,8 @@ export default function SaleReturnEntry() {
         }
 
         toast({ title: "Success", description: `Sale return ${nextReturnNumber} updated successfully` });
+        // Never throws: a problem only leaves the goods in Main, and the user is told so.
+        await returnGodown.syncAfterSave(editId, true);
 
       } else {
         const { data: returnNumber, error: returnNumberError } = await supabase
@@ -1131,6 +1155,8 @@ export default function SaleReturnEntry() {
           }
 
           toast({ title: "Success", description: `Sale return ${returnData.return_number} saved successfully` });
+          // Never throws: a problem only leaves the goods in Main, and the user is told so.
+          await returnGodown.syncAfterSave(String(returnData.id), false);
 
         } catch (innerError) {
           // Clean up orphan parent if items failed
@@ -1342,6 +1368,23 @@ export default function SaleReturnEntry() {
                 </SelectContent>
               </Select>
             </div>
+
+            {returnGodown.visible && (
+              <DocGodownField
+                label="Return into"
+                className="flex-1 min-w-[150px]"
+                labelClassName="text-black font-bold"
+                triggerClassName="border-black/20"
+                choices={returnGodown.choices}
+                value={returnGodown.value}
+                mainId={returnGodown.mainId}
+                onChange={returnGodown.setValue}
+                loading={returnGodown.loading}
+                disabled={saving}
+                mainHint="Returned goods go back to the shop stock (Main), as before."
+                godownHint={(name) => `When you save, the returned goods go into ${name}.`}
+              />
+            )}
           </div>
 
           <div className="mt-3 flex flex-wrap lg:flex-nowrap items-end gap-3">

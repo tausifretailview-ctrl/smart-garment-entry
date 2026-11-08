@@ -1048,7 +1048,9 @@ export const WhatsAppAPISettings = () => {
         </CardContent>
       </Card>
 
-      {/* AI Chatbot Settings */}
+      {/* AI Chatbot: removed from Settings (Nov 2026). Shown only to a shop that already
+          has it switched on, so it can still be turned off. */}
+      {settings?.chatbot_enabled === true && (
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -1169,6 +1171,7 @@ export const WhatsAppAPISettings = () => {
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Meta Template Configuration — official Meta API only */}
       {!isWappConnect && (

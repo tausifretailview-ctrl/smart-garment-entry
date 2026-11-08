@@ -11,6 +11,8 @@ export type PosSalesChangedDetail = {
   /** ISO timestamp of the saved sale — dashboard may snap daily filter to this day. */
   saleDate?: string;
   saleNumber?: string;
+  /** A supplier payment changed — other tabs also refresh purchase bills / supplier dues. */
+  supplierPayments?: boolean;
 };
 
 type PendingPosSalesRefresh = PosSalesChangedDetail & {

@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, MessageCircle, CalendarIcon, Download, FilePenLine, Home, RefreshCw, CheckCircle, PauseCircle, XCircle, Receipt, CalendarClock } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, MessageCircle, CalendarIcon, Download, FilePenLine, Home, RefreshCw, CheckCircle, PauseCircle, XCircle, Receipt, CalendarClock, Send } from "lucide-react";
 import { useIndustrialMode } from "@/hooks/useIndustrialMode";
 import {
   QUOTATION_LOST_REASONS,
@@ -35,12 +35,24 @@ import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
+import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
+import {
+  BUILTIN_WHATSAPP_NAME,
+  isBuiltinSendProvider,
+  isWappConnectSendProvider,
+} from "@/constants/whatsappSendProvider";
+import { captureElementToPdfBase64 } from "@/utils/captureInvoicePdf";
 import { format } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { QuotationPrint } from "@/components/QuotationPrint";
 import { QuotationPrintITCompany } from "@/components/QuotationPrintITCompany";
+import {
+  invalidateQuotationViews,
+  parseQuotationViewsChanged,
+  QUOTATION_VIEWS_CHANGED_KEY,
+} from "@/utils/quotationViews";
 import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -207,6 +219,15 @@ export default function QuotationDashboard() {
   const [quotationToPrint, setQuotationToPrint] = useState<any>(null);
   const printRef = useRef<HTMLDivElement>(null);
   const { formatQuotationMessage } = useWhatsAppTemplates();
+  const { settings: whatsAppAPISettings, sendMessageAsync } = useWhatsAppAPI();
+  // Shop's linked WhatsApp (Ezzy ERP QR link, or WappConnect): send the quotation PDF straight from the dashboard.
+  const linkedWhatsAppLabel =
+    whatsAppAPISettings?.is_active && isWappConnectSendProvider(whatsAppAPISettings.send_provider)
+      ? isBuiltinSendProvider(whatsAppAPISettings.send_provider)
+        ? BUILTIN_WHATSAPP_NAME
+        : "WappConnect"
+      : null;
+  const [quotationToSend, setQuotationToSend] = useState<any>(null);
   const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
   const [toDate, setToDate] = useState<Date | undefined>(undefined);
   const [followUpDueOnly, setFollowUpDueOnly] = useState(false);
@@ -288,9 +309,20 @@ export default function QuotationDashboard() {
   const invalidateQuotationQueries = useCallback(() => {
     const orgId = currentOrganization?.id;
     if (!orgId) return;
-    void queryClient.invalidateQueries({ queryKey: ["quotations-list", orgId] });
-    void queryClient.invalidateQueries({ queryKey: ["quotation-summary", orgId] });
-    void queryClient.invalidateQueries({ queryKey: ["quotation-customers", orgId] });
+    invalidateQuotationViews(queryClient, orgId);
+  }, [currentOrganization?.id, queryClient]);
+
+  // A quotation saved in another browser tab: refresh this list straight away.
+  useEffect(() => {
+    const orgId = currentOrganization?.id;
+    if (!orgId) return;
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== QUOTATION_VIEWS_CHANGED_KEY) return;
+      if (parseQuotationViewsChanged(e.newValue) !== orgId) return;
+      invalidateQuotationViews(queryClient, orgId);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, [currentOrganization?.id, queryClient]);
 
   const {
@@ -378,6 +410,53 @@ export default function QuotationDashboard() {
     } finally {
       setRowActionLoadingId(null);
     }
+  };
+
+  const buildQuotationWhatsAppMessage = (full: any) => {
+    const itemsText = full.quotation_items?.map((item: any, index: number) =>
+      `${index + 1}. ${item.product_name}${item.size ? ` (${item.size})` : ""} x ${item.quantity} = ₹${Number(item.line_total || 0).toFixed(2)}`
+    ).join("\n") || "";
+    return formatQuotationMessage({
+      quotation_number: quotationDisplayNumber(full.quotation_number, full.revision_no),
+      customer_name: full.customer_name,
+      customer_phone: full.customer_phone,
+      quotation_date: full.quotation_date,
+      net_amount: full.net_amount,
+      valid_until: full.valid_until,
+      status: full.status,
+    }, itemsText);
+  };
+
+  /** Opens the quotation preview, which captures the PDF and sends it on the linked WhatsApp. */
+  const handleLinkedWhatsAppSend = async (quotation: any) => {
+    if (!quotation.customer_phone) {
+      toast({ title: "No phone number", description: "Add the customer's mobile number to send on WhatsApp", variant: "destructive" });
+      return;
+    }
+    setRowActionLoadingId(quotation.id);
+    try {
+      const full = await loadFullQuotation(quotation);
+      setQuotationToSend(full);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Could not load quotation", variant: "destructive" });
+    } finally {
+      setRowActionLoadingId(null);
+    }
+  };
+
+  const sendQuotationOnLinkedWhatsApp = async (full: any, pdfBase64: string) => {
+    const number = quotationDisplayNumber(full.quotation_number, full.revision_no);
+    await sendMessageAsync({
+      phone: full.customer_phone,
+      message: buildQuotationWhatsAppMessage(full),
+      templateType: "quotation",
+      referenceId: full.id,
+      referenceType: "quotation",
+      pdfBlob: pdfBase64,
+      documentFilename: `Quotation_${String(number).replace(/\//g, "-")}.pdf`,
+      documentCaption: `Quotation ${number}`,
+      manualResend: true,
+    });
   };
 
   const handlePrintQuotation = async (quotation: any) => {
@@ -490,6 +569,12 @@ export default function QuotationDashboard() {
   };
 
   const getQuotationContextMenuItems = (quotation: any): ContextMenuItem[] => [
+    {
+      label: `Send on ${linkedWhatsAppLabel || "WhatsApp"}`,
+      icon: Send,
+      onClick: () => void handleLinkedWhatsAppSend(quotation),
+      hidden: !linkedWhatsAppLabel,
+    },
     {
       label: "Print / PDF",
       icon: Printer,
@@ -977,7 +1062,19 @@ export default function QuotationDashboard() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" disabled={isRowBusy} onClick={() => void handleWhatsAppShare(quotation)} title="WhatsApp">
+                        {linkedWhatsAppLabel ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={isRowBusy}
+                            onClick={() => void handleLinkedWhatsAppSend(quotation)}
+                            title={`Send PDF on ${linkedWhatsAppLabel}`}
+                            className="text-green-600 hover:text-green-700"
+                          >
+                            <Send className="h-4 w-4" />
+                          </Button>
+                        ) : null}
+                        <Button variant="ghost" size="icon" disabled={isRowBusy} onClick={() => void handleWhatsAppShare(quotation)} title="WhatsApp (open chat)">
                           <MessageCircle className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="icon" disabled={isRowBusy} onClick={() => void handlePrintQuotation(quotation)} title="Print / PDF">
@@ -1157,6 +1254,26 @@ export default function QuotationDashboard() {
           settings={settings}
           organizationId={currentOrganization?.id}
           onClose={() => setQuotationToPrint(null)}
+          linkedWhatsApp={
+            linkedWhatsAppLabel && quotationToPrint.customer_phone
+              ? { label: linkedWhatsAppLabel, send: (pdf) => sendQuotationOnLinkedWhatsApp(quotationToPrint, pdf) }
+              : undefined
+          }
+        />
+      )}
+
+      {quotationToSend && (
+        <PrintQuotationDialog
+          quotation={quotationToSend}
+          settings={settings}
+          organizationId={currentOrganization?.id}
+          onClose={() => setQuotationToSend(null)}
+          linkedWhatsApp={
+            linkedWhatsAppLabel
+              ? { label: linkedWhatsAppLabel, send: (pdf) => sendQuotationOnLinkedWhatsApp(quotationToSend, pdf) }
+              : undefined
+          }
+          autoSendWhatsApp
         />
       )}
 
@@ -1209,7 +1326,7 @@ async function downloadQuotationPDF(
 
   const pageHeightPx = (pageH / pageW) * imgWidth;
   if (imgHeight <= pageHeightPx + 2) {
-    pdf.addImage(imgData, "PNG", 0, 0, pageW, pageH);
+    pdf.addImage(imgData, "PNG", 0, 0, pageW, pageH, undefined, "FAST");
   } else {
     let y = 0;
     let page = 0;
@@ -1225,7 +1342,7 @@ async function downloadQuotationPDF(
         ctx.fillRect(0, 0, imgWidth, sliceH);
         ctx.drawImage(canvas, 0, y, imgWidth, sliceH, 0, 0, imgWidth, sliceH);
         const sliceHMm = (sliceH / imgWidth) * pageW;
-        pdf.addImage(sliceCanvas.toDataURL("image/png"), "PNG", 0, 0, pageW, sliceHMm);
+        pdf.addImage(sliceCanvas.toDataURL("image/png"), "PNG", 0, 0, pageW, sliceHMm, undefined, "FAST");
       }
       y += pageHeightPx;
       page += 1;
@@ -1241,13 +1358,22 @@ function PrintQuotationDialog({
   settings,
   organizationId,
   onClose,
+  linkedWhatsApp,
+  autoSendWhatsApp = false,
 }: {
   quotation: any;
   settings: any;
   organizationId?: string;
   onClose: () => void;
+  /** Shop's linked WhatsApp (Ezzy ERP / WappConnect); send receives the PDF as base64. */
+  linkedWhatsApp?: { label: string; send: (pdfBase64: string) => Promise<void> };
+  /** Send as soon as the preview has rendered, then close (dashboard Send button). */
+  autoSendWhatsApp?: boolean;
 }) {
   const printRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+  const autoSendStartedRef = useRef(false);
   const { accounts: receivingBankAccounts } = useOrganizationBankAccounts(organizationId);
   const companyBank = pickDefaultReceivingBankAccount(receivingBankAccounts);
   const companyBankDetails = organizationBankAccountToInvoiceDetails(companyBank);
@@ -1368,11 +1494,53 @@ function PrintQuotationDialog({
     }
   };
 
+  const handleSendWhatsApp = async (closeAfter: boolean) => {
+    if (!linkedWhatsApp || isSendingWhatsApp) return;
+    setIsSendingWhatsApp(true);
+    try {
+      const el = printRef.current;
+      if (!el) throw new Error("Quotation preview did not load. Please try again.");
+      const pdfBase64 = await captureElementToPdfBase64(el, {
+        extraSettleMs: 300,
+        pageFormat: selectedFormat === "thermal" ? "thermal" : selectedFormat === "a4" ? "a4" : "a5",
+        thermalPaper: "80mm",
+        wappConnectPdf: true,
+        mobileOptimized: true,
+      });
+      if (!pdfBase64) throw new Error("Quotation PDF could not be made. Please try again.");
+      await linkedWhatsApp.send(pdfBase64);
+      toast({
+        title: "Quotation sent",
+        description: `Sent to ${quotation.customer_phone} on ${linkedWhatsApp.label}`,
+      });
+      if (closeAfter) onClose();
+    } catch (error: any) {
+      toast({
+        title: "WhatsApp not sent",
+        description: error?.message || "Could not send the quotation",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingWhatsApp(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!autoSendWhatsApp || !linkedWhatsApp || autoSendStartedRef.current) return;
+    autoSendStartedRef.current = true;
+    void handleSendWhatsApp(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSendWhatsApp, linkedWhatsApp]);
+
   return (
     <AlertDialog open={true} onOpenChange={onClose}>
       <AlertDialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
         <AlertDialogHeader>
-          <AlertDialogTitle>Print Quotation</AlertDialogTitle>
+          <AlertDialogTitle>
+            {autoSendWhatsApp && isSendingWhatsApp
+              ? `Sending quotation on ${linkedWhatsApp?.label ?? "WhatsApp"}…`
+              : "Print Quotation"}
+          </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="flex flex-wrap items-center gap-4 mt-2">
               <div className="flex items-center gap-2">
@@ -1449,6 +1617,17 @@ function PrintQuotationDialog({
 
         <AlertDialogFooter>
           <AlertDialogCancel>Close</AlertDialogCancel>
+          {linkedWhatsApp ? (
+            <Button
+              variant="outline"
+              className="border-green-600 text-green-700 hover:bg-green-50"
+              onClick={() => void handleSendWhatsApp(false)}
+              disabled={isSendingWhatsApp}
+            >
+              {isSendingWhatsApp ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+              Send on {linkedWhatsApp.label}
+            </Button>
+          ) : null}
           <Button variant="outline" onClick={handleDownloadPDF} disabled={isDownloading}>
             {isDownloading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
             Download PDF

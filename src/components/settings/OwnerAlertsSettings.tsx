@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { BellRing } from "lucide-react";
 import { SettingsRow, SettingsSection } from "@/components/settings/settingsLayout";
 import {
   clearOwnerInvoiceAlertCache,
@@ -216,7 +217,12 @@ export function OwnerAlertsSettings() {
   const activeDevices = devices.filter((d) => d.status === "active");
 
   return (
-    <SettingsSection title="Owner alerts (mobile app)" subtitle="Business report, low stock, bills and day-end on the owner's phone">
+    <SettingsSection
+      title="Owner alerts (mobile app)"
+      subtitle="Business report, low stock, bills and day-end on the owner's phone"
+      icon={BellRing}
+      tone="rose"
+    >
       {/* Full width so the button and its status fit on a phone screen. */}
       <div className="space-y-2 border-b px-3 py-3">
         <div className="text-sm font-semibold text-slate-800">This phone</div>

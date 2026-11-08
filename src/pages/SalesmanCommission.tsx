@@ -317,14 +317,26 @@ export default function SalesmanCommission() {
 
   const markPaid = useMutation({
     mutationFn: async (ids: string[]) => {
-      const { error } = await (supabase.from("salesman_commissions" as any) as any)
-        .update({ payment_status: "paid", paid_date: new Date().toISOString().split("T")[0] })
-        .in("id", ids);
-      if (error) throw error;
+      // A busy salesman has hundreds of pending bills: one .in("id", ids) puts every
+      // id in the URL, which grows past the server limit and the request fails.
+      // Send the ids in chunks, like the sale_items fetch above.
+      const paidDate = new Date().toISOString().split("T")[0];
+      for (let i = 0; i < ids.length; i += 150) {
+        const { error } = await (supabase.from("salesman_commissions" as any) as any)
+          .update({ payment_status: "paid", paid_date: paidDate })
+          .eq("organization_id", currentOrganization!.id)
+          .in("id", ids.slice(i, i + 150));
+        if (error) throw error;
+      }
+      return ids.length;
     },
-    onSuccess: () => {
+    onSuccess: (count: number) => {
       queryClient.invalidateQueries({ queryKey: ["salesman-commissions-page"] });
-      toast({ title: "Marked as paid" });
+      toast({ title: "Marked as paid", description: `${count} bill${count === 1 ? "" : "s"} settled` });
+    },
+    onError: (e: any) => {
+      queryClient.invalidateQueries({ queryKey: ["salesman-commissions-page"] });
+      toast({ title: "Could not mark as paid", description: e?.message || String(e), variant: "destructive" });
     },
   });
 
@@ -528,6 +540,7 @@ export default function SalesmanCommission() {
                               size="sm"
                               variant="outline"
                               className="h-7 text-xs"
+                              disabled={markPaid.isPending}
                               onClick={() => {
                                 const pendingIds = enrichedCommissions
                                   .filter((c) => c.employee_name === s.name && c.payment_status === "pending")

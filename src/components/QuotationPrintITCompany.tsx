@@ -249,7 +249,7 @@ export const QuotationPrintITCompany = React.forwardRef<HTMLDivElement, Quotatio
               </div>
               {address ? (
                 <div style={{ fontSize: fsSmall, marginTop: 2, lineHeight: 1.35, color: "#475569" }}>
-                  {address}
+                  {address.toUpperCase()}
                 </div>
               ) : null}
               <div style={{ fontSize: fsSmall, marginTop: 2, color: "#475569" }}>
@@ -303,7 +303,7 @@ export const QuotationPrintITCompany = React.forwardRef<HTMLDivElement, Quotatio
             <div style={{ fontWeight: 700 }}>{customerName}</div>
             {customerAddress ? (
               <div style={{ fontSize: fsSmall, marginTop: 2, lineHeight: 1.35, color: "#475569" }}>
-                {customerAddress}
+                {customerAddress.toUpperCase()}
               </div>
             ) : null}
             {customerMobile ? <div style={{ fontSize: fsSmall, marginTop: 2 }}>Phone: {customerMobile}</div> : null}

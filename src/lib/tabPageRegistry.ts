@@ -109,6 +109,11 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
     layout: "layout",
     roles: ["admin"],
   },
+  "duplicate-purchase-bills": {
+    loader: () => import("@/pages/DuplicatePurchaseBills"),
+    layout: "layout",
+    roles: ["admin"],
+  },
   "stock-ageing": { loader: () => import("@/pages/StockAgeingReport"), layout: "layout" },
   "stock-settlement": {
     loader: () => import("@/pages/StockSettlement"),
@@ -324,6 +329,14 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
   },
   "user-rights": {
     loader: () => import("@/pages/UserRights"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
+  // Shop-to-shop Stock Transfer dashboard. Registered so the page chunk is warmed
+  // after login / on sidebar hover and the pane stays mounted: as a plain <Outlet>
+  // route it cold-loaded and faded in on every open (white flash before it showed).
+  "stock-transfer": {
+    loader: () => import("@/pages/StockTransfer"),
     layout: "layout",
     roles: ["admin", "manager"],
   },

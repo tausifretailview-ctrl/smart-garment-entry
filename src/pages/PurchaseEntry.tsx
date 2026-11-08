@@ -224,6 +224,8 @@ import {
   isPerPieceMeasuredUom,
   PER_PIECE_BARCODE_MAX_PIECES,
 } from "@/utils/purchasePerPieceBarcode";
+import { usePurchaseGodown } from "@/hooks/usePurchaseGodown";
+import { PurchaseGodownBar } from "@/components/purchase/PurchaseGodownBar";
 import {
   deletedPurchaseLinesMessage,
   findDeletedPurchaseLines,
@@ -1094,6 +1096,13 @@ const PurchaseEntry = () => {
   // Bill lock state
   const [isBillLocked, setIsBillLocked] = useState(false);
   const [showUnlockConfirm, setShowUnlockConfirm] = useState(false);
+
+  // Industrial mode (Phase 3 step 3c): godown the bill's goods are received into.
+  const purchaseGodown = usePurchaseGodown({
+    organizationId: currentOrganization?.id,
+    editBillId: isEditMode ? editingBillId : null,
+    toast,
+  });
 
   // Duplicate bill detection state
   const [showDuplicateBillWarning, setShowDuplicateBillWarning] = useState(false);
@@ -6948,6 +6957,8 @@ const PurchaseEntry = () => {
           setShowPrintDialog(true);
         }
 
+        await purchaseGodown.syncAfterSave(editingBillId, true);
+
         const savedSupplierInv = billData.supplier_invoice_no.trim();
         await finalizeSuccessfulPurchaseSave({
           billId: editingBillId,
@@ -7363,6 +7374,8 @@ const PurchaseEntry = () => {
           setShowPrintDialog(true);
         }
 
+        await purchaseGodown.syncAfterSave(String(billDataResult.id), false);
+
         posSaveMark("post_save_updates");
         await finalizeSuccessfulPurchaseSave({
           billId: billDataResult.id,
@@ -7401,6 +7414,7 @@ const PurchaseEntry = () => {
       // Bill + items already committed — NEVER invite "try again" (that doubles qty).
       if (committedCreateSnapshot && currentOrganization?.id) {
         console.error("[PurchaseEntry] Post-commit step failed after bill was saved:", error);
+        await purchaseGodown.syncAfterSave(committedCreateSnapshot.billId, false);
         try {
           await finalizeSuccessfulPurchaseSave({
             billId: committedCreateSnapshot.billId,
@@ -9203,6 +9217,17 @@ const PurchaseEntry = () => {
                   DC Purchase — GST set to 0% for all items. This bill will NOT appear in GST Purchase Register.
                 </span>
               </div>
+            )}
+
+            {purchaseGodown.visible && (
+              <PurchaseGodownBar
+                choices={purchaseGodown.choices}
+                value={purchaseGodown.value}
+                mainId={purchaseGodown.mainId}
+                onChange={purchaseGodown.setValue}
+                disabled={isBillLocked}
+                loading={purchaseGodown.loading}
+              />
             )}
           </section>
 

@@ -30,13 +30,20 @@ const STATUS_LABELS: Record<string, string> = {
 /**
  * Platform Admin: shops on Ezzy ERP WhatsApp whose link is down right now. Shown above the tabs so a drop
  * is seen without opening anything; a new drop also pops a toast while the page is open.
+ * Support staff see the same card on WhatsApp Logs > All shops health: pass their shop as viewerOrganizationId
+ * (the edge function checks it is a health-viewer shop and they are its Admin / Manager).
  */
-export function PlatformWhatsAppLinkAlerts() {
-  const { data, isFetching, refetch } = useQuery({
-    queryKey: ["platform-whatsapp-link-alerts"],
+export function PlatformWhatsAppLinkAlerts({
+  viewerOrganizationId,
+  showWhenAllLinked = false,
+}: { viewerOrganizationId?: string; showWhenAllLinked?: boolean } = {}) {
+  const { data, isFetching, isError, refetch } = useQuery({
+    queryKey: ["platform-whatsapp-link-alerts", viewerOrganizationId ?? null],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("whatsapp-gateway-proxy", {
-        body: { action: "platform-link-alerts" },
+        body: viewerOrganizationId
+          ? { action: "platform-link-alerts", viewerOrganizationId }
+          : { action: "platform-link-alerts" },
       });
       if (error) throw error;
       return data as { success: boolean; gatewayReachable?: boolean; alerts?: LinkAlert[]; error?: string };
@@ -58,7 +65,29 @@ export function PlatformWhatsAppLinkAlerts() {
     seen.current = ids;
   }, [data, alerts]);
 
-  if (!data?.success || (!alerts.length && data.gatewayReachable !== false)) return null;
+  if (isError && showWhenAllLinked) {
+    return (
+      <Card>
+        <CardContent className="py-3 text-sm text-muted-foreground">
+          Ezzy ERP WhatsApp link status is not available right now (the WhatsApp server update may not be deployed yet).
+        </CardContent>
+      </Card>
+    );
+  }
+  if (!data?.success) return null;
+  if (!alerts.length && data.gatewayReachable !== false) {
+    if (!showWhenAllLinked) return null;
+    return (
+      <Card className="border-green-300 bg-green-50/60 dark:bg-green-950/20">
+        <CardContent className="flex items-center justify-between gap-2 py-3 text-sm text-green-800 dark:text-green-300">
+          <span>All shops on Ezzy ERP WhatsApp are linked.</span>
+          <Button variant="ghost" size="sm" onClick={() => void refetch()} disabled={isFetching}>
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="border-red-300 bg-red-50/60 dark:bg-red-950/20">

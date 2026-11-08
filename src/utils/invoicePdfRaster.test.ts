@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveInvoicePdfRasterOptions } from "@/utils/invoicePdfRaster";
+import { PDF_IMAGE_COMPRESSION, resolveInvoicePdfRasterOptions } from "@/utils/invoicePdfRaster";
 
 describe("resolveInvoicePdfRasterOptions", () => {
   it("uses PNG at scale 2 for desktop print/download", () => {
@@ -26,5 +26,9 @@ describe("resolveInvoicePdfRasterOptions", () => {
     expect(r.scale).toBe(1.5);
     expect(r.imageType).toBe("JPEG");
     expect(r.imageQuality).toBeLessThanOrEqual(0.85);
+  });
+
+  it("compresses PDF images (uncompressed PNG made 11 MB sale bills)", () => {
+    expect(PDF_IMAGE_COMPRESSION).toBe("FAST");
   });
 });

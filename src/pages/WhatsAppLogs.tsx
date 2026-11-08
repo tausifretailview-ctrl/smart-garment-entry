@@ -30,6 +30,9 @@ import {
 import { useWhatsAppAPI, WhatsAppLog } from "@/hooks/useWhatsAppAPI";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { WhatsAppMessageBalance } from "@/components/whatsapp/WhatsAppMessageBalance";
+import { AllShopsWhatsAppHealth } from "@/components/whatsapp/AllShopsWhatsAppHealth";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   MessageSquare, 
   Send, 
@@ -101,6 +104,18 @@ const WhatsAppLogs = () => {
   const [pickedDate, setPickedDate] = useState(todayStr);
   const [rangeFrom, setRangeFrom] = useState(format(subDays(new Date(), 6), 'yyyy-MM-dd'));
   const [rangeTo, setRangeTo] = useState(todayStr);
+
+  // "All shops health" tab: only for Admin / Manager of a health-viewer shop (DEMO), checked by the database.
+  const { data: canViewAllShops = false } = useQuery({
+    queryKey: ['whatsapp-health-viewer', orgId],
+    enabled: !!orgId,
+    staleTime: 10 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('whatsapp_health_viewer' as never, { p_organization_id: orgId } as never);
+      if (error) return false;
+      return (data as unknown) === true;
+    },
+  });
 
   // Local-day bounds for the chosen range (default: last 7 days — single-day default hid yesterday's sends)
   const { dateStart, dateEnd } = useMemo(() => {
@@ -249,7 +264,7 @@ const WhatsAppLogs = () => {
     toast.success("Logs exported successfully");
   };
 
-  return (
+  const logsView = (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -677,6 +692,21 @@ const WhatsAppLogs = () => {
           </DialogContent>
       </Dialog>
     </div>
+  );
+
+  if (!canViewAllShops || !orgId) return logsView;
+
+  return (
+    <Tabs defaultValue="logs" className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="logs">This shop's logs</TabsTrigger>
+        <TabsTrigger value="all-shops">All shops health</TabsTrigger>
+      </TabsList>
+      <TabsContent value="logs">{logsView}</TabsContent>
+      <TabsContent value="all-shops">
+        <AllShopsWhatsAppHealth viewerOrganizationId={orgId} />
+      </TabsContent>
+    </Tabs>
   );
 };
 

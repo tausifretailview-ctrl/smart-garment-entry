@@ -3614,7 +3614,7 @@ export default function SalesInvoiceDashboard() {
         
         const singlePageThreshold2 = pdfHeight * 1.05;
         if (scaledHeight <= singlePageThreshold2) {
-          pdf.addImage(imgData, "PNG", 0, 0, scaledWidth, Math.min(scaledHeight, pdfHeight));
+          pdf.addImage(imgData, "PNG", 0, 0, scaledWidth, Math.min(scaledHeight, pdfHeight), undefined, "FAST");
         } else {
           const pixelsPerPage = (pdfHeight / scaledHeight) * imgHeight;
           const totalPages = Math.ceil(scaledHeight / pdfHeight);
@@ -3630,7 +3630,7 @@ export default function SalesInvoiceDashboard() {
             if (ctx) {
               ctx.drawImage(canvas, 0, sourceY, imgWidth, sourceH, 0, 0, imgWidth, Math.ceil(sourceH));
               const pageImgData = pageCanvas.toDataURL('image/png');
-              pdf.addImage(pageImgData, "PNG", 0, 0, pdfWidth, sliceScaledHeight);
+              pdf.addImage(pageImgData, "PNG", 0, 0, pdfWidth, sliceScaledHeight, undefined, "FAST");
             }
           }
         }

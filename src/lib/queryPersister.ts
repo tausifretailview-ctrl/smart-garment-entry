@@ -29,6 +29,10 @@ const VOLATILE_PREFIXES = [
   "barcode-stock-scan",
   // Set/array of locked variants — Set dehydrates to {} and broke POS scan (.has).
   "open-settlement-variant-ids",
+  // Godowns page summary is a Map — it dehydrates to {} and crashed the page (.get) after a reload.
+  "godown-summary",
+  // Customer Reconciliation ledger balances are a Map — same crash after a reload.
+  "reconcile-ledger-balances",
   "purchase-return-linked-bills",
   "purchase-return-cn-amounts",
   "purchase-returns",
@@ -86,6 +90,21 @@ export function isVolatileOrSensitiveKey(queryKey: readonly unknown[]): boolean 
   }
   if (/\bfilter\b/.test(head) || head.includes("-filter")) {
     return true;
+  }
+  return false;
+}
+
+/**
+ * True when query data is, or directly holds, a Map or Set (for example `{ rows: Map }`).
+ * JSON turns those into `{}`, so after a reload the page's `.get` / `.has` crashed
+ * (Godowns page, e-way bill lists). Such queries are never saved; they load fresh.
+ * Looks one level deep only, and never walks arrays, so it stays cheap on big lists.
+ */
+export function holdsMapOrSet(data: unknown): boolean {
+  if (data instanceof Map || data instanceof Set) return true;
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  for (const v of Object.values(data as Record<string, unknown>)) {
+    if (v instanceof Map || v instanceof Set) return true;
   }
   return false;
 }

@@ -387,6 +387,12 @@ export function HeaderMenubar({
                 Stock Transfer
               </MenubarItem>
             )}
+            {industrialOn && (organizationRole === "admin" || organizationRole === "manager") && (
+              <MenubarItem onClick={() => orgNavigate("/godowns")}>Godowns</MenubarItem>
+            )}
+            {industrialOn && (organizationRole === "admin" || organizationRole === "manager") && (
+              <MenubarItem onClick={() => orgNavigate("/godown-transfers")}>Godown Transfers</MenubarItem>
+            )}
             {showManufacturing && (
               <MenubarItem onClick={() => orgNavigate("/manufacturing")}>
                 Manufacturing
@@ -504,6 +510,22 @@ export function HeaderMenubar({
                 onClick={() => orgNavigate("/stock-settlement")}
               >
                 Stock Settlement
+              </MenubarItem>
+            )}
+            {organizationRole === "admin" && (
+              <MenubarItem
+                {...tabPrefetchProps("duplicate-purchase-bills")}
+                onClick={() => orgNavigate("/duplicate-purchase-bills")}
+              >
+                Duplicate Purchase Bills
+              </MenubarItem>
+            )}
+            {organizationRole === "admin" && (
+              <MenubarItem
+                {...tabPrefetchProps("customer-reconciliation")}
+                onClick={() => orgNavigate("/customer-reconciliation")}
+              >
+                Customer Balance Reconciliation
               </MenubarItem>
             )}
             {can("bulk_product_update") && (

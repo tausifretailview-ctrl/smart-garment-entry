@@ -289,7 +289,7 @@ export default function CustomerReconciliation() {
   const rows = useMemo(() => {
     if (!rawBalances) return [];
     return rawBalances.map((raw) => {
-      const ledger = ledgerBalances?.get(raw.customer_id);
+      const ledger = ledgerBalances instanceof Map ? ledgerBalances.get(raw.customer_id) : undefined;
       const ledgerBal = ledger?.balance ?? 0;
       const ledgerAdv = ledger?.unusedAdvanceTotal ?? 0;
       const diff = Math.round(raw.calculated_balance - ledgerBal);

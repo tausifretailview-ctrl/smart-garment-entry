@@ -397,7 +397,7 @@ export const generateInvoiceFromHTML = async (data: InvoiceData): Promise<void> 
     const scaledHeight = (canvas.height * pdfWidth) / canvas.width;
     
     if (scaledHeight <= pdfHeight) {
-      pdf.addImage(imgData, 'PNG', 0, 0, scaledWidth, scaledHeight);
+      pdf.addImage(imgData, 'PNG', 0, 0, scaledWidth, scaledHeight, undefined, "FAST");
     } else {
       const imgWidth = canvas.width;
       const imgHeight = canvas.height;
@@ -415,7 +415,7 @@ export const generateInvoiceFromHTML = async (data: InvoiceData): Promise<void> 
         if (ctx) {
           ctx.drawImage(canvas, 0, sourceY, imgWidth, sourceH, 0, 0, imgWidth, Math.ceil(sourceH));
           const pageImgData = pageCanvas.toDataURL('image/png');
-          pdf.addImage(pageImgData, 'PNG', 0, 0, pdfWidth, sliceScaledHeight);
+          pdf.addImage(pageImgData, 'PNG', 0, 0, pdfWidth, sliceScaledHeight, undefined, "FAST");
         }
       }
     }
@@ -836,7 +836,7 @@ export const generateInvoiceBase64 = async (
     const scaledH = imgHeight * 0.264583 * ratio;
     const xOff = (pdfWidth - scaledW) / 2;
 
-    pdf.addImage(imgData, 'PNG', xOff, 0, scaledW, scaledH);
+    pdf.addImage(imgData, 'PNG', xOff, 0, scaledW, scaledH, undefined, "FAST");
 
     // Return base64 string WITHOUT the data:url prefix
     const pdfBase64 = pdf.output('datauristring');

@@ -16,7 +16,7 @@ const items = (count: number) =>
     total: 210,
   }));
 
-const render = (count: number) =>
+const render = (count: number, extra: Record<string, unknown> = {}) =>
   renderToStaticMarkup(
     createElement(ModernWholesaleTemplate, {
       businessName: "KS FOOTWEAR",
@@ -32,6 +32,7 @@ const render = (count: number) =>
       cgstAmount: count * 5,
       sgstAmount: count * 5,
       format: "a4",
+      ...extra,
     }),
   );
 
@@ -54,9 +55,28 @@ describe("ModernWholesaleTemplate A4 pages", () => {
     expect(rowsOnLastPage(render(24))).toBeLessThanOrEqual(10);
   });
 
+  it("fills page 1 before moving rows to page 2", () => {
+    // 11 rows used to split 6 + 5, leaving most of page 1 blank.
+    const html = render(11);
+    const pages = html.split('class="invoice-page modern-wholesale-page"');
+    expect(pageCount(html)).toBe(2);
+    expect((pages[1].match(/PUL\d+-PUL-RLX-LD/g) || []).length).toBe(10);
+    expect(rowsOnLastPage(html)).toBe(1);
+    // 24 rows: 14 + 10 (fits the last-page limit as is).
+    expect(rowsOnLastPage(render(24))).toBe(10);
+  });
+
   it("prints amount in words with a single Only", () => {
     const html = render(3);
     expect(html).toContain("Rupees Only");
     expect(html).not.toContain("Only Only");
+  });
+
+  it("shows the IGST line in the totals box for an interstate bill", () => {
+    const html = render(3, { cgstAmount: 0, sgstAmount: 0, igstAmount: 31.5 });
+    expect(html).toContain("IGST:");
+    expect(html).not.toContain("CGST:");
+    // Total row GST column carries the IGST too.
+    expect(html).toContain(">31.50<");
   });
 });

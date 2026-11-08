@@ -293,11 +293,11 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       } 
       // Otherwise, fill this page fully and continue
       else {
-        // Fewer than a full page left but too many for the last page: split the
-        // rest across two pages so the last page keeps room for the totals box.
-        const takeCount = remaining.length <= itemsPerPage
-          ? Math.max(remaining.length - lastPageMaxItems, Math.ceil(remaining.length / 2))
-          : itemsPerPage;
+        // Fewer than a full page left but too many for the last page: fill this
+        // page as far as it goes and carry just the rest (at least one row) to
+        // the last page with the totals box. Splitting in half left page 1 with
+        // only 6 rows and a blank sheet on an 11-item bill.
+        const takeCount = Math.min(itemsPerPage, remaining.length - 1);
         pages.push(remaining.slice(0, takeCount));
         pageStartIndices.push(currentStart);
         currentStart += takeCount;
@@ -546,7 +546,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             
             {showGSTBreakdown && <td style={cellStyle}>&nbsp;</td>}
             {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "right", fontSize: isA5 ? "5.5pt" : "7pt" }}>
-              {(cgstAmount + sgstAmount) > 0 ? (cgstAmount + sgstAmount).toFixed(2) : ''}
+              {(cgstAmount + sgstAmount + igstAmount) > 0 ? (cgstAmount + sgstAmount + igstAmount).toFixed(2) : ''}
             </td>}
             <td style={{ ...cellStyle, textAlign: "right", fontWeight: "900", fontSize: isA5 ? "7pt" : "8pt", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", paddingRight: isA5 ? "5px" : "6px" }}>{formatCurrencyPlain(subtotal)}</td>
           </tr>
@@ -723,6 +723,12 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
                 <tr>
                   <td style={{ padding: isA5 ? "1px 2px 1px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>SGST:</td>
                   <td style={{ textAlign: "right", padding: isA5 ? "1px 4px 1px 2px" : "4px 4px 4px 4px" }}>{formatCurrencyWithRs(sgstAmount)}</td>
+                </tr>
+              )}
+              {igstAmount > 0 && (
+                <tr>
+                  <td style={{ padding: isA5 ? "1px 2px 1px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>IGST:</td>
+                  <td style={{ textAlign: "right", padding: isA5 ? "1px 4px 1px 2px" : "4px 4px 4px 4px" }}>{formatCurrencyWithRs(igstAmount)}</td>
                 </tr>
               )}
               {saleReturnAdjust > 0 && (

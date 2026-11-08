@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { prefetchTabPage } from "@/lib/tabPageRegistry";
 import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
+import { isNativeShell, isStandaloneDisplay } from "@/hooks/useInstallPrompt";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
 
@@ -48,12 +49,12 @@ import {
   Megaphone,
   Calculator,
   Layers,
-  Percent,
   Building2,
   Archive,
   Eye,
   EyeOff,
   Wallet,
+  Download,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -193,6 +194,8 @@ const DesktopDashboard = () => {
   const { hideDc, onlyDc } = useDcVisibility();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { hasAccess: hasFieldSalesAccess, employeeName } = useFieldSalesAccess();
+  // Hide the card's Install button only inside an installed / native shell.
+  const isFieldAppInstalled = isStandaloneDisplay() || isNativeShell();
   const { isAdmin, hasSpecialPermission, hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
   // Custom rights: Main Dashboard off → no page, no KPI values, no stats fetch.
   const canAccessMainDashboard =
@@ -300,14 +303,10 @@ const DesktopDashboard = () => {
   };
   
   const canViewGrossProfit = isAdmin || hasSpecialPermission("view_gross_profit");
-  const canViewAccountTally =
-    !permissionsLoading && (permissions === null || hasMenuAccess("daily_tally"));
   const canViewNetProfit =
     !permissionsLoading && (permissions === null || hasMenuAccess("net_profit_analysis"));
   const canViewSupplierBalance =
     !permissionsLoading && (permissions === null || hasMenuAccess("supplier_party_balances"));
-  const canViewDiscountScheme =
-    !permissionsLoading && (permissions === null || hasMenuAccess("discount_scheme_dashboard"));
   
   const { start: startDate, end: endDate, label: dateLabel } = getDateRange(
     dateRange,
@@ -977,20 +976,6 @@ const DesktopDashboard = () => {
             )}
             {figuresHidden ? "Show" : "Hide"}
           </Button>
-          {canViewAccountTally && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/account-tally")}
-              onPointerEnter={() => prefetchTabPage("account-tally")}
-              onTouchStart={() => prefetchTabPage("account-tally", { intent: true })}
-              title="Day close: cash sale, card & UPI, cash count, handover and closing balance"
-              className="h-9 shrink-0 border-teal-200 bg-teal-50 text-sm font-medium text-teal-800 hover:bg-teal-100"
-            >
-              <Wallet className="mr-1.5 h-4 w-4" />
-              Account Tally
-            </Button>
-          )}
           {canViewNetProfit && (
             <Button
               variant="outline"
@@ -1017,20 +1002,6 @@ const DesktopDashboard = () => {
             >
               <Building2 className="mr-1.5 h-4 w-4" />
               Supplier Balance
-            </Button>
-          )}
-          {canViewDiscountScheme && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/discount-scheme-dashboard")}
-              onPointerEnter={() => prefetchTabPage("discount-scheme-dashboard")}
-              onTouchStart={() => prefetchTabPage("discount-scheme-dashboard", { intent: true })}
-              title="Open Discount Scheme (Sales)"
-              className="h-9 shrink-0 border-sky-200 bg-sky-50 text-sm font-medium text-sky-800 hover:bg-sky-100"
-            >
-              <Percent className="mr-1.5 h-4 w-4" />
-              Discount Scheme
             </Button>
           )}
         </div>
@@ -1331,6 +1302,17 @@ const DesktopDashboard = () => {
                       <IndianRupee className="mr-1 h-3.5 w-3.5" />
                       Outstanding
                     </Button>
+                    {!isFieldAppInstalled && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => navigate("/salesman?install=1")}
+                        className="h-9 text-sm border-warning text-warning hover:bg-warning/10"
+                      >
+                        <Download className="mr-1 h-3.5 w-3.5" />
+                        Install App
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>

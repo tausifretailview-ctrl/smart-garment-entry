@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateQuotationViewsAfterSave } from "@/utils/quotationViews";
 import { useSettings } from "@/hooks/useSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
@@ -104,6 +105,7 @@ const EMPTY_ROW = (): LineItem => ({
 export default function QuotationEntry() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+  const queryClient = useQueryClient();
   const location = useLocation();
   const { navigate } = useOrgNavigation();
 
@@ -1002,6 +1004,7 @@ export default function QuotationEntry() {
         }
       }
 
+      invalidateQuotationViewsAfterSave(queryClient, currentOrganization!.id);
       toast({ title: "Success", description: `Quotation ${quotationDisplayNumber(quotationNumber, savedRevisionNo)} saved` });
       return { success: true, quotationId, revisionNo: savedRevisionNo };
     } catch (error: any) {

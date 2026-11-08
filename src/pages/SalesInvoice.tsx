@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import { invalidateQuotationViewsAfterSave } from "@/utils/quotationViews";
 import { CustomerBalanceBadge } from "@/components/CustomerBalanceBadge";
 import { CustomerCreditChip } from "@/components/customers/CustomerCreditChip";
 import { useCustomerCreditTerms, useIndustrialMode } from "@/hooks/useIndustrialMode";
@@ -12,7 +13,10 @@ import {
   type SaleB2BDetails,
   type SaleB2BDetailsForm,
 } from "@/utils/industrialMode";
-import { SaleB2BDetailsBand } from "@/components/sales/SaleB2BDetailsBand";
+import { SaleB2BDetailsBand, SaleSupplyTypeField } from "@/components/sales/SaleB2BDetailsBand";
+import { DocGodownField } from "@/components/godowns/DocGodownBar";
+import { useDocGodown } from "@/hooks/useDocGodown";
+import { godownDocCheckLines } from "@/utils/godownDocs";
 import { fetchQuotationWithItems } from "@/utils/quotationListQueries";
 import type { Json } from "@/integrations/supabase/types";
 import { flushSync } from "react-dom";
@@ -319,6 +323,7 @@ const customerSchema = z.object({
   address: z.string().trim().max(500).optional(),
   gst_number: z.string().trim().max(15).optional(),
   transport_details: z.string().trim().max(200).optional().or(z.literal("")),
+  fssai_number: z.string().trim().max(20).optional().or(z.literal("")),
 });
 
 function applyFlatDiscountFromInvoice(
@@ -447,6 +452,9 @@ export default function SalesInvoice() {
   const dropdownDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Synchronous staged qty per variant — avoids stale lineItems closure during rapid barcode scans. */
   const stagedQtyByVariantRef = useRef<Map<string, number>>(new Map());
+  /** Latest searchAndAddProduct — scan/Enter handlers are memoised once and would otherwise
+   *  call the first render's copy (e.g. one that does not know an invoice is being edited). */
+  const searchAndAddProductRef = useRef<(searchTerm: string) => void | Promise<void>>(() => {});
   
   // Barcode scanner detection for instant add (like POS)
   const { recordKeystroke, reset: resetScannerDetection, detectScannerInput, scheduleAutoSubmit, cancelAutoSubmit, markSubmitted } = useBarcodeScanner();
@@ -551,11 +559,31 @@ export default function SalesInvoice() {
   const mobileERP = useMobileERP();
   const [financerDetails, setFinancerDetails] = useState<FinancerDetails | null>(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  const editingInvoiceIdRef = useRef(editingInvoiceId);
+  editingInvoiceIdRef.current = editingInvoiceId;
+  // Industrial mode with godowns: the godown this bill's goods go out of (Phase 3 step 3d).
+  const saleGodown = useDocGodown({
+    refType: "sale",
+    organizationId: currentOrganization?.id,
+    editDocId: editingInvoiceId,
+    toast,
+  });
   const isInitializingEditRef = useRef(false);
   /** Share of each line removed by the bill-level (flat) discount — set from totals each render. */
   const billDiscountRatioRef = useRef(0);
   const hasManuallyAddedNewItemRef = useRef(false);
   const [originalItemsForEdit, setOriginalItemsForEdit] = useState<Array<{ variantId: string; quantity: number }>>([]);
+  // Edit mode: pieces already on the saved bill come back on save, so they count as available.
+  // Read through refs — scan handlers are memoised and must not see a stale "not editing" state.
+  const originalItemsForEditRef = useRef(originalItemsForEdit);
+  originalItemsForEditRef.current = originalItemsForEdit;
+  const editFreedQty = (variantId: string | undefined | null): number => {
+    if (!variantId || !editingInvoiceIdRef.current) return 0;
+    return originalItemsForEditRef.current.reduce(
+      (sum, o) => (o.variantId === variantId ? sum + (Number(o.quantity) || 0) : sum),
+      0,
+    );
+  };
   const [recordedReceiptAmount, setRecordedReceiptAmount] = useState(0);
   const [originalNetAmount, setOriginalNetAmount] = useState(0);
   const [showPaidLineEditDialog, setShowPaidLineEditDialog] = useState(false);
@@ -936,6 +964,7 @@ export default function SalesInvoice() {
       address: "",
       gst_number: "",
       transport_details: "",
+      fssai_number: "",
     },
   });
 
@@ -1953,12 +1982,7 @@ export default function SalesInvoice() {
       }
 
       // In edit mode, calculate freed stock from original invoice for this variant
-      let freedQty = 0;
-      if (editingInvoiceId && originalItemsForEdit.length > 0) {
-        freedQty = originalItemsForEdit
-          .filter(orig => orig.variantId === variant.id)
-          .reduce((sum, orig) => sum + orig.quantity, 0);
-      }
+      const freedQty = editFreedQty(variant.id);
 
       // Stock validation with freed quantity
       const stockCheck = await checkStock(variant.id, qty, freedQty);
@@ -2066,7 +2090,7 @@ export default function SalesInvoice() {
     if (isScannerLike || (value.length >= 4 && timeSinceLastKeystroke < 50)) {
       // Schedule auto-submit for scanners that don't send Enter
       scheduleAutoSubmit(value, (val) => {
-        searchAndAddProduct(val);
+        searchAndAddProductRef.current(val);
         setSearchInput("");
         resetScannerDetection();
         setTimeout(() => barcodeInputRef.current?.focus(), 50);
@@ -2091,7 +2115,7 @@ export default function SalesInvoice() {
       cancelAutoSubmit();
       markSubmitted(rawValue);
       
-      searchAndAddProduct(rawValue);
+      searchAndAddProductRef.current(rawValue);
       resetScannerDetection();
     }
   }, [resetScannerDetection, cancelAutoSubmit, markSubmitted]);
@@ -2239,12 +2263,7 @@ export default function SalesInvoice() {
       const stockQty = Number(foundVariant.stock_qty) || 0;
 
       if (!isServiceOrCombo) {
-        let freedQty = 0;
-        if (editingInvoiceId && originalItemsForEdit.length > 0) {
-          freedQty = originalItemsForEdit
-            .filter((orig) => orig.variantId === foundVariant.id)
-            .reduce((sum, orig) => sum + orig.quantity, 0);
-        }
+        const freedQty = editFreedQty(foundVariant.id);
         const alreadyStaged = stagedQtyByVariantRef.current.get(foundVariant.id) || 0;
         const requestedQty = alreadyStaged + 1;
         const availableStock = stockQty + freedQty;
@@ -2313,6 +2332,7 @@ export default function SalesInvoice() {
     originalItemsForEdit,
     allowNegativeStock,
   ]);
+  searchAndAddProductRef.current = searchAndAddProduct;
 
   const addProductToInvoice = async (
     product: any,
@@ -2395,12 +2415,7 @@ export default function SalesInvoice() {
     }
 
     // In edit mode, calculate freed stock from original invoice for this variant
-    let freedQty = 0;
-    if (editingInvoiceId && originalItemsForEdit.length > 0) {
-      freedQty = originalItemsForEdit
-        .filter(orig => orig.variantId === variant.id)
-        .reduce((sum, orig) => sum + orig.quantity, 0);
-    }
+    const freedQty = editFreedQty(variant.id);
 
     // Stock guard BEFORE any price prompt or staging — never add an out-of-stock product.
     // Message shows immediately on scan/select; the item is not added to the bill.
@@ -2898,12 +2913,7 @@ export default function SalesInvoice() {
     if (!item || !item.variantId) return;
     
     // In edit mode, calculate freed stock from original invoice for this variant
-    let freedQty = 0;
-    if (editingInvoiceId && originalItemsForEdit.length > 0) {
-      freedQty = originalItemsForEdit
-        .filter(orig => orig.variantId === item.variantId)
-        .reduce((sum, orig) => sum + orig.quantity, 0);
-    }
+    const freedQty = editFreedQty(item.variantId);
     
     // Real-time stock validation with freed quantity
     const stockCheck = await checkStock(item.variantId, quantity, freedQty);
@@ -3191,6 +3201,7 @@ export default function SalesInvoice() {
         address: values.address,
         gst_number: values.gst_number,
         transport_details: values.transport_details,
+        fssai_number: values.fssai_number,
         organization_id: currentOrganization.id,
       });
 
@@ -3515,6 +3526,11 @@ Thank you for choosing us!`;
       return;
     }
 
+    // Industrial mode with godowns: the place the goods go out of must have them.
+    if (saleGodown.visible && !(await saleGodown.checkBeforeSave(godownDocCheckLines(filledItems)))) {
+      return;
+    }
+
     setIsSaving(true);
     let newSaleIdForRollback: string | null = null;
     // Keep the bill in Drafts if the save stalls (shop network) or fails, so a reload or
@@ -3704,6 +3720,8 @@ Thank you for choosing us!`;
           title: "Invoice Updated",
           description: "Invoice has been updated successfully",
         });
+        // Goods out of a godown: move only the difference (warnings replace the toast above).
+        await saleGodown.syncAfterSave(editingInvoiceId, true);
 
         scheduleInvoiceDashboardRefresh();
 
@@ -3833,6 +3851,8 @@ Thank you for choosing us!`;
         await insertSaleItemsInChunks(supabase, saleItems as Record<string, unknown>[]);
         newSaleIdForRollback = null;
         keepDraftOnFailure = false;
+        // Goods out of a godown (Industrial mode). Never throws: the bill is already saved.
+        await saleGodown.syncAfterSave(String(saleData.id), false);
 
         // Post after sale_items exist: the journal reads them for GST, revenue and COGS.
         if (accountingEngineOn) {
@@ -4093,6 +4113,7 @@ Thank you for choosing us!`;
         const fromQuotation = fromQuotationRef.current;
         fromQuotationRef.current = null;
         if (fromQuotation && currentOrganization?.id) {
+          const quotationOrgId = currentOrganization.id;
           void supabase
             .from("quotations")
             .update({ status: "confirmed" })
@@ -4100,6 +4121,7 @@ Thank you for choosing us!`;
             .eq("organization_id", currentOrganization.id)
             .then(({ error: qErr }) => {
               if (qErr) console.error("Quotation status update failed:", qErr);
+              else invalidateQuotationViewsAfterSave(queryClient, quotationOrgId);
             });
         }
 
@@ -4884,7 +4906,13 @@ Thank you for choosing us!`;
       {/* Invoice & Customer Details Section */}
       <section className={cn("sale-bill-details-section bg-white border-b border-slate-100 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-start entry-vasy-key-fields">
+        <div
+          className={cn(
+            "grid grid-cols-2 md:grid-cols-3 gap-4 items-start entry-vasy-key-fields",
+            // Industrial mode adds Supply type (and Dispatch from) to this row; other shops keep six columns.
+            !industrialMode.enabled ? "lg:grid-cols-6" : saleGodown.visible ? "md:grid-cols-4 lg:grid-cols-8 lg:gap-3" : "md:grid-cols-4 lg:grid-cols-7 lg:gap-3",
+          )}
+        >
           {/* Customer Selection */}
           <div className="col-span-2 md:col-span-1 lg:col-span-2 entry-key-field entry-key-field--party">
             <Label className="entry-key-label text-[13px] font-semibold text-slate-500">Customer <span className="text-red-500">*</span></Label>
@@ -4895,12 +4923,13 @@ Thank you for choosing us!`;
                     variant="outline"
                     role="combobox"
                     aria-expanded={openCustomerSearch}
-                    className="flex-1 justify-between h-11 text-base font-semibold"
+                    className="flex-1 min-w-0 justify-between h-11 text-base font-semibold"
+                    title={selectedCustomer ? `${selectedCustomer.customer_name}${selectedCustomer.phone ? ` - ${selectedCustomer.phone}` : ''}` : undefined}
                   >
                     {selectedCustomer ? (
-                      <span>{selectedCustomer.customer_name}{selectedCustomer.phone ? ` - ${selectedCustomer.phone}` : ''}</span>
+                      <span className="truncate">{selectedCustomer.customer_name}{selectedCustomer.phone ? ` - ${selectedCustomer.phone}` : ''}</span>
                     ) : (
-                      <span className="text-muted-foreground">Search customer by name, phone...</span>
+                      <span className="truncate text-muted-foreground">Search customer by name, phone...</span>
                     )}
                     <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
@@ -5222,10 +5251,31 @@ Thank you for choosing us!`;
             </Select>
           </div>
 
+          {industrialMode.enabled && (
+            <SaleSupplyTypeField
+              value={b2bForm.supply_type || "B2B"}
+              onChange={(v) => setB2bForm((f) => ({ ...f, supply_type: v }))}
+            />
+          )}
+
+          {saleGodown.visible && (
+            <DocGodownField
+              label="Dispatch from"
+              choices={saleGodown.choices}
+              value={saleGodown.value}
+              mainId={saleGodown.mainId}
+              onChange={saleGodown.setValue}
+              loading={saleGodown.loading}
+              disabled={isSaving}
+              mainHint="Goods go out of the shop stock (Main), as before."
+              godownHint={(name) => `When you save, the goods on this bill go out of ${name}.`}
+            />
+          )}
+
         </div>
         {industrialMode.enabled && (
           <SaleB2BDetailsBand
-            className="mt-2.5"
+            className="mt-2"
             value={b2bForm}
             onChange={setB2bForm}
             customerTransport={selectedCustomer?.transport_details}
@@ -6145,6 +6195,20 @@ Thank you for choosing us!`;
                     <FormLabel>Transport Details</FormLabel>
                     <FormControl>
                       <Input {...field} placeholder="e.g., VRL Logistics, Navi Mumbai" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={customerForm.control}
+                name="fssai_number"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>FSSAI Number</FormLabel>
+                    <FormControl>
+                      <Input {...field} inputMode="numeric" placeholder="Food shops only (optional)" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -72,6 +72,7 @@ const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { fetchDocGodownNames } from "@/utils/godownDocs";
 import { useSaleReturnIrn } from "@/hooks/useSaleReturnIrn";
 import { SaleReturnIrnCell } from "@/components/einvoice/SaleReturnIrnCell";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
@@ -755,6 +756,20 @@ export default function SaleReturnDashboard() {
   const irnColumn = industrialMode.enabled && einvoiceSettingsForIrn?.enabled === true;
   const irnReturnIds = useMemo(() => (irnColumn ? returns.map((r) => r.id) : []), [irnColumn, returns]);
   const saleReturnIrn = useSaleReturnIrn(currentOrganization?.id, irnReturnIds, irnColumn);
+
+  // Industrial mode, Phase 3 step 3d-3: the godown each return's goods went into ("Return into").
+  const returnPlaceKey = useMemo(
+    () => (industrialMode.enabled ? returns.map((r) => String(r.id)).sort().join(",") : ""),
+    [industrialMode.enabled, returns],
+  );
+  const { data: returnPlaces } = useQuery({
+    queryKey: ["sale-return-godown-places", currentOrganization?.id ?? "", returnPlaceKey],
+    queryFn: () => fetchDocGodownNames("sale_return", returnPlaceKey.split(",")),
+    enabled: industrialMode.enabled && !!currentOrganization?.id && returnPlaceKey.length > 0,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const returnPlaceName = (id: unknown): string => (returnPlaces && returnPlaces[String(id)]) || "";
   const irnSeller = useMemo(
     () => ({
       gstin: String(einvoiceSettingsForIrn?.seller_gstin || businessDetails?.gst_number || ""),
@@ -1884,6 +1899,14 @@ export default function SaleReturnDashboard() {
                               {formatReturnTime(ret.created_at) && (
                                 <span className="block text-[11px] leading-tight text-muted-foreground tabular-nums">
                                   {formatReturnTime(ret.created_at)}
+                                </span>
+                              )}
+                              {returnPlaceName(ret.id) && (
+                                <span
+                                  className="mt-0.5 inline-block rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-800 ring-1 ring-emerald-200"
+                                  title={`Returned goods went into ${returnPlaceName(ret.id)}`}
+                                >
+                                  Into {returnPlaceName(ret.id)}
                                 </span>
                               )}
                             </TableCell>

@@ -8,6 +8,10 @@ import {
   isFillHeightDashboardPath,
   isHideGlobalHeaderPath,
 } from "@/lib/entryPageLayout";
+import { POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS } from "@/lib/chunkLoadRetry";
+import { TAB_PAGE_REGISTRY } from "@/lib/tabPageRegistry";
+import { resolveTabLoadShell } from "@/lib/tabLoadShell";
+import { tabLoadMessage } from "@/lib/tabLoadLabels";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "../..");
@@ -44,6 +48,21 @@ describe("Stock Transfer dashboard + entry", () => {
     const app = read("src/App.tsx");
     const start = app.indexOf('path="stock-transfer-entry"');
     expect(app.slice(start, start + 400)).toContain("<FullScreenLayout>");
+  });
+
+  it("dashboard opens from the tab cache, not a cold Outlet load (no white flash)", () => {
+    expect(TAB_PAGE_REGISTRY["stock-transfer"]?.layout).toBe("layout");
+    // Same roles as the App.tsx route — the tab cache must not widen access.
+    expect(TAB_PAGE_REGISTRY["stock-transfer"]?.roles).toEqual(["admin", "manager"]);
+    expect(TAB_PAGE_REGISTRY["stock-transfer-entry"]).toBeUndefined();
+    expect(POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS).toContain("stock-transfer");
+    expect(resolveTabLoadShell("stock-transfer")).toBe("dashboard");
+    expect(tabLoadMessage("stock-transfer", "dashboard")).toBe("Opening Stock Transfer…");
+    const app = read("src/App.tsx");
+    const start = app.indexOf('path="stock-transfer"');
+    const block = app.slice(start, app.indexOf('path="stock-transfer-entry"', start));
+    expect(block).toContain('allowedRoles={["admin", "manager"]}');
+    expect(block.indexOf("<Suspense fallback={<LazyFallback />}>")).toBeGreaterThan(block.indexOf("<Layout>"));
   });
 
   it("menu lives under Inventory, not Tools", () => {

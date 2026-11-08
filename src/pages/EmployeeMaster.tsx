@@ -219,6 +219,14 @@ const EmployeeMaster = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.field_sales_access && !formData.user_id) {
+      toast({
+        title: "Link a login account",
+        description: "Field Sales App needs a user account linked. Pick the employee's login in \"Link User Account\", otherwise the app will not open for them.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (editingEmployee) { updateEmployee.mutate({ id: editingEmployee.id, data: formData }); }
     else { createEmployee.mutate(formData); }
   };
@@ -290,10 +298,25 @@ const EmployeeMaster = () => {
       header: "Field Sales",
       cell: ({ row }) =>
         row.original.field_sales_access ? (
-          <Badge variant="default" className="bg-green-600 text-sm px-2.5 py-0.5">
-            <Smartphone className="h-3.5 w-3.5 mr-1" />
-            Enabled
-          </Badge>
+          row.original.user_id ? (
+            <Badge
+              variant="default"
+              className="bg-green-600 text-sm px-2.5 py-0.5"
+              title={orgUsers.find((u) => u.id === row.original.user_id)?.email || "Linked"}
+            >
+              <Smartphone className="h-3.5 w-3.5 mr-1" />
+              Enabled
+            </Badge>
+          ) : (
+            <Badge
+              variant="outline"
+              className="border-amber-500 text-amber-700 text-sm px-2.5 py-0.5"
+              title="No login account linked. Edit and pick Link User Account."
+            >
+              <Smartphone className="h-3.5 w-3.5 mr-1" />
+              Not linked
+            </Badge>
+          )
         ) : (
           <Badge variant="outline" className="text-sm text-muted-foreground px-2.5 py-0.5">
             Disabled
@@ -332,7 +355,7 @@ const EmployeeMaster = () => {
       ),
       size: 110,
     },
-  ], []);
+  ], [orgUsers]);
 
   return (
     <div className="employee-master-workspace flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3">
@@ -382,13 +405,14 @@ const EmployeeMaster = () => {
                     Add Employee
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="w-[96vw] sm:max-w-4xl max-h-[92dvh] overflow-y-auto gap-3 p-5 sm:p-6">
                   <DialogHeader>
                     <DialogTitle className="text-xl">
                       {editingEmployee ? "Edit Employee" : "Add New Employee"}
                     </DialogTitle>
                   </DialogHeader>
-                  <form onSubmit={handleSubmit} className="space-y-4 text-base">
+                  <form onSubmit={handleSubmit} className="space-y-3 text-base">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
                     <div>
                       <Label htmlFor="employee_name">Employee Name *</Label>
                       <Input
@@ -411,8 +435,8 @@ const EmployeeMaster = () => {
                     <div className="space-y-1">
                       <Label htmlFor="commission_percent">
                         Commission %{" "}
-                        <span className="text-sm text-muted-foreground ml-2 font-normal">
-                          default 1% = ₹1 per ₹100 sale
+                        <span className="text-xs text-muted-foreground ml-1 font-normal">
+                          (default 1%)
                         </span>
                       </Label>
                       <div className="flex items-center gap-3">
@@ -426,11 +450,11 @@ const EmployeeMaster = () => {
                           onChange={(e) =>
                             setFormData({ ...formData, commission_percent: parseFloat(e.target.value) || 0 })
                           }
-                          className="w-28 h-10 text-base"
+                          className="w-24 h-10 text-base"
                           placeholder="1.0"
                         />
                         <span className="text-sm text-muted-foreground">
-                          = ₹{(formData.commission_percent || 0).toFixed(2)} earned per ₹100 sale
+                          = ₹{(formData.commission_percent || 0).toFixed(2)} per ₹100 sale
                         </span>
                       </div>
                     </div>
@@ -454,15 +478,6 @@ const EmployeeMaster = () => {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="address">Address</Label>
-                      <Textarea
-                        id="address"
-                        value={formData.address}
-                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                        className="text-base"
-                      />
-                    </div>
-                    <div>
                       <Label htmlFor="joining_date">Joining Date</Label>
                       <Input
                         id="joining_date"
@@ -470,6 +485,16 @@ const EmployeeMaster = () => {
                         value={formData.joining_date}
                         onChange={(e) => setFormData({ ...formData, joining_date: e.target.value })}
                         className="h-10 text-base"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label htmlFor="address">Address</Label>
+                      <Textarea
+                        id="address"
+                        value={formData.address}
+                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                        rows={2}
+                        className="text-base min-h-[2.5rem]"
                       />
                     </div>
                     <div>
@@ -487,7 +512,9 @@ const EmployeeMaster = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 items-start">
+                    <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
                       <div className="space-y-0.5">
                         <Label
                           htmlFor="field_sales_access"
@@ -532,11 +559,19 @@ const EmployeeMaster = () => {
                         <p className="text-sm text-muted-foreground mt-1">
                           Link this employee to a user account for Field Sales app login
                         </p>
+                        {!isLoadingUsers && orgUsers.length === 0 && (
+                          <p className="text-sm text-amber-700 mt-1">
+                            No user accounts found. Create the salesman's login in Settings &gt; Users first, then link it here.
+                          </p>
+                        )}
                       </div>
                     )}
-                    <Button type="submit" className="w-full h-11 text-base">
+                    </div>
+                    <div className="flex justify-end pt-1">
+                    <Button type="submit" className="w-full sm:w-64 h-11 text-base">
                       {editingEmployee ? "Update" : "Create"} Employee
                     </Button>
+                    </div>
                   </form>
                 </DialogContent>
               </Dialog>

@@ -1072,6 +1072,17 @@ export default function POSSales() {
   const isInitializingEditRef = useRef(false);
   const hasManuallyAddedNewItemRef = useRef(false);
   const [originalItemsForEdit, setOriginalItemsForEdit] = useState<Array<{ variantId: string; quantity: number }>>([]);
+  // Edit mode: stock already on the saved bill comes back on save, so it counts as available
+  // for that SKU (ref keeps memoised scan handlers from reading a stale list).
+  const originalItemsForEditRef = useRef(originalItemsForEdit);
+  originalItemsForEditRef.current = originalItemsForEdit;
+  const editFreedQty = (variantId: string | undefined | null): number => {
+    if (!variantId) return 0;
+    return originalItemsForEditRef.current.reduce(
+      (sum, o) => (o.variantId === variantId ? sum + (Number(o.quantity) || 0) : sum),
+      0,
+    );
+  };
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [showPrintConfirmDialog, setShowPrintConfirmDialog] = useState(false);
   const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
@@ -2060,103 +2071,108 @@ export default function POSSales() {
     return () => window.removeEventListener(POS_OPEN_SALESMAN_PICKER_EVENT, onOpenSalesman);
   }, [location.pathname]);
 
-  // Keyboard shortcuts for POS actions
+  // Keyboard shortcuts for POS actions.
+  // The handler is refreshed every render through a ref so F1–F11 always see the
+  // latest bill state. A dependency list here left F-key saves using an old
+  // closure — e.g. a salesman picked with Alt+M after scanning was not saved.
+  const posShortcutKeyHandlerRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  posShortcutKeyHandlerRef.current = (e: KeyboardEvent) => {
+    // Tab cache keeps POS mounted while other screens are open — only handle keys on active POS route.
+    if (!isPosSalesRoute(location.pathname)) return;
+    if (isSaving) return;
+    if (
+      document.querySelector(
+        '[role="dialog"], [role="alertdialog"], [data-radix-popper-content-wrapper]',
+      )
+    ) {
+      return;
+    }
+
+    // F1 - Cash Payment (Save & Print)
+    if (e.key === 'F1') {
+      e.preventDefault();
+      handlePaymentAndPrint('cash');
+    }
+    // F2 - UPI Payment (Save & Print)
+    else if (e.key === 'F2') {
+      e.preventDefault();
+      handlePaymentAndPrint('upi');
+    }
+    // F3 - Card Payment (Save & Print)
+    else if (e.key === 'F3') {
+      e.preventDefault();
+      handlePaymentAndPrint('card');
+    }
+    // F4 - Credit (Pay Later)
+    else if (e.key === 'F4') {
+      e.preventDefault();
+      handlePaymentAndPrint('pay_later');
+    }
+    // F5 - Sale Return
+    else if (e.key === 'F5') {
+      e.preventDefault();
+      setShowFloatingSaleReturn(true);
+    }
+    // F6 - Mix Payment
+    else if (e.key === 'F6') {
+      e.preventDefault();
+      handleMixPayment();
+    }
+    // F7 - Hold Bill
+    else if (e.key === 'F7') {
+      e.preventDefault();
+      if (items.length === 0 || isHeldSale) {
+        setShowHoldPanel(prev => !prev);
+      } else {
+        handleHoldBill();
+      }
+    }
+    // F8 - Cashier Report
+    else if (e.key === 'F8') {
+      e.preventDefault();
+      setShowFloatingCashierReport(true);
+    }
+    // F9 - Print Estimate (no save)
+    else if (e.key === 'F9') {
+      e.preventDefault();
+      if (items.length > 0) {
+        handleEstimatePrintRef.current?.();
+      }
+    }
+    // Esc - Clear cart or go to POS Dashboard
+    else if (e.key === 'Escape') {
+      e.preventDefault();
+      const hasItems = items.some(i => i.productId !== '');
+      if (hasItems) {
+        handleClearAll();
+      } else {
+        orgNavigatePOS('/pos-dashboard');
+      }
+    }
+    // Ctrl+P - Print saved invoice
+    else if (e.ctrlKey && e.key === 'p') {
+      e.preventDefault();
+      if (savedInvoiceData) {
+        handlePrintFromDialog();
+      }
+    }
+    // F10 - Add New Customer
+    else if (e.key === 'F10') {
+      e.preventDefault();
+      openAddCustomerDialog();
+    }
+    // F11 - Size-wise Stock Report
+    else if (e.key === 'F11') {
+      e.preventDefault();
+      setShowFloatingStockReport(true);
+    }
+  };
+
   useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      // Tab cache keeps POS mounted while other screens are open — only handle keys on active POS route.
-      if (!isPosSalesRoute(location.pathname)) return;
-      if (isSaving) return;
-      if (
-        document.querySelector(
-          '[role="dialog"], [role="alertdialog"], [data-radix-popper-content-wrapper]',
-        )
-      ) {
-        return;
-      }
-
-      // F1 - Cash Payment (Save & Print)
-      if (e.key === 'F1') {
-        e.preventDefault();
-        handlePaymentAndPrint('cash');
-      }
-      // F2 - UPI Payment (Save & Print)
-      else if (e.key === 'F2') {
-        e.preventDefault();
-        handlePaymentAndPrint('upi');
-      }
-      // F3 - Card Payment (Save & Print)
-      else if (e.key === 'F3') {
-        e.preventDefault();
-        handlePaymentAndPrint('card');
-      }
-      // F4 - Credit (Pay Later)
-      else if (e.key === 'F4') {
-        e.preventDefault();
-        handlePaymentAndPrint('pay_later');
-      }
-      // F5 - Sale Return
-      else if (e.key === 'F5') {
-        e.preventDefault();
-        setShowFloatingSaleReturn(true);
-      }
-      // F6 - Mix Payment
-      else if (e.key === 'F6') {
-        e.preventDefault();
-        handleMixPayment();
-      }
-      // F7 - Hold Bill
-      else if (e.key === 'F7') {
-        e.preventDefault();
-        if (items.length === 0 || isHeldSale) {
-          setShowHoldPanel(prev => !prev);
-        } else {
-          handleHoldBill();
-        }
-      }
-      // F8 - Cashier Report
-      else if (e.key === 'F8') {
-        e.preventDefault();
-        setShowFloatingCashierReport(true);
-      }
-      // F9 - Print Estimate (no save)
-      else if (e.key === 'F9') {
-        e.preventDefault();
-        if (items.length > 0) {
-          handleEstimatePrintRef.current?.();
-        }
-      }
-      // Esc - Clear cart or go to POS Dashboard
-      else if (e.key === 'Escape') {
-        e.preventDefault();
-        const hasItems = items.some(i => i.productId !== '');
-        if (hasItems) {
-          handleClearAll();
-        } else {
-          orgNavigatePOS('/pos-dashboard');
-        }
-      }
-      // Ctrl+P - Print saved invoice
-      else if (e.ctrlKey && e.key === 'p') {
-        e.preventDefault();
-        if (savedInvoiceData) {
-          handlePrintFromDialog();
-        }
-      }
-      // F10 - Add New Customer
-      else if (e.key === 'F10') {
-        e.preventDefault();
-        openAddCustomerDialog();
-      }
-      // F11 - Size-wise Stock Report
-      else if (e.key === 'F11') {
-        e.preventDefault();
-        setShowFloatingStockReport(true);
-      }
-    };
-
+    const handleKeyPress = (e: KeyboardEvent) => posShortcutKeyHandlerRef.current(e);
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [items, customerName, flatDiscountValue, roundOff, paymentMethod, savedInvoiceData, isSaving, location.pathname]);
+  }, []);
 
   // Apply defaults when settings load — only for empty new bills (never stomp an active cart
   // or force Flat Disc mode back to % after the cashier toggles %/₹).
@@ -3501,7 +3517,7 @@ export default function POSSales() {
           });
         }
         // Serialized units are unique pieces — a zero-stock IMEI is already sold.
-        if (stockQty > 0 || ((allowNegativeStock || !isStockTrackedPosProduct(prod)) && !needsImei)) {
+        if (stockQty + editFreedQty(dbVariant.id) > 0 || ((allowNegativeStock || !isStockTrackedPosProduct(prod)) && !needsImei)) {
           // Same barcode again → addItemToCart merges qty (+1), not a duplicate line.
           await addItemToCart(prod, dbVariant, undefined, 'barcode');
           recordPosBarcodeScanSuccess(trimmedTerm);
@@ -3764,7 +3780,7 @@ export default function POSSales() {
         // Stock covers every line of this SKU, not only the one being changed.
         const stockQtyNeeded = posCartQtyForVariant(itemsRef.current, variant.id) - beforeQty + targetQty;
 
-        const stockCheck = await checkStock(variant.id, stockQtyNeeded);
+        const stockCheck = await checkStock(variant.id, stockQtyNeeded, editFreedQty(variant.id));
         if (!stockCheck.isAvailable) {
           openStockIssueDialog(
             buildInsufficientStockIssue(stockCheck.productName, stockCheck.size, stockQtyNeeded, stockCheck.availableStock),
@@ -4011,7 +4027,7 @@ export default function POSSales() {
       if (!isServiceProduct) {
         // All lines of this SKU count (one SKU can be on two lines at two prices).
         const stockQtyNeeded = posCartQtyForVariant(itemsRef.current, variant.id) + 1;
-        const stockCheck = await checkStock(variant.id, stockQtyNeeded);
+        const stockCheck = await checkStock(variant.id, stockQtyNeeded, editFreedQty(variant.id));
 
         if (!stockCheck.isAvailable) {
           openStockIssueDialog(
@@ -4035,7 +4051,7 @@ export default function POSSales() {
       // Real-time stock validation before adding new item (skip for service)
       if (!isServiceProduct) {
         const stockQtyNeeded = posCartQtyForVariant(itemsRef.current, variant.id) + 1;
-        const stockCheck = await checkStock(variant.id, stockQtyNeeded);
+        const stockCheck = await checkStock(variant.id, stockQtyNeeded, editFreedQty(variant.id));
 
         if (!stockCheck.isAvailable) {
           openStockIssueDialog(
@@ -4208,12 +4224,13 @@ export default function POSSales() {
     const clampedQty = clampQty(newQty, item);
     if (clampedQty < minQtyForUom(item)) return;
 
-    // Real-time stock validation before updating quantity
-    const stockCheck = await checkStock(item.variantId, clampedQty);
+    // Real-time stock validation before updating quantity (every line of this SKU counts)
+    const stockQtyNeeded = posCartQtyForVariant(items, item.variantId) - (Number(item.quantity) || 0) + clampedQty;
+    const stockCheck = await checkStock(item.variantId, stockQtyNeeded, editFreedQty(item.variantId));
     
     if (!stockCheck.isAvailable) {
       openStockIssueDialog(
-        buildInsufficientStockIssue(item.productName, item.size, clampedQty, stockCheck.availableStock),
+        buildInsufficientStockIssue(item.productName, item.size, stockQtyNeeded, stockCheck.availableStock),
       );
       return;
     }

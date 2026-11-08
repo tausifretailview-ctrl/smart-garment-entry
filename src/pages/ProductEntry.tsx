@@ -3,6 +3,7 @@ import { cleanProductName } from "@/utils/productNameMerge";
 import { NO_SIZE_GROUP_ID, resolveDefaultSizeGroupId, sizeGroupIdForSave } from "@/utils/defaultSizeGroup";
 import { classifyBarcodeSource } from "@/utils/barcodeChecksum";
 import { useLocation } from "react-router-dom";
+import { productEntryReturnPath } from "@/utils/productEntryReturn";
 import { useQueryClient } from "@tanstack/react-query";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
@@ -1623,8 +1624,8 @@ const ProductEntry = () => {
 
         await invalidateProductDashboardQueries(queryClient, currentOrganization?.id);
 
-        // Navigate back to product dashboard after edit
-        orgNavigate("/products");
+        // Navigate back to product dashboard (or the page that opened this edit)
+        orgNavigate(productEntryReturnPath(location.search));
         return;
       } else {
         // Insert new product
@@ -3296,7 +3297,7 @@ const ProductEntry = () => {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => orgNavigate('/products')}
+                  onClick={() => orgNavigate(productEntryReturnPath(location.search))}
                   className="font-outfit font-semibold hidden sm:inline-flex"
                 >
                   Cancel

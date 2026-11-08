@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { normalizePhoneNumber } from "./excelImportUtils";
+import { customerFssaiPatch } from "./fssai";
 
 export interface CreateCustomerParams {
   customer_name?: string;
@@ -11,6 +12,8 @@ export interface CreateCustomerParams {
   opening_balance?: number;
   discount_percent?: number;
   transport_details?: string;
+  /** Food shops: customer's FSSAI licence number (optional). */
+  fssai_number?: string;
 }
 
 export interface CreateCustomerResult {
@@ -199,6 +202,7 @@ export async function createOrGetCustomer(params: CreateCustomerParams): Promise
     discount_percent: params.discount_percent || 0,
     transport_details: params.transport_details || null,
     organization_id: params.organization_id,
+    ...customerFssaiPatch(params.fssai_number || ""),
   };
 
   const { data: newCustomer, error } = await supabase

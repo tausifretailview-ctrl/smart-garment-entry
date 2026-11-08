@@ -11,11 +11,11 @@ import {
   SALESMAN_CUSTOMER_LIST_QUERY_KEY,
 } from "@/utils/salesmanCustomerList";
 import { STALE_FREQUENT } from "@/lib/queryStaleTimes";
-import { Home, Users, ShoppingCart, ListOrdered, LogOut, Download, AlertCircle, Package, BookOpen } from "lucide-react";
+import { Home, Users, ShoppingCart, ListOrdered, LogOut, Download, AlertCircle, Package, BookOpen, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { useInstallPrompt } from "@/hooks/useInstallPrompt";
+import { useInstallPrompt, triggerPwaInstall, isIOSDevice } from "@/hooks/useInstallPrompt";
 import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { toast } from "sonner";
@@ -23,6 +23,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
 
 const LOADING_TIMEOUT = 8000; // 8 seconds max wait
+const INSTALL_BANNER_DISMISSED_KEY = "ezzy-field-sales-install-banner-dismissed";
+
+function readBannerDismissed(): boolean {
+  try {
+    return localStorage.getItem(INSTALL_BANNER_DISMISSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function manualInstallSteps(): string {
+  if (isIOSDevice()) {
+    return "To install Field Sales: tap the Share button in Safari, then 'Add to Home Screen'.";
+  }
+  return "To install Field Sales: open the browser menu (⋮) and tap 'Add to Home screen' or 'Install app'. If you use 'Desktop site', turn it off first.";
+}
 
 const SalesmanLayout = () => {
   const { getOrgPath } = useOrgNavigation();
@@ -31,11 +47,15 @@ const SalesmanLayout = () => {
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
   const { signOut } = useAuth();
-  const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
+  const { isInstalled } = useInstallPrompt();
   const { hasAccess, employeeName, isLoading } = useFieldSalesAccess();
   const { isOnline, pendingActions, isSyncing } = useOfflineSync();
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+  // Dashboard "Install App" opens /salesman?install=1 — always show the banner then.
+  const installRequested = new URLSearchParams(location.search).get("install") === "1";
+  const [bannerDismissed, setBannerDismissed] = useState(() => readBannerDismissed());
+  const showInstallBanner = !isInstalled && (installRequested || !bannerDismissed);
 
   // Safety timeout to prevent infinite loading on slow mobile data
   useEffect(() => {
@@ -129,18 +149,30 @@ const SalesmanLayout = () => {
       toast.info("Field Sales app is already installed!");
       return;
     }
-    
-    if (isInstallable) {
-      const installed = await promptInstall();
-      if (installed) {
-        toast.success("Field Sales app installed successfully!");
-      }
-    } else {
-      // Show manual installation instructions
-      toast.info(
-        "To install Field Sales: Open browser menu → 'Add to Home Screen'",
-        { duration: 5000 }
-      );
+
+    // Uses the deferred Chrome prompt when there is one; otherwise explain the
+    // browser-menu route (Chrome often withholds the prompt, e.g. in Desktop site mode).
+    const outcome = await triggerPwaInstall();
+    if (outcome === "accepted") {
+      toast.success("Field Sales app installed successfully!");
+      dismissInstallBanner();
+    } else if (outcome === "unavailable") {
+      toast.info(manualInstallSteps(), { duration: 9000 });
+    }
+  };
+
+  const dismissInstallBanner = () => {
+    setBannerDismissed(true);
+    try {
+      localStorage.setItem(INSTALL_BANNER_DISMISSED_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+    if (installRequested) {
+      const params = new URLSearchParams(location.search);
+      params.delete("install");
+      const search = params.toString();
+      navigate(`${location.pathname}${search ? `?${search}` : ""}`, { replace: true });
     }
   };
 
@@ -273,12 +305,13 @@ const SalesmanLayout = () => {
           {!isInstalled && (
             <Button
               variant="ghost"
-              size="icon"
+              size="sm"
               onClick={handleInstall}
-              className="text-white hover:bg-white/20"
+              className="h-9 px-2 text-white hover:bg-white/20"
               title="Install App"
             >
               <Download className="h-5 w-5" />
+              <span className="ml-1 text-xs font-semibold">Install</span>
             </Button>
           )}
           <Button
@@ -292,6 +325,30 @@ const SalesmanLayout = () => {
           </Button>
         </div>
       </header>
+
+      {showInstallBanner && (
+        <div className="shrink-0 flex items-center gap-2 border-b border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-900">
+          <Download className="h-4 w-4 shrink-0 text-orange-500" />
+          <span className="flex-1 min-w-0 leading-tight">
+            Install the Field Sales app on this phone for one-tap access.
+          </span>
+          <Button
+            size="sm"
+            onClick={handleInstall}
+            className="h-8 shrink-0 bg-orange-500 px-3 text-white hover:bg-orange-600"
+          >
+            Install
+          </Button>
+          <button
+            type="button"
+            onClick={dismissInstallBanner}
+            className="shrink-0 rounded p-1 text-orange-700 hover:bg-orange-100"
+            aria-label="Dismiss install banner"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Size Stock Dialog */}
       <SizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />
