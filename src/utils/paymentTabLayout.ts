@@ -32,7 +32,10 @@ export function resolvePaymentPickerGridHeight(opts: {
   if (rowCount === 0) return undefined;
 
   const headerPx = 44;
-  const rowPx = 36;
+  // Real rows are ~44–50px (bold bill no + cell padding). The old 36px estimate capped a
+  // 7-bill grid at 5 visible rows, forcing a scroll. This is only a max-height, so
+  // over-estimating is harmless — the grid never grows past its content.
+  const rowPx = 52;
   const contentPx = headerPx + rowCount * rowPx;
   const capPx = compact ? 420 : fullPage ? 900 : 480;
   const vhCapPx =
@@ -40,7 +43,7 @@ export function resolvePaymentPickerGridHeight(opts: {
       ? compact
         ? Math.round(window.innerHeight * 0.48)
         : fullPage
-          ? Math.round(window.innerHeight * 0.58)
+          ? Math.round(window.innerHeight * 0.68)
           : Math.round(window.innerHeight * 0.55)
       : capPx;
   const minGridPx = fullPage ? 320 : 200;
