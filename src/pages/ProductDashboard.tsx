@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { sendProductsToWebsite } from "@/lib/websiteSendProducts";
+import { ToastAction } from "@/components/ui/toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
@@ -33,7 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2, Barcode, RefreshCw, Eye, Edit, ShoppingCart, History, Ban, Merge, Boxes, Tags, TrendingDown, TrendingUp, AlertTriangle, Columns3 } from "lucide-react";
+import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2, Barcode, RefreshCw, Eye, Edit, ShoppingCart, History, Ban, Merge, Boxes, Tags, TrendingDown, TrendingUp, AlertTriangle, Columns3, Globe } from "lucide-react";
 import { useIndustrialMode } from "@/hooks/useIndustrialMode";
 import { ReorderLevelDialog } from "@/components/products/ReorderLevelDialog";
 import { cn } from "@/lib/utils";
@@ -191,8 +193,11 @@ const ProductDashboard = () => {
   const { currentOrganization } = useOrganization();
   const { hideDc, onlyDc } = useDcVisibility();
   const dcView = useMemo(() => ({ hideDc, onlyDc }), [hideDc, onlyDc]);
-  const { hasSpecialPermission } = useUserPermissions();
+  const { hasSpecialPermission, hasMenuAccess, isAdmin: isAdminPermissions } = useUserPermissions();
   const canDelete = hasSpecialPermission('delete_records');
+  // Same gate as the Website entry in the sidebar.
+  const canUseWebsite = isAdminPermissions || hasMenuAccess("website_settings");
+  const [sendingToWebsite, setSendingToWebsite] = useState(false);
   const { data: orgSettings } = useSettings();
   const productFieldSettings = useProductFieldSettings();
   const fieldLabels = {
@@ -1056,6 +1061,49 @@ const ProductDashboard = () => {
     setMaxPrice("");
     setSearchQuery("");
     clearPersistedFilters();
+  };
+
+  /**
+   * Put the selected products on the website list, switched off. The owner then checks
+   * photo, price and section in Website → Catalogue and switches each one on to publish.
+   */
+  const sendSelectedToWebsite = async () => {
+    const orgId = currentOrganization?.id;
+    if (!orgId || selectedProducts.size === 0) return;
+    const priceById = new Map(productRows.map((p) => [p.product_id, p.default_sale_price]));
+    setSendingToWebsite(true);
+    try {
+      const { added, already } = await sendProductsToWebsite(
+        orgId,
+        Array.from(selectedProducts).map((product_id) => ({
+          product_id,
+          default_sale_price: priceById.get(product_id) ?? null,
+        })),
+      );
+      void queryClient.invalidateQueries({ queryKey: ["website_products", orgId] });
+      const skipped = already > 0 ? ` ${already} already on the website.` : "";
+      toast({
+        title: added > 0 ? `${added} product(s) sent to the website` : "Already on the website",
+        description:
+          added > 0
+            ? `They are not live yet. Open Website → Catalogue, check them and switch each one on to publish.${skipped}`
+            : "Every selected product is already in Website → Catalogue.",
+        action: (
+          <ToastAction altText="Open Website catalogue" onClick={() => navigate("/website")}>
+            Open Website
+          </ToastAction>
+        ),
+      });
+      if (added > 0) setSelectedProducts(new Set());
+    } catch (err) {
+      toast({
+        title: "Could not send to the website",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingToWebsite(false);
+    }
   };
 
   const toggleSelectAll = () => {
@@ -2188,6 +2236,18 @@ const ProductDashboard = () => {
                     <Barcode className="h-4 w-4" />
                     Generate Barcode
                   </Button>
+                  {canUseWebsite && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={sendingToWebsite}
+                      onClick={() => void sendSelectedToWebsite()}
+                      className="gap-2"
+                    >
+                      {sendingToWebsite ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
+                      Send to website
+                    </Button>
+                  )}
                   {selectedProducts.size === 2 && (
                     <Button
                       variant="outline"

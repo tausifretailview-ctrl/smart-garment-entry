@@ -70,6 +70,7 @@ import { websiteFrom } from "@/lib/websiteDb";
 import { WebsiteMenusPanel } from "@/components/website/WebsiteMenusPanel";
 import { WebsiteSectionsPanel } from "@/components/website/WebsiteSectionsPanel";
 import { WebsiteThemePanel } from "@/components/website/WebsiteThemePanel";
+import { WebsiteProductPhotosDialog } from "@/components/website/WebsiteProductPhotosDialog";
 import { WebsiteSectionSelect } from "@/components/website/WebsiteSectionSelect";
 import { StoreDomainSettings } from "@/components/settings/StoreDomainSettings";
 import {
@@ -1202,6 +1203,8 @@ function PublishedCatalogue({
     }
   };
 
+  const liveCount = listings.filter((l) => l.is_active).length;
+
   if (loading) {
     return (
       <div className={INSIGHTS_TAB_SHELL}>
@@ -1217,7 +1220,8 @@ function PublishedCatalogue({
       <div className={INSIGHTS_TAB_SHELL}>
         <InsightsPanel title="Published catalogue" className="flex-1 min-h-0">
           <p className="p-4 text-sm text-muted-foreground">
-            No products published yet. Use the Add products tab.
+            No products published yet. Use the Add products tab, or select products in the Product Dashboard and
+            press Send to website.
           </p>
         </InsightsPanel>
       </div>
@@ -1228,12 +1232,13 @@ function PublishedCatalogue({
     <div className={INSIGHTS_TAB_SHELL}>
       <InsightsPanel
         title="Published catalogue"
-        subtitle="Drag rows to reorder · assign a section · edit name, price and description · toggle visibility"
+        subtitle="Drag rows to reorder · assign a section · edit name, price and description · add or replace photos · switch on to publish"
         className="flex-1 min-h-0"
         footer={
           <div className="flex w-full items-center justify-between gap-2">
             <span className="text-xs text-muted-foreground tabular-nums">
-              {listings.length} product{listings.length === 1 ? "" : "s"} on store
+              {liveCount} product{liveCount === 1 ? "" : "s"} live on store
+              {listings.length > liveCount ? ` · ${listings.length - liveCount} waiting: switch on to publish` : ""}
             </span>
             {pageCount > 1 ? (
               <span className="flex items-center gap-1">
@@ -1366,6 +1371,7 @@ function SortableListingRow({
   const style = { transform: CSS.Transform.toString(transform), transition };
   const [price, setPrice] = useState(listing.display_price != null ? String(listing.display_price) : "");
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [photosOpen, setPhotosOpen] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
 
   useEffect(() => {
@@ -1457,30 +1463,8 @@ function SortableListingRow({
     }
   };
 
-  const uploadPhoto = async (file: File) => {
-    try {
-      const blob = await compressImageFile(file);
-      const path = `${orgId}/${listing.id}/${Date.now()}.jpg`;
-      const { error: upError } = await supabase.storage.from("website-photos").upload(path, blob, {
-        contentType: "image/jpeg",
-        upsert: true,
-      });
-      if (upError) throw upError;
-      const { data } = supabase.storage.from("website-photos").getPublicUrl(path);
-      const next = [...(listing.photo_urls || []), data.publicUrl];
-      const { error } = await websiteFrom("website_products")
-        .update({ photo_urls: next })
-        .eq("id", listing.id)
-        .eq("organization_id", orgId);
-      if (error) throw error;
-      toast.success("Photo uploaded");
-      onChanged();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload failed");
-    }
-  };
-
   const thumbUrl = listing.photo_urls?.[0] || product?.image_url || "";
+  const photoCount = (listing.photo_urls || []).length;
 
   return (
     <TableRow ref={setNodeRef} style={style} className={INSIGHTS_BODY_ROW}>
@@ -1496,9 +1480,15 @@ function SortableListingRow({
         </button>
       </TableCell>
       <TableCell className={INSIGHTS_BODY_CELL}>
-        <div className="h-11 w-11 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
+        <button
+          type="button"
+          className="block h-11 w-11 overflow-hidden rounded-md border border-slate-200 bg-slate-100"
+          title="Add or replace photos"
+          aria-label="Add or replace photos"
+          onClick={() => setPhotosOpen(true)}
+        >
           {thumbUrl ? <img src={thumbUrl} alt="" className="h-full w-full object-cover" /> : null}
-        </div>
+        </button>
       </TableCell>
       <TableCell className={cn(INSIGHTS_BODY_CELL, "min-w-[10rem]")}>
         <div className="font-semibold text-slate-900">{product?.product_name || listing.product_id}</div>
@@ -1564,23 +1554,41 @@ function SortableListingRow({
         ) : null}
       </TableCell>
       <TableCell className={INSIGHTS_BODY_CELL}>
-        <label className="inline-flex cursor-pointer items-center rounded-md border border-slate-200 px-2 py-1.5 text-xs font-medium hover:bg-slate-50">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 px-2 text-xs whitespace-nowrap"
+          onClick={() => setPhotosOpen(true)}
+        >
           <ImagePlus className="mr-1 h-3.5 w-3.5" />
-          Upload
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void uploadPhoto(file);
-              e.target.value = "";
-            }}
+          Photos{photoCount > 0 ? ` (${photoCount})` : ""}
+        </Button>
+        {photosOpen ? (
+          <WebsiteProductPhotosDialog
+            open
+            onOpenChange={setPhotosOpen}
+            orgId={orgId}
+            listingId={listing.id}
+            productName={listing.display_name || product?.product_name || "Product"}
+            photoUrls={listing.photo_urls || []}
+            onChanged={onChanged}
           />
-        </label>
+        ) : null}
       </TableCell>
       <TableCell className={INSIGHTS_BODY_CELL}>
-        <Switch checked={listing.is_active} onCheckedChange={toggleActive} />
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={listing.is_active}
+            onCheckedChange={toggleActive}
+            aria-label={listing.is_active ? "Shown on the store" : "Not on the store yet"}
+          />
+          {listing.is_active ? null : (
+            <span className="whitespace-nowrap rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800">
+              Not live
+            </span>
+          )}
+        </div>
       </TableCell>
       <TableCell className={INSIGHTS_BODY_CELL}>
         <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={remove}>
