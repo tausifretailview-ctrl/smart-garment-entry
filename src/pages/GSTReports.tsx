@@ -89,6 +89,7 @@ import {
 } from "@/components/business-insights/insightsLayout";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { cn } from "@/lib/utils";
+import { addGstHsnReportLine, type GstHsnReportRow } from "@/utils/gstHsnReport";
 
 /** Per-line taxable + GST — mirrors get_gst_summary / calculateGSTBreakup tax_type rules. */
 function lineTaxableAndGst(
@@ -254,18 +255,7 @@ interface GSTR3BSummary {
   zeroRated?: { taxable: number; igst: number; count: number; returns?: number };
 }
 
-interface HSNSummary {
-  hsnCode: string;
-  description: string;
-  uqc: string;
-  totalQty: number;
-  totalValue: number;
-  taxableValue: number;
-  igst: number;
-  cgst: number;
-  sgst: number;
-  rate: number;
-}
+type HSNSummary = GstHsnReportRow;
 
 const GSTReports = () => {
   const { toast } = useToast();
@@ -558,30 +548,12 @@ const GSTReports = () => {
             totalSGST += gstAmount / 2;
           }
 
-          // HSN aggregation — totalValue = invoice value (taxable + tax for exclusive)
-          const hsnCode = item.hsn_code || "00000000";
-          const existing = hsnMap.get(hsnCode) || {
-            hsnCode,
-            description: item.product_name || "",
-            uqc: "NOS",
-            totalQty: 0,
-            totalValue: 0,
-            taxableValue: 0,
-            igst: 0,
-            cgst: 0,
-            sgst: 0,
-            rate
-          };
-          existing.totalQty += item.quantity || 1;
-          existing.totalValue += taxType === "exclusive" ? taxableValue + gstAmount : lineTotal;
-          existing.taxableValue += taxableValue;
-          if (interState) {
-            existing.igst += gstAmount;
-          } else {
-            existing.cgst += gstAmount / 2;
-            existing.sgst += gstAmount / 2;
-          }
-          hsnMap.set(hsnCode, existing);
+          addGstHsnReportLine(hsnMap, {
+            hsn: item.hsn_code, description: item.product_name,
+            uom: productUnits.get(String(item.product_id)),
+            qty: Number(item.quantity) || 0, rate,
+            taxable: taxableValue, gst: gstAmount, interState,
+          });
         });
 
         const taxableValue = saleTaxableFromLines;
@@ -775,29 +747,11 @@ const GSTReports = () => {
         if (gstin) cdnr.push({ gstin, ...row });
         else cdnur.push(row);
         details.lines.forEach((l, i) => {
-          const hsnCode = l.hsn || "00000000";
-          const existing = hsnMap.get(hsnCode) || {
-            hsnCode,
-            description: l.description || "",
-            uqc: "NOS",
-            totalQty: 0,
-            totalValue: 0,
-            taxableValue: 0,
-            igst: 0,
-            cgst: 0,
-            sgst: 0,
-            rate: l.gst_percent,
-          };
-          existing.totalQty += Number(lines[i]?.qty) || 0;
-          existing.totalValue += l.taxable + l.gst_amount;
-          existing.taxableValue += l.taxable;
-          if (details.inter_state) {
-            existing.igst += l.gst_amount;
-          } else {
-            existing.cgst += l.gst_amount / 2;
-            existing.sgst += l.gst_amount / 2;
-          }
-          hsnMap.set(hsnCode, existing);
+          addGstHsnReportLine(hsnMap, {
+            hsn: l.hsn, description: l.description, uom: lines[i]?.uom,
+            qty: Number(lines[i]?.qty) || 0, rate: l.gst_percent,
+            taxable: l.taxable, gst: l.gst_amount, interState: details.inter_state,
+          });
         });
       }
 
@@ -1054,14 +1008,13 @@ const GSTReports = () => {
       const settings = await fetchBusinessInfo();
       const saleSettings = ((settings as { sale_settings?: SaleSettingsTaxDefaults | null } | null)?.sale_settings) || null;
       
-      const fromDateObj = new Date(fromDate);
-      const toDateObj = new Date(toDate);
-      toDateObj.setHours(23, 59, 59, 999);
+      const fromDateObj = new Date(`${fromDate}T00:00:00+05:30`);
+      const toDateObj = new Date(`${toDate}T23:59:59.999+05:30`);
 
-      const salesData = await fetchAllPages<any>((from, to) =>
+      const salesFetched = await fetchAllPages<any>((from, to) =>
         supabase
           .from("sales")
-          .select("id, tax_type, sale_type")
+          .select("id, tax_type, sale_type, sale_number, payment_status, payment_method, is_cancelled, customers(gst_number)")
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
           .eq("is_cancelled", false)
@@ -1071,6 +1024,10 @@ const GSTReports = () => {
           .order("id", { ascending: true })
           .range(from, to),
       );
+
+      const salesData = salesFetched.filter((s) => !isHeldOrCancelledSale(s));
+      const businessGSTIN = String((settings as { gst_number?: string } | null)?.gst_number || "");
+      const interStateBySale = new Map(salesData.map((s) => [String(s.id), isInterState(businessGSTIN, String(s.customers?.gst_number || ""))]));
 
       // Debit notes have no sale lines; their stored GST lines are added below.
       const hsnDebitNoteIds = (salesData || []).filter((s) => isDebitNoteSale(s)).map((s) => String(s.id));
@@ -1087,34 +1044,22 @@ const GSTReports = () => {
       );
       const saleItems = saleIds.length > 0 ? (await fetchAllSaleItems(saleIds)).filter((i: any) => !i.is_dc_item) : [];
 
+      const productUnits = await fetchProductUnits(saleItems.map((i: any) => String(i.product_id || "")));
       const hsnMap = new Map<string, HSNSummary>();
 
       saleItems?.forEach(item => {
-        const hsnCode = item.hsn_code || "00000000";
         const rate = item.gst_percent || 0;
         const lineTotal = (item.line_total || 0) - (item.discount_share || 0);
         const taxType = taxTypeBySale.get(String(item.sale_id)) || "inclusive";
         const { taxable: taxableValue, gst: gstAmount } = lineTaxableAndGst(lineTotal, rate, taxType);
 
-        const existing = hsnMap.get(hsnCode) || {
-          hsnCode,
-          description: item.product_name || "",
-          uqc: "NOS",
-          totalQty: 0,
-          totalValue: 0,
-          taxableValue: 0,
-          igst: 0,
-          cgst: 0,
-          sgst: 0,
-          rate
-        };
-
-        existing.totalQty += item.quantity || 1;
-        existing.totalValue += taxType === "exclusive" ? taxableValue + gstAmount : lineTotal;
-        existing.taxableValue += taxableValue;
-        existing.cgst += gstAmount / 2;
-        existing.sgst += gstAmount / 2;
-        hsnMap.set(hsnCode, existing);
+        addGstHsnReportLine(hsnMap, {
+          hsn: item.hsn_code, description: item.product_name,
+          uom: productUnits.get(String(item.product_id)),
+          qty: Number(item.quantity) || 0, rate,
+          taxable: taxableValue, gst: gstAmount,
+          interState: interStateBySale.get(String(item.sale_id)) === true,
+        });
       });
 
       if (hsnDebitNoteIds.length > 0) {
@@ -1122,29 +1067,11 @@ const GSTReports = () => {
         dnDetails.forEach((details) => {
           const qtyLines = debitNoteGstr1Lines(details);
           details.lines.forEach((l, i) => {
-            const hsnCode = l.hsn || "00000000";
-            const existing = hsnMap.get(hsnCode) || {
-              hsnCode,
-              description: l.description || "",
-              uqc: "NOS",
-              totalQty: 0,
-              totalValue: 0,
-              taxableValue: 0,
-              igst: 0,
-              cgst: 0,
-              sgst: 0,
-              rate: l.gst_percent,
-            };
-            existing.totalQty += Number(qtyLines[i]?.qty) || 0;
-            existing.totalValue += l.taxable + l.gst_amount;
-            existing.taxableValue += l.taxable;
-            if (details.inter_state) {
-              existing.igst += l.gst_amount;
-            } else {
-              existing.cgst += l.gst_amount / 2;
-              existing.sgst += l.gst_amount / 2;
-            }
-            hsnMap.set(hsnCode, existing);
+            addGstHsnReportLine(hsnMap, {
+              hsn: l.hsn, description: l.description, uom: qtyLines[i]?.uom,
+              qty: Number(qtyLines[i]?.qty) || 0, rate: l.gst_percent,
+              taxable: l.taxable, gst: l.gst_amount, interState: details.inter_state,
+            });
           });
         });
       }
@@ -2022,12 +1949,13 @@ const GSTReports = () => {
                   <InsightsStaticTh label="Rate %" className="text-right" />
                   <InsightsStaticTh label="CGST" className="text-right" />
                   <InsightsStaticTh label="SGST" className="text-right" />
+                  <InsightsStaticTh label="IGST" className="text-right" />
                 </InsightsTableHeader>
                 <TableBody>
                   {hsnData.map((row, idx) => (
                     <TableRow key={idx} className={INSIGHTS_BODY_ROW}>
-                      <TableCell className={cn(INSIGHTS_BODY_CELL, "font-mono")}>{row.hsnCode}</TableCell>
-                      <TableCell className={cn(INSIGHTS_BODY_CELL, "max-w-[200px] truncate")}>{row.description}</TableCell>
+                      <TableCell className={cn(INSIGHTS_BODY_CELL, "font-mono")}>{row.hsnCode || "Missing HSN"}</TableCell>
+                      <TableCell className={cn(INSIGHTS_BODY_CELL, "max-w-[300px] whitespace-normal break-words")}>{row.description}</TableCell>
                       <TableCell className={INSIGHTS_BODY_CELL}>{row.uqc}</TableCell>
                       <TableCell className={INSIGHTS_BODY_CELL_NUM}>{row.totalQty}</TableCell>
                       <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.totalValue)}</TableCell>
@@ -2035,6 +1963,7 @@ const GSTReports = () => {
                       <TableCell className={INSIGHTS_BODY_CELL_NUM}>{row.rate}%</TableCell>
                       <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.cgst)}</TableCell>
                       <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.sgst)}</TableCell>
+                      <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(row.igst)}</TableCell>
                     </TableRow>
                   ))}
                   <TableRow className={cn(INSIGHTS_BODY_ROW, "font-bold bg-slate-100/80")}>
@@ -2045,6 +1974,7 @@ const GSTReports = () => {
                     <TableCell className={INSIGHTS_BODY_CELL} />
                     <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(hsnData.reduce((a, b) => a + b.cgst, 0))}</TableCell>
                     <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(hsnData.reduce((a, b) => a + b.sgst, 0))}</TableCell>
+                    <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(hsnData.reduce((a, b) => a + b.igst, 0))}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
