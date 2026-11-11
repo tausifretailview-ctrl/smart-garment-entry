@@ -1,5 +1,9 @@
 # Roadmap — duplicate-receipt hardening
 
+## HSN report correction
+- [ ] Separate actual product descriptions, HSN, rates and units in report/export; preserve recorded bills.
+- [ ] Validate totals against SHREE KRISHNA MOBILE October data and run regression tests.
+
 ## Done
 - [x] Steps 1–3 read-only report (`docs/duplicate-receipt-steps-1-3-2026-09-19.md`).
 - [x] Step 2 safety check: signature-based uniqueness WOULD reject legitimate patterns; per-submit key used instead.
