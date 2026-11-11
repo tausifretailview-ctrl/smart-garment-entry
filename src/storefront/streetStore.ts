@@ -129,13 +129,125 @@ export function isStreetNewProduct(product: EllaStorefrontProduct): boolean {
   return isNewArrivalSlug(product.sectionSlug);
 }
 
-/** Banner slides: the shop's own product photos, new arrivals first. */
-export function buildStreetHeroSlides(products: EllaStorefrontProduct[], max = 4): EllaStorefrontProduct[] {
-  const withPhoto = products.filter((p) => p.images.length > 0 && p.available > 0);
-  const pool = withPhoto.length > 0 ? withPhoto : products.filter((p) => p.images.length > 0);
-  const fresh = pool.filter(isStreetNewProduct);
-  const rest = pool.filter((p) => !isStreetNewProduct(p));
-  return [...fresh, ...rest].slice(0, max);
+export type StreetBannerSlide = {
+  id: string;
+  /** "image": a banner the shop uploaded. "sample": drawn from its products until it adds one. */
+  kind: "image" | "sample";
+  tone: "ink" | "sand" | "navy";
+  /** Uploaded banner, or the photo a sample banner uses as its phone background. */
+  image: string | null;
+  /** Product photos a sample banner arranges beside its wording on wide screens. */
+  photos: string[];
+  kicker: string;
+  title: string;
+  sub: string;
+  cta: string;
+  /** Collection the banner opens; null opens all products. */
+  target: StreetNavItem | null;
+};
+
+function flattenNav(nav: StreetNavItem[]): StreetNavItem[] {
+  return nav.flatMap((item) => [item, ...flattenNav(item.children)]);
+}
+
+function takePhotos(list: EllaStorefrontProduct[], used: Set<string>, max: number): string[] {
+  const fresh = list.map((p) => p.images[0]).filter((src): src is string => Boolean(src) && !used.has(src));
+  const picked = (fresh.length > 0 ? fresh : list.map((p) => p.images[0]).filter(Boolean)).slice(0, max);
+  picked.forEach((src) => used.add(src));
+  return picked;
+}
+
+/**
+ * Home-page banners. The shop's uploaded banners when it has any; otherwise three
+ * sample banners built from its own products, so a new store never opens on an empty hero.
+ */
+export function buildStreetBannerSlides(
+  banners: Array<{ id: string; image_url: string; heading: string; subheading: string; target: string }>,
+  nav: StreetNavItem[],
+  products: EllaStorefrontProduct[],
+): StreetBannerSlide[] {
+  const links = flattenNav(nav);
+
+  if (banners.length > 0) {
+    return banners.map((banner) => {
+      const link = banner.target ? links.find((item) => item.chips.some((chip) => key(chip) === key(banner.target))) : null;
+      const target: StreetNavItem | null = banner.target
+        ? link || { id: `banner:${banner.id}`, label: banner.target, chips: [banner.target], sort: "featured", children: [] }
+        : null;
+      return {
+        id: banner.id,
+        kind: "image",
+        tone: "ink",
+        image: banner.image_url,
+        photos: [],
+        kicker: "",
+        title: banner.heading,
+        sub: banner.subheading,
+        cta: "Shop now",
+        target,
+      };
+    });
+  }
+
+  if (products.length === 0) return [];
+  const used = new Set<string>();
+  const slides: StreetBannerSlide[] = [];
+
+  const fresh = streetNewArrivals(products, 12);
+  const freshLink = links.find((item) => item.chips.length > 0 && item.chips.every((chip) => isNewArrivalSlug(chip)));
+  const freshPhotos = takePhotos(fresh, used, 3);
+  slides.push({
+    id: "sample-new",
+    kind: "sample",
+    tone: "ink",
+    image: freshPhotos[0] || null,
+    photos: freshPhotos,
+    kicker: "New season",
+    title: "Just dropped",
+    sub: "Fresh styles added to the store",
+    cta: "Shop new arrivals",
+    target: freshLink || { id: "sample-new", label: "New arrivals", chips: [], sort: "newest", children: [] },
+  });
+
+  const category = links
+    .filter((item) => item !== freshLink && item.children.length === 0)
+    .map((item) => ({ item, list: streetProductsFor(products, item) }))
+    .filter((entry) => entry.list.length > 0)
+    // The category with the most photographed products makes the best banner.
+    .map((entry) => ({ ...entry, photos: entry.list.filter((p) => p.images.length > 0).length }))
+    .sort((a, b) => b.photos - a.photos || b.list.length - a.list.length)[0];
+  if (category) {
+    const photos = takePhotos(category.list, used, 3);
+    slides.push({
+      id: "sample-category",
+      kind: "sample",
+      tone: "sand",
+      image: photos[0] || null,
+      photos,
+      kicker: "The edit",
+      title: category.item.label,
+      sub: "Everyday essentials, in your size",
+      cta: `Shop ${category.item.label}`,
+      target: category.item,
+    });
+  }
+
+  const inStock = products.filter((p) => p.available > 0);
+  const allPhotos = takePhotos(inStock.length > 0 ? inStock : products, used, 3);
+  slides.push({
+    id: "sample-all",
+    kind: "sample",
+    tone: "navy",
+    image: allPhotos[0] || null,
+    photos: allPhotos,
+    kicker: "In stock now",
+    title: "Pick your size",
+    sub: "Live stock from the store, size by size",
+    cta: "Shop all products",
+    target: null,
+  });
+
+  return slides;
 }
 
 /** New arrivals rail: the New Arrival section when used, else the latest listings. */

@@ -174,6 +174,7 @@ export function StorefrontApp() {
   if (street) {
     return (
       <StreetStorefront
+        banners={payload.banners || []}
         shop={payload.shop!}
         orgSlug={canonicalSlug}
         products={products}

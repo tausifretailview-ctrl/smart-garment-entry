@@ -1,12 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ExternalLink } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ExternalLink, ImagePlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { INSIGHTS_TAB_SHELL, InsightsPanel } from "@/components/business-insights/insightsLayout";
 import { STALE_SETTINGS } from "@/lib/queryStaleTimes";
-import { loadStorefrontTheme, saveStorefrontTheme } from "@/lib/storefrontThemeIo";
+import { Input } from "@/components/ui/input";
+import {
+  loadStorefrontLook,
+  saveStorefrontBanners,
+  saveStorefrontTheme,
+  uploadStorefrontBannerImage,
+  type StorefrontLook,
+} from "@/lib/storefrontThemeIo";
+import {
+  STOREFRONT_BANNERS_MAX,
+  moveStorefrontBanner,
+  type StorefrontBanner,
+} from "@/lib/storefrontBanners";
+import { useWebsiteSections } from "@/hooks/useWebsiteSections";
+import { activeWebsiteSections } from "@/lib/websiteSections";
 import {
   STOREFRONT_THEMES,
   resolveStorefrontTheme,
@@ -88,10 +102,10 @@ export function WebsiteThemePanel({
     queryKey: ["website_theme", orgId],
     enabled: !!orgId,
     staleTime: STALE_SETTINGS,
-    queryFn: () => loadStorefrontTheme(orgId!),
+    queryFn: () => loadStorefrontLook(orgId!),
   });
 
-  const live = resolveStorefrontTheme(themeQuery.data, orgSlug);
+  const live = resolveStorefrontTheme(themeQuery.data?.theme, orgSlug);
   const [choice, setChoice] = useState<StorefrontThemeId>(live);
   useEffect(() => {
     if (themeQuery.isSuccess) setChoice(live);
@@ -100,7 +114,10 @@ export function WebsiteThemePanel({
   const save = useMutation({
     mutationFn: () => saveStorefrontTheme(orgId!, choice),
     onSuccess: () => {
-      queryClient.setQueryData(["website_theme", orgId], choice);
+      queryClient.setQueryData<StorefrontLook>(["website_theme", orgId], (prev) => ({
+        banners: prev?.banners ?? [],
+        theme: choice,
+      }));
       toast.success("Store theme saved. Reload the store to see it.");
     },
     onError: (err: unknown) => {
@@ -197,8 +214,207 @@ export function WebsiteThemePanel({
               );
             })}
           </div>
+
+          <StoreBanners
+            orgId={orgId}
+            saved={themeQuery.data?.banners}
+            ready={themeQuery.isSuccess}
+            onSaved={(banners) =>
+              queryClient.setQueryData<StorefrontLook>(["website_theme", orgId], (prev) => ({
+                theme: prev?.theme ?? null,
+                banners,
+              }))
+            }
+          />
         </div>
       </InsightsPanel>
+    </div>
+  );
+}
+
+/** Home-page banner images for the Street theme. Until any are added it shows sample banners. */
+function StoreBanners({
+  orgId,
+  saved,
+  ready,
+  onSaved,
+}: {
+  orgId?: string;
+  saved?: StorefrontBanner[];
+  ready: boolean;
+  onSaved: (banners: StorefrontBanner[]) => void;
+}) {
+  const sectionsQuery = useWebsiteSections(orgId);
+  const sections = activeWebsiteSections(sectionsQuery.data?.sections ?? []);
+  const [banners, setBanners] = useState<StorefrontBanner[]>([]);
+  const [dirty, setDirty] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (ready && !dirty) setBanners(saved ?? []);
+  }, [ready, saved, dirty]);
+
+  const change = (next: StorefrontBanner[]) => {
+    setBanners(next);
+    setDirty(true);
+  };
+  const patch = (id: string, values: Partial<StorefrontBanner>) =>
+    change(banners.map((b) => (b.id === id ? { ...b, ...values } : b)));
+
+  const save = useMutation({
+    mutationFn: () => saveStorefrontBanners(orgId!, banners),
+    onSuccess: () => {
+      setDirty(false);
+      onSaved(banners);
+      toast.success("Banners saved. Reload the store to see them.");
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Could not save the banners");
+    },
+  });
+
+  const onFiles = async (files: FileList | null) => {
+    if (!orgId || !files || files.length === 0) return;
+    const room = STOREFRONT_BANNERS_MAX - banners.length;
+    const picked = Array.from(files).slice(0, room);
+    setUploading(true);
+    try {
+      const added: StorefrontBanner[] = [];
+      for (const file of picked) {
+        const image_url = await uploadStorefrontBannerImage(orgId, file);
+        added.push({
+          id: `banner-${Date.now()}-${added.length}`,
+          image_url,
+          heading: "",
+          subheading: "",
+          target: "",
+        });
+      }
+      change([...banners, ...added]);
+      toast.success(`${added.length} image${added.length === 1 ? "" : "s"} uploaded. Press Save banners to publish.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const full = banners.length >= STOREFRONT_BANNERS_MAX;
+
+  return (
+    <div className="space-y-3 border-t border-slate-200 pt-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">Home page banners (Street theme)</h3>
+          <p className="text-sm text-muted-foreground">
+            Until you add your own, the store shows sample banners made from your products. Use wide images, about
+            1920 × 800. Phones show the whole image, smaller.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => void onFiles(e.target.files)}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9"
+            disabled={!orgId || !ready || uploading || full}
+            onClick={() => fileRef.current?.click()}
+          >
+            <ImagePlus className="mr-1 h-4 w-4" />
+            {uploading ? "Uploading…" : full ? `Maximum ${STOREFRONT_BANNERS_MAX}` : "Add banner image"}
+          </Button>
+          <Button size="sm" className="h-9" disabled={!orgId || !dirty || save.isPending} onClick={() => save.mutate()}>
+            {save.isPending ? "Saving…" : "Save banners"}
+          </Button>
+        </div>
+      </div>
+
+      {banners.length === 0 ? (
+        <p className="rounded-md border border-dashed border-slate-300 px-3 py-4 text-sm text-slate-600">
+          No banner images yet. The store is showing the sample banners.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {banners.map((banner, index) => (
+            <li key={banner.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-2">
+              <img
+                src={banner.image_url}
+                alt=""
+                className="h-16 w-36 shrink-0 rounded border border-slate-200 object-cover"
+              />
+              <div className="grid min-w-[16rem] flex-1 gap-2 sm:grid-cols-3">
+                <Input
+                  value={banner.heading}
+                  maxLength={60}
+                  placeholder="Heading (optional)"
+                  aria-label={`Banner ${index + 1} heading`}
+                  onChange={(e) => patch(banner.id, { heading: e.target.value })}
+                />
+                <Input
+                  value={banner.subheading}
+                  maxLength={120}
+                  placeholder="Small line (optional)"
+                  aria-label={`Banner ${index + 1} small line`}
+                  onChange={(e) => patch(banner.id, { subheading: e.target.value })}
+                />
+                <select
+                  value={banner.target}
+                  aria-label={`Banner ${index + 1} opens`}
+                  onChange={(e) => patch(banner.id, { target: e.target.value })}
+                  className="h-10 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                >
+                  <option value="">Opens: all products</option>
+                  {sections.map((section) => (
+                    <option key={section.id} value={section.slug}>
+                      Opens: {section.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex shrink-0 gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  aria-label="Move up"
+                  disabled={index === 0}
+                  onClick={() => change(moveStorefrontBanner(banners, index, -1))}
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  aria-label="Move down"
+                  disabled={index === banners.length - 1}
+                  onClick={() => change(moveStorefrontBanner(banners, index, 1))}
+                >
+                  <ArrowDown className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 text-destructive"
+                  aria-label="Remove banner"
+                  onClick={() => change(banners.filter((b) => b.id !== banner.id))}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

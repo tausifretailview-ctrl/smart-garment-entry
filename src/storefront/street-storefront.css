@@ -249,6 +249,8 @@
 }
 
 .street-store .st-slide {
+  background: var(--st-ink);
+  color: #ffffff;
   inset: 0;
   opacity: 0;
   pointer-events: none;
@@ -258,23 +260,33 @@
 
 .street-store .st-slide.st-on { opacity: 1; pointer-events: auto; }
 
-.street-store .st-slide-bg,
+/* sample banner colours (also used by the side-by-side promos) */
+.street-store .st-tone-ink { background: #0b0b0b; color: #ffffff; }
+.street-store .st-tone-sand { background: #e8e2d8; color: var(--st-ink); }
+.street-store .st-tone-navy { background: #1d2f4a; color: #ffffff; }
+
 .street-store .st-slide-photo {
   height: 100%;
   inset: 0;
+  object-fit: cover;
+  object-position: center 20%;
   position: absolute;
   width: 100%;
 }
 
-.street-store .st-slide-bg { display: none; }
-.street-store .st-slide-photo { object-fit: cover; object-position: center 20%; }
+.street-store .st-slide-image .st-slide-photo { object-position: center; }
 
-.street-store .st-slide::after {
+.street-store .st-slide-shade {
   background: linear-gradient(180deg, rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, 0.72) 100%);
-  content: "";
   inset: 0;
   position: absolute;
 }
+
+.street-store .st-slide-noimg .st-slide-shade { display: none; }
+
+.street-store .st-slide-inner { inset: 0; position: absolute; }
+
+.street-store .st-slide-hit { display: block; height: 100%; width: 100%; }
 
 .street-store .st-slide-copy {
   bottom: 44px;
@@ -288,6 +300,7 @@
   z-index: 1;
 }
 
+.street-store .st-slide-noimg.st-tone-sand .st-slide-copy { color: var(--st-ink); }
 .street-store .st-slide-copy .st-btn { align-self: flex-start; }
 
 .street-store .st-slide-kicker {
@@ -310,6 +323,15 @@
   -webkit-line-clamp: 3;
 }
 
+.street-store .st-slide-sub { font-size: 14px; opacity: 0.9; }
+
+/* phones show the photo full-bleed; the arranged photos are for wide screens */
+.street-store .st-collage,
+.street-store .st-duo { display: none; }
+
+.street-store .st-collage-frame { background: #ffffff; display: block; overflow: hidden; }
+.street-store .st-collage-frame img { display: block; height: 100%; object-fit: cover; object-position: center 15%; width: 100%; }
+
 .street-store .st-dots {
   bottom: 16px;
   display: flex;
@@ -319,8 +341,18 @@
   z-index: 2;
 }
 
+/* difference blend keeps the dots readable on dark and light banners alike */
+.street-store .st-dots { mix-blend-mode: difference; }
 .street-store .st-dot { background: rgba(255, 255, 255, 0.4); height: 3px; width: 28px; }
 .street-store .st-dot.st-on { background: #ffffff; }
+
+/* Uploaded banners are wide images: phones show the whole image rather than a zoomed middle. */
+.street-store .st-hero-images { aspect-ratio: 12 / 5; height: auto; }
+.street-store .st-hero-images .st-slide-copy { bottom: 22px; gap: 6px; }
+.street-store .st-hero-images .st-slide-title { font-size: 22px; -webkit-line-clamp: 1; }
+.street-store .st-hero-images .st-slide-sub { display: none; }
+.street-store .st-hero-images .st-btn { font-size: 11px; height: 32px; padding: 0 12px; }
+.street-store .st-hero-images .st-dots { bottom: 8px; }
 
 /* --- sections, tiles, rails, grid ----------------------------------------- */
 
@@ -351,6 +383,7 @@
 
 .street-store .st-tile img {
   height: 100%;
+  mix-blend-mode: multiply;
   object-fit: cover;
   object-position: center 20%;
   transition: transform 500ms ease;
@@ -429,6 +462,8 @@
 .street-store .st-card-img {
   height: 100%;
   inset: 0;
+  /* cut-out photos on white blend into the soft panel instead of floating on the page */
+  mix-blend-mode: multiply;
   object-fit: cover;
   object-position: center 15%;
   position: absolute;
@@ -474,7 +509,7 @@
   width: 36px;
 }
 
-.street-store .st-card-wish { border-radius: 999px; top: 8px; }
+.street-store .st-card-wish { border: 1px solid var(--st-line); border-radius: 999px; top: 8px; }
 .street-store .st-card-wish.st-on { color: #d11a2a; }
 .street-store .st-card-wish .st-icon,
 .street-store .st-card-add .st-icon { height: 18px; width: 18px; }
@@ -604,7 +639,7 @@
   scroll-snap-align: start;
 }
 
-.street-store .st-gallery-item img { height: 100%; object-fit: cover; object-position: center 15%; width: 100%; }
+.street-store .st-gallery-item img { height: 100%; mix-blend-mode: multiply; object-fit: cover; object-position: center 15%; width: 100%; }
 
 .street-store .st-gallery-empty {
   align-items: center;
@@ -883,6 +918,33 @@
   .street-store .st-rail { grid-auto-columns: 30%; }
   .street-store .st-grid { gap: 30px 14px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .street-store .st-footer-grid { grid-template-columns: 2fr 1fr 1fr; }
+
+  .street-store .st-duo { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .street-store .st-promo {
+    align-items: center;
+    display: flex;
+    gap: 20px;
+    justify-content: space-between;
+    min-height: 260px;
+    overflow: hidden;
+    padding: 28px;
+    text-align: left;
+  }
+
+  .street-store .st-promo-copy { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .street-store .st-promo-copy .st-link { align-self: flex-start; color: inherit; }
+
+  .street-store .st-promo-title {
+    font-family: var(--st-head);
+    font-size: clamp(26px, 3vw, 44px);
+    font-weight: 900;
+    letter-spacing: -0.01em;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .street-store .st-promo .st-collage-frame { aspect-ratio: 3 / 4; flex: 0 0 auto; height: 220px; }
 }
 
 /* --- desktop -------------------------------------------------------------- */
@@ -930,20 +992,62 @@
   .street-store .st-nav-sub { font-size: 14px; padding: 9px 18px; text-align: left; }
   .street-store .st-nav-sub:hover { background: var(--st-soft); }
 
-  .street-store .st-hero { height: min(78vh, 720px); }
-  .street-store .st-slide-bg { display: block; filter: blur(28px) brightness(0.6); object-fit: cover; transform: scale(1.15); }
+  .street-store .st-hero,
+  .street-store .st-hero-images { aspect-ratio: auto; height: clamp(420px, 62vh, 600px); }
+  .street-store .st-hero-images .st-slide-copy { bottom: auto; gap: 16px; }
+  .street-store .st-hero-images .st-slide-title { font-size: clamp(44px, 5.4vw, 84px); -webkit-line-clamp: 3; }
+  .street-store .st-hero-images .st-slide-sub { display: block; }
+  .street-store .st-hero-images .st-btn { font-size: 13px; height: 50px; padding: 0 22px; }
+  .street-store .st-hero-images .st-dots { bottom: 26px; }
 
-  .street-store .st-slide-photo {
-    left: auto;
-    object-fit: contain;
-    object-position: center bottom;
-    right: 8%;
-    width: 42%;
+  /* wording and photos line up with the page content below */
+  .street-store .st-slide-inner {
+    align-items: center;
+    display: grid;
+    gap: 48px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    left: 50%;
+    margin-left: calc(min(100%, var(--st-page)) / -2);
+    padding: 0 var(--st-gutter);
+    right: auto;
+    width: min(100%, var(--st-page));
   }
 
-  .street-store .st-slide::after { background: linear-gradient(90deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0) 60%); }
-  .street-store .st-slide-copy { bottom: 16%; gap: 16px; left: var(--st-gutter); max-width: 44%; right: auto; }
-  .street-store .st-dots { bottom: 28px; left: var(--st-gutter); }
+  .street-store .st-slide-copy { bottom: auto; gap: 16px; left: auto; position: relative; right: auto; }
+  .street-store .st-slide-title { font-size: clamp(44px, 5.4vw, 84px); }
+  .street-store .st-slide-sub { font-size: 16px; }
+
+  /* sample banner: flat colour, wording left, the shop's product photos right */
+  .street-store .st-slide-sample .st-slide-photo,
+  .street-store .st-slide-sample .st-slide-shade { display: none; }
+  .street-store .st-slide-sample .st-slide-copy { color: inherit; }
+  .street-store .st-slide-sample.st-tone-sand .st-btn-light { background: var(--st-ink); border-color: var(--st-ink); color: #ffffff; }
+
+  .street-store .st-collage {
+    align-items: center;
+    display: grid;
+    gap: 16px;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    height: 100%;
+    justify-content: end;
+  }
+
+  .street-store .st-collage .st-collage-frame { aspect-ratio: 3 / 4; max-height: 78%; }
+  .street-store .st-collage-3 .st-collage-frame:nth-child(1) { transform: translateY(26px); }
+  .street-store .st-collage-3 .st-collage-frame:nth-child(2) { transform: translateY(-22px); }
+  .street-store .st-collage-3 .st-collage-frame:nth-child(3) { transform: translateY(34px); }
+  .street-store .st-collage-2 .st-collage-frame:nth-child(1) { transform: translateY(22px); }
+  .street-store .st-collage-2 .st-collage-frame:nth-child(2) { transform: translateY(-22px); }
+  .street-store .st-collage-2 { grid-auto-columns: minmax(0, 260px); }
+  .street-store .st-collage-1 { grid-auto-columns: minmax(0, 320px); }
+
+  /* uploaded banner: the image is the banner; wording, if any, sits bottom-left */
+  .street-store .st-slide-image .st-slide-inner { align-items: end; padding-bottom: 64px; }
+  .street-store .st-slide-image .st-slide-shade { background: linear-gradient(90deg, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0) 62%); }
+  .street-store .st-slide-image .st-slide-hit { grid-column: 1 / -1; inset: 0; position: absolute; }
+
+  .street-store .st-dots { bottom: 26px; left: 50%; margin-left: calc(min(100%, var(--st-page)) / -2 + var(--st-gutter)); }
 
   .street-store .st-section { padding-top: 56px; }
   .street-store .st-section-head { margin-bottom: 20px; }

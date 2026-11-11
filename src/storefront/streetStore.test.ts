@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PublicStorefrontProduct } from "@/lib/websiteTypes";
 import { toEllaStorefrontProduct } from "./ellaProduct";
 import {
-  buildStreetHeroSlides,
+  buildStreetBannerSlides,
   buildStreetNav,
   buildStreetTiles,
   parseStreetWishlist,
@@ -98,8 +98,32 @@ describe("Street theme home page is built from the shop's own catalogue", () => 
     expect(new Set(tiles.map((t) => t.photo)).size).toBe(2);
   });
 
-  it("banner uses in-stock products with photos, new arrivals first", () => {
-    expect(buildStreetHeroSlides(catalogue).map((p) => p.productId)).toEqual(["a", "b"]);
+  it("shows sample banners made from the shop's products until it uploads its own", () => {
+    const slides = buildStreetBannerSlides([], nav, catalogue);
+    expect(slides.map((s) => s.id)).toEqual(["sample-new", "sample-category", "sample-all"]);
+    expect(slides.every((s) => s.kind === "sample")).toBe(true);
+    // New arrivals first, then the biggest category, then everything.
+    expect(slides[0].photos).toEqual(["/a.jpg"]);
+    expect(slides[1].target?.label).toBe("Shirts");
+    expect(slides[1].photos).toEqual(["/b.jpg"]);
+    expect(slides[2].target).toBeNull();
+    expect(buildStreetBannerSlides([], nav, [])).toEqual([]);
+  });
+
+  it("uploaded banners replace the samples and open the section they point at", () => {
+    const slides = buildStreetBannerSlides(
+      [
+        { id: "b1", image_url: "https://cdn.example/1.jpg", heading: "", subheading: "", target: "jeans" },
+        { id: "b2", image_url: "https://cdn.example/2.jpg", heading: "Winter", subheading: "Layers", target: "" },
+      ],
+      nav,
+      catalogue,
+    );
+    expect(slides.map((s) => s.kind)).toEqual(["image", "image"]);
+    expect(slides[0].image).toBe("https://cdn.example/1.jpg");
+    expect(slides[0].target?.label).toBe("Jeans");
+    expect(slides[1].title).toBe("Winter");
+    expect(slides[1].target).toBeNull();
   });
 
   it("new arrivals come from the New Arrival section, else the latest listings", () => {
