@@ -1217,6 +1217,9 @@ export default function POSSales() {
   const [invoiceSearchInput, setInvoiceSearchInput] = useState("");
   const [showMixPaymentDialog, setShowMixPaymentDialog] = useState(false);
   const [showCreditCustomerRequiredDialog, setShowCreditCustomerRequiredDialog] = useState(false);
+  /** Pending Credit (F4) save waiting for the cashier to confirm — F4 sits next to S/R (F5). */
+  const [creditConfirm, setCreditConfirm] = useState<{ customer: string; billAmount: number; due: number } | null>(null);
+  const creditConfirmBtnRef = useRef<HTMLButtonElement>(null);
   /** Local draft for Unit Price cell (commit on blur — avoids mid-keystroke cap reject). */
   const [unitPriceDraft, setUnitPriceDraft] = useState<{ index: number; value: string } | null>(null);
   const [unitPriceConfirm, setUnitPriceConfirm] = useState<{
@@ -2186,10 +2189,17 @@ export default function POSSales() {
     if (saleSettings.default_discount) {
       handleFlatDiscountValueChange(saleSettings.default_discount);
     }
-    if (saleSettings.default_payment_method) {
-      setPaymentMethod(saleSettings.default_payment_method.toLowerCase() as any);
-    }
   }, [settingsData, currentSaleId, items.length, handleFlatDiscountValueChange, defaultFlatDiscountMode]);
+
+  // Every empty new bill starts on the shop's default tender (or Cash). Save, clear, hold,
+  // New Invoice and credit-note Done all empty the cart without resetting paymentMethod, so a
+  // Pay Later from a loaded/resumed bill used to carry into the next bill. Credit is never a
+  // default: it must be chosen per bill (F4 + confirm).
+  useEffect(() => {
+    if (currentSaleId || items.length > 0) return;
+    const raw = String((settingsData as any)?.sale_settings?.default_payment_method || "").toLowerCase();
+    setPaymentMethod(raw === "card" || raw === "upi" ? raw : "cash");
+  }, [settingsData, currentSaleId, items.length]);
 
   // Update date and time every second
   useEffect(() => {
@@ -5218,7 +5228,27 @@ export default function POSSales() {
 
   saveBillForDateChangeRef.current = () => handleSaveSale();
 
-  const handlePaymentAndPrint = async (method: 'cash' | 'card' | 'upi' | 'pay_later') => {
+  const handlePaymentAndPrint = async (
+    method: 'cash' | 'card' | 'upi' | 'pay_later',
+    opts?: { creditConfirmed?: boolean },
+  ) => {
+    // Credit (F4) sits beside Sale Return (F5) on the keyboard and every POS layout; a mis-press
+    // used to save the bill on credit at once. Ask first; the dialog calls back with creditConfirmed.
+    // A refund-due exchange skips this: it falls through to Mix below, as before.
+    const refundDue = finalAmount < -0.005 || exchangeRefundDue > 0.005;
+    if (method === 'pay_later' && opts?.creditConfirmed !== true && !refundDue) {
+      if (paymentLockRef.current || isSaving) return;
+      if (items.length === 0) {
+        toast.error("No Items", { description: "Please add items to the cart before processing payment" });
+        return;
+      }
+      if (!hasNamedPosCustomer()) {
+        showCustomerNameRequiredWindow();
+        return;
+      }
+      setCreditConfirm({ customer: customerName.trim(), billAmount: finalAmount, due: posTenderDue });
+      return;
+    }
     // Ref-based lock prevents duplicate saves from rapid keyboard + click combos
     // (isSaving is React state and only updates on next render — too slow for rapid inputs)
     if (paymentLockRef.current || isSaving) {
@@ -7141,6 +7171,62 @@ export default function POSSales() {
     </AlertDialog>
   );
 
+  const fmtInr = (n: number) =>
+    `₹${(Math.round(n * 100) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const creditNothingDue = !!creditConfirm && creditConfirm.due <= 0.005;
+  const creditConfirmDialog = (
+    <AlertDialog open={creditConfirm != null} onOpenChange={(open) => { if (!open) setCreditConfirm(null); }}>
+      {/* Radix focuses Cancel by default; focus the action so Enter confirms and Esc backs out. */}
+      <AlertDialogContent
+        onOpenAutoFocus={(e) => { e.preventDefault(); setTimeout(() => creditConfirmBtnRef.current?.focus(), 30); }}
+      >
+        <AlertDialogHeader>
+          <AlertDialogTitle>Save invoice as Credit (Pay Later)?</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2">
+              <p>
+                <span className="font-semibold text-foreground">{fmtInr(creditConfirm?.due ?? 0)}</span> will be
+                left unpaid on <span className="font-semibold text-foreground">{creditConfirm?.customer}</span>.
+              </p>
+              {creditNothingDue && (
+                <p className="text-orange-600 font-medium">
+                  Nothing is due on this bill (sale return / advance covers it). Use Cash — Credit is not needed.
+                </p>
+              )}
+              <p className="text-xs">Meant Sale Return? That is F5. Press Esc to go back.</p>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setCreditConfirm(null)}>Cancel (Esc)</AlertDialogCancel>
+          {creditNothingDue ? (
+            <AlertDialogAction
+              ref={creditConfirmBtnRef}
+              className="bg-green-600 hover:bg-green-700"
+              onClick={() => {
+                setCreditConfirm(null);
+                void handlePaymentAndPrint('cash');
+              }}
+            >
+              Save as Cash
+            </AlertDialogAction>
+          ) : (
+            <AlertDialogAction
+              ref={creditConfirmBtnRef}
+              className="bg-orange-500 hover:bg-orange-600"
+              onClick={() => {
+                setCreditConfirm(null);
+                void handlePaymentAndPrint('pay_later', { creditConfirmed: true });
+              }}
+            >
+              Save as Credit (Enter)
+            </AlertDialogAction>
+          )}
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   const creditCustomerRequiredDialog = (
     <AlertDialog open={showCreditCustomerRequiredDialog} onOpenChange={setShowCreditCustomerRequiredDialog}>
       <AlertDialogContent>
@@ -7350,6 +7436,7 @@ export default function POSSales() {
         {posPrintPortal}
 
         {creditCustomerRequiredDialog}
+        {creditConfirmDialog}
         {manualSrDialog}
         {unitPriceConfirmDialog}
       </>
@@ -7516,6 +7603,7 @@ export default function POSSales() {
           </DialogContent>
         </Dialog>
         {creditCustomerRequiredDialog}
+        {creditConfirmDialog}
         {manualSrDialog}
         {unitPriceConfirmDialog}
 
@@ -9785,6 +9873,7 @@ export default function POSSales() {
           </DialogContent>
         </Dialog>
         {creditCustomerRequiredDialog}
+        {creditConfirmDialog}
         {manualSrDialog}
         {unitPriceConfirmDialog}
 
