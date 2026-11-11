@@ -3,6 +3,7 @@ import type { PublicStorefrontPayload } from "@/lib/websiteTypes";
 import { attachSectionsToPublicPayload } from "@/lib/websiteSectionStore";
 import { applyWebsiteProductDetails } from "@/lib/websiteProductDetails";
 import { parseStorefrontTheme } from "@/lib/storefrontThemes";
+import { parseStorefrontBanners } from "@/lib/storefrontBanners";
 import { enrichPublicStorefrontShop, type OrgPublicInfoSlice } from "./storefrontTheme";
 import { offerFromRpc, perksFromRpc, type StorefrontOffer, type StorefrontPerks } from "./ellaPerks";
 
@@ -42,6 +43,7 @@ export async function loadPublicStorefront(slug: string): Promise<PublicStorefro
   }
 
   payload.theme = parseStorefrontTheme(orgInfo?.settings);
+  payload.banners = parseStorefrontBanners(orgInfo?.settings);
 
   return attachSectionsToPublicPayload(payload, orgInfo?.settings);
 }

@@ -10,7 +10,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type
 import { parseStorefrontPath, storefrontHomePath, storefrontProductPath, storefrontProductUrl } from "@/lib/storefrontPath";
 import { whatsappShareUrl } from "@/lib/storefrontShare";
 import { validateEnquiryInput } from "@/lib/storefrontEnquiry";
-import type { PublicStorefrontMenu, PublicStorefrontProduct, PublicStorefrontShop } from "@/lib/websiteTypes";
+import type {
+  PublicStorefrontMenu,
+  PublicStorefrontPayload,
+  PublicStorefrontProduct,
+  PublicStorefrontShop,
+} from "@/lib/websiteTypes";
 import { isNewArrivalSlug, type PublicStorefrontSection } from "@/lib/websiteSections";
 import { EllaCartSheet } from "./EllaCartSheet";
 import { addToEllaCart, ellaCartCount, ellaCartLineKey, type EllaCartLine } from "./ellaCart";
@@ -28,7 +33,7 @@ import { ellaWhatsAppNumber } from "./ellaWhatsApp";
 import { submitStorefrontEnquiry } from "./storefrontClient";
 import { storefrontLocationLine } from "./storefrontTheme";
 import {
-  buildStreetHeroSlides,
+  buildStreetBannerSlides,
   buildStreetNav,
   buildStreetTiles,
   parseStreetWishlist,
@@ -41,6 +46,7 @@ import {
   streetSizeFacets,
   streetWishlistKey,
   toggleStreetWishlist,
+  type StreetBannerSlide,
   type StreetNavItem,
 } from "./streetStore";
 import "./ella-storefront.css";
@@ -608,9 +614,12 @@ export function StreetStorefront({
   sections = [],
   menus = [],
   initialProductId,
+  banners = [],
 }: {
   shop: PublicStorefrontShop;
   orgSlug: string;
+  /** Banner images from Website → Theme; empty shows the sample banners. */
+  banners?: PublicStorefrontPayload["banners"];
   products: PublicStorefrontProduct[];
   sections?: PublicStorefrontSection[];
   menus?: PublicStorefrontMenu[];
@@ -623,7 +632,7 @@ export function StreetStorefront({
   );
   const nav = useMemo(() => buildStreetNav(menus, sections, items), [menus, sections, items]);
   const tiles = useMemo(() => buildStreetTiles(nav, items), [nav, items]);
-  const slides = useMemo(() => buildStreetHeroSlides(items), [items]);
+  const slides = useMemo(() => buildStreetBannerSlides(banners || [], nav, items), [banners, nav, items]);
   const newArrivals = useMemo(() => streetNewArrivals(items), [items]);
 
   const [view, setView] = useState<View>(() => {
@@ -824,6 +833,13 @@ export function StreetStorefront({
     setSlide((n) => (n + (dx < 0 ? 1 : slides.length - 1)) % slides.length);
   };
 
+  // When every listed product is a new arrival, one grid says it; a rail above would repeat it.
+  const allAreNew = items.length > 0 && newArrivals.length >= items.length;
+  // On wide screens the 2nd and 3rd sample banners also sit side by side further down.
+  const promos = slides.filter((s) => s.kind === "sample").slice(1, 3);
+  const openBanner = (s: StreetBannerSlide) =>
+    goCollection(s.target, s.target?.label || "All products");
+
   // The New Arrival link already has its own rail above.
   const railsFor = nav
     .filter((item) => !item.chips.every((chip) => isNewArrivalSlug(chip)))
@@ -957,25 +973,61 @@ export function StreetStorefront({
         {view.kind === "home" ? (
           <>
             {slides.length > 0 ? (
-              <div className="st-hero" onTouchStart={onHeroTouchStart} onTouchEnd={onHeroTouchEnd}>
-                {slides.map((p, i) => (
-                  <div className={`st-slide${i === slide % slides.length ? " st-on" : ""}`} key={p.productId} aria-hidden={i !== slide % slides.length}>
-                    <img className="st-slide-bg" src={p.images[0]} alt="" aria-hidden="true" loading={i === 0 ? "eager" : "lazy"} />
-                    <img className="st-slide-photo" src={p.images[0]} alt={p.name} loading={i === 0 ? "eager" : "lazy"} />
-                    <div className="st-slide-copy">
-                      <span className="st-slide-kicker">{p.sectionLabel || "Just in"}</span>
-                      <span className="st-slide-title">{p.name}</span>
-                      <button type="button" className="st-btn st-btn-light" tabIndex={i === slide % slides.length ? 0 : -1} onClick={() => openProduct(p)}>
-                        Shop now <ArrowIcon />
-                      </button>
+              <div
+                className={`st-hero${slides[0].kind === "image" ? " st-hero-images" : ""}`}
+                onTouchStart={onHeroTouchStart}
+                onTouchEnd={onHeroTouchEnd}
+              >
+                {slides.map((s, i) => {
+                  const on = i === slide % slides.length;
+                  const worded = Boolean(s.title || s.sub);
+                  return (
+                    <div
+                      className={`st-slide st-slide-${s.kind} st-tone-${s.tone}${s.image ? "" : " st-slide-noimg"}${on ? " st-on" : ""}`}
+                      key={s.id}
+                      aria-hidden={!on}
+                    >
+                      {s.image ? (
+                        <img className="st-slide-photo" src={s.image} alt="" loading={i === 0 ? "eager" : "lazy"} />
+                      ) : null}
+                      {worded ? <span className="st-slide-shade" /> : null}
+                      <div className="st-slide-inner">
+                        {worded ? (
+                          <div className="st-slide-copy">
+                            {s.kicker ? <span className="st-slide-kicker">{s.kicker}</span> : null}
+                            {s.title ? <span className="st-slide-title">{s.title}</span> : null}
+                            {s.sub ? <span className="st-slide-sub">{s.sub}</span> : null}
+                            <button type="button" className="st-btn st-btn-light" tabIndex={on ? 0 : -1} onClick={() => openBanner(s)}>
+                              {s.cta} <ArrowIcon />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className="st-slide-hit"
+                            tabIndex={on ? 0 : -1}
+                            aria-label={`Open ${s.target?.label || "all products"}`}
+                            onClick={() => openBanner(s)}
+                          />
+                        )}
+                        {s.kind === "sample" && s.photos.length > 0 ? (
+                          <div className={`st-collage st-collage-${s.photos.length}`} aria-hidden="true">
+                            {s.photos.map((src) => (
+                              <span className="st-collage-frame" key={src}>
+                                <img src={src} alt="" loading={i === 0 ? "eager" : "lazy"} decoding="async" />
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {slides.length > 1 ? (
                   <div className="st-dots">
-                    {slides.map((p, i) => (
+                    {slides.map((s, i) => (
                       <button
-                        key={p.productId}
+                        key={s.id}
                         type="button"
                         className={`st-dot${i === slide % slides.length ? " st-on" : ""}`}
                         aria-label={`Show banner ${i + 1}`}
@@ -1006,7 +1058,7 @@ export function StreetStorefront({
               </section>
             ) : null}
 
-            {newArrivals.length > 0 ? (
+            {newArrivals.length > 0 && !allAreNew ? (
               <section className="st-section">
                 <div className="st-section-head">
                   <h2 className="st-h2">New arrivals</h2>
@@ -1015,6 +1067,25 @@ export function StreetStorefront({
                   </button>
                 </div>
                 <div className="st-rail">{newArrivals.map(card)}</div>
+              </section>
+            ) : null}
+
+            {promos.length === 2 ? (
+              <section className="st-section st-duo">
+                {promos.map((s) => (
+                  <button key={s.id} type="button" className={`st-promo st-tone-${s.tone}`} onClick={() => openBanner(s)}>
+                    <span className="st-promo-copy">
+                      <span className="st-slide-kicker">{s.kicker}</span>
+                      <span className="st-promo-title">{s.title}</span>
+                      <span className="st-link">{s.cta}</span>
+                    </span>
+                    {s.photos[0] ? (
+                      <span className="st-collage-frame">
+                        <img src={s.photos[0]} alt="" loading="lazy" decoding="async" />
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
               </section>
             ) : null}
 
@@ -1032,7 +1103,7 @@ export function StreetStorefront({
 
             <section className="st-section">
               <div className="st-section-head">
-                <h2 className="st-h2">All products</h2>
+                <h2 className="st-h2">{allAreNew ? "New arrivals" : "All products"}</h2>
                 <button type="button" className="st-link" onClick={() => goCollection(null, "All products")}>
                   View all {items.length}
                 </button>

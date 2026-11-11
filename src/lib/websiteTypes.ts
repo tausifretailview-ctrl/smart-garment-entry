@@ -129,6 +129,8 @@ export type PublicStorefrontPayload = {
   published: boolean;
   /** Theme id saved in Website → Theme (see storefrontThemes.ts); null when never chosen. */
   theme?: string | null;
+  /** Home-page banners saved in Website → Theme (see storefrontBanners.ts). */
+  banners?: Array<{ id: string; image_url: string; heading: string; subheading: string; target: string }>;
   shop?: PublicStorefrontShop;
   products?: PublicStorefrontProduct[];
   menus?: PublicStorefrontMenuFlat[];
