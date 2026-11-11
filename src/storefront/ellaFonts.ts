@@ -35,6 +35,16 @@ export function ensureStoreFonts(): void {
   addLink("store-fonts", { rel: "stylesheet", href: STORE_FONTS_HREF });
 }
 
+/** Street theme: Archivo (heavy uppercase headings) + Inter (text, prices, labels). */
+const STREET_FONTS_HREF =
+  "https://fonts.googleapis.com/css2?family=Archivo:wght@700;800;900&family=Inter:wght@400;500;600;700&display=swap";
+
+export function ensureStreetFonts(): void {
+  if (typeof document === "undefined") return;
+  ensureStoreFonts();
+  addLink("street-fonts", { rel: "stylesheet", href: STREET_FONTS_HREF });
+}
+
 /** Ella'Noor uses the same pairing; kept as its own entry point for StorefrontApp. */
 export function ensureEllaFonts(): void {
   ensureStoreFonts();

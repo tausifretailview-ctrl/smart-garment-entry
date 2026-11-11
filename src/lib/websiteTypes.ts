@@ -127,6 +127,8 @@ export type WebsiteMenu = {
 
 export type PublicStorefrontPayload = {
   published: boolean;
+  /** Theme id saved in Website → Theme (see storefrontThemes.ts); null when never chosen. */
+  theme?: string | null;
   shop?: PublicStorefrontShop;
   products?: PublicStorefrontProduct[];
   menus?: PublicStorefrontMenuFlat[];

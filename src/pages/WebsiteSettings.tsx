@@ -69,6 +69,7 @@ import { coerceToArray, lookupMap } from "@/lib/coerceToMap";
 import { websiteFrom } from "@/lib/websiteDb";
 import { WebsiteMenusPanel } from "@/components/website/WebsiteMenusPanel";
 import { WebsiteSectionsPanel } from "@/components/website/WebsiteSectionsPanel";
+import { WebsiteThemePanel } from "@/components/website/WebsiteThemePanel";
 import { WebsiteSectionSelect } from "@/components/website/WebsiteSectionSelect";
 import { StoreDomainSettings } from "@/components/settings/StoreDomainSettings";
 import {
@@ -104,9 +105,9 @@ type VariantRow = {
   barcode?: string | null;
 };
 
-type WebsiteTabId = "catalogue" | "add" | "sections" | "menus" | "profile" | "domain" | "enquiries";
+type WebsiteTabId = "catalogue" | "add" | "sections" | "menus" | "theme" | "profile" | "domain" | "enquiries";
 
-const WEBSITE_TAB_IDS: WebsiteTabId[] = ["catalogue", "add", "sections", "menus", "profile", "domain", "enquiries"];
+const WEBSITE_TAB_IDS: WebsiteTabId[] = ["catalogue", "add", "sections", "menus", "theme", "profile", "domain", "enquiries"];
 const WEBSITE_TAB_STORAGE_KEY = "ezzy:website-tab";
 
 function readStoredWebsiteTab(): WebsiteTabId {
@@ -201,7 +202,7 @@ export default function WebsiteSettingsPage() {
                 Website
               </h1>
               <p className="text-sm text-muted-foreground mt-1 truncate">
-                Catalogue · Add products · Sections · Menus · Store profile · Domain · Enquiries
+                Catalogue · Add products · Sections · Menus · Theme · Store profile · Domain · Enquiries
               </p>
             </div>
           </div>
@@ -235,6 +236,9 @@ export default function WebsiteSettingsPage() {
             </TabsTrigger>
             <TabsTrigger value="menus" className={WEBSITE_TAB_TRIGGER}>
               Menus
+            </TabsTrigger>
+            <TabsTrigger value="theme" className={WEBSITE_TAB_TRIGGER}>
+              Theme
             </TabsTrigger>
             <TabsTrigger value="profile" className={WEBSITE_TAB_TRIGGER}>
               Store profile
@@ -284,6 +288,12 @@ export default function WebsiteSettingsPage() {
 
           <TabsContent value="menus" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
             {shouldMountTab("menus") ? <WebsiteMenusPanel orgId={orgId} /> : null}
+          </TabsContent>
+
+          <TabsContent value="theme" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
+            {shouldMountTab("theme") ? (
+              <WebsiteThemePanel orgId={orgId} orgSlug={orgSlug} storeUrl={storeUrl} />
+            ) : null}
           </TabsContent>
 
           <TabsContent value="profile" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { parseStorefrontPath, storefrontHomePath, storefrontProductPath } from "@/lib/storefrontPath";
 import type { PublicStorefrontPayload, PublicStorefrontProduct } from "@/lib/websiteTypes";
 import { applyStorefrontThemeVars, isEllaNoorSlug } from "./storefrontTheme";
@@ -8,30 +8,75 @@ import { StorefrontHome } from "./StorefrontHome";
 import { StorefrontProduct } from "./StorefrontProduct";
 import { EllaStorefront } from "./EllaStorefront";
 import { EllaStorefrontSkeleton } from "./EllaStorefrontHome";
-import { ensureEllaFonts, ensureStoreFonts } from "./ellaFonts";
+import { StreetStorefront, StreetStorefrontSkeleton } from "./StreetStorefront";
+import { ensureEllaFonts, ensureStoreFonts, ensureStreetFonts } from "./ellaFonts";
+import {
+  isStorefrontThemeId,
+  resolveStorefrontTheme,
+  type StorefrontThemeId,
+} from "@/lib/storefrontThemes";
 import "./ella-storefront.css";
+
+const THEME_HINT_PREFIX = "ezzy:store-theme:";
+
+/** Theme this browser saw last time, so the loading screen already matches the store. */
+function readThemeHint(slug: string | null | undefined): StorefrontThemeId | null {
+  if (!slug) return null;
+  try {
+    const stored = window.localStorage.getItem(THEME_HINT_PREFIX + slug.toLowerCase());
+    return isStorefrontThemeId(stored) ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeThemeHint(slug: string, theme: StorefrontThemeId): void {
+  try {
+    window.localStorage.setItem(THEME_HINT_PREFIX + slug.toLowerCase(), theme);
+  } catch {
+    /* storage blocked — the next visit just starts on the default loading screen */
+  }
+}
 
 export function StorefrontApp() {
   const path = window.location.pathname;
   const parsed = useMemo(() => parseStorefrontPath(path), [path]);
-  const ella = isEllaNoorSlug(parsed?.orgSlug);
   const [payload, setPayload] = useState<PublicStorefrontPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Website → Theme decides the look. Until the store answers, use the last theme this
+  // browser saw; a shop that never chose keeps its default (atelier for ella-noor only).
+  const savedTheme = isStorefrontThemeId(payload?.theme) ? payload.theme : null;
+  const theme: StorefrontThemeId = payload
+    ? resolveStorefrontTheme(savedTheme, parsed?.orgSlug)
+    : isEllaNoorSlug(parsed?.orgSlug)
+      ? "ella-noor"
+      : readThemeHint(parsed?.orgSlug) ?? "classic";
+  const ella = theme === "ella-noor";
+  const street = theme === "street";
+  // Read through a ref: the theme is only known after the first load, and it must not restart it.
+  const liveStockRef = useRef(false);
+  liveStockRef.current = ella || street;
+
   useEffect(() => {
-    if (!ella) {
+    if (payload?.published && parsed?.orgSlug) writeThemeHint(parsed.orgSlug, theme);
+  }, [payload?.published, parsed?.orgSlug, theme]);
+
+  useEffect(() => {
+    if (!ella && !street) {
       ensureStoreFonts();
       return;
     }
-    ensureEllaFonts();
+    if (street) ensureStreetFonts();
+    else ensureEllaFonts();
     document.documentElement.classList.add("ella-root");
     document.body.classList.add("ella-root");
     return () => {
       document.documentElement.classList.remove("ella-root");
       document.body.classList.remove("ella-root");
     };
-  }, [ella]);
+  }, [ella, street]);
 
   useEffect(() => {
     if (!parsed?.orgSlug) {
@@ -58,7 +103,7 @@ export function StorefrontApp() {
     setError(null);
     load();
     const onFocus = () => {
-      if (!ella) return;
+      if (!liveStockRef.current) return;
       if (document.visibilityState === "hidden") return;
       loadPublicStorefront(parsed.orgSlug)
         .then((data) => {
@@ -75,7 +120,7 @@ export function StorefrontApp() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onFocus);
     };
-  }, [ella, parsed?.orgSlug]);
+  }, [parsed?.orgSlug]);
 
   const canonicalSlug = payload?.shop?.slug || parsed?.orgSlug || "";
   const shopName = payload?.shop?.display_name || payload?.shop?.name || canonicalSlug || "Store";
@@ -106,6 +151,7 @@ export function StorefrontApp() {
   }
 
   if (loading) {
+    if (street) return <StreetStorefrontSkeleton />;
     return ella ? <EllaStorefrontSkeleton /> : <div className="storefront-loading">Loading catalogue…</div>;
   }
 
@@ -124,6 +170,19 @@ export function StorefrontApp() {
   const selected: PublicStorefrontProduct | undefined = parsed.productId
     ? products.find((p) => p.product_id === parsed.productId || p.id === parsed.productId)
     : undefined;
+
+  if (street) {
+    return (
+      <StreetStorefront
+        shop={payload.shop!}
+        orgSlug={canonicalSlug}
+        products={products}
+        sections={payload.sections || []}
+        menus={menuTree}
+        initialProductId={parsed.productId}
+      />
+    );
+  }
 
   if (ella) {
     return (
