@@ -49,6 +49,7 @@ import {
   type StreetBannerSlide,
   type StreetNavItem,
 } from "./streetStore";
+import { streetSampleCatalogue, streetSampleImage, streetSampleKind } from "./streetSamples";
 import "./ella-storefront.css";
 import "./street-storefront.css";
 
@@ -625,7 +626,22 @@ export function StreetStorefront({
   menus?: PublicStorefrontMenu[];
   initialProductId: string | null;
 }) {
-  const items = useMemo(() => products.map(toEllaStorefrontProduct), [products]);
+  // A store with nothing published shows a sample catalogue so the theme can be seen working.
+  const sampleMode = products.length === 0;
+  const items = useMemo(
+    () =>
+      (sampleMode ? streetSampleCatalogue() : products).map((raw) => {
+        const product = toEllaStorefrontProduct(raw);
+        // No photo yet: a drawn sample picture (captioned as such) instead of an empty box.
+        return product.images.length > 0
+          ? product
+          : {
+              ...product,
+              images: [streetSampleImage(streetSampleKind(product.name, product.sourceCategory), product.productId)],
+            };
+      }),
+    [products, sampleMode],
+  );
   const findById = useCallback(
     (id: string | null) => (id ? items.find((p) => p.productId === id || p.id === id) || null : null),
     [items],
@@ -653,6 +669,7 @@ export function StreetStorefront({
   const [enquiry, setEnquiry] = useState<{ product: EllaStorefrontProduct | null } | null>(null);
   const [wishlist, setWishlist] = useState<string[]>(() => parseStreetWishlist(readStorage("local", streetWishlistKey(orgSlug))));
   const [toast, setToast] = useState<string | null>(null);
+  const [pageWidth, setPageWidth] = useState(() => window.innerWidth);
   const cartRestoredRef = useRef(false);
   const touchXRef = useRef(0);
 
@@ -685,6 +702,12 @@ export function StreetStorefront({
       return fresh ? { kind: "product", product: fresh } : { kind: "home" };
     });
   }, [findById]);
+
+  useEffect(() => {
+    const onResize = () => setPageWidth(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -765,6 +788,11 @@ export function StreetStorefront({
   };
 
   const addToBag = (product: EllaStorefrontProduct, size: EllaSizeOption | null, qty: number, thenCheckout: boolean) => {
+    if (sampleMode) {
+      setQuickAdd(null);
+      setToast("Sample product — not for sale");
+      return;
+    }
     if (!size?.inStock) return;
     setCart((current) => addToEllaCart(current, product, size, qty));
     setQuickAdd(null);
@@ -832,6 +860,12 @@ export function StreetStorefront({
     if (Math.abs(dx) < 40 || slides.length < 2) return;
     setSlide((n) => (n + (dx < 0 ? 1 : slides.length - 1)) % slides.length);
   };
+
+  // The header keeps the logo centred, so only as many links as fit on the left are shown;
+  // the rest sit under "More".
+  const navRoom = pageWidth >= 1700 ? 5 : pageWidth >= 1200 ? 4 : 3;
+  const navShown = nav.length > navRoom ? nav.slice(0, navRoom - 1) : nav;
+  const navMore = nav.slice(navShown.length);
 
   // When every listed product is a new arrival, one grid says it; a rail above would repeat it.
   const allAreNew = items.length > 0 && newArrivals.length >= items.length;
@@ -932,7 +966,12 @@ export function StreetStorefront({
               <MenuIcon />
             </button>
             <nav className="st-nav" aria-label="Shop">
-              {nav.slice(0, 7).map((item) => (
+              <div className="st-nav-item">
+                <button type="button" className={`st-nav-link${view.kind === "home" ? " st-on" : ""}`} onClick={goHome}>
+                  Home
+                </button>
+              </div>
+              {navShown.map((item) => (
                 <div className="st-nav-item" key={item.id}>
                   <button type="button" className="st-nav-link" onClick={() => goCollection(item)}>
                     {item.label}
@@ -948,6 +987,29 @@ export function StreetStorefront({
                   ) : null}
                 </div>
               ))}
+              {navMore.length > 0 ? (
+                <div className="st-nav-item">
+                  <button type="button" className="st-nav-link" aria-haspopup="true">
+                    More
+                  </button>
+                  <div className="st-nav-drop">
+                    {navMore.map((item) => (
+                      <button key={item.id} type="button" className="st-nav-sub" onClick={() => goCollection(item)}>
+                        {item.label}
+                      </button>
+                    ))}
+                    <button type="button" className="st-nav-sub" onClick={() => goCollection(null, "All products")}>
+                      All products
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="st-nav-item">
+                  <button type="button" className="st-nav-link" onClick={() => goCollection(null, "All products")}>
+                    All products
+                  </button>
+                </div>
+              )}
             </nav>
           </div>
           <button type="button" className="st-brand" onClick={goHome} aria-label={`${shopName} home`}>
@@ -968,6 +1030,12 @@ export function StreetStorefront({
           </div>
         </div>
       </header>
+
+      {sampleMode ? (
+        <div className="st-sample-note" role="note">
+          Sample catalogue · this store is being set up. Its own products will appear here soon.
+        </div>
+      ) : null}
 
       <main className="st-main">
         {view.kind === "home" ? (
@@ -1187,7 +1255,7 @@ export function StreetStorefront({
             onBack={backFromProduct}
             onAdd={addToBag}
             onWish={toggleWish}
-            onEnquire={(product) => setEnquiry({ product })}
+            onEnquire={(product) => setEnquiry({ product: sampleMode ? null : product })}
             onOpen={openProduct}
             onQuickAdd={startQuickAdd}
           />
@@ -1274,6 +1342,9 @@ export function StreetStorefront({
               </button>
             </div>
             <div className="st-drawer-body">
+              <button type="button" className="st-drawer-link" onClick={goHome}>
+                Home
+              </button>
               <button type="button" className="st-drawer-link" onClick={() => goCollection(null, "All products")}>
                 All products
               </button>
