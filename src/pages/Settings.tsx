@@ -2720,7 +2720,7 @@ export default function Settings() {
                   <SettingsToggle
                     id="purchase_code_include_gst"
                     label="Include GST in code"
-                    description="Code = purchase rate + product purchase GST. Same on labels and POS"
+                    description="Code = purchase rate − product purchase discount + GST. Same on labels and POS"
                     checked={settings.purchase_settings?.purchase_code_include_gst || false}
                     onCheckedChange={(checked) =>
                       setSettings({

@@ -50,6 +50,8 @@ import {
   resolveLabelPurchaseBillDate,
   resolvePurchaseCodeAlphabet,
   resolvePurchaseCodeGstPer,
+  resolvePurchaseCodeDiscount,
+  type PurchaseCodeDiscount,
   resolvePurchaseCodeIncludeDate,
 } from "@/utils/purchaseCodeEncoder";
 import { generateA4LabelPdf } from '@/utils/a4LabelPdf';
@@ -402,6 +404,7 @@ interface SearchResult {
   pur_price?: number;
   /** Product purchase GST % — for the purchase code when "Include GST in code" is on. */
   gst_per?: number;
+  pur_disc?: PurchaseCodeDiscount;
   uom?: string;
 }
 
@@ -3434,6 +3437,7 @@ export default function BarcodePrinting() {
         purchase_code: item.pur_price && item.pur_price > 0
           ? encodePurchasePriceForLabel(item.pur_price, purchaseCodeAlphabet, {
               gstPer: item.gst_per || 0,
+              purchaseDiscount: item.pur_disc,
               includeGst: purchaseCodeIncludeGst,
               extraPercentEnabled: purchaseCodeExtraPercentEnabled,
               extraPercent: purchaseCodeExtraPercent,
@@ -3621,6 +3625,7 @@ export default function BarcodePrinting() {
           mrp: number;
           pur_price: number;
           gst_per: number;
+          pur_disc: PurchaseCodeDiscount;
           product_name?: string;
           brand?: string;
           category?: string;
@@ -3649,7 +3654,9 @@ export default function BarcodePrinting() {
               color,
               uom,
               purchase_gst_percent,
-              gst_per
+              gst_per,
+              purchase_discount_type,
+              purchase_discount_value
             )
           `,
           )
@@ -3670,6 +3677,8 @@ export default function BarcodePrinting() {
               uom?: string;
               purchase_gst_percent?: number | null;
               gst_per?: number | null;
+              purchase_discount_type?: string | null;
+              purchase_discount_value?: number | null;
             } | null;
             liveBySku.set(row.id, {
               barcode: row.barcode || "",
@@ -3679,6 +3688,7 @@ export default function BarcodePrinting() {
               mrp: Number(row.mrp) || 0,
               pur_price: Number(row.pur_price) || 0,
               gst_per: resolvePurchaseCodeGstPer(p, 0),
+              pur_disc: resolvePurchaseCodeDiscount(p),
               product_name: p?.product_name,
               brand: p?.brand,
               category: p?.category,
@@ -3723,8 +3733,10 @@ export default function BarcodePrinting() {
           savedInvoiceDate,
           itemBillDate: item.bill_date,
         });
+        const purDisc = live?.pur_disc ?? null;
         const purchaseCode = encodePurchasePriceForLabel(purPrice, purchaseCodeAlphabet, {
           gstPer,
+          purchaseDiscount: purDisc,
           includeGst: purchaseCodeIncludeGst,
           extraPercentEnabled: purchaseCodeExtraPercentEnabled,
           extraPercent: purchaseCodeExtraPercent,
@@ -3752,6 +3764,7 @@ export default function BarcodePrinting() {
           mrp: live?.mrp ?? item.mrp ?? 0,
           pur_price: purPrice,
           gst_per: gstPer,
+          pur_disc: purDisc,
           purchase_code: purchaseCode,
           bill_date: billDateStr,
           barcode: live?.barcode || item.barcode,
@@ -3914,7 +3927,9 @@ export default function BarcodePrinting() {
               category,
               uom,
               purchase_gst_percent,
-              gst_per
+              gst_per,
+              purchase_discount_type,
+              purchase_discount_value
             )
           `
           )
@@ -4024,6 +4039,7 @@ export default function BarcodePrinting() {
           supplier_code: supplierCodeMap.get(v.id) || "",
           pur_price: v.pur_price || 0,
           gst_per: resolvePurchaseCodeGstPer(v.products, 0),
+          pur_disc: resolvePurchaseCodeDiscount(v.products),
           uom: v.products?.uom || "NOS",
           sale_disc_percent: null,
         }));
@@ -4087,8 +4103,10 @@ export default function BarcodePrinting() {
       mrp: result.mrp || result.sale_price,
       pur_price: purPrice,
       gst_per: result.gst_per || 0,
+      pur_disc: result.pur_disc ?? null,
       purchase_code: encodePurchasePriceForLabel(purPrice, purchaseCodeAlphabet, {
         gstPer: result.gst_per || 0,
+        purchaseDiscount: result.pur_disc,
         includeGst: purchaseCodeIncludeGst,
         extraPercentEnabled: purchaseCodeExtraPercentEnabled,
         extraPercent: purchaseCodeExtraPercent,
@@ -4305,7 +4323,9 @@ export default function BarcodePrinting() {
             style,
             uom,
             purchase_gst_percent,
-            gst_per
+            gst_per,
+            purchase_discount_type,
+            purchase_discount_value
           )
         `)
         .in("id", skuIds);
@@ -4340,6 +4360,7 @@ export default function BarcodePrinting() {
           // after-save print use — so a reprint from an old bill matches the POS code.
           const purPrice = variantInfo.pur_price || item.pur_price || 0;
           const gstPer = resolvePurchaseCodeGstPer(variantInfo.product, (item as any).gst_per);
+          const purDisc = resolvePurchaseCodeDiscount(variantInfo.product);
           return {
             sku_id: item.sku_id,
             product_name: variantInfo.product_name,
@@ -4352,8 +4373,10 @@ export default function BarcodePrinting() {
             mrp: item.mrp || variantInfo.mrp || 0,
             pur_price: purPrice,
             gst_per: gstPer,
+            pur_disc: purDisc,
             purchase_code: encodePurchasePriceForLabel(purPrice, purchaseCodeAlphabet, {
               gstPer,
+              purchaseDiscount: purDisc,
               includeGst: purchaseCodeIncludeGst,
               extraPercentEnabled: purchaseCodeExtraPercentEnabled,
               extraPercent: purchaseCodeExtraPercent,

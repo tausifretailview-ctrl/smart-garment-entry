@@ -145,7 +145,34 @@ export const getEffectivePurchasePrice = (
   return purPrice;
 };
 
+/** Product master purchase discount (Product Entry → Pur Disc): % off or flat ₹ off per unit. */
+export type PurchaseCodeDiscount = {
+  type?: string | null;
+  value?: number | null;
+};
+
+export function resolvePurchaseCodeDiscount(
+  product?: { purchase_discount_type?: string | null; purchase_discount_value?: number | null } | null,
+): PurchaseCodeDiscount {
+  return { type: product?.purchase_discount_type ?? null, value: Number(product?.purchase_discount_value) || 0 };
+}
+
+/**
+ * Net purchase rate after the product's purchase discount — the same sum Product Entry
+ * shows as "Net Purchase Price". The code is the shop's real cost, so discount comes off
+ * before GST and extra % are added.
+ */
+export function applyPurchaseCodeDiscount(purPrice: number, discount?: PurchaseCodeDiscount | null): number {
+  const price = Number(purPrice) || 0;
+  const value = Number(discount?.value) || 0;
+  if (price <= 0 || value <= 0) return price;
+  const net = (discount?.type || "percent") === "flat" ? price - value : price - (price * Math.min(100, value)) / 100;
+  return Math.max(0, Math.round(net * 100) / 100);
+}
+
 export type EncodeLabelPurchaseCodeOptions = EncodePurchasePriceOptions & {
+  /** Product purchase discount, taken off the rate first. */
+  purchaseDiscount?: PurchaseCodeDiscount | null;
   gstPer?: number;
   includeGst?: boolean;
   extraPercentEnabled?: boolean;
@@ -159,8 +186,9 @@ export const encodePurchasePriceForLabel = (
   alphabet?: string,
   options?: EncodeLabelPurchaseCodeOptions,
 ): string => {
-  const price = Number(purPrice) || 0;
-  if (price <= 0) return "";
+  const gross = Number(purPrice) || 0;
+  if (gross <= 0) return "";
+  const price = applyPurchaseCodeDiscount(gross, options?.purchaseDiscount);
   const effective = getEffectivePurchasePrice(
     price,
     options?.gstPer || 0,
@@ -219,11 +247,16 @@ export function resolvePosPurchaseCodeEnabled(
  * extra % options as barcode labels so the letters match the printed tag.
  */
 export function encodePosLinePurchaseCode(
-  line: { purPrice?: number | null; purchaseGstPer?: number | null },
+  line: {
+    purPrice?: number | null;
+    purchaseGstPer?: number | null;
+    purchaseDiscount?: PurchaseCodeDiscount | null;
+  },
   purchaseSettings?: PosPurchaseCodeSettings | null,
 ): string {
   return encodePurchasePriceForLabel(line.purPrice, purchaseSettings?.purchase_code_alphabet ?? undefined, {
     includeDate: false,
+    purchaseDiscount: line.purchaseDiscount,
     gstPer: Number(line.purchaseGstPer) || 0,
     includeGst: purchaseSettings?.purchase_code_include_gst === true,
     extraPercentEnabled: purchaseSettings?.purchase_code_extra_percent_enabled === true,

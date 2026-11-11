@@ -92,7 +92,8 @@ import {
   computePosLiveMargin,
   applyPurchasePricesToPosCart,
   fetchVariantPurchasePrices,
-  fetchVariantPurchaseCodeGst,
+  fetchVariantPurchaseCodeMeta,
+  type VariantPurchaseCodeMeta,
 } from "@/lib/posBilling";
 import { displaySaleStockQty } from "@/utils/productStockDisplay";
 import { useLocation, useSearchParams } from "react-router-dom";
@@ -1881,50 +1882,58 @@ export default function POSSales() {
     | PosPurchaseCodeSettings
     | undefined;
   const showPosPurchaseCode = resolvePosPurchaseCodeEnabled(posPurchaseCodeSettings);
-  // Lines restored from a saved / resumed bill have no purchaseGstPer; look the product's
-  // purchase GST up so their code matches a freshly scanned line and the printed label.
-  const [purchaseCodeGstByVariant, setPurchaseCodeGstByVariant] = useState<Record<string, number>>({});
-  const posPurchaseCodeNeedsGst =
-    showPosPurchaseCode && posPurchaseCodeSettings?.purchase_code_include_gst === true;
-  const posPurchaseCodeGstMissingKey = useMemo(() => {
-    if (!posPurchaseCodeNeedsGst) return "";
+  // The code is built from the product row (purchase GST + purchase discount), the same
+  // inputs the barcode label uses. Cart lines carry no purchase discount, and reopened /
+  // restored lines carry no purchase GST. null = lookup failed (offline): fall back to the line.
+  const [purchaseCodeMetaByVariant, setPurchaseCodeMetaByVariant] = useState<
+    Record<string, VariantPurchaseCodeMeta | null>
+  >({});
+  const posPurchaseCodeMetaMissingKey = useMemo(() => {
+    if (!showPosPurchaseCode) return "";
     const ids = new Set<string>();
     for (const item of items) {
-      if (!item.variantId || item.purchaseGstPer != null) continue;
-      if (item.variantId in purchaseCodeGstByVariant) continue;
-      ids.add(item.variantId);
+      if (item.variantId && !(item.variantId in purchaseCodeMetaByVariant)) ids.add(item.variantId);
     }
     return [...ids].sort().join(",");
-  }, [items, posPurchaseCodeNeedsGst, purchaseCodeGstByVariant]);
+  }, [items, showPosPurchaseCode, purchaseCodeMetaByVariant]);
   useEffect(() => {
     const orgId = currentOrganization?.id;
-    if (!orgId || !posPurchaseCodeGstMissingKey) return;
-    const ids = posPurchaseCodeGstMissingKey.split(",");
+    if (!orgId || !posPurchaseCodeMetaMissingKey) return;
+    const ids = posPurchaseCodeMetaMissingKey.split(",");
     let cancelled = false;
-    void fetchVariantPurchaseCodeGst(supabase, orgId, ids)
-      .then((map) => {
-        if (cancelled) return;
-        // Remember misses too so a deleted variant is not re-queried on every render.
-        const next: Record<string, number> = {};
-        for (const id of ids) next[id] = map[id] ?? 0;
-        setPurchaseCodeGstByVariant((prev) => ({ ...prev, ...next }));
-      })
-      .catch((err) => console.warn("POS purchase code: could not load purchase GST", err));
+    const remember = (map: Record<string, VariantPurchaseCodeMeta>) => {
+      if (cancelled) return;
+      // Remember misses too so a deleted variant is not re-queried on every render.
+      const next: Record<string, VariantPurchaseCodeMeta | null> = {};
+      for (const id of ids) next[id] = map[id] ?? null;
+      setPurchaseCodeMetaByVariant((prev) => ({ ...prev, ...next }));
+    };
+    void fetchVariantPurchaseCodeMeta(supabase, orgId, ids)
+      .then(remember)
+      .catch((err) => {
+        console.warn("POS purchase code: could not load purchase GST / discount", err);
+        remember({});
+      });
     return () => {
       cancelled = true;
     };
-  }, [currentOrganization?.id, posPurchaseCodeGstMissingKey]);
+  }, [currentOrganization?.id, posPurchaseCodeMetaMissingKey]);
   const posPurchaseCodeFor = useCallback(
-    (line: { purPrice?: number | null; purchaseGstPer?: number | null; variantId?: string | null }) =>
-      encodePosLinePurchaseCode(
+    (line: { purPrice?: number | null; purchaseGstPer?: number | null; variantId?: string | null }) => {
+      const vid = line.variantId || "";
+      // Still loading: show nothing rather than a code that is about to change.
+      if (vid && !(vid in purchaseCodeMetaByVariant)) return "";
+      const meta = vid ? purchaseCodeMetaByVariant[vid] : null;
+      return encodePosLinePurchaseCode(
         {
           purPrice: line.purPrice,
-          purchaseGstPer:
-            line.purchaseGstPer ?? (line.variantId ? purchaseCodeGstByVariant[line.variantId] : undefined),
+          purchaseGstPer: meta ? meta.gstPer : line.purchaseGstPer,
+          purchaseDiscount: meta?.discount,
         },
         posPurchaseCodeSettings,
-      ),
-    [posPurchaseCodeSettings, purchaseCodeGstByVariant],
+      );
+    },
+    [posPurchaseCodeSettings, purchaseCodeMetaByVariant],
   );
   const posCartGridCols = useMemo(
     () =>
