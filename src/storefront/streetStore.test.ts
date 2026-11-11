@@ -73,9 +73,9 @@ describe("Street theme navigation", () => {
     expect(streetProductsFor(catalogue, nav[0].children[1]).map((p) => p.productId)).toEqual(["c", "d"]);
   });
 
-  it("falls back to sections, then to the ERP categories of the products", () => {
+  it("with no menus, builds a default menu from sections, then the ERP categories", () => {
     const bySection = buildStreetNav([], [{ id: "s1", slug: "new-arrival", label: "New Arrival", display_order: 0 }], catalogue);
-    expect(bySection).toHaveLength(1);
+    expect(bySection.map((n) => n.label)).toEqual(["New Arrival", "Jeans", "Shirts"]);
     expect(bySection[0].sort).toBe("newest");
     expect(streetProductsFor(catalogue, bySection[0]).map((p) => p.productId)).toEqual(["a"]);
 

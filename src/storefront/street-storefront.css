@@ -239,6 +239,15 @@
 .street-store .st-nav,
 .street-store .st-hide-phone { display: none; }
 
+.street-store .st-sample-note {
+  background: #fff7d6;
+  border-bottom: 1px solid #ecd98a;
+  color: #5c4a00;
+  font-size: 13px;
+  padding: 8px var(--st-gutter);
+  text-align: center;
+}
+
 /* --- hero ----------------------------------------------------------------- */
 
 .street-store .st-hero {
@@ -972,6 +981,7 @@
   }
 
   .street-store .st-nav-item:hover .st-nav-link,
+  .street-store .st-nav-link.st-on,
   .street-store .st-nav-link:focus-visible { box-shadow: inset 0 -2px 0 var(--st-ink); }
 
   .street-store .st-nav-drop {
@@ -1083,4 +1093,72 @@
   .street-store .st-slide,
   .street-store .st-tile img,
   .street-store .st-card-alt { transition: none; }
+}
+
+/* --- desktop text size ------------------------------------------------------
+   Phone sizes stay as they are. On a desktop the same sizes read small,
+   especially on wide monitors, so text, logo and icons step up here. */
+
+@media (min-width: 1024px) {
+  .ella-store.street-store { --st-header-h: 76px; font-size: 16px; }
+
+  .street-store .st-announce { font-size: 12px; height: 34px; }
+  .street-store .st-nav { gap: 26px; }
+  .street-store .st-nav-link { font-size: 15px; }
+  .street-store .st-nav-sub { font-size: 15px; }
+  .street-store .st-brand-logo { max-height: 54px; max-width: 220px; }
+  .street-store .st-icon { height: 24px; width: 24px; }
+  .street-store .st-iconbtn { height: 48px; width: 48px; }
+
+  .street-store .st-h2 { font-size: clamp(24px, 2.2vw, 34px); }
+  .street-store .st-link { font-size: 14px; }
+  .street-store .st-eyebrow,
+  .street-store .st-slide-kicker { font-size: 13px; }
+  .street-store .st-slide-sub { font-size: 18px; }
+  .street-store .st-btn { font-size: 14px; height: 54px; padding: 0 28px; }
+  .street-store .st-btn-sm { font-size: 13px; height: 42px; padding: 0 18px; }
+  .street-store .st-btn-icon { flex-basis: 54px; padding: 0; width: 54px; }
+
+  .street-store .st-card-body { gap: 4px; padding-top: 12px; }
+  .street-store .st-card-name { font-size: 15px; }
+  .street-store .st-card-price { font-size: 17px; }
+  .street-store .st-card-sizes { font-size: 13px; }
+  .street-store .st-flag { font-size: 11px; padding: 5px 9px; }
+  .street-store .st-card-wish,
+  .street-store .st-card-add { height: 40px; width: 40px; }
+  .street-store .st-tile-label small { font-size: 13px; }
+
+  .street-store .st-crumbs,
+  .street-store .st-crumbs .st-link,
+  .street-store .st-toolbar-count,
+  .street-store .st-sort { font-size: 13px; }
+  .street-store .st-sort select { font-size: 15px; height: 42px; }
+  .street-store .st-check { font-size: 15px; }
+  .street-store .st-pdp-label { font-size: 13px; }
+  .street-store .st-size { font-size: 15px; height: 48px; min-width: 54px; }
+
+  .street-store .st-back { font-size: 13px; }
+  .street-store .st-pdp-price { font-size: 24px; }
+  .street-store .st-stock { font-size: 14px; }
+  .street-store .st-acc-head { font-size: 14px; }
+  .street-store .st-acc-body { font-size: 15px; }
+
+  .street-store .st-footer p { font-size: 15px; }
+  .street-store .st-footer-head { font-size: 13px; }
+  .street-store .st-footer-link { font-size: 15px; }
+  .street-store .st-footer-base { font-size: 13px; }
+  .street-store .st-sample-note { font-size: 14px; }
+}
+
+/* wide monitors: a wider page and one more step up */
+@media (min-width: 1600px) {
+  .ella-store.street-store { --st-page: 1640px; --st-gutter: 56px; font-size: 17px; }
+
+  .street-store .st-nav-link,
+  .street-store .st-nav-sub { font-size: 16px; }
+  .street-store .st-card-name { font-size: 16px; }
+  .street-store .st-card-price { font-size: 18px; }
+  .street-store .st-card-sizes { font-size: 14px; }
+  .street-store .st-link { font-size: 15px; }
+  .street-store .st-announce { font-size: 13px; }
 }

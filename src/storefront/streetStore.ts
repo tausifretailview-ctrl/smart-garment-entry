@@ -68,8 +68,8 @@ function menuToNav(menu: PublicStorefrontMenu, sections: PublicStorefrontSection
 }
 
 /**
- * Header links: Website → Menus when the shop made any, else its sections,
- * else the ERP categories of the published products.
+ * Header links: Website → Menus when the shop made any. Otherwise a default menu:
+ * its sections first, then the ERP categories of the published products.
  */
 export function buildStreetNav(
   menus: PublicStorefrontMenu[] | undefined,
@@ -80,17 +80,16 @@ export function buildStreetNav(
   const roots = (menus || []).filter((m) => m.label.trim() && !isHomeLabel(m.label));
   if (roots.length > 0) return roots.map((m) => menuToNav(m, sectionList));
 
-  if (sectionList.length > 0) {
-    return [...sectionList]
-      .sort((a, b) => a.display_order - b.display_order)
-      .map((s) => ({
-        id: `section:${s.slug}`,
-        label: s.label,
-        chips: [s.slug],
-        sort: isNewArrivalSlug(s.slug) ? ("newest" as const) : ("featured" as const),
-        children: [],
-      }));
-  }
+  const fromSections: StreetNavItem[] = [...sectionList]
+    .sort((a, b) => a.display_order - b.display_order)
+    .map((s) => ({
+      id: `section:${s.slug}`,
+      label: s.label,
+      chips: [s.slug],
+      sort: isNewArrivalSlug(s.slug) ? ("newest" as const) : ("featured" as const),
+      children: [],
+    }));
+  const taken = new Set(fromSections.map((item) => key(item.label)));
 
   const counts = new Map<string, { label: string; count: number }>();
   for (const p of products) {
@@ -100,10 +99,11 @@ export function buildStreetNav(
     entry.count += 1;
     counts.set(key(label), entry);
   }
-  return [...counts.values()]
+  const fromCategories: StreetNavItem[] = [...counts.values()]
+    .filter((c) => !taken.has(key(c.label)))
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
-    .slice(0, 8)
     .map((c) => ({ id: `category:${key(c.label)}`, label: c.label, chips: [c.label], sort: "featured" as const, children: [] }));
+  return [...fromSections, ...fromCategories].slice(0, 8);
 }
 
 export type StreetTile = { item: StreetNavItem; photo: string | null; count: number };
