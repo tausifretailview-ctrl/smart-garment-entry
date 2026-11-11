@@ -25,6 +25,8 @@ EzzyERP — one Vite + React + TypeScript web app (multi-tenant retail POS / bil
 
 ### Testing (see `test/README.md`)
 
+- Keep the GST HSN product-detail report aggregation in `gstHsnReport.ts`, separate from statutory GSTR-1 grouping, so product descriptions do not label other products' totals.
+
 - `npm test` runs the full Vitest suite. Unit tests pass offline; the 9 integration/seed tests are **skipped** unless a separate **staging** Supabase is configured via `.env.test` (`SUPABASE_TEST_URL`, `SUPABASE_TEST_SERVICE_ROLE_KEY`) — never point test config at production.
 - `npm run test:money` runs pure money-path logic (settlement, balance, drift) — fast, no DB.
 

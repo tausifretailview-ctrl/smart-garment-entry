@@ -2473,6 +2473,7 @@ export type Database = {
           deleted_by: string | null
           discount_percent: number | null
           email: string | null
+          fssai_number: string | null
           gst_number: string | null
           id: string
           opening_balance: number | null
@@ -2504,6 +2505,7 @@ export type Database = {
           deleted_by?: string | null
           discount_percent?: number | null
           email?: string | null
+          fssai_number?: string | null
           gst_number?: string | null
           id?: string
           opening_balance?: number | null
@@ -2535,6 +2537,7 @@ export type Database = {
           deleted_by?: string | null
           discount_percent?: number | null
           email?: string | null
+          fssai_number?: string | null
           gst_number?: string | null
           id?: string
           opening_balance?: number | null
@@ -3464,6 +3467,7 @@ export type Database = {
       }
       eway_bills: {
         Row: {
+          challan_id: string | null
           created_at: string
           created_by: string | null
           distance_km: number | null
@@ -3473,11 +3477,15 @@ export type Database = {
           ewb_date: string | null
           ewb_no: string
           generated_via: string
+          godown_move_id: string | null
           id: string
           irn: string | null
           organization_id: string
+          purchase_return_id: string | null
           sale_id: string | null
           status: string
+          sub_supply_desc: string | null
+          sub_supply_type: string | null
           test_mode: boolean
           trans_doc_date: string | null
           trans_doc_no: string | null
@@ -3490,6 +3498,7 @@ export type Database = {
           vehicle_type: string | null
         }
         Insert: {
+          challan_id?: string | null
           created_at?: string
           created_by?: string | null
           distance_km?: number | null
@@ -3499,11 +3508,15 @@ export type Database = {
           ewb_date?: string | null
           ewb_no: string
           generated_via?: string
+          godown_move_id?: string | null
           id?: string
           irn?: string | null
           organization_id: string
+          purchase_return_id?: string | null
           sale_id?: string | null
           status?: string
+          sub_supply_desc?: string | null
+          sub_supply_type?: string | null
           test_mode?: boolean
           trans_doc_date?: string | null
           trans_doc_no?: string | null
@@ -3516,6 +3529,7 @@ export type Database = {
           vehicle_type?: string | null
         }
         Update: {
+          challan_id?: string | null
           created_at?: string
           created_by?: string | null
           distance_km?: number | null
@@ -3525,11 +3539,15 @@ export type Database = {
           ewb_date?: string | null
           ewb_no?: string
           generated_via?: string
+          godown_move_id?: string | null
           id?: string
           irn?: string | null
           organization_id?: string
+          purchase_return_id?: string | null
           sale_id?: string | null
           status?: string
+          sub_supply_desc?: string | null
+          sub_supply_type?: string | null
           test_mode?: boolean
           trans_doc_date?: string | null
           trans_doc_no?: string | null
@@ -3543,6 +3561,20 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "eway_bills_challan_id_fkey"
+            columns: ["challan_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_challans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eway_bills_godown_move_id_fkey"
+            columns: ["godown_move_id"]
+            isOneToOne: false
+            referencedRelation: "godown_moves"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "eway_bills_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -3555,6 +3587,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_dashboard_counts"
             referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "eway_bills_purchase_return_id_fkey"
+            columns: ["purchase_return_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_returns"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "eway_bills_sale_id_fkey"
@@ -4088,6 +4127,401 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "v_dashboard_counts"
             referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      godown_doc_places: {
+        Row: {
+          doc_id: string
+          godown_id: string
+          organization_id: string
+          ref_type: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          doc_id: string
+          godown_id: string
+          organization_id: string
+          ref_type: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          doc_id?: string
+          godown_id?: string
+          organization_id?: string
+          ref_type?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "godown_doc_places_godown_id_fkey"
+            columns: ["godown_id"]
+            isOneToOne: false
+            referencedRelation: "godowns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "godown_doc_places_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "godown_doc_places_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      godown_move_items: {
+        Row: {
+          id: string
+          move_id: string
+          organization_id: string
+          product_id: string | null
+          qty: number
+          rate: number
+          value: number
+          variant_id: string
+        }
+        Insert: {
+          id?: string
+          move_id: string
+          organization_id: string
+          product_id?: string | null
+          qty: number
+          rate?: number
+          value?: number
+          variant_id: string
+        }
+        Update: {
+          id?: string
+          move_id?: string
+          organization_id?: string
+          product_id?: string | null
+          qty?: number
+          rate?: number
+          value?: number
+          variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "godown_move_items_move_id_fkey"
+            columns: ["move_id"]
+            isOneToOne: false
+            referencedRelation: "godown_moves"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "godown_move_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "godown_move_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "godown_move_items_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      godown_moves: {
+        Row: {
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string | null
+          from_godown_id: string
+          id: string
+          move_date: string
+          move_no: string | null
+          note: string | null
+          organization_id: string
+          ref_id: string | null
+          ref_no: string | null
+          ref_type: string
+          status: string
+          to_godown_id: string
+          total_qty: number
+          total_value: number
+          transport: Json | null
+        }
+        Insert: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          from_godown_id: string
+          id?: string
+          move_date?: string
+          move_no?: string | null
+          note?: string | null
+          organization_id: string
+          ref_id?: string | null
+          ref_no?: string | null
+          ref_type?: string
+          status?: string
+          to_godown_id: string
+          total_qty?: number
+          total_value?: number
+          transport?: Json | null
+        }
+        Update: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          from_godown_id?: string
+          id?: string
+          move_date?: string
+          move_no?: string | null
+          note?: string | null
+          organization_id?: string
+          ref_id?: string | null
+          ref_no?: string | null
+          ref_type?: string
+          status?: string
+          to_godown_id?: string
+          total_qty?: number
+          total_value?: number
+          transport?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "godown_moves_from_godown_id_fkey"
+            columns: ["from_godown_id"]
+            isOneToOne: false
+            referencedRelation: "godowns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "godown_moves_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "godown_moves_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "godown_moves_to_godown_id_fkey"
+            columns: ["to_godown_id"]
+            isOneToOne: false
+            referencedRelation: "godowns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      godown_purchase_bills: {
+        Row: {
+          bill_id: string
+          godown_id: string
+          organization_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          bill_id: string
+          godown_id: string
+          organization_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          bill_id?: string
+          godown_id?: string
+          organization_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "godown_purchase_bills_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: true
+            referencedRelation: "purchase_bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "godown_purchase_bills_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: true
+            referencedRelation: "supplier_bill_payment_voucher_drift"
+            referencedColumns: ["bill_id"]
+          },
+          {
+            foreignKeyName: "godown_purchase_bills_godown_id_fkey"
+            columns: ["godown_id"]
+            isOneToOne: false
+            referencedRelation: "godowns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "godown_purchase_bills_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "godown_purchase_bills_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      godown_stock: {
+        Row: {
+          godown_id: string
+          organization_id: string
+          qty: number
+          updated_at: string
+          variant_id: string
+        }
+        Insert: {
+          godown_id: string
+          organization_id: string
+          qty?: number
+          updated_at?: string
+          variant_id: string
+        }
+        Update: {
+          godown_id?: string
+          organization_id?: string
+          qty?: number
+          updated_at?: string
+          variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "godown_stock_godown_id_fkey"
+            columns: ["godown_id"]
+            isOneToOne: false
+            referencedRelation: "godowns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "godown_stock_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "godown_stock_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "godown_stock_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      godowns: {
+        Row: {
+          address: string | null
+          code: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          created_by: string | null
+          godown_type: string
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          organization_id: string
+          pincode: string | null
+          sort_order: number
+          supplier_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          code?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          godown_type?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          organization_id: string
+          pincode?: string | null
+          sort_order?: number
+          supplier_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          code?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          godown_type?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          organization_id?: string
+          pincode?: string | null
+          sort_order?: number
+          supplier_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "godowns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "godowns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "godowns_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -11562,6 +11996,36 @@ export type Database = {
           },
         ]
       }
+      whatsapp_health_viewer_orgs: {
+        Row: {
+          created_at: string
+          organization_id: string
+        }
+        Insert: {
+          created_at?: string
+          organization_id: string
+        }
+        Update: {
+          created_at?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_health_viewer_orgs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_health_viewer_orgs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       whatsapp_logs: {
         Row: {
           created_at: string
@@ -12507,6 +12971,46 @@ export type Database = {
           out_total_dr: number
         }[]
       }
+      _godown_can_manage: {
+        Args: { p_organization_id: string }
+        Returns: boolean
+      }
+      _godown_doc_head: {
+        Args: { p_doc_id: string; p_ref_type: string }
+        Returns: {
+          active: boolean
+          doc_date: string
+          doc_no: string
+          organization_id: string
+        }[]
+      }
+      _godown_doc_lines: {
+        Args: { p_doc_id: string; p_ref_type: string }
+        Returns: {
+          qty: number
+          rate: number
+          variant_id: string
+        }[]
+      }
+      _godown_sync_doc: {
+        Args: {
+          p_doc_id: string
+          p_godown_id: string
+          p_note: string
+          p_organization_id: string
+          p_ref_type: string
+        }
+        Returns: Json
+      }
+      _godown_sync_purchase: {
+        Args: {
+          p_bill_id: string
+          p_godown_id: string
+          p_note: string
+          p_organization_id: string
+        }
+        Returns: Json
+      }
       _held_cart_references_product: {
         Args: { p_held_cart_data: Json; p_product_id: string }
         Returns: boolean
@@ -12756,6 +13260,10 @@ export type Database = {
       bulk_update_purchase_items: {
         Args: { p_bill_id: string; p_items: Json }
         Returns: number
+      }
+      can_view_all_whatsapp_health: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: boolean
       }
       cancel_invoice: {
         Args: { p_reason?: string; p_sale_id: string }
@@ -13119,6 +13627,27 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: Json
       }
+      get_all_shops_whatsapp_health: {
+        Args: { p_date?: string; p_organization_id: string }
+        Returns: {
+          builtin_number: string
+          builtin_status: string
+          builtin_status_at: string
+          delivered_count: number
+          failed_count: number
+          integration_on: boolean
+          last_error: string
+          last_failed_at: string
+          last_ok_at: string
+          organization_id: string
+          organization_name: string
+          pending_count: number
+          read_count: number
+          send_provider: string
+          sent_count: number
+          total_count: number
+        }[]
+      }
       get_bank_account_statement: {
         Args: {
           p_bank_account_id: string
@@ -13367,6 +13896,41 @@ export type Database = {
           movement_debit: number
           trial_credit: number
           trial_debit: number
+        }[]
+      }
+      get_godown_stock: {
+        Args: {
+          p_godown_id: string
+          p_limit: number
+          p_offset: number
+          p_organization_id: string
+          p_search: string
+        }
+        Returns: {
+          barcode: string
+          brand: string
+          category: string
+          color: string
+          product_id: string
+          product_name: string
+          qty: number
+          rate: number
+          shop_qty: number
+          size: string
+          stock_value: number
+          total_count: number
+          uom: string
+          variant_id: string
+        }[]
+      }
+      get_godown_summary: {
+        Args: { p_organization_id: string }
+        Returns: {
+          godown_id: string
+          items: number
+          qty: number
+          short_items: number
+          stock_value: number
         }[]
       }
       get_gst_summary: {
@@ -14024,6 +14588,14 @@ export type Database = {
         Args: { user_id: string }
         Returns: string[]
       }
+      get_variant_godown_qty: {
+        Args: { p_organization_id: string; p_variant_ids: string[] }
+        Returns: {
+          godown_id: string
+          qty: number
+          variant_id: string
+        }[]
+      }
       get_wappconnect_instance_masked: {
         Args: { p_organization_id: string }
         Returns: string
@@ -14078,6 +14650,61 @@ export type Database = {
       gl_stock_movement_kind: {
         Args: { p_notes: string; p_type: string }
         Returns: string
+      }
+      godown_cancel_move: { Args: { p_move_id: string }; Returns: undefined }
+      godown_doc_check: {
+        Args: {
+          p_doc_id: string
+          p_godown_id: string
+          p_lines: Json
+          p_organization_id: string
+          p_ref_type: string
+        }
+        Returns: Json
+      }
+      godown_ensure_main: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
+      godown_move_stock: {
+        Args: {
+          p_from_godown_id: string
+          p_lines: Json
+          p_move_date: string
+          p_note: string
+          p_organization_id: string
+          p_ref_id: string
+          p_ref_no: string
+          p_ref_type: string
+          p_to_godown_id: string
+          p_transport: Json
+        }
+        Returns: Json
+      }
+      godown_save: {
+        Args: {
+          p_address: string
+          p_code: string
+          p_contact_name: string
+          p_contact_phone: string
+          p_id: string
+          p_is_active: boolean
+          p_name: string
+          p_notes: string
+          p_organization_id: string
+          p_pincode: string
+          p_supplier_id: string
+          p_type: string
+        }
+        Returns: string
+      }
+      godown_sync_doc: {
+        Args: { p_doc_id: string; p_godown_id: string; p_ref_type: string }
+        Returns: Json
+      }
+      godown_sync_purchase_bill: {
+        Args: { p_bill_id: string; p_godown_id: string }
+        Returns: Json
       }
       hard_delete_purchase_bill: {
         Args: { p_bill_id: string; p_user_id: string }
@@ -14786,6 +15413,10 @@ export type Database = {
       }
       user_belongs_to_org: {
         Args: { org_id: string; user_id: string }
+        Returns: boolean
+      }
+      whatsapp_health_viewer: {
+        Args: { p_organization_id: string }
         Returns: boolean
       }
       zero_unscanned_stock_settlement: {

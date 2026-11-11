@@ -1,5 +1,10 @@
 # Roadmap — duplicate-receipt hardening
 
+## HSN report correction
+- [x] Separate actual product descriptions, HSN, rates and units in report/export; preserve recorded bills.
+- [x] Validate October source data: 34 lines / 29 product rows / ₹6,52,996; 25 regression tests passed, preview build OK.
+- [ ] Authenticated report/export check — blocked: existing account reaches “Workspace could not be prepared” for this organization; no records or permissions changed.
+
 ## Done
 - [x] Steps 1–3 read-only report (`docs/duplicate-receipt-steps-1-3-2026-09-19.md`).
 - [x] Step 2 safety check: signature-based uniqueness WOULD reject legitimate patterns; per-submit key used instead.
