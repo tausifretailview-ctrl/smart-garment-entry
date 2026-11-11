@@ -107,6 +107,8 @@ export interface LabelItem {
   sale_disc_percent?: number | null;
   pur_price?: number;
   gst_per?: number;
+  /** Product purchase discount (type + value), taken off the rate in the purchase code. */
+  pur_disc?: { type?: string | null; value?: number | null } | null;
   purchase_code?: string;
   bill_date?: string;
   barcode: string;

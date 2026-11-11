@@ -2704,7 +2704,7 @@ export default function Settings() {
                   <SettingsToggle
                     id="purchase_code_include_date"
                     label="Add bill month / year"
-                    description="ON: 09SEWN26. OFF: SEWN only"
+                    description="Labels — ON: 09SEWN26. OFF: SEWN only. POS always shows letters only (SEWN)"
                     checked={resolvePurchaseCodeIncludeDate(settings.purchase_settings)}
                     onCheckedChange={(checked) =>
                       setSettings({
@@ -2720,7 +2720,7 @@ export default function Settings() {
                   <SettingsToggle
                     id="purchase_code_include_gst"
                     label="Include GST in code"
-                    description="Code = rate − discount + GST"
+                    description="Code = purchase rate − product purchase discount + GST. Same on labels and POS"
                     checked={settings.purchase_settings?.purchase_code_include_gst || false}
                     onCheckedChange={(checked) =>
                       setSettings({

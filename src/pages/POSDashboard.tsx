@@ -223,6 +223,9 @@ import {
   encodePosLinePurchaseCode,
   resolvePosDashboardPurchaseCodeEnabled,
   type PosPurchaseCodeSettings,
+  resolvePurchaseCodeDiscount,
+  resolvePurchaseCodeGstPer,
+  type PurchaseCodeDiscount,
 } from "@/utils/purchaseCodeEncoder";
 import { formatDateDMY } from "@/lib/dateDisplay";
 
@@ -737,7 +740,7 @@ const POSDashboard = () => {
   const showItemPurchaseCode = resolvePosDashboardPurchaseCodeEnabled(saleSettings);
   const purchaseCodeSettings = (settings as any)?.purchase_settings as PosPurchaseCodeSettings | undefined;
   const [variantPurchaseInfo, setVariantPurchaseInfo] = useState<
-    Record<string, { purPrice: number; purchaseGstPer: number }>
+    Record<string, { purPrice: number; purchaseGstPer: number; purchaseDiscount?: PurchaseCodeDiscount }>
   >({});
   const itemPurchaseCode = (item: SaleItem): string => {
     const info = item.variant_id ? variantPurchaseInfo[item.variant_id] : undefined;
@@ -1422,18 +1425,19 @@ const POSDashboard = () => {
     void (async () => {
       const { data, error } = await supabase
         .from("product_variants")
-        .select("id, pur_price, products(purchase_gst_percent, gst_per)")
+        .select("id, pur_price, products(purchase_gst_percent, gst_per, purchase_discount_type, purchase_discount_value)")
         .in("id", missing);
       if (cancelled || error) {
         if (error) console.error("Failed to load purchase codes:", error);
         return;
       }
-      const next: Record<string, { purPrice: number; purchaseGstPer: number }> = {};
+      const next: Record<string, { purPrice: number; purchaseGstPer: number; purchaseDiscount?: PurchaseCodeDiscount }> = {};
       for (const row of (data || []) as any[]) {
         const product = Array.isArray(row.products) ? row.products[0] : row.products;
         next[row.id] = {
           purPrice: Number(row.pur_price) || 0,
-          purchaseGstPer: Number(product?.purchase_gst_percent ?? product?.gst_per) || 0,
+          purchaseGstPer: resolvePurchaseCodeGstPer(product, 0),
+          purchaseDiscount: resolvePurchaseCodeDiscount(product),
         };
       }
       // Remember misses too so a deleted variant is not re-queried on every expand.

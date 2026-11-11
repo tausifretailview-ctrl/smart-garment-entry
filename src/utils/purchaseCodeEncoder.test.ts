@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   encodePosLinePurchaseCode,
+  resolvePurchaseCodeGstPer,
+  applyPurchaseCodeDiscount,
+  resolvePurchaseCodeDiscount,
   encodePurchasePrice,
   encodePurchasePriceForLabel,
   getEffectivePurchasePrice,
@@ -214,5 +217,95 @@ describe("resolvePosDashboardPurchaseCodeEnabled", () => {
     expect(resolvePosDashboardPurchaseCodeEnabled({})).toBe(false);
     expect(resolvePosDashboardPurchaseCodeEnabled({ pos_dashboard_show_purchase_code: false })).toBe(false);
     expect(resolvePosDashboardPurchaseCodeEnabled({ pos_dashboard_show_purchase_code: true })).toBe(true);
+  });
+});
+
+describe("label and POS purchase code agree", () => {
+  const ALPHABET = "FAMILYSHOP";
+  // Every on/off combination of the Purchase settings that changes the letters.
+  const combos = [false, true].flatMap((includeGst) =>
+    [false, true].map((extraOn) => ({ includeGst, extraOn })),
+  );
+  const product = { purchase_gst_percent: 5, gst_per: 12 };
+
+  it.each(combos)("GST $includeGst, extra % $extraOn: same letters", ({ includeGst, extraOn }) => {
+    const settings = {
+      purchase_code_alphabet: ALPHABET,
+      purchase_code_include_gst: includeGst,
+      purchase_code_extra_percent_enabled: extraOn,
+      purchase_code_extra_percent: 10,
+    };
+    const gstPer = resolvePurchaseCodeGstPer(product, 18);
+    const pos = encodePosLinePurchaseCode({ purPrice: 3190, purchaseGstPer: gstPer }, settings);
+    const labelOpts = { gstPer, includeGst, extraPercentEnabled: extraOn, extraPercent: 10 };
+    const labelNoDate = encodePurchasePriceForLabel(3190, ALPHABET, { ...labelOpts, includeDate: false });
+    const labelDated = encodePurchasePriceForLabel(3190, ALPHABET, {
+      ...labelOpts,
+      includeDate: true,
+      billDate: "2026-09-14",
+    });
+    expect(labelNoDate).toBe(pos);
+    // Date on: the label only adds month before and year after the same letters.
+    expect(labelDated).toBe(`09${pos}26`);
+  });
+
+  it("uses the product purchase GST, then product GST, then the bill line", () => {
+    expect(resolvePurchaseCodeGstPer({ purchase_gst_percent: 5, gst_per: 12 }, 18)).toBe(5);
+    expect(resolvePurchaseCodeGstPer({ purchase_gst_percent: null, gst_per: 12 }, 18)).toBe(12);
+    // A saved 0% purchase GST is a real value, not "missing" — POS reads it the same way.
+    expect(resolvePurchaseCodeGstPer({ purchase_gst_percent: 0, gst_per: 12 }, 18)).toBe(0);
+    expect(resolvePurchaseCodeGstPer(null, 18)).toBe(18);
+    expect(resolvePurchaseCodeGstPer(undefined, undefined)).toBe(0);
+  });
+});
+
+describe("purchase discount in the code", () => {
+  it("takes the product discount off the rate, like Product Entry's Net Purchase Price", () => {
+    expect(applyPurchaseCodeDiscount(1000, { type: "percent", value: 10 })).toBe(900);
+    expect(applyPurchaseCodeDiscount(1000, { type: "flat", value: 150 })).toBe(850);
+    // Untyped discount is a percent, as Product Entry saves it.
+    expect(applyPurchaseCodeDiscount(1000, { type: null, value: 5 })).toBe(950);
+    expect(applyPurchaseCodeDiscount(1000, { type: "flat", value: 5000 })).toBe(0);
+    expect(applyPurchaseCodeDiscount(1000, null)).toBe(1000);
+    expect(applyPurchaseCodeDiscount(1000, { type: "percent", value: 0 })).toBe(1000);
+  });
+
+  it("reads the discount off the product row", () => {
+    expect(resolvePurchaseCodeDiscount({ purchase_discount_type: "flat", purchase_discount_value: 20 })).toEqual({
+      type: "flat",
+      value: 20,
+    });
+    expect(resolvePurchaseCodeDiscount(null)).toEqual({ type: null, value: 0 });
+  });
+
+  it("discount comes off before GST and extra %, and label and POS agree", () => {
+    const settings = {
+      purchase_code_alphabet: "ABCDEFGHIK",
+      purchase_code_include_gst: true,
+      purchase_code_extra_percent_enabled: true,
+      purchase_code_extra_percent: 10,
+    };
+    const purchaseDiscount = { type: "percent", value: 10 };
+    // 1000 − 10% = 900, + 5% GST = 945, + 10% = 1039.5 → 1040 → BAEA
+    const pos = encodePosLinePurchaseCode({ purPrice: 1000, purchaseGstPer: 5, purchaseDiscount }, settings);
+    const label = encodePurchasePriceForLabel(1000, "ABCDEFGHIK", {
+      gstPer: 5,
+      includeGst: true,
+      extraPercentEnabled: true,
+      extraPercent: 10,
+      purchaseDiscount,
+      includeDate: false,
+    });
+    expect(pos).toBe("BAEA");
+    expect(label).toBe(pos);
+  });
+
+  it("with every option off the code is just the discounted rate", () => {
+    expect(
+      encodePosLinePurchaseCode(
+        { purPrice: 400, purchaseDiscount: { type: "percent", value: 25 } },
+        { purchase_code_alphabet: "ABCDEFGHIK" },
+      ),
+    ).toBe("DAA");
   });
 });
