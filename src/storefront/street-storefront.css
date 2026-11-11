@@ -14,7 +14,7 @@
   --st-head: Archivo, Inter, "Helvetica Neue", Arial, sans-serif;
   --st-page: 1440px;
   --st-gutter: 14px;
-  --st-header-h: 56px;
+  --st-header-h: 62px;
   --st-tabbar-h: 58px;
 
   /* reskin the shared sheets: black where the boutique theme used gold */
@@ -223,18 +223,20 @@
   align-items: center;
   display: inline-flex;
   font-family: var(--st-head);
-  font-size: clamp(18px, 2.4vw, 26px);
+  font-size: clamp(20px, 2.6vw, 28px);
   font-weight: 900;
   justify-content: center;
-  letter-spacing: 0.02em;
-  max-width: 46vw;
+  /* wide-set like a fashion wordmark when the shop has no logo image */
+  letter-spacing: 0.1em;
+  max-width: 50vw;
   overflow: hidden;
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
-.street-store .st-brand-logo { display: block; max-height: 40px; max-width: 160px; object-fit: contain; }
+/* A fixed height (not a maximum) so a small or square logo file is scaled up to fill the header. */
+.street-store .st-brand-logo { display: block; height: 50px; max-width: 190px; object-fit: contain; width: auto; }
 
 .street-store .st-nav,
 .street-store .st-hide-phone { display: none; }
@@ -1100,13 +1102,14 @@
    especially on wide monitors, so text, logo and icons step up here. */
 
 @media (min-width: 1024px) {
-  .ella-store.street-store { --st-header-h: 76px; font-size: 16px; }
+  .ella-store.street-store { --st-header-h: 96px; font-size: 16px; }
 
   .street-store .st-announce { font-size: 12px; height: 34px; }
   .street-store .st-nav { gap: 26px; }
   .street-store .st-nav-link { font-size: 15px; }
   .street-store .st-nav-sub { font-size: 15px; }
-  .street-store .st-brand-logo { max-height: 54px; max-width: 220px; }
+  .street-store .st-brand { font-size: clamp(26px, 2.4vw, 38px); }
+  .street-store .st-brand-logo { height: 80px; max-width: 300px; }
   .street-store .st-icon { height: 24px; width: 24px; }
   .street-store .st-iconbtn { height: 48px; width: 48px; }
 
