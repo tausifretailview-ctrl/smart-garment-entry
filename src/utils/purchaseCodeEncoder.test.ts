@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   encodePosLinePurchaseCode,
+  resolvePurchaseCodeGstPer,
   encodePurchasePrice,
   encodePurchasePriceForLabel,
   getEffectivePurchasePrice,
@@ -214,5 +215,44 @@ describe("resolvePosDashboardPurchaseCodeEnabled", () => {
     expect(resolvePosDashboardPurchaseCodeEnabled({})).toBe(false);
     expect(resolvePosDashboardPurchaseCodeEnabled({ pos_dashboard_show_purchase_code: false })).toBe(false);
     expect(resolvePosDashboardPurchaseCodeEnabled({ pos_dashboard_show_purchase_code: true })).toBe(true);
+  });
+});
+
+describe("label and POS purchase code agree", () => {
+  const ALPHABET = "FAMILYSHOP";
+  // Every on/off combination of the Purchase settings that changes the letters.
+  const combos = [false, true].flatMap((includeGst) =>
+    [false, true].map((extraOn) => ({ includeGst, extraOn })),
+  );
+  const product = { purchase_gst_percent: 5, gst_per: 12 };
+
+  it.each(combos)("GST $includeGst, extra % $extraOn: same letters", ({ includeGst, extraOn }) => {
+    const settings = {
+      purchase_code_alphabet: ALPHABET,
+      purchase_code_include_gst: includeGst,
+      purchase_code_extra_percent_enabled: extraOn,
+      purchase_code_extra_percent: 10,
+    };
+    const gstPer = resolvePurchaseCodeGstPer(product, 18);
+    const pos = encodePosLinePurchaseCode({ purPrice: 3190, purchaseGstPer: gstPer }, settings);
+    const labelOpts = { gstPer, includeGst, extraPercentEnabled: extraOn, extraPercent: 10 };
+    const labelNoDate = encodePurchasePriceForLabel(3190, ALPHABET, { ...labelOpts, includeDate: false });
+    const labelDated = encodePurchasePriceForLabel(3190, ALPHABET, {
+      ...labelOpts,
+      includeDate: true,
+      billDate: "2026-09-14",
+    });
+    expect(labelNoDate).toBe(pos);
+    // Date on: the label only adds month before and year after the same letters.
+    expect(labelDated).toBe(`09${pos}26`);
+  });
+
+  it("uses the product purchase GST, then product GST, then the bill line", () => {
+    expect(resolvePurchaseCodeGstPer({ purchase_gst_percent: 5, gst_per: 12 }, 18)).toBe(5);
+    expect(resolvePurchaseCodeGstPer({ purchase_gst_percent: null, gst_per: 12 }, 18)).toBe(12);
+    // A saved 0% purchase GST is a real value, not "missing" — POS reads it the same way.
+    expect(resolvePurchaseCodeGstPer({ purchase_gst_percent: 0, gst_per: 12 }, 18)).toBe(0);
+    expect(resolvePurchaseCodeGstPer(null, 18)).toBe(18);
+    expect(resolvePurchaseCodeGstPer(undefined, undefined)).toBe(0);
   });
 });

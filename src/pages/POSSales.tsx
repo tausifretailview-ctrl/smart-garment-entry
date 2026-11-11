@@ -92,6 +92,7 @@ import {
   computePosLiveMargin,
   applyPurchasePricesToPosCart,
   fetchVariantPurchasePrices,
+  fetchVariantPurchaseCodeGst,
 } from "@/lib/posBilling";
 import { displaySaleStockQty } from "@/utils/productStockDisplay";
 import { useLocation, useSearchParams } from "react-router-dom";
@@ -1880,10 +1881,50 @@ export default function POSSales() {
     | PosPurchaseCodeSettings
     | undefined;
   const showPosPurchaseCode = resolvePosPurchaseCodeEnabled(posPurchaseCodeSettings);
+  // Lines restored from a saved / resumed bill have no purchaseGstPer; look the product's
+  // purchase GST up so their code matches a freshly scanned line and the printed label.
+  const [purchaseCodeGstByVariant, setPurchaseCodeGstByVariant] = useState<Record<string, number>>({});
+  const posPurchaseCodeNeedsGst =
+    showPosPurchaseCode && posPurchaseCodeSettings?.purchase_code_include_gst === true;
+  const posPurchaseCodeGstMissingKey = useMemo(() => {
+    if (!posPurchaseCodeNeedsGst) return "";
+    const ids = new Set<string>();
+    for (const item of items) {
+      if (!item.variantId || item.purchaseGstPer != null) continue;
+      if (item.variantId in purchaseCodeGstByVariant) continue;
+      ids.add(item.variantId);
+    }
+    return [...ids].sort().join(",");
+  }, [items, posPurchaseCodeNeedsGst, purchaseCodeGstByVariant]);
+  useEffect(() => {
+    const orgId = currentOrganization?.id;
+    if (!orgId || !posPurchaseCodeGstMissingKey) return;
+    const ids = posPurchaseCodeGstMissingKey.split(",");
+    let cancelled = false;
+    void fetchVariantPurchaseCodeGst(supabase, orgId, ids)
+      .then((map) => {
+        if (cancelled) return;
+        // Remember misses too so a deleted variant is not re-queried on every render.
+        const next: Record<string, number> = {};
+        for (const id of ids) next[id] = map[id] ?? 0;
+        setPurchaseCodeGstByVariant((prev) => ({ ...prev, ...next }));
+      })
+      .catch((err) => console.warn("POS purchase code: could not load purchase GST", err));
+    return () => {
+      cancelled = true;
+    };
+  }, [currentOrganization?.id, posPurchaseCodeGstMissingKey]);
   const posPurchaseCodeFor = useCallback(
-    (line: { purPrice?: number | null; purchaseGstPer?: number | null }) =>
-      encodePosLinePurchaseCode(line, posPurchaseCodeSettings),
-    [posPurchaseCodeSettings],
+    (line: { purPrice?: number | null; purchaseGstPer?: number | null; variantId?: string | null }) =>
+      encodePosLinePurchaseCode(
+        {
+          purPrice: line.purPrice,
+          purchaseGstPer:
+            line.purchaseGstPer ?? (line.variantId ? purchaseCodeGstByVariant[line.variantId] : undefined),
+        },
+        posPurchaseCodeSettings,
+      ),
+    [posPurchaseCodeSettings, purchaseCodeGstByVariant],
   );
   const posCartGridCols = useMemo(
     () =>

@@ -49,6 +49,7 @@ import {
   normalizePurchaseBillDate,
   resolveLabelPurchaseBillDate,
   resolvePurchaseCodeAlphabet,
+  resolvePurchaseCodeGstPer,
   resolvePurchaseCodeIncludeDate,
 } from "@/utils/purchaseCodeEncoder";
 import { generateA4LabelPdf } from '@/utils/a4LabelPdf';
@@ -399,6 +400,8 @@ interface SearchResult {
   stock_qty: number;
   supplier_code?: string;
   pur_price?: number;
+  /** Product purchase GST % — for the purchase code when "Include GST in code" is on. */
+  gst_per?: number;
   uom?: string;
 }
 
@@ -3617,6 +3620,7 @@ export default function BarcodePrinting() {
           sale_price: number;
           mrp: number;
           pur_price: number;
+          gst_per: number;
           product_name?: string;
           brand?: string;
           category?: string;
@@ -3643,7 +3647,9 @@ export default function BarcodePrinting() {
               category,
               style,
               color,
-              uom
+              uom,
+              purchase_gst_percent,
+              gst_per
             )
           `,
           )
@@ -3662,6 +3668,8 @@ export default function BarcodePrinting() {
               style?: string;
               color?: string;
               uom?: string;
+              purchase_gst_percent?: number | null;
+              gst_per?: number | null;
             } | null;
             liveBySku.set(row.id, {
               barcode: row.barcode || "",
@@ -3670,6 +3678,7 @@ export default function BarcodePrinting() {
               sale_price: Number(row.sale_price) || 0,
               mrp: Number(row.mrp) || 0,
               pur_price: Number(row.pur_price) || 0,
+              gst_per: resolvePurchaseCodeGstPer(p, 0),
               product_name: p?.product_name,
               brand: p?.brand,
               category: p?.category,
@@ -3707,7 +3716,9 @@ export default function BarcodePrinting() {
         // Bill snapshot keeps qty, bill meta, and this barcode's name/style.
         // Variant prices still come from the live SKU.
         const purPrice = live?.pur_price ?? item.pur_price ?? 0;
-        const gstPer = item.gst_per || 0;
+        // Purchase Entry's print payload carries no GST %, so "Include GST in code" was
+        // silently skipped here while POS added it. Same product GST as POS.
+        const gstPer = live ? live.gst_per : Number(item.gst_per) || 0;
         const billDateStr = resolveLabelPurchaseBillDate({
           savedInvoiceDate,
           itemBillDate: item.bill_date,
@@ -3901,7 +3912,9 @@ export default function BarcodePrinting() {
               color,
               style,
               category,
-              uom
+              uom,
+              purchase_gst_percent,
+              gst_per
             )
           `
           )
@@ -4010,6 +4023,7 @@ export default function BarcodePrinting() {
           stock_qty: v.stock_qty || 0,
           supplier_code: supplierCodeMap.get(v.id) || "",
           pur_price: v.pur_price || 0,
+          gst_per: resolvePurchaseCodeGstPer(v.products, 0),
           uom: v.products?.uom || "NOS",
           sale_disc_percent: null,
         }));
@@ -4072,7 +4086,9 @@ export default function BarcodePrinting() {
       sale_price: result.sale_price,
       mrp: result.mrp || result.sale_price,
       pur_price: purPrice,
+      gst_per: result.gst_per || 0,
       purchase_code: encodePurchasePriceForLabel(purPrice, purchaseCodeAlphabet, {
+        gstPer: result.gst_per || 0,
         includeGst: purchaseCodeIncludeGst,
         extraPercentEnabled: purchaseCodeExtraPercentEnabled,
         extraPercent: purchaseCodeExtraPercent,
@@ -4280,13 +4296,16 @@ export default function BarcodePrinting() {
           color,
           sale_price,
           mrp,
+          pur_price,
           product_id,
           products (
             product_name,
             brand,
             color,
             style,
-            uom
+            uom,
+            purchase_gst_percent,
+            gst_per
           )
         `)
         .in("id", skuIds);
@@ -4306,6 +4325,8 @@ export default function BarcodePrinting() {
           barcode: variant.barcode,
           sale_price: variant.sale_price,
           mrp: variant.mrp,
+          pur_price: Number(variant.pur_price) || 0,
+          product: variant.products,
           uom: variant.products?.uom || "NOS",
         });
       });
@@ -4315,8 +4336,10 @@ export default function BarcodePrinting() {
         .filter(item => item.sku_id && variantMap.has(item.sku_id))
         .map(item => {
           const variantInfo = variantMap.get(item.sku_id);
-          const purPrice = item.pur_price || 0;
-          const gstPer = (item as any).gst_per || 0;
+          // Current variant cost and product GST — the same inputs POS and the
+          // after-save print use — so a reprint from an old bill matches the POS code.
+          const purPrice = variantInfo.pur_price || item.pur_price || 0;
+          const gstPer = resolvePurchaseCodeGstPer(variantInfo.product, (item as any).gst_per);
           return {
             sku_id: item.sku_id,
             product_name: variantInfo.product_name,

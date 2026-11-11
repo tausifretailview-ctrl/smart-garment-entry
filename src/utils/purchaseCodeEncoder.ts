@@ -184,6 +184,20 @@ export const validatePurchaseCodeAlphabet = (alphabet: string): boolean => {
   return new Set(normalized.split("")).size === 10;
 };
 
+/**
+ * GST % used when "Include GST in code" is on. One rule for barcode labels, POS cart and
+ * POS Dashboard so the letters agree: the product's purchase GST, else its GST, else the
+ * purchase-bill line's GST (label opened from a bill whose product row could not be read).
+ */
+export function resolvePurchaseCodeGstPer(
+  product?: { purchase_gst_percent?: number | null; gst_per?: number | null } | null,
+  billLineGstPer?: number | null,
+): number {
+  const fromProduct = product?.purchase_gst_percent ?? product?.gst_per;
+  if (fromProduct !== null && fromProduct !== undefined) return Number(fromProduct) || 0;
+  return Number(billLineGstPer) || 0;
+}
+
 export type PosPurchaseCodeSettings = {
   show_purchase_code_on_pos?: boolean | null;
   purchase_code_alphabet?: string | null;

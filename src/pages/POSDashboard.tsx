@@ -223,6 +223,7 @@ import {
   encodePosLinePurchaseCode,
   resolvePosDashboardPurchaseCodeEnabled,
   type PosPurchaseCodeSettings,
+  resolvePurchaseCodeGstPer,
 } from "@/utils/purchaseCodeEncoder";
 import { formatDateDMY } from "@/lib/dateDisplay";
 
@@ -1433,7 +1434,7 @@ const POSDashboard = () => {
         const product = Array.isArray(row.products) ? row.products[0] : row.products;
         next[row.id] = {
           purPrice: Number(row.pur_price) || 0,
-          purchaseGstPer: Number(product?.purchase_gst_percent ?? product?.gst_per) || 0,
+          purchaseGstPer: resolvePurchaseCodeGstPer(product, 0),
         };
       }
       // Remember misses too so a deleted variant is not re-queried on every expand.
