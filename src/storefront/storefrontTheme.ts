@@ -2,6 +2,7 @@ import type { PublicStorefrontShop } from "@/lib/websiteTypes";
 import { publicOrgSlugKey } from "@/lib/storefrontPath";
 import { normalizeInstagramUrl } from "@/lib/storefrontShare";
 import { resolveCompanyUpiId } from "@/utils/companyUpi";
+import { ELLA_NOOR_SLUG } from "@/lib/storefrontThemes";
 
 export type OrgPublicInfoSlice = {
   id?: string;
@@ -103,7 +104,7 @@ export const theme = {
   radius: "0px",
 } as const;
 
-export const ELLA_NOOR_SLUG = "ella-noor";
+export { ELLA_NOOR_SLUG };
 
 export function isEllaNoorSlug(slug: string | null | undefined): boolean {
   return publicOrgSlugKey(slug || "") === publicOrgSlugKey(ELLA_NOOR_SLUG);

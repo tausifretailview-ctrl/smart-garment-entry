@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { PublicStorefrontPayload } from "@/lib/websiteTypes";
 import { attachSectionsToPublicPayload } from "@/lib/websiteSectionStore";
 import { applyWebsiteProductDetails } from "@/lib/websiteProductDetails";
+import { parseStorefrontTheme } from "@/lib/storefrontThemes";
 import { enrichPublicStorefrontShop, type OrgPublicInfoSlice } from "./storefrontTheme";
 import { offerFromRpc, perksFromRpc, type StorefrontOffer, type StorefrontPerks } from "./ellaPerks";
 
@@ -39,6 +40,8 @@ export async function loadPublicStorefront(slug: string): Promise<PublicStorefro
       await loadWebsiteProductDetails(orgInfo.id),
     );
   }
+
+  payload.theme = parseStorefrontTheme(orgInfo?.settings);
 
   return attachSectionsToPublicPayload(payload, orgInfo?.settings);
 }
