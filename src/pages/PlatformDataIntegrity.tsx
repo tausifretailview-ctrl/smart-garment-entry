@@ -15,6 +15,7 @@ import { AlertTriangle, RefreshCw, ShieldCheck, Loader2 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AdjustmentDriftPanel } from "@/components/AdjustmentDriftPanel";
 import { InvariantDigestPanel } from "@/components/InvariantDigestPanel";
+import { StockDriftPanel } from "@/components/StockDriftPanel";
 import { formatDateDMY, formatDateTimeDMY } from "@/lib/dateDisplay";
 
 type DriftRow = {
@@ -185,7 +186,11 @@ export default function PlatformDataIntegrity() {
             <TabsTrigger value="settlement">Settlement drift</TabsTrigger>
             <TabsTrigger value="adjustment">Adjustment drift</TabsTrigger>
             <TabsTrigger value="invariants">Invariants</TabsTrigger>
+            <TabsTrigger value="stock">Stock check</TabsTrigger>
           </TabsList>
+          <TabsContent value="stock" className="space-y-4">
+            <StockDriftPanel />
+          </TabsContent>
           <TabsContent value="invariants" className="space-y-4">
             <InvariantDigestPanel />
           </TabsContent>
