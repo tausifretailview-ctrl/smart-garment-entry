@@ -36,6 +36,13 @@
       "when": 1790111213006,
       "tag": "0004_secure_staging_table_and_website_photo_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794481614111,
+      "tag": "0005_lock_whatsapp_stats_backup",
+      "breakpoints": true
     }
   ]
 }

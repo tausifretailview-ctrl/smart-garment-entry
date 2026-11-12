@@ -329,6 +329,57 @@ export type Database = {
           },
         ]
       }
+      app_timing_samples: {
+        Row: {
+          detail: Json | null
+          device: string | null
+          id: number
+          metric: string
+          ms: number
+          organization_id: string
+          recorded_at: string
+          screen: string
+          user_id: string | null
+        }
+        Insert: {
+          detail?: Json | null
+          device?: string | null
+          id?: number
+          metric: string
+          ms: number
+          organization_id: string
+          recorded_at?: string
+          screen: string
+          user_id?: string | null
+        }
+        Update: {
+          detail?: Json | null
+          device?: string | null
+          id?: number
+          metric?: string
+          ms?: number
+          organization_id?: string
+          recorded_at?: string
+          screen?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_timing_samples_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "app_timing_samples_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
@@ -9877,6 +9928,57 @@ export type Database = {
           },
         ]
       }
+      stock_drift_runs: {
+        Row: {
+          drift_units: number
+          drift_variants: number
+          duration_ms: number | null
+          error: string | null
+          id: string
+          organization_id: string
+          run_at: string
+          top_drift: Json
+          variants_checked: number
+        }
+        Insert: {
+          drift_units?: number
+          drift_variants?: number
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          organization_id: string
+          run_at?: string
+          top_drift?: Json
+          variants_checked?: number
+        }
+        Update: {
+          drift_units?: number
+          drift_variants?: number
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          organization_id?: string
+          run_at?: string
+          top_drift?: Json
+          variants_checked?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_drift_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_drift_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       stock_movements: {
         Row: {
           bill_number: string | null
@@ -11563,9 +11665,9 @@ export type Database = {
           api_version: string
           auto_send_fee_receipt: boolean | null
           auto_send_fee_reminder: boolean | null
-          auto_send_payment_receipt: boolean
           auto_send_invoice: boolean
           auto_send_invoice_link: boolean | null
+          auto_send_payment_receipt: boolean
           auto_send_payment_reminder: boolean
           auto_send_quotation: boolean
           auto_send_sale_order: boolean
@@ -11639,9 +11741,9 @@ export type Database = {
           api_version?: string
           auto_send_fee_receipt?: boolean | null
           auto_send_fee_reminder?: boolean | null
-          auto_send_payment_receipt?: boolean
           auto_send_invoice?: boolean
           auto_send_invoice_link?: boolean | null
+          auto_send_payment_receipt?: boolean
           auto_send_payment_reminder?: boolean
           auto_send_quotation?: boolean
           auto_send_sale_order?: boolean
@@ -11715,9 +11817,9 @@ export type Database = {
           api_version?: string
           auto_send_fee_receipt?: boolean | null
           auto_send_fee_reminder?: boolean | null
-          auto_send_payment_receipt?: boolean
           auto_send_invoice?: boolean
           auto_send_invoice_link?: boolean | null
+          auto_send_payment_receipt?: boolean
           auto_send_payment_reminder?: boolean
           auto_send_quotation?: boolean
           auto_send_sale_order?: boolean
@@ -13229,6 +13331,18 @@ export type Database = {
         }
         Returns: Json
       }
+      apply_pos_credit_fifo: {
+        Args: {
+          p_adjusted_by?: string
+          p_amount: number
+          p_customer_id: string
+          p_idempotency_key: string
+          p_notes?: string
+          p_organization_id: string
+          p_sale_id: string
+        }
+        Returns: Json
+      }
       apply_school_fee_receipt: {
         Args: {
           p_academic_year_id: string
@@ -13651,6 +13765,20 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_app_timing_summary: {
+        Args: { p_days?: number }
+        Returns: {
+          last_at: string
+          max_ms: number
+          median_ms: number
+          metric: string
+          organization_id: string
+          organization_name: string
+          p95_ms: number
+          samples: number
+          screen: string
+        }[]
+      }
       get_bank_account_statement: {
         Args: {
           p_bank_account_id: string
@@ -13849,6 +13977,10 @@ export type Database = {
         }[]
       }
       get_deleted_cn_adjust_without_sra_digest: { Args: never; Returns: Json }
+      get_delivery_dashboard_summary: {
+        Args: { p_days?: number; p_org_id: string }
+        Returns: Json
+      }
       get_erp_dashboard_stats: {
         Args: {
           p_end_date: string
@@ -13983,6 +14115,21 @@ export type Database = {
           p_start_date: string
         }
         Returns: Json
+      }
+      get_latest_stock_drift: {
+        Args: never
+        Returns: {
+          drift_units: number
+          drift_variants: number
+          duration_ms: number
+          error: string
+          organization_id: string
+          organization_name: string
+          previous_drift_variants: number
+          run_at: string
+          top_drift: Json
+          variants_checked: number
+        }[]
       }
       get_low_stock_alerts: {
         Args: { p_org_id: string; p_threshold?: number }
@@ -14709,6 +14856,10 @@ export type Database = {
         Args: { p_bill_id: string; p_godown_id: string }
         Returns: Json
       }
+      hard_delete_document: {
+        Args: { p_entity: string; p_id: string }
+        Returns: Json
+      }
       hard_delete_purchase_bill: {
         Args: { p_bill_id: string; p_user_id: string }
         Returns: Json
@@ -15043,6 +15194,10 @@ export type Database = {
         Args: { p_variant_id: string }
         Returns: Json
       }
+      record_app_timings: {
+        Args: { p_org_id: string; p_rows: Json }
+        Returns: number
+      }
       record_login_attempt: {
         Args: {
           p_attempt_type: string
@@ -15162,6 +15317,10 @@ export type Database = {
         Args: { p_organization_id?: string }
         Returns: Json
       }
+      run_nightly_stock_drift_check: {
+        Args: { p_organization_id?: string }
+        Returns: number
+      }
       sale_settlement_tolerance: { Args: never; Returns: number }
       save_payment_gateway_secrets: {
         Args: {
@@ -15175,6 +15334,28 @@ export type Database = {
       }
       save_purchase_bill_with_items_atomic: {
         Args: { p_bill: Json; p_items: Json; p_organization_id: string }
+        Returns: Json
+      }
+      save_return_with_items_atomic: {
+        Args: {
+          p_header: Json
+          p_items: Json
+          p_kind: string
+          p_organization_id: string
+        }
+        Returns: Json
+      }
+      save_sale_with_items_atomic: {
+        Args: { p_items: Json; p_organization_id: string; p_sale: Json }
+        Returns: Json
+      }
+      save_sale_with_items_numbered: {
+        Args: {
+          p_items: Json
+          p_numbering: Json
+          p_organization_id: string
+          p_sale: Json
+        }
         Returns: Json
       }
       scan_stock_alerts_all_orgs: {
