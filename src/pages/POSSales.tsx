@@ -5129,6 +5129,39 @@ export default function POSSales() {
   };
 
   // Handle save sale
+  /**
+   * After a bill is saved (F-key / Mix / edit save): back to a blank new bill. One function for
+   * every save path, so a field cleared on one path can no longer be left set on another (the
+   * redeemed points and held flag drifted apart before, Nov 2026). The salesman follows the
+   * shop's "keep salesman after save" setting (clearSalesmanAfterSaveIfNeeded).
+   */
+  const resetPosBillAfterSave = () => {
+    setItems([]);
+    setCustomerId("");
+    setCustomerName("");
+    setCustomerPhone("");
+    setFlatDiscountValue(0);
+    setFlatDiscountMode(defaultFlatDiscountMode());
+    setSaleReturnAdjust(0);
+    setSameBillReturnGross(0);
+    setRoundOff(0);
+    setIsManualRoundOff(false);
+    setCreditApplied(0);
+    setAvailableCreditBalance(0);
+    setAdvanceApplied(0);
+    setAvailableAdvanceBalance(0);
+    setOpeningBalanceRemaining(0);
+    setSearchInput("");
+    setCurrentSaleId(null);
+    setOriginalItemsForEdit([]);
+    clearSalesmanAfterSaveIfNeeded();
+    setSaleNotes("");
+    setUseSecondFirm(false);
+    setFinancerDetails(null);
+    setIsHeldSale(false);
+    setPointsToRedeem(0);
+  };
+
   const handleSaveSale = async (forcePaymentMethod?: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later') => {
     // Same-bill exchange with refund due: force Mix so shop chooses cash refund vs CN.
     if (finalAmount < -0.005 || exchangeRefundDue > 0.005) {
@@ -5263,31 +5296,7 @@ export default function POSSales() {
       }
 
       // Clear cart on success
-      setItems([]);
-      setCustomerId("");
-      setCustomerName("");
-      setCustomerPhone("");
-      setFlatDiscountValue(0);
-      setFlatDiscountMode(defaultFlatDiscountMode());
-      setSaleReturnAdjust(0);
-      setSameBillReturnGross(0);
-      setRoundOff(0);
-      setIsManualRoundOff(false);
-      setCreditApplied(0);
-      setAvailableCreditBalance(0);
-      setAdvanceApplied(0);
-      setAvailableAdvanceBalance(0);
-      setOpeningBalanceRemaining(0);
-      setSearchInput("");
-      setCurrentSaleId(null); // Reset edit mode
-      setOriginalItemsForEdit([]); // Clear original items for edit
-      clearSalesmanAfterSaveIfNeeded();
-      setSaleNotes("");
-      setUseSecondFirm(false);
-      setFinancerDetails(null);
-      // Same as the other save paths: the next bill starts with no held flag and no points.
-      setIsHeldSale(false);
-      setPointsToRedeem(0);
+      resetPosBillAfterSave();
     }
   };
 
@@ -5622,31 +5631,7 @@ export default function POSSales() {
       applyLastCompletedPosHint(result.sale_number, finalAmount, totals.quantity);
 
       // Clear the form immediately after successful save (reset to new blank invoice)
-      setItems([]);
-      setCustomerId("");
-      setCustomerName("");
-      setCustomerPhone("");
-      setFlatDiscountValue(0);
-      setFlatDiscountMode(defaultFlatDiscountMode());
-      setSaleReturnAdjust(0);
-      setSameBillReturnGross(0);
-      setRoundOff(0);
-      setIsManualRoundOff(false);
-      setCreditApplied(0);
-      setAvailableCreditBalance(0);
-      setAdvanceApplied(0);
-      setAvailableAdvanceBalance(0);
-      setOpeningBalanceRemaining(0);
-      setSearchInput("");
-      setCurrentSaleId(null);
-      setOriginalItemsForEdit([]);
-      // Same clear rule for all save paths (no auto-print divergence).
-      clearSalesmanAfterSaveIfNeeded();
-      setSaleNotes("");
-      setUseSecondFirm(false);
-      setFinancerDetails(null);
-      setIsHeldSale(false);
-      setPointsToRedeem(0);
+      resetPosBillAfterSave();
       
       posSaveMark("before_dialog");
       triggerPosAutoPrintIfEnabled(() => setShowPrintConfirmDialog(true));
@@ -5955,30 +5940,7 @@ export default function POSSales() {
 
       // WhatsApp invoice auto-send is handled by useSaveSale hook — do NOT send here to avoid duplicates
 
-      setItems([]);
-      setCustomerId("");
-      setCustomerName("");
-      setCustomerPhone("");
-      setFlatDiscountValue(0);
-      setFlatDiscountMode(defaultFlatDiscountMode());
-      setSaleReturnAdjust(0);
-      setSameBillReturnGross(0);
-      setRoundOff(0);
-      setIsManualRoundOff(false);
-      setCreditApplied(0);
-      setAvailableCreditBalance(0);
-      setAdvanceApplied(0);
-      setAvailableAdvanceBalance(0);
-      setOpeningBalanceRemaining(0);
-      setSearchInput("");
-      setCurrentSaleId(null);
-      setOriginalItemsForEdit([]);
-      clearSalesmanAfterSaveIfNeeded();
-      setSaleNotes("");
-      setUseSecondFirm(false);
-      setFinancerDetails(null);
-      setIsHeldSale(false);
-      setPointsToRedeem(0);
+      resetPosBillAfterSave();
       
       if (invoiceDataForPrint) {
         // flushSync: commit portal DOM before cart clear + auto-print (avoids blank clone).

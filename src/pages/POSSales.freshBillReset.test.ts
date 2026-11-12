@@ -33,14 +33,21 @@ describe("POSSales fresh-bill resets", () => {
     });
   }
 
-  it("every after-save cart reset clears points and the held flag", () => {
-    const resets = src.split("setOriginalItemsForEdit([]);").slice(1).map((rest) => rest.slice(0, 600));
-    const afterSave = resets.filter((r) => r.includes("clearSalesmanAfterSaveIfNeeded()"));
-    expect(afterSave.length).toBe(3);
-    for (const r of afterSave) {
-      expect(r).toContain("setPointsToRedeem(0)");
-      expect(r).toContain("setIsHeldSale(false)");
+  it("every save path resets through resetPosBillAfterSave, which clears points, round-off and the held flag", () => {
+    const reset = block("const resetPosBillAfterSave = () => {", "\n  };");
+    expect(reset).toContain("setPointsToRedeem(0)");
+    expect(reset).toContain("setIsManualRoundOff(false)");
+    expect(reset).toContain("setIsHeldSale(false)");
+    expect(reset).toContain("clearSalesmanAfterSaveIfNeeded()");
+    for (const handler of [
+      "const handleSaveSale = async (",
+      "const handlePaymentAndPrint = async (",
+      "const handleMixPaymentSave = async (",
+    ]) {
+      expect(block(handler, "\n  };"), handler).toContain("resetPosBillAfterSave()");
     }
+    // No hand-written copy of the after-save reset is left to drift again.
+    expect(src.split("clearSalesmanAfterSaveIfNeeded();\n      setSaleNotes(").length).toBe(1);
   });
 
   it("redeemed points are dropped when the customer changes", () => {
