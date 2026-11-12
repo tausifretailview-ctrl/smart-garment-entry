@@ -93,3 +93,11 @@ describe("one-step bill save with the number taken in the save", () => {
     await expect(saveSaleWithItemsNumbered(client, "org1", {}, [{}, {}], numbering)).rejects.toThrow(/no bill number/);
   });
 });
+
+describe("payment state settled in the save", () => {
+  it("reads settled: true from the reply, false when missing (older SQL)", () => {
+    expect(parseAtomicSaleSaveResult({ ...okReply, settled: true }, 2).settledInSave).toBe(true);
+    expect(parseAtomicSaleSaveResult(okReply, 2).settledInSave).toBe(false);
+    expect(parseAtomicSaleSaveResult({ ...okReply, settled: "yes" }, 2).settledInSave).toBe(false);
+  });
+});
