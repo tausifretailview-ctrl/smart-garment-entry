@@ -64,8 +64,12 @@ jobs:
 
       # Floating-promise ratchet. Fails only if the count RISES above the
       # baseline in .eslint-floating-promises-baseline.json.
+      # ESLint over the whole repo also needs more than Node's default ~2 GB heap: it died with
+      # "JavaScript heap out of memory" on 12 Nov 2026 (reproduced at 2 GB, passes at 4 GB).
       - name: Lint ratchet
         run: npm run lint:ratchet
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
 
   # Fails if a second lockfile reappears. Two package managers in one repo means
   # the install is whatever tool the last person happened to run.
