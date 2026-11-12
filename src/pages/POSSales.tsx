@@ -2313,6 +2313,8 @@ export default function POSSales() {
       setSameBillReturnGross(0);
       setRoundOff(0);
       setIsManualRoundOff(false);
+      setPointsToRedeem(0);
+      setIsHeldSale(false);
       setRefundAmount(0);
       setCreditApplied(0);
       setAvailableCreditBalance(0);
@@ -2757,6 +2759,15 @@ export default function POSSales() {
     isLoading: balancesLoading,
     isFetching: balancesFetching,
   });
+
+  // Redeemed points belong to one customer: drop them when the customer changes or is cleared,
+  // or the next customer's / walk-in bill is reduced by points that are not theirs.
+  const pointsCustomerRef = useRef(customerId);
+  useEffect(() => {
+    if (pointsCustomerRef.current === customerId) return;
+    pointsCustomerRef.current = customerId;
+    setPointsToRedeem(0);
+  }, [customerId, setPointsToRedeem]);
 
   // Fetch credit balance and pending sale return credit notes when customer changes
   useEffect(() => {
@@ -5274,6 +5285,9 @@ export default function POSSales() {
       setSaleNotes("");
       setUseSecondFirm(false);
       setFinancerDetails(null);
+      // Same as the other save paths: the next bill starts with no held flag and no points.
+      setIsHeldSale(false);
+      setPointsToRedeem(0);
     }
   };
 
@@ -6843,6 +6857,12 @@ export default function POSSales() {
     setSaleReturnAdjust(0);
     setSameBillReturnGross(0);
     setRoundOff(0);
+    // A typed round-off / redeemed points / financer belong to the cleared bill only
+    // (left set, the next walk-in bill was short by the points and never auto-rounded).
+    setIsManualRoundOff(false);
+    setPointsToRedeem(0);
+    setFinancerDetails(null);
+    setIsHeldSale(false);
     setRefundAmount(0);
     setCreditApplied(0);
     setAvailableCreditBalance(0);
@@ -6869,6 +6889,10 @@ export default function POSSales() {
     setSaleReturnAdjust(0);
     setSameBillReturnGross(0);
     setRoundOff(0);
+    // Same as Clear All: nothing of the old bill's round-off / points / financer carries over.
+    setIsManualRoundOff(false);
+    setPointsToRedeem(0);
+    setFinancerDetails(null);
     setRefundAmount(0);
     setCreditApplied(0);
     setAvailableCreditBalance(0);
