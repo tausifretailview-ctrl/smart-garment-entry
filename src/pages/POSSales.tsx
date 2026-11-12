@@ -8,6 +8,7 @@ import { PosRoundOffField } from "@/components/pos/PosRoundOffField";
 import { PosSrAdjustField } from "@/components/pos/PosSrAdjustField";
 import { PosAdvanceField, PosLegacyCreditField, PosPointsField } from "@/components/pos/PosFooterCreditFields";
 import { PosSalesmanPicker, type PosSalesmanOption } from "@/components/pos/PosSalesmanPicker";
+import { PosCustomerPicker } from "@/components/pos/PosCustomerPicker";
 import { POS_PLAIN_NUMBER_CLASS, posPlainNumberProps } from "@/components/pos/posPlainNumber";
 import { CustomerBalanceBadge } from "@/components/CustomerBalanceBadge";
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
@@ -169,7 +170,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Scan, X, Plus, Trash2, CreditCard, Printer, ChevronLeft, FileText, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Play, Loader2, AlertCircle, Coins, Package, History, Search, Gift, Calendar as CalendarIcon } from "lucide-react";
+import { Scan, Plus, Trash2, CreditCard, Printer, ChevronLeft, FileText, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Play, Loader2, Coins, Package, History, Search, Gift, Calendar as CalendarIcon } from "lucide-react";
 import { MobilePOSLayout } from "@/components/mobile/MobilePOSLayout";
 import { FloatingPOSReports } from "@/components/FloatingPOSReports";
 import { FloatingSaleReturn } from "@/components/FloatingSaleReturn";
@@ -255,7 +256,6 @@ import {
 } from "@/utils/stockErrorMessages";
 import {
   Command,
-  CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
@@ -2729,6 +2729,28 @@ export default function POSSales() {
     enabled: openCustomerSearch,
     customerIds: visibleCustomerIds,
   });
+
+  // Stable handlers for the memo header customer box.
+  const clearPosCustomer = useCallback(() => {
+    setCustomerName("");
+    setCustomerId("");
+    setCustomerPhone("");
+    linkedCustomerPhoneRef.current = "";
+  }, []);
+  const pickPosCustomer = useCallback((customer: { id: string; customer_name: string; phone?: string | null }) => {
+    customerJustSelected.current = true;
+    setCustomerId(customer.id);
+    setCustomerName(customer.customer_name);
+    setCustomerPhone(customer.phone || "");
+    linkedCustomerPhoneRef.current = customer.phone || "";
+    setOpenCustomerSearch(false);
+    setTimeout(() => { customerJustSelected.current = false; }, 500);
+  }, []);
+  const openAddCustomerDialogRef = useRef(openAddCustomerDialog);
+  useLayoutEffect(() => {
+    openAddCustomerDialogRef.current = openAddCustomerDialog;
+  });
+  const openAddCustomerDialogStable = useCallback(() => openAddCustomerDialogRef.current(), []);
 
   useNavPerfQueryWatch("todays-sales", PERF_PATH, {
     isLoading: todaysSalesLoading,
@@ -8097,141 +8119,26 @@ export default function POSSales() {
             </PopoverContent>
           </Popover>
           
-          <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
-            <PopoverTrigger asChild>
-              <div className="relative w-72 shrink-0">
-                <div className="flex items-center justify-between mb-1">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Customer Name</Label>
-                </div>
-                <Input
-                  value={customerName}
-                  onChange={(e) => {
-                    setCustomerName(e.target.value);
-                    setOpenCustomerSearch(true);
-                  }}
-                  className="h-10 text-base pr-20 border-border/80 focus:border-primary"
-                  placeholder="Enter customer name or phone"
-                />
-                {customerName && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="absolute right-8 top-1/2 translate-y-0.5 h-8 w-8"
-                    onClick={() => {
-                      setCustomerName("");
-                      setCustomerId("");
-                      setCustomerPhone("");
-                      linkedCustomerPhoneRef.current = "";
-                    }}
-                  >
-                    <X className="h-5 w-5" />
-                  </Button>
-                )}
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="absolute right-1 top-1/2 translate-y-0.5 h-8 w-8"
-                  onClick={() => openAddCustomerDialog()}
-                  title="Add New Customer"
-                >
-                  <UserPlus className="h-5 w-5" />
-                </Button>
-              </div>
-            </PopoverTrigger>
-            <PopoverContent className="w-[400px] p-0 z-50" align="start">
-              <Command shouldFilter={false}>
-                <CommandInput 
-                  placeholder="Search by name, phone, or email..." 
-                  value={customerName}
-                  onValueChange={setCustomerName}
-                />
-                <CommandList>
-                  {isCustomersLoading || balancesLoading ? (
-                    <div className="flex items-center justify-center p-4 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      {isCustomersLoading ? "Loading customers..." : "Loading balances..."}
-                    </div>
-                  ) : isCustomersError ? (
-                    <div className="flex flex-col items-center justify-center p-4 text-sm">
-                      <div className="flex items-center text-destructive mb-2">
-                        <AlertCircle className="h-4 w-4 mr-2" />
-                        Error loading customers
-                      </div>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => refetchCustomers()}
-                        className="text-xs"
-                      >
-                        Retry
-                      </Button>
-                    </div>
-                  ) : (
-                    <>
-                      <CommandEmpty>No customers found.</CommandEmpty>
-                      <CommandGroup heading={`Customers (${customers?.length || 0})${hasMoreCustomers ? ' - refine search for more' : ''}`}>
-                        {filteredCustomers.map((customer: any) => {
-                          const snap = getCustomerSnapshot(customer.id);
-                          // Bills still unpaid; the advance is shown beside it (shop rule, Nov 2026).
-                          const balance = Math.round(Number(snap?.grossOutstandingDr) || 0);
-                          const advanceAmt = getCustomerAdvance(customer.id);
-                          const creditNoteAmt = getCustomerCreditNote(customer.id);
-                          return (
-                            <CommandItem
-                              key={customer.id}
-                              value={`${customer.customer_name} ${customer.phone || ''} ${customer.email || ''}`}
-                            onSelect={() => {
-                                customerJustSelected.current = true;
-                                setCustomerId(customer.id);
-                                setCustomerName(customer.customer_name);
-                                setCustomerPhone(customer.phone || "");
-                                linkedCustomerPhoneRef.current = customer.phone || "";
-                                setOpenCustomerSearch(false);
-                                setTimeout(() => { customerJustSelected.current = false; }, 500);
-                              }}
-                              className="cursor-pointer"
-                            >
-                              <Check className="mr-2 h-4 w-4 opacity-0" />
-                              <div className="flex flex-col flex-1">
-                                <div className="flex items-center justify-between">
-                                  <span className="font-medium">{customer.customer_name}</span>
-                                  <div className="flex items-center gap-1.5">
-                                    {advanceAmt > 0 && (
-                                      <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-600">
-                                        ₹{advanceAmt.toLocaleString('en-IN')} Adv
-                                      </span>
-                                    )}
-                                    {creditNoteAmt > 0 && (
-                                      <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600">
-                                        ₹{creditNoteAmt.toLocaleString('en-IN')} CN
-                                      </span>
-                                    )}
-                                    {balance !== 0 && (
-                                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                                        balance > 0 
-                                          ? 'bg-destructive/10 text-destructive' 
-                                          : 'bg-green-500/10 text-green-600'
-                                      }`}>
-                                        ₹{Math.abs(balance).toLocaleString('en-IN')} {balance > 0 ? 'Due' : 'Cr'}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <span className="text-sm text-muted-foreground">
-                                  {customer.phone && `Phone: ${customer.phone}`}
-                                  {customer.email && ` | Email: ${customer.email}`}
-                                </span>
-                              </div>
-                            </CommandItem>
-                          );
-                        })}
-                      </CommandGroup>
-                    </>
-                  )}
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+          {/* Customer Name + search (PosCustomerPicker) */}
+          <PosCustomerPicker
+            open={openCustomerSearch}
+            setOpen={setOpenCustomerSearch}
+            customerName={customerName}
+            setCustomerName={setCustomerName}
+            onClear={clearPosCustomer}
+            onAddCustomer={openAddCustomerDialogStable}
+            onPick={pickPosCustomer}
+            isLoading={isCustomersLoading}
+            balancesLoading={balancesLoading}
+            isError={isCustomersError}
+            onRetry={refetchCustomers}
+            totalCount={customers?.length || 0}
+            hasMore={hasMoreCustomers}
+            customers={filteredCustomers}
+            getCustomerSnapshot={getCustomerSnapshot}
+            getCustomerAdvance={getCustomerAdvance}
+            getCustomerCreditNote={getCustomerCreditNote}
+          />
 
           {/* Walk-in WhatsApp number — does not create a customers row */}
           <div className="relative w-40 shrink-0">
