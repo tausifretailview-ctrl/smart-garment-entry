@@ -52,3 +52,13 @@ describe("customer balance shop rule: bills due, advance separate", () => {
     expect(row.advance_available).toBe(2000);
   });
 });
+
+import { snapshotBillsDueAndAdvance } from "@/utils/customerFinancialSnapshot";
+
+describe("snapshotBillsDueAndAdvance (messages and lists)", () => {
+  it("gives bills due and the advance separately", () => {
+    expect(snapshotBillsDueAndAdvance({ grossOutstandingDr: 5000, advanceAvailable: 1000 })).toEqual({ billsDue: 5000, advance: 1000 });
+    expect(snapshotBillsDueAndAdvance(null)).toEqual({ billsDue: 0, advance: 0 });
+    expect(snapshotBillsDueAndAdvance({ grossOutstandingDr: 0, advanceAvailable: -5 })).toEqual({ billsDue: 0, advance: 0 });
+  });
+});

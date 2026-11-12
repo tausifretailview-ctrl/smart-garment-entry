@@ -166,7 +166,7 @@ import {
   getAvailableCN,
   type CnFifoVoucherChunk,
 } from "@/utils/saleSettlement";
-import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { fetchCustomerFinancialSnapshot, snapshotBillsDueAndAdvance } from "@/utils/customerFinancialSnapshot";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import { assertCustomerPaymentWithinOutstandingCap } from "@/utils/invoiceOverpaymentGuard";
 import {
@@ -1757,6 +1757,7 @@ export default function SalesInvoiceDashboard() {
       try {
         const invoiceUrl = buildSaleInvoiceViewUrl(invoice.id);
         let customerBalance = invoiceBalanceDue(invoice);
+        let customerAdvance = 0;
         if (invoice.customer_id) {
           try {
             const snap = await fetchCustomerFinancialSnapshot(
@@ -1764,7 +1765,8 @@ export default function SalesInvoiceDashboard() {
               currentOrganization.id,
               invoice.customer_id,
             );
-            customerBalance = snap.outstandingDr;
+            // Bills still unpaid, advance beside it (shop rule, Nov 2026).
+            ({ billsDue: customerBalance, advance: customerAdvance } = snapshotBillsDueAndAdvance(snap));
           } catch {
             /* keep invoice balance */
           }
@@ -1787,6 +1789,7 @@ export default function SalesInvoiceDashboard() {
           {
             invoiceLink: invoiceUrl,
             organizationName: currentOrganization.name || "",
+            advanceAvailable: customerAdvance,
           },
         );
         await sendWhatsApp(invoice.customer_phone!, reminderMessage);
@@ -2555,6 +2558,7 @@ export default function SalesInvoiceDashboard() {
     const invoiceUrl = buildSaleInvoiceViewUrl(invoice.id);
     
     let customerBalance = 0;
+    let customerAdvance = 0;
     if (invoice.customer_id && currentOrganization?.id) {
       try {
         const snap = await fetchCustomerFinancialSnapshot(
@@ -2562,7 +2566,8 @@ export default function SalesInvoiceDashboard() {
           currentOrganization.id,
           invoice.customer_id
         );
-        customerBalance = snap.outstandingDr;
+        // Bills still unpaid, advance beside it (shop rule, Nov 2026).
+        ({ billsDue: customerBalance, advance: customerAdvance } = snapshotBillsDueAndAdvance(snap));
       } catch {
         customerBalance = 0;
       }
@@ -2586,6 +2591,7 @@ export default function SalesInvoiceDashboard() {
     }, undefined, customerBalance, {
       invoiceLink: invoiceUrl,
       organizationName: currentOrganization?.name || '',
+      advanceAvailable: customerAdvance,
     });
 
     sendWhatsApp(invoice.customer_phone, templateMessage);

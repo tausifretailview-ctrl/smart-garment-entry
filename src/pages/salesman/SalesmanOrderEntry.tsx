@@ -302,7 +302,8 @@ const SalesmanOrderEntry = () => {
         currentOrganization.id,
         customerId,
       );
-      setSelectedCustomer({ ...data, balance: snap.outstandingDr });
+      // Bills still unpaid (shop rule, Nov 2026: advance is not subtracted).
+      setSelectedCustomer({ ...data, balance: snap.grossOutstandingDr });
     }
   };
 
@@ -329,7 +330,7 @@ const SalesmanOrderEntry = () => {
 
       const customersWithBalance = data.map((c) => ({
         ...c,
-        balance: snapMap.get(c.id)?.outstandingDr ?? 0,
+        balance: snapMap.get(c.id)?.grossOutstandingDr ?? 0,
       }));
       setCustomers(customersWithBalance);
     }

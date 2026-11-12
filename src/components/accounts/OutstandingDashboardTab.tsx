@@ -297,7 +297,8 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
       const seen = new Set<string>();
 
       snapMap.forEach((snap, customerId) => {
-        if (snap.outstandingDr < 1) return;
+        // Bills still unpaid, like the per-bill age buckets (shop rule, Nov 2026).
+        if (snap.grossOutstandingDr < 1) return;
         const customer = customerMap.get(customerId);
         if (!customer) return;
         seen.add(customerId);
@@ -306,7 +307,7 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
           id: customerId,
           name: customer.customer_name,
           phone: customer.phone,
-          totalOutstanding: snap.outstandingDr,
+          totalOutstanding: snap.grossOutstandingDr,
           invoiceCount: agingEntry?.invoiceCount ?? 0,
           oldestDays: agingEntry?.oldestDays ?? 0,
           aging: agingEntry?.aging ?? {
