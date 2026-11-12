@@ -61,6 +61,8 @@ export interface WhatsAppSettings {
   fee_reminder_template_params: TemplateParam[] | null;
   // Auto-send fee settings
   auto_send_fee_receipt: boolean;
+  /** Missing until the 20270419120000 SQL is run (treated as on). */
+  auto_send_payment_receipt?: boolean;
   auto_send_fee_reminder: boolean;
   // AI Chatbot settings
   chatbot_enabled: boolean;
