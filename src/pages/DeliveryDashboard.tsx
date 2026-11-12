@@ -7,7 +7,16 @@ import { Package, Clock, CheckCircle2, TrendingUp, Search, Calendar as CalendarI
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { AnimatedChart } from "@/components/dashboard/AnimatedChart";
-import { format, subDays, startOfDay, endOfDay } from "date-fns";
+import { format, startOfDay, endOfDay } from "date-fns";
+import {
+  DELIVERY_LIST_COLUMNS,
+  deliveryStatusPie,
+  deliverySummaryFromRpc,
+  deliveryTrendChart,
+  summarizeDeliveryRows,
+  type DeliveryRow,
+  type DeliverySummary,
+} from "@/lib/deliveryDashboardSummary";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
@@ -112,115 +121,47 @@ const DeliveryDashboard = () => {
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
   const [isExporting, setIsExporting] = useState(false);
   const openCustomerAccount = useOpenCustomerAccount();
-  // Fetch delivery statistics
-  const { data: deliveryStats } = useQuery({
-    queryKey: ["delivery-stats", currentOrganization?.id],
-    queryFn: async () => {
+  // Tiles, status pie and 7-day trend: one database request (get_delivery_dashboard_summary).
+  // These used to read every bill the shop ever made, twice, plus 7 trend requests; past
+  // 1,000 bills the server cut the rows off and the numbers were wrong. Deleted, cancelled
+  // and held bills are not counted.
+  const { data: summary } = useQuery({
+    queryKey: ["delivery-summary", currentOrganization?.id],
+    queryFn: async (): Promise<DeliverySummary | null> => {
       if (!currentOrganization?.id) return null;
+      const { data, error } = await supabase.rpc("get_delivery_dashboard_summary" as never, {
+        p_org_id: currentOrganization.id,
+        p_days: 7,
+      } as never);
+      if (!error) return deliverySummaryFromRpc(data);
+      if (error.code !== "PGRST202" && error.code !== "42883") throw error;
 
-      const { data, error } = await supabase
-        .from("sales")
-        .select("delivery_status, net_amount")
-        .eq("organization_id", currentOrganization.id);
-
-      if (error) throw error;
-
-      const total = data.length;
-      const delivered = data.filter(s => s.delivery_status === "delivered").length;
-      const pending = data.filter(s => s.delivery_status === "undelivered").length;
-      const inProcess = data.filter(s => s.delivery_status === "in_process").length;
-
-      const deliveredValue = data
-        .filter(s => s.delivery_status === "delivered")
-        .reduce((sum, s) => sum + Number(s.net_amount), 0);
-      
-      const pendingValue = data
-        .filter(s => s.delivery_status === "undelivered")
-        .reduce((sum, s) => sum + Number(s.net_amount), 0);
-
-      return {
-        total,
-        delivered,
-        pending,
-        inProcess,
-        deliveredValue,
-        pendingValue,
-      };
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
-
-  // Fetch delivery trend data (last 7 days)
-  const { data: trendData } = useQuery({
-    queryKey: ["delivery-trend", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-
-      const days = 7;
-      const chartData = [];
-
-      for (let i = days - 1; i >= 0; i--) {
-        const date = subDays(new Date(), i);
-        const dayStart = startOfDay(date);
-        const dayEnd = endOfDay(date);
-
-        const { data, error } = await supabase
+      // Database update not applied yet: same sums in the browser, paged past the 1,000-row cap.
+      const rows: DeliveryRow[] = [];
+      const PAGE = 1000;
+      for (let from = 0; from < 100_000; from += PAGE) {
+        const { data: page, error: pageError } = await supabase
           .from("sales")
-          .select("delivery_status")
+          .select("delivery_status, net_amount, sale_date")
           .eq("organization_id", currentOrganization.id)
-          .gte("sale_date", dayStart.toISOString())
-          .lte("sale_date", dayEnd.toISOString());
-
-        if (error) throw error;
-
-        const delivered = data.filter(s => s.delivery_status === "delivered").length;
-        const pending = data.filter(s => s.delivery_status === "undelivered").length;
-        const inProcess = data.filter(s => s.delivery_status === "in_process").length;
-
-        chartData.push({
-          name: format(date, "MMM dd"),
-          delivered,
-          pending,
-          inProcess,
-        });
+          .is("deleted_at", null)
+          .eq("is_cancelled", false)
+          .neq("payment_status", "hold")
+          .order("id")
+          .range(from, from + PAGE - 1);
+        if (pageError) throw pageError;
+        rows.push(...((page || []) as DeliveryRow[]));
+        if (!page || page.length < PAGE) break;
       }
-
-      return chartData;
+      return summarizeDeliveryRows(rows, 7);
     },
     enabled: !!currentOrganization?.id,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
-
-  // Fetch status distribution
-  const { data: statusData } = useQuery({
-    queryKey: ["delivery-status-distribution", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-
-      const { data, error } = await supabase
-        .from("sales")
-        .select("delivery_status")
-        .eq("organization_id", currentOrganization.id);
-
-      if (error) throw error;
-
-      const delivered = data.filter(s => s.delivery_status === "delivered").length;
-      const pending = data.filter(s => s.delivery_status === "undelivered").length;
-      const inProcess = data.filter(s => s.delivery_status === "in_process").length;
-
-      return [
-        { name: "Delivered", value: delivered },
-        { name: "Pending", value: pending },
-        { name: "In Process", value: inProcess },
-      ];
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
+  const deliveryStats = summary ?? null;
+  const trendData = useMemo(() => (summary ? deliveryTrendChart(summary.trend) : []), [summary]);
+  const statusData = useMemo(() => (summary ? deliveryStatusPie(summary) : []), [summary]);
 
   // Fetch filtered invoices based on selected status, date range, search, and payment status
   const { data: filteredInvoices } = useQuery({
@@ -230,9 +171,13 @@ const DeliveryDashboard = () => {
 
       let query = supabase
         .from("sales")
-        .select("*")
+        .select(DELIVERY_LIST_COLUMNS)
         .eq("organization_id", currentOrganization.id)
-        .eq("delivery_status", selectedStatus);
+        .eq("delivery_status", selectedStatus)
+        // Live bills only, the same set the tiles count.
+        .is("deleted_at", null)
+        .eq("is_cancelled", false)
+        .neq("payment_status", "hold");
 
       // Apply payment status filter
       if (paymentStatusFilter !== "all") {
@@ -287,9 +232,7 @@ const DeliveryDashboard = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["filtered-invoices"] });
-      queryClient.invalidateQueries({ queryKey: ["delivery-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["delivery-trend"] });
-      queryClient.invalidateQueries({ queryKey: ["delivery-status-distribution"] });
+      queryClient.invalidateQueries({ queryKey: ["delivery-summary"] });
       toast.success("Delivery status updated successfully");
       setShowStatusDialog(false);
       setSelectedInvoiceForStatus(null);
