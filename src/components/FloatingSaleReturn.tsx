@@ -31,6 +31,8 @@ import { ensureCreditNoteHeadroom } from "@/utils/saleReturnCnBalance";
 import { resolveSaleReturnUnitPrice } from "@/utils/saleReturnPricing";
 import { resolveCustomerLastSaleReturnPrice } from "@/utils/saleReturnCustomerPrice";
 import { useSettings } from "@/hooks/useSettings";
+import { isAtomicBillSaveEnabled } from "@/lib/saveSaleAtomic";
+import { ATOMIC_RETURN_ID_PLACEHOLDER, saveReturnWithItemsAtomic } from "@/lib/saveReturnAtomic";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { waitForPrintReady } from "@/utils/printReady";
@@ -1145,9 +1147,6 @@ export const FloatingSaleReturn = ({
         }
       }
 
-      const { data: returnNumber, error: rnError } = await supabase
-        .rpc('generate_sale_return_number', { p_organization_id: organizationId });
-      if (rnError) throw rnError;
 
       const grossAmount = totalAmount;
       const gstAmount = returnItems.reduce((sum, item) => {
@@ -1168,35 +1167,26 @@ export const FloatingSaleReturn = ({
       const paymentMethodForReturn =
         refundType === "cash_refund" ? directRefundPaymentMethod : null;
 
-      const { data: returnData, error: returnError } = await supabase
-        .from("sale_returns")
-        .insert({
-          return_number: returnNumber,
-          organization_id: organizationId,
-          customer_id: effectiveCustomerId || null,
-          customer_name: effectiveCustomerName || "Walk-in Customer",
-          return_date: new Date().toISOString().split("T")[0],
-          gross_amount: grossAmount,
-          gst_amount: gstAmount,
-          net_amount: grossAmount,
-          refund_type: refundType,
-          payment_method: paymentMethodForReturn,
-          credit_status: creditStatus,
-          // Do not bind to the original bill id. For exchange flow this is
-          // linked later to the newly created sale via consumeSaleReturnAdjustments.
-          linked_sale_id: null,
-          original_sale_number: billSaleId ? billNumber.trim() : null,
-        } as any)
-        .select()
-        .single();
-
-      if (returnError) throw returnError;
-      createdReturnId = returnData.id;
-
-      const itemsToInsert = returnItems.map(item => {
+      const returnHeader: Record<string, unknown> = {
+        organization_id: organizationId,
+        customer_id: effectiveCustomerId || null,
+        customer_name: effectiveCustomerName || "Walk-in Customer",
+        return_date: new Date().toISOString().split("T")[0],
+        gross_amount: grossAmount,
+        gst_amount: gstAmount,
+        net_amount: grossAmount,
+        refund_type: refundType,
+        payment_method: paymentMethodForReturn,
+        credit_status: creditStatus,
+        // Do not bind to the original bill id. For exchange flow this is
+        // linked later to the newly created sale via consumeSaleReturnAdjustments.
+        linked_sale_id: null,
+        original_sale_number: billSaleId ? billNumber.trim() : null,
+      };
+      const buildReturnItems = (returnId: string) => returnItems.map(item => {
         const v = variants.find(vv => vv.id === item.variantId);
         return {
-          return_id: returnData.id,
+          return_id: returnId,
           product_id: item.productId,
           variant_id: item.variantId,
           product_name: item.productName,
@@ -1209,11 +1199,48 @@ export const FloatingSaleReturn = ({
         };
       });
 
-      const { error: itemsError } = await supabase
-        .from("sale_return_items")
-        .insert(itemsToInsert);
+      // Plan Phase 2 (returns): number, header and lines in one database transaction, so a
+      // return is never left without its lines and two counters never share a number.
+      // Falls back to the old steps while the SQL is missing or "One-step bill save" is off.
+      let returnNumber = "";
+      let savedReturn: (Record<string, unknown> & { id: string }) | null = null;
+      if (isAtomicBillSaveEnabled((settingsData as { sale_settings?: Record<string, unknown> } | null)?.sale_settings)) {
+        const atomic = await saveReturnWithItemsAtomic(
+          supabase,
+          "sale_return",
+          organizationId,
+          returnHeader,
+          buildReturnItems(ATOMIC_RETURN_ID_PLACEHOLDER),
+        );
+        if (atomic) {
+          savedReturn = atomic.row;
+          returnNumber = atomic.returnNumber;
+          createdReturnId = atomic.row.id;
+        }
+      }
+      if (!savedReturn) {
+        const { data: rn, error: rnError } = await supabase
+          .rpc('generate_sale_return_number', { p_organization_id: organizationId });
+        if (rnError) throw rnError;
+        returnNumber = String(rn || "");
 
-      if (itemsError) throw itemsError;
+        const { data: insertedReturn, error: returnError } = await supabase
+          .from("sale_returns")
+          .insert({ ...returnHeader, return_number: returnNumber } as any)
+          .select()
+          .single();
+
+        if (returnError) throw returnError;
+        createdReturnId = insertedReturn.id;
+
+        const { error: itemsError } = await supabase
+          .from("sale_return_items")
+          .insert(buildReturnItems(insertedReturn.id));
+
+        if (itemsError) throw itemsError;
+        savedReturn = insertedReturn as Record<string, unknown> & { id: string };
+      }
+      const returnData = savedReturn;
 
       const returnDateYmd =
         (returnData as { return_date?: string }).return_date || new Date().toISOString().split("T")[0];

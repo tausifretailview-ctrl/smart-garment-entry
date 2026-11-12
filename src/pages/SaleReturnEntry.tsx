@@ -50,6 +50,9 @@ import {
   countSoldAndReturnedForSaleReturn,
   lookupSoldVariantForSaleReturn,
 } from "@/utils/saleReturnBarcodeLookup";
+import { useSettings } from "@/hooks/useSettings";
+import { isAtomicBillSaveEnabled } from "@/lib/saveSaleAtomic";
+import { ATOMIC_RETURN_ID_PLACEHOLDER, saveReturnWithItemsAtomic } from "@/lib/saveReturnAtomic";
 
 interface Customer {
   id: string;
@@ -99,6 +102,7 @@ export default function SaleReturnEntry() {
   const { editId } = useParams<{ editId?: string }>();
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+  const { data: settingsData } = useSettings();
   const queryClient = useQueryClient();
 
   const isEditMode = !!editId;
@@ -1065,37 +1069,23 @@ export default function SaleReturnEntry() {
         await returnGodown.syncAfterSave(editId, true);
 
       } else {
-        const { data: returnNumber, error: returnNumberError } = await supabase
-          .rpc('generate_sale_return_number', { p_organization_id: currentOrganization?.id });
-
-        if (returnNumberError) throw returnNumberError;
-
         let createdReturnId: string | null = null;
         try {
-          const { data: returnData, error: returnError } = await supabase
-            .from("sale_returns")
-            .insert({
-              return_number: returnNumber,
-              organization_id: currentOrganization?.id,
-              customer_id: selectedCustomer || null,
-              customer_name: customer?.customer_name || "Walk-in Customer",
-              original_sale_number: originalSaleNumber || null,
-              return_date: returnDate,
-              gross_amount: totals.grossAmount,
-              gst_amount: totals.gstAmount,
-              net_amount: totals.netAmount,
-              notes,
-              refund_type: "credit_note",
-              payment_method: null,
-            })
-            .select()
-            .single();
-
-          if (returnError) throw returnError;
-          createdReturnId = returnData.id;
-
-          const itemsToInsert = returnItems.map((item) => ({
-            return_id: returnData.id,
+          const returnHeader: Record<string, unknown> = {
+            organization_id: currentOrganization?.id,
+            customer_id: selectedCustomer || null,
+            customer_name: customer?.customer_name || "Walk-in Customer",
+            original_sale_number: originalSaleNumber || null,
+            return_date: returnDate,
+            gross_amount: totals.grossAmount,
+            gst_amount: totals.gstAmount,
+            net_amount: totals.netAmount,
+            notes,
+            refund_type: "credit_note",
+            payment_method: null,
+          };
+          const buildReturnItems = (returnId: string) => returnItems.map((item) => ({
+            return_id: returnId,
             product_id: item.productId,
             variant_id: item.variantId,
             product_name: item.productName,
@@ -1109,11 +1099,44 @@ export default function SaleReturnEntry() {
             hsn_code: item.hsnCode || null,
           }));
 
-          const { error: itemsError } = await supabase
-            .from("sale_return_items")
-            .insert(itemsToInsert);
+          // Plan Phase 2 (returns): number, header and lines in one database transaction.
+          // Falls back to the old steps while the SQL is missing or "One-step bill save" is off.
+          let savedReturn: (Record<string, unknown> & { id: string; return_number?: string }) | null = null;
+          if (isAtomicBillSaveEnabled((settingsData as { sale_settings?: Record<string, unknown> } | null)?.sale_settings)) {
+            const atomic = await saveReturnWithItemsAtomic(
+              supabase,
+              "sale_return",
+              currentOrganization!.id,
+              returnHeader,
+              buildReturnItems(ATOMIC_RETURN_ID_PLACEHOLDER),
+            );
+            if (atomic) {
+              savedReturn = { ...atomic.row, return_number: atomic.returnNumber };
+              createdReturnId = atomic.row.id;
+            }
+          }
+          if (!savedReturn) {
+            const { data: returnNumber, error: returnNumberError } = await supabase
+              .rpc('generate_sale_return_number', { p_organization_id: currentOrganization?.id });
+            if (returnNumberError) throw returnNumberError;
 
-          if (itemsError) throw itemsError;
+            const { data: insertedReturn, error: returnError } = await supabase
+              .from("sale_returns")
+              .insert({ ...returnHeader, return_number: returnNumber } as never)
+              .select()
+              .single();
+
+            if (returnError) throw returnError;
+            createdReturnId = insertedReturn.id;
+
+            const { error: itemsError } = await supabase
+              .from("sale_return_items")
+              .insert(buildReturnItems(insertedReturn.id));
+
+            if (itemsError) throw itemsError;
+            savedReturn = insertedReturn as Record<string, unknown> & { id: string; return_number?: string };
+          }
+          const returnData = savedReturn;
 
           const { data: acctSrPage } = await supabase
             .from("settings")
