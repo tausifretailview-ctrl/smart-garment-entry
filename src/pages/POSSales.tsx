@@ -1,7 +1,7 @@
 import { posSaveBegin, posSaveMark } from "@/lib/posSaveTiming";
 import { PosActionBar } from "@/components/pos/PosActionBar";
 import { PosShortcutBar } from "@/components/pos/PosShortcutBar";
-import { PosWallClock } from "@/components/pos/PosWallClock";
+import { PosFooterInfo } from "@/components/pos/PosFooterInfo";
 import { CustomerBalanceBadge } from "@/components/CustomerBalanceBadge";
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { createPortal, flushSync } from "react-dom";
@@ -9054,66 +9054,17 @@ export default function POSSales() {
         <div className="w-full bg-gradient-to-r from-cyan-600 to-teal-600 text-white border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
           {/* Top Info Bar — Qty → Charges → Sub Total → Discount → Time (matches bill print) */}
           <div className="flex min-h-[52px] flex-nowrap items-center px-6 py-3 gap-0 border-b border-white/10 overflow-x-auto">
-            {/* Qty */}
-            <div className="text-center px-3">
-              <div className="text-xl font-bold leading-tight">{totals.quantity}</div>
-              <div className="text-[11px] text-white/70 uppercase tracking-wider font-semibold">Qty</div>
-            </div>
-
-            <div className="w-px h-8 bg-white/20 shrink-0" />
-
-            {/* Charges */}
-            <div className="text-center px-3">
-              <div className="text-lg font-bold leading-tight">₹0</div>
-              <div className="text-[11px] text-white/70 uppercase font-semibold">Charges</div>
-            </div>
-
-            <div className="w-px h-8 bg-white/20 shrink-0" />
-
-            {/* Sub Total — pre-discount gross (same as bill Sub Total) */}
-            <div className="text-center px-3">
-              <div className="text-lg font-bold leading-tight tabular-nums">₹{formatINR2(totals.mrp)}</div>
-              <div className="text-[11px] text-white/70 uppercase font-semibold">Sub Total</div>
-            </div>
-
-            <div className="w-px h-8 bg-white/20 shrink-0" />
-
-            {/* Discount */}
-            <div className="text-center px-3 min-w-[5.5rem]">
-              <div className="text-xl font-extrabold leading-tight text-white tabular-nums">
-                {totalDiscountDisplay > 0.005 ? `−₹${formatINR2(totalDiscountDisplay)}` : "₹0"}
-              </div>
-              <div className="text-xs text-white/90 uppercase font-bold tracking-wide">Discount</div>
-            </div>
-
-            <div className="w-px h-8 bg-white/20 shrink-0" />
-
-            {/* Invoice / wall clock — ticks on its own (PosWallClock), not the whole screen */}
-            <div className="text-center px-2 shrink-0 min-w-[7.5rem]">
-              <div className="text-[11px] text-white/70 uppercase tracking-wider font-semibold">
-                {footerLoadedInvoiceTime && currentSaleId ? "Invoice time" : "Time"}
-              </div>
-              <div className="text-sm font-extrabold text-white tabular-nums leading-tight mt-0.5 whitespace-nowrap">
-                {footerLoadedInvoiceTime && currentSaleId
-                  ? footerLoadedInvoiceTime
-                  : <PosWallClock />}
-              </div>
-            </div>
-            
-            {/* Invoice payment mode indicator (helps identify Edit/Last/Previous invoice mode) */}
-            <div className="flex-1 hidden xl:flex items-center justify-center">
-              <div className="text-center px-3">
-                <div className="text-[11px] text-white/70 uppercase tracking-wider font-semibold">Payment Mode</div>
-                <div className="text-base font-extrabold text-white mt-0.5">
-                  {paymentModeLabel}
-                </div>
-              </div>
-            </div>
-            {posRuntimeSettingsRef.current?.pos_barcode_price_mode === 'mrp' && posRuntimeSettingsRef.current?.enable_mrp && (
-              <div className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded border border-blue-200 font-semibold shrink-0">
-                MRP Price Mode Active
-              </div>
-            )}
+            <PosFooterInfo
+              quantity={totals.quantity}
+              subTotal={totals.mrp}
+              discount={totalDiscountDisplay}
+              loadedInvoiceTime={footerLoadedInvoiceTime && currentSaleId ? footerLoadedInvoiceTime : null}
+              paymentModeLabel={paymentModeLabel}
+              mrpPriceMode={
+                posRuntimeSettingsRef.current?.pos_barcode_price_mode === 'mrp' &&
+                Boolean(posRuntimeSettingsRef.current?.enable_mrp)
+              }
+            />
             
             {/* Middle Fields — Flat Disc, S/R Adj, Round (items-start + hint slots keep inputs aligned) */}
             <div className="flex items-start gap-3 flex-nowrap justify-end shrink-0 min-w-0">
