@@ -6448,6 +6448,7 @@ export default function POSSales() {
           : pointsBalanceDb;
 
       let customerBalance = 0;
+      let customerAdvance = 0;
       if (currentOrganization?.id) {
         try {
           const snap = await fetchCustomerFinancialSnapshot(
@@ -6455,14 +6456,19 @@ export default function POSSales() {
             currentOrganization.id,
             custId,
           );
-          customerBalance = Math.round(Number(snap.outstandingDr) || 0);
+          customerBalance = Math.round(Number(snap.grossOutstandingDr) || 0);
+          customerAdvance = Math.max(0, Math.round(Number(snap.advanceAvailable) || 0));
         } catch {
           customerBalance = 0;
         }
       }
 
+      // Bills still unpaid, with any unused advance on its own line (shop rule, Nov 2026).
       if (customerBalance > 0) {
         outstandingText = `\n💰 *Outstanding Balance: ₹${Number(customerBalance).toLocaleString("en-IN")}*`;
+      }
+      if (customerAdvance > 0) {
+        outstandingText += `\nAdvance available: ₹${Number(customerAdvance).toLocaleString("en-IN")}`;
       }
       
       // Add points info
@@ -8278,8 +8284,8 @@ export default function POSSales() {
                       <CommandGroup heading={`Customers (${customers?.length || 0})${hasMoreCustomers ? ' - refine search for more' : ''}`}>
                         {filteredCustomers.map((customer: any) => {
                           const snap = getCustomerSnapshot(customer.id);
-                          // Net balance (after advance and pending CN), same as the balance badge.
-                          const balance = Math.round(Number(snap?.outstandingDr) || 0);
+                          // Bills still unpaid; the advance is shown beside it (shop rule, Nov 2026).
+                          const balance = Math.round(Number(snap?.grossOutstandingDr) || 0);
                           const advanceAmt = getCustomerAdvance(customer.id);
                           const creditNoteAmt = getCustomerCreditNote(customer.id);
                           return (

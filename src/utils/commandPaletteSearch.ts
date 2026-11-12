@@ -152,7 +152,8 @@ export async function searchCommandPaletteCustomers(
       id: c.id,
       customer_name: c.customer_name,
       phone: c.phone,
-      outstandingDr: snapshotMap.get(c.id)?.outstandingDr ?? 0,
+      // Bills still unpaid (shop rule: advance is not subtracted from the balance).
+    outstandingDr: snapshotMap.get(c.id)?.grossOutstandingDr ?? 0,
     }));
   }
 
@@ -167,7 +168,8 @@ export async function searchCommandPaletteCustomers(
     id: c.id,
     customer_name: c.customer_name,
     phone: c.phone,
-    outstandingDr: snapshotMap.get(c.id)?.outstandingDr ?? 0,
+    // Bills still unpaid (shop rule: advance is not subtracted from the balance).
+    outstandingDr: snapshotMap.get(c.id)?.grossOutstandingDr ?? 0,
   }));
 }
 
