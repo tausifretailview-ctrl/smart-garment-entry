@@ -1,6 +1,6 @@
 import { posSaveMark } from "@/lib/posSaveTiming";
 import type { Tables } from "@/integrations/supabase/types";
-import { ATOMIC_SALE_ID_PLACEHOLDER, saveSaleWithItemsAtomic } from "@/lib/saveSaleAtomic";
+import { ATOMIC_SALE_ID_PLACEHOLDER, isAtomicBillSaveEnabled, saveSaleWithItemsAtomic } from "@/lib/saveSaleAtomic";
 import { notifyOwnersOfNewBill } from "@/lib/ownerPush";
 import { salesFinanceFields, salesHasFinanceColumn } from "@/utils/salesFinanceColumn";
 import { posExchangeVoucherRequestId } from "@/utils/exchangeRefundAfterDelete";
@@ -1470,9 +1470,9 @@ export const useSaveSale = () => {
       let sale: Tables<"sales"> | null = null;
       let lineInsert: { salesmanColumnMissing: boolean } | null = null;
 
-      // Plan Phase 2 step 1 (Settings → POS "One-step bill save"): header and lines in one
+      // Plan Phase 2 step 1 (Settings → POS "One-step bill save", on by default): header and lines in one
       // database transaction, so a dropped connection can never leave a bill without lines.
-      if (saleSettings?.atomic_bill_save === true) {
+      if (isAtomicBillSaveEnabled(saleSettings)) {
         const atomic = await saveSaleWithItemsAtomic(
           supabase,
           currentOrganization.id,

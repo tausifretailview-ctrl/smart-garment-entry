@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   ATOMIC_SALE_ID_PLACEHOLDER,
+  isAtomicBillSaveEnabled,
   isMissingAtomicSaleSaveRpc,
   parseAtomicSaleSaveResult,
   saveSaleWithItemsAtomic,
@@ -50,5 +51,15 @@ describe("one-step bill save", () => {
     expect(() => parseAtomicSaleSaveResult({}, 1)).toThrow(/no bill/);
     expect(() => parseAtomicSaleSaveResult({ ...okReply, items_inserted: 1 }, 2)).toThrow(/1 of 2/);
     expect(parseAtomicSaleSaveResult(okReply, 2).itemsInserted).toBe(2);
+  });
+});
+
+describe("isAtomicBillSaveEnabled", () => {
+  it("is on by default and off only when the shop turned it off", () => {
+    expect(isAtomicBillSaveEnabled(null)).toBe(true);
+    expect(isAtomicBillSaveEnabled(undefined)).toBe(true);
+    expect(isAtomicBillSaveEnabled({})).toBe(true);
+    expect(isAtomicBillSaveEnabled({ atomic_bill_save: true })).toBe(true);
+    expect(isAtomicBillSaveEnabled({ atomic_bill_save: false })).toBe(false);
   });
 });

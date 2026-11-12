@@ -2,13 +2,20 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * Plan Phase 2, step 1: save a bill header and its lines in one database transaction
- * (save_sale_with_items_atomic). Used only when the shop turns on
- * Settings → POS "One-step bill save" (sale_settings.atomic_bill_save).
+ * (save_sale_with_items_atomic). On for every shop by default; a shop can turn it off in
+ * Settings → POS "One-step bill save" (sale_settings.atomic_bill_save = false).
  *
  * Returns null when the database function is not there yet, so the caller uses the
  * old two-step insert. Any other error is thrown: the transaction rolled back, so no
  * header or lines were saved and the cashier can safely press save again.
  */
+
+/** On unless the shop explicitly turned it off (missing setting = on). */
+export function isAtomicBillSaveEnabled(
+  saleSettings: { atomic_bill_save?: unknown } | null | undefined,
+): boolean {
+  return saleSettings?.atomic_bill_save !== false;
+}
 
 /** Lines are built before the bill id exists; the database sets the real sale_id. */
 export const ATOMIC_SALE_ID_PLACEHOLDER = "00000000-0000-0000-0000-000000000000";
