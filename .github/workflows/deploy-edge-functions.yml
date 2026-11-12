@@ -1,0 +1,124 @@
+name: Deploy edge functions
+
+# Merging to main deploys the web app (Vercel) but not the Supabase Edge Functions, so
+# production could keep running an old function after its fix was merged. This deploys
+# each function whose code changed in the merge (all of them when _shared changed).
+#
+# Safety:
+#  - Only functions with verify_jwt written in supabase/config.toml are deployed. The CLI
+#    turns JWT checking ON for a function with no entry, which would break a webhook or
+#    public function that is live with it OFF. Changing an unpinned function fails this
+#    job with its name: add `[functions.<name>]` + `verify_jwt = <live value>` to
+#    config.toml, check the value against the Supabase dashboard, and merge again.
+#  - Fail closed: a missing SUPABASE_ACCESS_TOKEN is an error, never a green skip.
+#  - Database migrations are applied separately. A function that needs a new migration
+#    must not be merged before that migration is applied on live.
+#
+# Manual run: Actions → Deploy edge functions → Run workflow, with function names.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/**"
+      - "supabase/config.toml"
+  workflow_dispatch:
+    inputs:
+      functions:
+        description: "Function names to deploy, separated by spaces"
+        required: true
+
+concurrency:
+  group: deploy-edge-functions
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_ID: lkbbrqcsbhqjvsxiorvp
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Work out which functions to deploy
+        id: plan
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          MANUAL: ${{ github.event.inputs.functions }}
+        run: |
+          set -eu
+          if [ -n "${MANUAL:-}" ]; then
+            changed=$(for f in $MANUAL; do echo "supabase/functions/$f/index.ts"; done)
+          elif [ -z "${BEFORE:-}" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            changed=$(git diff --name-only HEAD~1 HEAD)
+          else
+            changed=$(git diff --name-only "$BEFORE" "$AFTER")
+          fi
+          plan=$(printf '%s\n' "$changed" | node scripts/edge-functions-to-deploy.mjs)
+          echo "Plan: $plan"
+          deploy=$(node -e 'const p=JSON.parse(process.argv[1]); console.log(p.deploy.join(" "))' "$plan")
+          unpinned=$(node -e 'const p=JSON.parse(process.argv[1]); console.log(p.unpinned.join(" "))' "$plan")
+          echo "deploy=$deploy" >> "$GITHUB_OUTPUT"
+          echo "unpinned=$unpinned" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Edge functions"
+            echo "- To deploy: ${deploy:-none}"
+            echo "- Held back (no verify_jwt in config.toml): ${unpinned:-none}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Require deploy token
+        if: steps.plan.outputs.deploy != ''
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN secret is not configured (Supabase → Account → Access Tokens; add it under GitHub → Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+
+      - uses: supabase/setup-cli@v1
+        if: steps.plan.outputs.deploy != ''
+        with:
+          version: latest
+
+      - name: Deploy
+        if: steps.plan.outputs.deploy != ''
+        env:
+          DEPLOY: ${{ steps.plan.outputs.deploy }}
+        run: |
+          set -eu
+          failed=""
+          for fn in $DEPLOY; do
+            echo "::group::Deploy $fn"
+            if supabase functions deploy "$fn" --project-ref "$PROJECT_ID" --use-api; then
+              echo "- Deployed \`$fn\`" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::error::Deploy failed: $fn"
+              failed="$failed $fn"
+            fi
+            echo "::endgroup::"
+          done
+          if [ -n "$failed" ]; then
+            echo "Failed:$failed"
+            exit 1
+          fi
+
+      - name: Stop on functions with no pinned JWT setting
+        if: steps.plan.outputs.unpinned != ''
+        env:
+          UNPINNED: ${{ steps.plan.outputs.unpinned }}
+        run: |
+          for fn in $UNPINNED; do
+            echo "::error::$fn changed but has no verify_jwt in supabase/config.toml, so it was not deployed. Add [functions.$fn] with verify_jwt matching the live setting, or deploy it by hand."
+          done
+          exit 1
