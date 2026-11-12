@@ -26,6 +26,8 @@ export type AtomicSaleSaveResult = {
   itemsInserted: number;
   droppedSaleKeys: string[];
   droppedItemKeys: string[];
+  /** paid_amount / payment_status already settled in the same transaction (step 3 SQL). */
+  settledInSave: boolean;
 };
 
 type RpcError = { code?: string; message?: string; hint?: string } | null;
@@ -55,6 +57,7 @@ export function parseAtomicSaleSaveResult(data: unknown, expectedLines: number):
     itemsInserted,
     droppedSaleKeys: keys(r.dropped_sale_keys),
     droppedItemKeys: keys(r.dropped_item_keys),
+    settledInSave: r.settled === true,
   };
 }
 

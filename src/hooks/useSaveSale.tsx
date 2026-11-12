@@ -1454,6 +1454,7 @@ export const useSaveSale = () => {
       saleInsertStarted = true;
       let sale: Tables<"sales"> | null = null;
       let lineInsert: { salesmanColumnMissing: boolean } | null = null;
+      let settledInSave = false;
 
       // Plan Phase 2 step 1 (Settings → POS "One-step bill save", on by default): header and lines in one
       // database transaction, so a dropped connection can never leave a bill without lines.
@@ -1488,6 +1489,7 @@ export const useSaveSale = () => {
         if (atomic) {
           sale = atomic.sale as unknown as Tables<"sales">;
           lineInsert = { salesmanColumnMissing: atomic.droppedItemKeys.includes("salesman") };
+          settledInSave = atomic.settledInSave;
           posSaveMark("save_bill_rpc");
         }
       }
@@ -1565,18 +1567,26 @@ export const useSaveSale = () => {
       });
 
       posSaveMark("credit_apply");
-      try {
-        const recomputed = await applyRecomputedSalePaymentState(
-          sale.id,
-          currentOrganization.id,
-          supabase,
-        );
-        if (!recomputed.skipped) {
-          sale.paid_amount = recomputed.paidAmount;
-          sale.payment_status = recomputed.paymentStatus;
+      // Plan Phase 2 step 3: the one-step save already settled paid / status in the same
+      // transaction. Recompute here only when credit or an exchange changed it afterwards.
+      const settlementChangedAfterSave =
+        (saleData.saleReturnAdjust || 0) + (saleData.creditApplied || 0) > 0.01 ||
+        (consumeSrAmount || 0) > 0.01 ||
+        isExchangeRefund;
+      if (!settledInSave || settlementChangedAfterSave) {
+        try {
+          const recomputed = await applyRecomputedSalePaymentState(
+            sale.id,
+            currentOrganization.id,
+            supabase,
+          );
+          if (!recomputed.skipped) {
+            sale.paid_amount = recomputed.paidAmount;
+            sale.payment_status = recomputed.paymentStatus;
+          }
+        } catch (recomputeErr) {
+          console.error("applyRecomputedSalePaymentState failed after save:", recomputeErr);
         }
-      } catch (recomputeErr) {
-        console.error("applyRecomputedSalePaymentState failed after save:", recomputeErr);
       }
 
       posSaveMark("recompute_state");
