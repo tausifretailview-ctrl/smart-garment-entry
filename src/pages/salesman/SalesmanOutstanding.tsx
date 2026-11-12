@@ -84,7 +84,8 @@ const SalesmanOutstanding = () => {
 
       const outstandingCustomers: CustomerOutstanding[] = (customersData || [])
         .map((c: any) => {
-          const balance = snapMap.get(c.id)?.outstandingDr ?? 0;
+          // Bills still unpaid (shop rule, Nov 2026: advance is not subtracted).
+          const balance = snapMap.get(c.id)?.grossOutstandingDr ?? 0;
           const openingBalance = c.opening_balance || 0;
           return {
             id: c.id,

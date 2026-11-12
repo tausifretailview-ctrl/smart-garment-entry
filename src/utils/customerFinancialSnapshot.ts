@@ -176,6 +176,20 @@ export function accountFacetsFromFinancialSnapshot(
   };
 }
 
+/**
+ * Shop rule (owner decision, 12 Nov 2026): a customer's balance is the bills still unpaid; an
+ * unused advance is shown beside it, never subtracted. Use this pair wherever a balance is shown
+ * or sent to the customer (WhatsApp, prints, lists).
+ */
+export function snapshotBillsDueAndAdvance(
+  snap: Pick<CustomerFinancialSnapshot, "grossOutstandingDr" | "advanceAvailable"> | null | undefined,
+): { billsDue: number; advance: number } {
+  return {
+    billsDue: Math.round(Number(snap?.grossOutstandingDr) || 0),
+    advance: Math.max(0, Math.round(Number(snap?.advanceAvailable) || 0)),
+  };
+}
+
 /** Gross invoice + OB outstanding (unused advance not subtracted). */
 export function grossOutstandingFromFinancialSnapshot(
   snap: CustomerFinancialSnapshot,

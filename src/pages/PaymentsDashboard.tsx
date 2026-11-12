@@ -83,6 +83,7 @@ import {
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import {
   fetchCustomerFinancialSnapshot,
+  snapshotBillsDueAndAdvance,
   formatSnapshotInr,
 } from "@/utils/customerFinancialSnapshot";
 import { invalidateAfterCustomerPaymentMutation } from "@/utils/invalidateDashboardQueries";
@@ -450,6 +451,7 @@ export default function PaymentsDashboard() {
     const organizationName = currentOrganization?.name || '';
 
     let customerBalance = Math.max(0, Number(invoice.net_amount || 0) - Number(invoice.paid_amount || 0));
+    let customerAdvance = 0;
     if (invoice.customer_id && currentOrganization?.id) {
       try {
         const snap = await fetchCustomerFinancialSnapshot(
@@ -457,7 +459,8 @@ export default function PaymentsDashboard() {
           currentOrganization.id,
           invoice.customer_id,
         );
-        customerBalance = snap.outstandingDr;
+        // Bills still unpaid, advance beside it (shop rule, Nov 2026).
+        ({ billsDue: customerBalance, advance: customerAdvance } = snapshotBillsDueAndAdvance(snap));
       } catch {
         /* keep invoice pending as fallback */
       }
@@ -472,7 +475,7 @@ export default function PaymentsDashboard() {
       payment_status: invoice.payment_status,
       paid_amount: invoice.paid_amount || 0,
       due_date: invoice.due_date,
-    }, undefined, customerBalance, { invoiceLink: invoiceUrl, organizationName });
+    }, undefined, customerBalance, { invoiceLink: invoiceUrl, organizationName, advanceAvailable: customerAdvance });
 
     sendWhatsApp(invoice.customer_phone, reminderMessage);
   };
@@ -1115,7 +1118,7 @@ Thank you for your business!`;
         <div className="rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-2 mb-2 flex flex-wrap items-center gap-3 text-sm">
           <span className="font-medium text-blue-900">Customer filter active</span>
           <span className="text-blue-800 tabular-nums">
-            Outstanding ₹{formatSnapshotInr(filteredCustomerSnapshot.outstandingDr)} · Advance ₹
+            Outstanding ₹{formatSnapshotInr(filteredCustomerSnapshot.grossOutstandingDr)} · Advance ₹
             {formatSnapshotInr(filteredCustomerSnapshot.advanceAvailable)} · CN ₹
             {formatSnapshotInr(filteredCustomerSnapshot.cnAvailableTotal)}
             {filteredCustomerSnapshot.cnPendingCount > 0

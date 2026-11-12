@@ -35,7 +35,7 @@ import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast, dismissToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { fetchCustomerFinancialSnapshot, snapshotBillsDueAndAdvance } from "@/utils/customerFinancialSnapshot";
 import { fetchInvoicePrintAccountFacets } from "@/utils/customerAccountStateView";
 import { saleRowThermalTender } from "@/utils/thermalReceiptSettlement";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
@@ -2330,8 +2330,9 @@ const POSDashboard = () => {
       baseUrl: window.location.origin,
     });
     
-    // Fetch customer balance if customer_id exists (C-SNAP net — not opening + sales − paid)
+    // Customer balance = bills still unpaid, advance beside it (shop rule, Nov 2026).
     let customerBalance = 0;
+    let customerAdvance = 0;
     if (sale.customer_id && currentOrganization?.id) {
       try {
         const snap = await fetchCustomerFinancialSnapshot(
@@ -2339,7 +2340,7 @@ const POSDashboard = () => {
           currentOrganization.id,
           sale.customer_id,
         );
-        customerBalance = Math.round(Number(snap.netPosition) || 0);
+        ({ billsDue: customerBalance, advance: customerAdvance } = snapshotBillsDueAndAdvance(snap));
       } catch {
         customerBalance = 0;
       }
@@ -2360,7 +2361,7 @@ const POSDashboard = () => {
       sale_return_adjust: Number(sale.sale_return_adjust || 0),
       customer_id: sale.customer_id,
       organization_id: currentOrganization?.id,
-    }, `${itemsList}\n\n📄 View Invoice Online:\n${invoiceUrl}`, customerBalance);
+    }, `${itemsList}\n\n📄 View Invoice Online:\n${invoiceUrl}`, customerBalance, { advanceAvailable: customerAdvance });
 
     const customerPageLink = await createCustomerPageLinkForWhatsApp(currentOrganization?.id ?? "", sale.id);
     sendWhatsApp(sale.customer_phone, appendCustomerPageLinkLine(templateMessage, customerPageLink));

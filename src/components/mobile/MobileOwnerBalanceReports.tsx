@@ -421,7 +421,8 @@ export function CustomerBalanceReport({ orgId }: { orgId?: string }) {
           customer_name: c.customer_name,
           phone: c.phone,
           opening_balance: c.opening_balance,
-          outstanding: snapMap.get(c.id)?.outstandingDr ?? 0,
+          // Bills still unpaid; the advance has its own column (shop rule, Nov 2026).
+          outstanding: snapMap.get(c.id)?.grossOutstandingDr ?? 0,
           advance: snapMap.get(c.id)?.advanceAvailable ?? 0,
           cnAvailable: snapMap.get(c.id)?.cnAvailableTotal ?? 0,
           gst_number: c.gst_number,

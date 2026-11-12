@@ -146,7 +146,7 @@ export const useWhatsAppTemplates = () => {
     return parts.length > 0 ? parts.join("\n") : "";
   };
 
-  const formatMessage = (templateType: string, invoice: Invoice, items?: string, customerBalance?: number, extraData?: { invoiceLink?: string; organizationName?: string }) => {
+  const formatMessage = (templateType: string, invoice: Invoice, items?: string, customerBalance?: number, extraData?: { invoiceLink?: string; organizationName?: string; advanceAvailable?: number }) => {
     const template = getTemplate(templateType);
     // The shop's review / social / website / group links go under every bill message, even when
     // its saved template has no {social_links} placeholder.
@@ -180,8 +180,15 @@ export const useWhatsAppTemplates = () => {
     // Build points text
     const pointsText = buildPointsText(invoice);
 
-    // Outstanding amount (customer balance)
+    // Outstanding amount (customer balance) = bills still unpaid; an unused advance is shown beside
+    // it (shop rule, Nov 2026). Templates can place it with {advance_amount}; a template without
+    // that placeholder gets it next to {outstanding_amount}.
     const outstandingAmount = customerBalance || 0;
+    const advanceAmount = Math.max(0, Math.round(Number(extraData?.advanceAvailable) || 0));
+    const advanceText = `₹${advanceAmount.toLocaleString("en-IN")}`;
+    const outstandingText =
+      `₹${Math.round(Number(outstandingAmount)).toLocaleString("en-IN")}` +
+      (advanceAmount > 0 && !message.includes("{advance_amount}") ? ` (Advance available: ${advanceText})` : "");
 
     // Replace placeholders
     message = message
@@ -204,7 +211,8 @@ export const useWhatsAppTemplates = () => {
       .replace(/{google_review_link}/g, settings?.google_review_link || "")
       .replace(/{payment_breakdown}/g, paymentBreakdown)
       .replace(/{cn_adjusted}/g, `₹${Math.round(Number(invoice.sale_return_adjust) || 0).toLocaleString("en-IN")}`)
-      .replace(/{outstanding_amount}/g, `₹${Math.round(Number(outstandingAmount)).toLocaleString("en-IN")}`)
+      .replace(/{outstanding_amount}/g, outstandingText)
+      .replace(/{advance_amount}/g, advanceText)
       .replace(/{points_earned}/g, invoice.points_earned?.toString() || "0")
       .replace(/{points_redeemed}/g, invoice.points_redeemed?.toString() || "0")
       .replace(/{points_discount}/g, `₹${Math.round(Number(invoice.points_discount || 0) || 0).toLocaleString("en-IN")}`)
@@ -231,8 +239,10 @@ export const useWhatsAppTemplates = () => {
     return parts.length > 0 ? parts.join(" | ") : "";
   };
 
-  const getDefaultMessage = (templateType: string, invoice: Invoice, items?: string, customerBalance?: number, extraData?: { invoiceLink?: string; organizationName?: string }) => {
+  const getDefaultMessage = (templateType: string, invoice: Invoice, items?: string, customerBalance?: number, extraData?: { invoiceLink?: string; organizationName?: string; advanceAvailable?: number }) => {
     const outstandingAmount = customerBalance || 0;
+    const advanceAmount = Math.max(0, Math.round(Number(extraData?.advanceAvailable) || 0));
+    const advanceLine = advanceAmount > 0 ? `\n💳 Advance available: ₹${advanceAmount.toLocaleString("en-IN")}` : "";
     const orgName = extraData?.organizationName || "";
     const invoiceLink = extraData?.invoiceLink || "";
 
@@ -245,7 +255,7 @@ ${orgName ? `🏢 ${orgName} has generated the following invoice for your order.
 📅 Date: ${format(new Date(invoice.sale_date), "dd MMM yyyy")}
 💰 Invoice Amount: ₹${Math.round(Number(invoice.net_amount) || 0).toLocaleString("en-IN")}
 ${(invoice.sale_return_adjust || 0) > 0.005 ? `🔁 CN Adjusted: ₹${Number(invoice.sale_return_adjust).toLocaleString("en-IN")}\n` : ""}⏳ Payment Status: ${invoice.payment_status}
-📊 Outstanding Balance: ₹${Math.round(Number(outstandingAmount)).toLocaleString("en-IN")}
+📊 Outstanding Balance: ₹${Math.round(Number(outstandingAmount)).toLocaleString("en-IN")}${advanceLine}
 ${invoiceLink ? `\n🔗 View / Download Invoice:\n${invoiceLink}\n` : ""}
 💳 Kindly arrange payment at your convenience.
 
@@ -269,6 +279,7 @@ ${invoiceLink ? `\n🔗 View / Download Invoice:\n${invoiceLink}\n` : ""}
     if (outstandingAmount > 0) {
       paymentInfo += `\n💰 Outstanding Balance: ₹${Math.round(Number(outstandingAmount)).toLocaleString("en-IN")}`;
     }
+    paymentInfo += advanceLine;
 
     return `Hello ${invoice.customer_name},
 
