@@ -10,6 +10,7 @@ import {
   type ScreenVisitPayload,
 } from "@/lib/screenTime";
 import type { Json } from "@/integrations/supabase/types";
+import { clearAppTimingSender, flushAppTimings, setAppTimingSender, type AppTimingSample } from "@/lib/appTiming";
 
 /** One tracker per open app (tab); recreated when the shop or user changes. */
 let active: { tracker: ScreenTimeTracker; orgId: string; userId: string } | null = null;
@@ -29,6 +30,23 @@ function makeSender(orgId: string) {
     });
     // Before the SQL is run the function is missing: drop quietly instead of retrying forever.
     if (error && error.code !== "PGRST202" && error.code !== "42883") throw error;
+  };
+}
+
+function makeTimingSender(orgId: string) {
+  let missing = false;
+  return async (rows: AppTimingSample[]) => {
+    if (missing) return;
+    const { error } = await supabase.rpc("record_app_timings" as never, {
+      p_org_id: orgId,
+      p_rows: rows as unknown as Json,
+    } as never);
+    // Before the SQL is run the function is missing: stop sending for this session.
+    if (error && (error.code === "PGRST202" || error.code === "42883")) {
+      missing = true;
+      return;
+    }
+    if (error) throw error;
   };
 }
 
@@ -56,6 +74,9 @@ export function useScreenTimeTracking(
     if (!orgId || !userId) return;
     const tracker = new ScreenTimeTracker({ send: makeSender(orgId), device: detectDevice() });
     active = { tracker, orgId, userId };
+    // Screen-open and bill-save timings ride the same flush cycle.
+    const timingSender = makeTimingSender(orgId);
+    setAppTimingSender(timingSender, detectDevice());
 
     const onInput = () => tracker.noteInput();
     const inputEvents = ["keydown", "pointerdown", "mousemove", "wheel", "touchstart"] as const;
@@ -65,6 +86,7 @@ export function useScreenTimeTracking(
       if (document.visibilityState === "hidden") {
         tracker.pause();
         void tracker.flush();
+        void flushAppTimings();
       } else {
         tracker.resume();
       }
@@ -72,6 +94,7 @@ export function useScreenTimeTracking(
     const onPageHide = () => {
       tracker.end("closed");
       void tracker.flush();
+      void flushAppTimings();
     };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", onPageHide);
@@ -79,7 +102,10 @@ export function useScreenTimeTracking(
     const tickTimer = window.setInterval(() => {
       if (document.visibilityState === "visible") tracker.tick();
     }, SCREEN_TIME_TICK_MS);
-    const flushTimer = window.setInterval(() => void tracker.flush(), SCREEN_TIME_FLUSH_MS);
+    const flushTimer = window.setInterval(() => {
+      void tracker.flush();
+      void flushAppTimings();
+    }, SCREEN_TIME_FLUSH_MS);
 
     return () => {
       for (const ev of inputEvents) window.removeEventListener(ev, onInput, { capture: true });
@@ -89,6 +115,7 @@ export function useScreenTimeTracking(
       window.clearInterval(flushTimer);
       tracker.end("closed");
       void tracker.flush();
+      void flushAppTimings().finally(() => clearAppTimingSender(timingSender));
       if (active?.tracker === tracker) active = null;
     };
   }, [orgId, userId]);

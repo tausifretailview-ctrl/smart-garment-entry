@@ -16,6 +16,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AdjustmentDriftPanel } from "@/components/AdjustmentDriftPanel";
 import { InvariantDigestPanel } from "@/components/InvariantDigestPanel";
 import { StockDriftPanel } from "@/components/StockDriftPanel";
+import { AppTimingPanel } from "@/components/AppTimingPanel";
 import { formatDateDMY, formatDateTimeDMY } from "@/lib/dateDisplay";
 
 type DriftRow = {
@@ -187,7 +188,11 @@ export default function PlatformDataIntegrity() {
             <TabsTrigger value="adjustment">Adjustment drift</TabsTrigger>
             <TabsTrigger value="invariants">Invariants</TabsTrigger>
             <TabsTrigger value="stock">Stock check</TabsTrigger>
+            <TabsTrigger value="speed">Speed</TabsTrigger>
           </TabsList>
+          <TabsContent value="speed" className="space-y-4">
+            <AppTimingPanel />
+          </TabsContent>
           <TabsContent value="stock" className="space-y-4">
             <StockDriftPanel />
           </TabsContent>

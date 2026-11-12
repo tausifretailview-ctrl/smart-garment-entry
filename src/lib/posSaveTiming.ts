@@ -7,8 +7,13 @@
  *   window.__ezzyPosSave.json()    // same as text, to paste into a message
  */
 
+import { billSaveScreen, recordAppTiming } from "@/lib/appTiming";
+
 type Step = { step: string; ms: number; totalMs: number };
-type Run = { label: string; startedAt: string; steps: Step[] };
+type Run = { label: string; startedAt: string; steps: Step[]; reported?: boolean };
+
+/** The step at which a bill is saved and ready to print: POS "before_dialog", purchase "finalize_save". */
+export const BILL_READY_STEPS = new Set(["before_dialog", "finalize_save"]);
 
 const MAX_RUNS = 5;
 const runs: Run[] = [];
@@ -33,6 +38,16 @@ export function posSaveMark(step: string): void {
   if (t - startMs > 120_000) return;
   current.steps.push({ step, ms: Math.round(t - lastMs), totalMs: Math.round(t - startMs) });
   lastMs = t;
+  if (BILL_READY_STEPS.has(step) && !current.reported) {
+    current.reported = true;
+    const { screen, method } = billSaveScreen(current.label);
+    // Slowest three steps say where the time went without sending the whole list.
+    const slowest = [...current.steps]
+      .sort((a, b) => b.ms - a.ms)
+      .slice(0, 3)
+      .map((s) => `${s.step}:${s.ms}`);
+    recordAppTiming("bill_save", screen, t - startMs, { ...(method ? { method } : {}), slowest });
+  }
 }
 
 function lastRun(): Run | null {
