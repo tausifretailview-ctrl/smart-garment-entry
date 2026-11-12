@@ -1,4 +1,5 @@
 import { findLiveReturnsLinkedToSale, saleDeleteBlockedByReturnMessage } from "@/utils/saleDeleteReturnGuard";
+import { hardDeleteDocument, isOneStepHardDeleteEntity } from "@/lib/hardDeleteDocument";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -642,6 +643,13 @@ export function useSoftDelete() {
           }
           return false;
         }
+      }
+
+      // Plan Phase 2 (A3): lines and header in one database transaction. Falls back to the
+      // step-by-step deletes below while the hard_delete_document SQL is not applied.
+      if (isOneStepHardDeleteEntity(entity)) {
+        const done = await hardDeleteDocument(supabase, entity, id);
+        if (done) return true;
       }
 
       // For entities with child items, delete children first
