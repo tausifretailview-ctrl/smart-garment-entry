@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-11-12",
-  "count": 928,
-  "fileCount": 946,
+  "count": 929,
+  "fileCount": 947,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -931,7 +931,8 @@
     "20270410120000",
     "20270411120000",
     "20270412120000",
-    "20270413120000"
+    "20270413120000",
+    "20270414120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1879,7 +1880,8 @@
     "20270410120000_godown_purchase_return_dispatch.sql",
     "20270411120000_customers_address_gstin_search_trgm.sql",
     "20270412120000_nightly_stock_drift_check.sql",
-    "20270413120000_app_timing_samples.sql"
+    "20270413120000_app_timing_samples.sql",
+    "20270414120000_delivery_dashboard_summary.sql"
   ],
   "duplicateVersions": [
     {
