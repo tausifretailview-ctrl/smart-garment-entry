@@ -1,4 +1,6 @@
 import { posSaveMark } from "@/lib/posSaveTiming";
+import type { Tables } from "@/integrations/supabase/types";
+import { ATOMIC_SALE_ID_PLACEHOLDER, saveSaleWithItemsAtomic } from "@/lib/saveSaleAtomic";
 import { notifyOwnersOfNewBill } from "@/lib/ownerPush";
 import { salesFinanceFields, salesHasFinanceColumn } from "@/utils/salesFinanceColumn";
 import { posExchangeVoucherRequestId } from "@/utils/exchangeRefundAfterDelete";
@@ -1426,10 +1428,7 @@ export const useSaveSale = () => {
       // Honor a caller-supplied backdated sale_date (POS date-change) when present.
       const saleDateIso = saleData.saleDate || saleDateIsoIst();
 
-      saleInsertStarted = true;
-      const { data: sale, error: saleError } = await supabase
-        .from('sales')
-        .insert({
+      const saleInsertRow = {
           sale_number: saleNumber,
           sale_type: saleType,
           sale_date: saleDateIso,
@@ -1464,20 +1463,48 @@ export const useSaveSale = () => {
           created_by: user.id,
           organization_id: currentOrganization.id,
           shop_name: shopName || null,
-        })
-        .select()
-        .single();
-
-      if (saleError) throw saleError;
-      posSaveMark("sale_insert");
-      insertedSaleIdForRollback = sale.id;
-
-      // Insert sale items with proportional bill discount + round-off distribution
+      };
       const perLineSalesman = isPerLineSalesmanEnabled(orgSettings);
-      const saleItems = buildSaleItemInsertRows(sale.id, saleData, perLineSalesman);
 
-      const lineInsert = await insertSaleItemsResilient(supabase, saleItems);
-      posSaveMark("items_insert");
+      saleInsertStarted = true;
+      let sale: Tables<"sales"> | null = null;
+      let lineInsert: { salesmanColumnMissing: boolean } | null = null;
+
+      // Plan Phase 2 step 1 (Settings → POS "One-step bill save"): header and lines in one
+      // database transaction, so a dropped connection can never leave a bill without lines.
+      if (saleSettings?.atomic_bill_save === true) {
+        const atomic = await saveSaleWithItemsAtomic(
+          supabase,
+          currentOrganization.id,
+          saleInsertRow,
+          buildSaleItemInsertRows(ATOMIC_SALE_ID_PLACEHOLDER, saleData, perLineSalesman),
+        );
+        if (atomic) {
+          sale = atomic.sale as unknown as Tables<"sales">;
+          lineInsert = { salesmanColumnMissing: atomic.droppedItemKeys.includes("salesman") };
+          posSaveMark("save_bill_rpc");
+        }
+      }
+
+      if (!sale) {
+        const { data: insertedSale, error: saleError } = await supabase
+          .from('sales')
+          .insert(saleInsertRow)
+          .select()
+          .single();
+
+        if (saleError) throw saleError;
+        sale = insertedSale;
+        posSaveMark("sale_insert");
+        insertedSaleIdForRollback = sale.id;
+
+        // Insert sale items with proportional bill discount + round-off distribution
+        const saleItems = buildSaleItemInsertRows(sale.id, saleData, perLineSalesman);
+
+        lineInsert = await insertSaleItemsResilient(supabase, saleItems);
+        posSaveMark("items_insert");
+      }
+      if (!sale) throw new Error("Bill was not saved. Please try again.");
 
       // Post after sale_items exist: the journal reads them for GST, revenue and COGS.
       if (accountingEngineOn) {
@@ -1491,7 +1518,7 @@ export const useSaveSale = () => {
           supabase,
         );
       }
-      if (lineInsert.salesmanColumnMissing) {
+      if (lineInsert?.salesmanColumnMissing) {
         toast({
           title: "Bill saved — per-line salesman not stored yet",
           description:
