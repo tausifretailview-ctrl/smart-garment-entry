@@ -86,6 +86,12 @@ import {
   resolveGoodsQtyDialogDefaultPrice,
 } from "@/utils/posGoodsAskQtyDialog";
 import type { CartItem, PosGrossBasis } from "@/lib/posBilling";
+import {
+  posHasRefundDue,
+  posMixDialogBillAmount,
+  posPaymentKeyRoute,
+  posRefundDueAmount,
+} from "@/lib/posBilling/refundRoute";
 import { resolvePosCustomerName, resolveWhatsAppCustomerName } from "@/lib/posBilling/buildSaleData";
 import {
   applyPosGarmentGstToItem,
@@ -4479,10 +4485,7 @@ export default function POSSales() {
   useEffect(() => {
     if (!currentSaleId) setBillAdvanceOnSale(0);
   }, [currentSaleId]);
-  const mixDialogBillAmount =
-    finalAmount < -0.005 || exchangeRefundDue > 0.005
-      ? -Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue)
-      : posTenderDue;
+  const mixDialogBillAmount = posMixDialogBillAmount(finalAmount, exchangeRefundDue, posTenderDue);
 
   useEffect(() => {
     if (exchangeRefundDue > 0.005 && advanceApplied > 0) {
@@ -5164,7 +5167,7 @@ export default function POSSales() {
 
   const handleSaveSale = async (forcePaymentMethod?: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later') => {
     // Same-bill exchange with refund due: force Mix so shop chooses cash refund vs CN.
-    if (finalAmount < -0.005 || exchangeRefundDue > 0.005) {
+    if (posHasRefundDue(finalAmount, exchangeRefundDue)) {
       handleMixPayment();
       return;
     }
@@ -5401,7 +5404,7 @@ export default function POSSales() {
     // Credit (F4) sits beside Sale Return (F5) on the keyboard and every POS layout; a mis-press
     // used to save the bill on credit at once. Ask first; the dialog calls back with creditConfirmed.
     // A refund-due exchange skips this: it falls through to Mix below, as before.
-    const refundDue = finalAmount < -0.005 || exchangeRefundDue > 0.005;
+    const refundDue = posHasRefundDue(finalAmount, exchangeRefundDue);
     if (method === 'pay_later' && opts?.creditConfirmed !== true && !refundDue) {
       if (paymentLockRef.current || isSaving) return;
       if (items.length === 0) {
@@ -5436,15 +5439,13 @@ export default function POSSales() {
 
     // Same-bill exchange: Cash pays the refund now (the net box used to show −200,
     // and clicking Cash left that ₹200 on the customer). UPI / card / credit still open Mix.
-    const cashExchangeRefund =
-      method === "cash" && (finalAmount < -0.005 || exchangeRefundDue > 0.005)
-        ? Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue)
-        : 0;
-    if ((finalAmount < -0.005 || exchangeRefundDue > 0.005) && cashExchangeRefund <= 0.005) {
+    const paymentRoute = posPaymentKeyRoute(method, finalAmount, exchangeRefundDue);
+    if (paymentRoute.kind === "mix") {
       paymentLockRef.current = false;
       handleMixPayment();
       return;
     }
+    const cashExchangeRefund = paymentRoute.cashExchangeRefund;
 
     // Real-time stock validation before saving
     // When editing, pass original items so their stock is considered "freed"
@@ -5650,8 +5651,9 @@ export default function POSSales() {
     }
     if (blockUnbackedSaleReturnAdjust()) return;
     // Auto-set refund if final amount is negative (same-bill exchange excess)
+    // (Threshold `< 0` kept as it was here; the amount is the shared rule.)
     if (finalAmount < 0 || exchangeRefundDue > 0.005) {
-      setRefundAmount(Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue));
+      setRefundAmount(posRefundDueAmount(finalAmount, exchangeRefundDue));
     }
     setShowMixPaymentDialog(true);
   };
