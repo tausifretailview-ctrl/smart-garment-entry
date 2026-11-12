@@ -5,6 +5,7 @@ import { PosFooterInfo } from "@/components/pos/PosFooterInfo";
 import { PosNetAmountBox } from "@/components/pos/PosNetAmountBox";
 import { PosFlatDiscountField } from "@/components/pos/PosFlatDiscountField";
 import { PosRoundOffField } from "@/components/pos/PosRoundOffField";
+import { PosSrAdjustField } from "@/components/pos/PosSrAdjustField";
 import { POS_PLAIN_NUMBER_CLASS, posPlainNumberProps } from "@/components/pos/posPlainNumber";
 import { CustomerBalanceBadge } from "@/components/CustomerBalanceBadge";
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
@@ -166,7 +167,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Scan, X, Plus, Trash2, CreditCard, Printer, ChevronLeft, ChevronDown, FileText, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Play, Loader2, AlertCircle, Coins, Package, History, Search, Gift, Calendar as CalendarIcon } from "lucide-react";
+import { Scan, X, Plus, Trash2, CreditCard, Printer, ChevronLeft, FileText, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Play, Loader2, AlertCircle, Coins, Package, History, Search, Gift, Calendar as CalendarIcon } from "lucide-react";
 import { MobilePOSLayout } from "@/components/mobile/MobilePOSLayout";
 import { FloatingPOSReports } from "@/components/FloatingPOSReports";
 import { FloatingSaleReturn } from "@/components/FloatingSaleReturn";
@@ -814,7 +815,6 @@ export default function POSSales() {
   const [manualSrPrompt, setManualSrPrompt] = useState<{ requested: number; shortfall: number } | null>(null);
   const [creatingManualSr, setCreatingManualSr] = useState(false);
   const [recentAdjustedSaleReturnCredits, setRecentAdjustedSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; linked_sale_id: string | null; linked_sale_number?: string }>>([]);
-  const [showSRCreditDropdown, setShowSRCreditDropdown] = useState(false);
   /** Full return value from same-bill S/R dialog this session — may exceed bill (exchange excess). */
   const [sameBillReturnGross, setSameBillReturnGross] = useState(0);
   /** Exchange returns saved from this bill's S/R dialog, to attach to the bill's customer on save. */
@@ -4434,6 +4434,19 @@ export default function POSSales() {
     setSaleReturnAdjust(capped);
     return capped;
   };
+
+  // Stable handles for the memo footer S/R box: always call the latest function (called on clicks only).
+  const clampSaleReturnAdjustRef = useRef(clampSaleReturnAdjust);
+  const loadSaleForEditRef = useRef(loadSaleForEdit);
+  useLayoutEffect(() => {
+    clampSaleReturnAdjustRef.current = clampSaleReturnAdjust;
+    loadSaleForEditRef.current = loadSaleForEdit;
+  });
+  const clampSaleReturnAdjustStable = useCallback(
+    (requested: number, opts?: { silent?: boolean }) => clampSaleReturnAdjustRef.current(requested, opts),
+    [],
+  );
+  const loadSaleForEditStable = useCallback((saleId: string) => loadSaleForEditRef.current(saleId), []);
 
   const handleSaleReturnSavedToBill = (
     amount: number,
@@ -9080,170 +9093,28 @@ export default function POSSales() {
                 onValueCommit={handleFlatDiscountValueChange}
               />
 
-              {/* S/R Adj — manual sale return / credit note adjust (old CN balance, return taken at
-                  another shop) and the ONE place to use a customer's pending credit note (Use button).
-                  Same-bill exchange may exceed bill (Mix refund/CN); pre-existing credit stays bill-capped. */}
-              <div className="text-center flex flex-col items-center min-h-[4.5rem]">
-                <div
-                  className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide"
-                  title={
-                    customerId && availableSrCredit > 0.005
-                      ? `S/R adjust: type an amount, or use this customer's pending credit note (₹${Math.round(availableSrCredit).toLocaleString("en-IN")})`
-                      : "S/R adjust: type the sale return / old credit note amount to adjust on this bill"
-                  }
-                >
-                  S/R Adj{customerId && availableSrCredit > 0.005 ? ` · CN ₹${Math.round(availableSrCredit).toLocaleString("en-IN")}` : ''}
-                </div>
-                <div className="flex items-center h-10">
-                  <Input 
-                    type="number"
-                    className="w-24 h-10 bg-white text-foreground text-center text-lg font-semibold border-0 rounded-md" 
-                    value={saleReturnAdjust || ""}
-                    placeholder="0"
-                    // No HTML max on exchange — over-bill S/R is intentional (Mix refund).
-                    max={isSameBillExchangeSr ? undefined : maxSrAllowed > 0 ? maxSrAllowed : undefined}
-                    min={0}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      if (raw === "" || raw === "-") {
-                        setSaleReturnAdjust(0);
-                        setSameBillReturnGross(0);
-                        return;
-                      }
-                      const n = parseFloat(raw);
-                      if (!Number.isFinite(n)) return;
-                      // Allow typing above bill; clamp on blur to maxSrAllowed (exchange vs pre-existing).
-                      setSaleReturnAdjust(Math.max(0, n));
-                      if (!customerId && n > maxSrFromBill + 0.005) {
-                        setSameBillReturnGross((prev) => Math.max(prev, n));
-                      }
-                    }}
-                    step="0.01"
-                    onBlur={(e) => {
-                      const requested = parseFloat(e.target.value) || 0;
-                      if (requested <= 0) {
-                        setSaleReturnAdjust(0);
-                        setSameBillReturnGross(0);
-                        return;
-                      }
-                      // Keep exchange / over-bill S/R — never wipe when return exceeds bill
-                      // (blur often fires when clicking delete on a cart line).
-                      if (
-                        sameBillReturnGross > 0.005 ||
-                        (!customerId && requested > maxSrFromBill + 0.005)
-                      ) {
-                        setSameBillReturnGross((prev) => Math.max(prev, requested));
-                        setSaleReturnAdjust(requested);
-                        return;
-                      }
-                      // Named customer: typed old credit is capped to this bill.
-                      const forBill = customerId ? Math.min(requested, maxSrFromBill) : requested;
-                      if (customerId && requested > forBill + 0.01) {
-                        toast.warning(
-                          `Only ₹${forBill.toLocaleString("en-IN", { maximumFractionDigits: 2 })} of S/R can be adjusted on this bill`,
-                        );
-                        setSaleReturnAdjust(forBill);
-                      }
-                      // Customer's old return that was never entered (old CN balance / other shop):
-                      // record it now (amount-only sale return + credit note), then it is used here.
-                      const manualShortfall = customerId
-                        ? manualSrShortfall(forBill, availableSrCredit)
-                        : 0;
-                      if (manualShortfall > 0) {
-                        setManualSrPrompt({ requested: forBill, shortfall: manualShortfall });
-                        return;
-                      }
-                      clampSaleReturnAdjust(forBill);
-                    }}
-                  />
-                  {customerId && pendingSaleReturnCredits.length > 0 && (
-                    <Popover open={showSRCreditDropdown} onOpenChange={setShowSRCreditDropdown}>
-                      <PopoverTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-9 w-9 text-white hover:bg-white/20 p-0 ml-1">
-                          <ChevronDown className="h-3.5 w-3.5" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-64 p-2" align="center" side="top">
-                        <div className="text-xs font-semibold text-muted-foreground mb-1.5">Pending Credit Notes</div>
-                        <div className="space-y-1 max-h-40 overflow-y-auto">
-                          {pendingSaleReturnCredits.map((sr) => (
-                            <button
-                              key={sr.id}
-                              className="w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-accent text-sm text-left"
-                              onClick={() => {
-                                clampSaleReturnAdjust(Number(sr.net_amount) || 0);
-                                setShowSRCreditDropdown(false);
-                              }}
-                            >
-                              <span className="font-medium truncate">{sr.return_number || "S/R"}</span>
-                              <Badge variant="secondary" className="ml-2 shrink-0">₹{formatINR2(sr.net_amount)}</Badge>
-                            </button>
-                          ))}
-                          {pendingSaleReturnCredits.length === 0 && (
-                            <div className="text-xs text-muted-foreground px-2 py-1">No pending credit notes</div>
-                          )}
-                        </div>
-                        {recentAdjustedSaleReturnCredits.length > 0 && (
-                          <>
-                            <div className="h-px bg-border my-2" />
-                            <div className="text-xs font-semibold text-muted-foreground mb-1.5">Recently Adjusted</div>
-                            <div className="space-y-1 max-h-28 overflow-y-auto">
-                              {recentAdjustedSaleReturnCredits.map((sr) => (
-                                <div
-                                  key={`adj-${sr.id}`}
-                                  className="w-full flex items-center justify-between px-2 py-1.5 rounded text-sm text-left bg-muted/40 hover:bg-accent cursor-pointer transition-colors"
-                                  title={`Adjusted in invoice: ${sr.linked_sale_number || sr.linked_sale_id || "N/A"}`}
-                                  onClick={async () => {
-                                    if (!sr.linked_sale_id) return;
-                                    setShowSRCreditDropdown(false);
-                                    await loadSaleForEdit(sr.linked_sale_id);
-                                  }}
-                                >
-                                  <span className="font-medium truncate">
-                                    {sr.return_number || "S/R"}{" "}
-                                    <span className="text-xs text-muted-foreground">
-                                      ({sr.linked_sale_number || "Invoice"})
-                                    </span>
-                                  </span>
-                                  <Badge variant="outline" className="ml-2 shrink-0">
-                                    ₹{formatINR2(sr.net_amount)}
-                                  </Badge>
-                                </div>
-                              ))}
-                            </div>
-                          </>
-                        )}
-                      </PopoverContent>
-                    </Popover>
-                  )}
-                </div>
-                {customerId &&
-                availableSrCredit > 0.005 &&
-                saleReturnAdjust <= 0.005 &&
-                maxSrFromBill > 0.005 ? (
-                  <button
-                    type="button"
-                    className="mt-0.5 text-[11px] font-semibold px-2 py-0.5 rounded bg-white text-emerald-700 hover:bg-emerald-50"
-                    title="Use this customer's pending credit on this bill (type a smaller amount for part use)"
-                    onClick={() => clampSaleReturnAdjust(availableSrCredit, { silent: true })}
-                  >
-                    Use CN ₹{Math.round(Math.min(availableSrCredit, maxSrFromBill)).toLocaleString("en-IN")}
-                  </button>
-                ) : exchangeRefundDue > 0.01 ? (
-                  <div className="text-[10px] text-orange-200 mt-0.5 max-w-[11rem] leading-tight">
-                    Return ₹{Math.round(saleReturnAdjust)} · Applied ₹{Math.round(exchangeSrApplied)} · Refund due ₹{Math.round(exchangeRefundDue)}
-                  </div>
-                ) : (
-                  !isSameBillExchangeSr &&
-                  (saleReturnAdjust > maxSrAllowed + 0.01 ||
-                    (maxSrAllowed > 0 && availableSrCredit > maxSrFromBill + 0.01)) && (
-                    <div className="text-[10px] text-amber-200 mt-0.5 max-w-[9rem] leading-tight">
-                      Only ₹{maxSrAllowed.toLocaleString("en-IN", { maximumFractionDigits: 0 })} of credit can be applied to this bill
-                    </div>
-                  )
-                )}
-              </div>
-              
+              {/* S/R Adj — manual sale return / credit note adjust and the ONE place to use a customer's
+                  pending credit note (PosSrAdjustField). Same-bill exchange may exceed bill (Mix refund/CN);
+                  pre-existing credit stays bill-capped. */}
+              <PosSrAdjustField
+                hasCustomer={Boolean(customerId)}
+                saleReturnAdjust={saleReturnAdjust}
+                sameBillReturnGross={sameBillReturnGross}
+                availableSrCredit={availableSrCredit}
+                maxSrAllowed={maxSrAllowed}
+                maxSrFromBill={maxSrFromBill}
+                isSameBillExchangeSr={isSameBillExchangeSr}
+                exchangeRefundDue={exchangeRefundDue}
+                exchangeSrApplied={exchangeSrApplied}
+                pendingCredits={pendingSaleReturnCredits}
+                recentAdjustedCredits={recentAdjustedSaleReturnCredits}
+                setSaleReturnAdjust={setSaleReturnAdjust}
+                setSameBillReturnGross={setSameBillReturnGross}
+                setManualSrPrompt={setManualSrPrompt}
+                onClampSaleReturnAdjust={clampSaleReturnAdjustStable}
+                onOpenAdjustedBill={loadSaleForEditStable}
+              />
+
               {/* Round (PosRoundOffField) */}
               <PosRoundOffField
                 roundOff={roundOff}
