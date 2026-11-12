@@ -7,6 +7,7 @@ import { PosFlatDiscountField } from "@/components/pos/PosFlatDiscountField";
 import { PosRoundOffField } from "@/components/pos/PosRoundOffField";
 import { PosSrAdjustField } from "@/components/pos/PosSrAdjustField";
 import { PosAdvanceField, PosLegacyCreditField, PosPointsField } from "@/components/pos/PosFooterCreditFields";
+import { PosSalesmanPicker, type PosSalesmanOption } from "@/components/pos/PosSalesmanPicker";
 import { POS_PLAIN_NUMBER_CLASS, posPlainNumberProps } from "@/components/pos/posPlainNumber";
 import { CustomerBalanceBadge } from "@/components/CustomerBalanceBadge";
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
@@ -342,6 +343,8 @@ interface POSBarcodeRuntimeSettings {
 
 const POS_CART_BARCODE_COL_MIN = 128;
 const POS_CART_BARCODE_COL_MAX = 170;
+/** Stable empty list while employees load (keeps the memo salesman picker from redrawing). */
+const EMPTY_POS_EMPLOYEES: PosSalesmanOption[] = [];
 const POS_CART_MIN_DISPLAY_ROWS = 5;
 /** Approximate row height for viewport-fill blank rows (px). */
 const POS_CART_ROW_HEIGHT_PX = 44;
@@ -2659,10 +2662,6 @@ export default function POSSales() {
     enabled: !!currentOrganization?.id,
   });
 
-  // Filter employees based on search
-  const filteredEmployees = (employees || []).filter((emp: any) =>
-    emp.employee_name.toLowerCase().includes(salesmanSearchInput.toLowerCase())
-  );
 
   useEffect(() => {
     const handleNavigationKeyPress = (e: KeyboardEvent) => {
@@ -8298,89 +8297,18 @@ export default function POSSales() {
             </label>
           )}
 
-          {/* Salesperson Search - After Customer Name */}
-          <Popover
+          {/* Salesperson Search - After Customer Name (PosSalesmanPicker) */}
+          <PosSalesmanPicker
             open={openSalesmanSearch}
-            onOpenChange={(open) => {
-              setOpenSalesmanSearch(open);
-              if (!open) {
-                setSalesmanSearchInput("");
-                // Return cursor to barcode — Esc or select (scanner must not type into filter).
-                refocusBarcodeAfterSalesmanPicker();
-              }
-            }}
-          >
-            <PopoverTrigger asChild>
-              <div className="relative w-36 shrink-0">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">Salesperson</Label>
-                <Input
-                  value={selectedSalesman}
-                  onChange={(e) => {
-                    setSelectedSalesman(e.target.value);
-                    setOpenSalesmanSearch(true);
-                  }}
-                  className="h-10 text-sm pr-8 border-border/80 focus:border-primary"
-                  placeholder="Select..."
-                />
-                {selectedSalesman && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="absolute right-1 top-1/2 translate-y-0.5 h-7 w-7"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedSalesman("");
-                    }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </PopoverTrigger>
-            <PopoverContent
-              className="w-[250px] p-0 z-50"
-              align="start"
-              data-pos-salesman-picker
-              onCloseAutoFocus={(e) => {
-                e.preventDefault();
-                refocusBarcodeAfterSalesmanPicker();
-              }}
-            >
-              <Command shouldFilter={false}>
-                <CommandInput 
-                  placeholder="Search employee..." 
-                  value={salesmanSearchInput}
-                  onValueChange={setSalesmanSearchInput}
-                />
-                <CommandList>
-                  <CommandEmpty>No employees found.</CommandEmpty>
-                  <CommandGroup heading="Employees">
-                    {filteredEmployees.map((emp: any) => (
-                      <CommandItem
-                        key={emp.id}
-                        value={emp.employee_name}
-                        onSelect={() => {
-                          setSelectedSalesman(emp.employee_name);
-                          setOpenSalesmanSearch(false);
-                          setSalesmanSearchInput("");
-                          focusBarcodeScanInput();
-                        }}
-                        className="cursor-pointer"
-                      >
-                        <Check className={`mr-2 h-4 w-4 ${selectedSalesman === emp.employee_name ? 'opacity-100' : 'opacity-0'}`} />
-                        <div className="flex flex-col">
-                          <span className="font-medium">{emp.employee_name}</span>
-                          {emp.designation && (
-                            <span className="text-xs text-muted-foreground">{emp.designation}</span>
-                          )}
-                        </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+            setOpen={setOpenSalesmanSearch}
+            search={salesmanSearchInput}
+            setSearch={setSalesmanSearchInput}
+            selectedSalesman={selectedSalesman}
+            setSelectedSalesman={setSelectedSalesman}
+            employees={employees || EMPTY_POS_EMPLOYEES}
+            onClosed={refocusBarcodeAfterSalesmanPicker}
+            onPicked={focusBarcodeScanInput}
+          />
 
           {/* Invoice number. Width is in ch of this field's own font (16px), not rem.
               Compact desktop sets the root to 13px, so a rem width clips the last digit. */}
