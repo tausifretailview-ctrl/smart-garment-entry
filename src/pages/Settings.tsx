@@ -2579,7 +2579,7 @@ export default function Settings() {
                         <span className="font-semibold text-slate-800">Hide DC everywhere</span>
                         <span className="block text-xs text-slate-500">
                           Hidden from lists, dashboards and reports. Admins and Managers press Ctrl+Shift+H to show them
-                          (hides again after 15 min idle). User Rights "Always show DC transactions" logins always see them.
+                          (hides again after 15 min idle). Sale returns of DC bills are hidden too.
                         </span>
                       </span>
                     </label>
