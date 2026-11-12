@@ -2,6 +2,7 @@ import { posSaveBegin, posSaveMark } from "@/lib/posSaveTiming";
 import { PosActionBar } from "@/components/pos/PosActionBar";
 import { PosShortcutBar } from "@/components/pos/PosShortcutBar";
 import { PosFooterInfo } from "@/components/pos/PosFooterInfo";
+import { PosNetAmountBox } from "@/components/pos/PosNetAmountBox";
 import { CustomerBalanceBadge } from "@/components/CustomerBalanceBadge";
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { createPortal, flushSync } from "react-dom";
@@ -9471,46 +9472,18 @@ export default function POSSales() {
               </>
             )}
             
-            {/* Right Summary — MRP (strikethrough), Net Amount, discount badge */}
-            <div className="text-center shrink-0 min-w-[160px] flex flex-col items-center self-start min-h-[4.5rem]">
-              {enableMrp && totals.mrp > 0 && totals.mrp !== finalAmount && (
-                <div className="text-xs text-white/90 line-through font-bold leading-tight">
-                  MRP ₹{formatINR2(totals.mrp)}
-                </div>
-              )}
-              <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">
-                {finalAmount < -0.005 || exchangeRefundDue > 0.005
-                  ? "Refund Due"
-                  : showToCollect
-                    ? "To Collect"
-                    : "Net Amount"}
-              </div>
-              <Input
-                type="number"
-                className={`w-40 h-10 text-center text-lg font-semibold border-0 rounded-md bg-white tabular-nums ${finalAmount < 0 || exchangeRefundDue > 0.005 ? 'text-orange-600' : 'text-emerald-700'}`}
-                value={Math.round(
-                  finalAmount < 0 || exchangeRefundDue > 0.005
-                    ? Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue)
-                    : showToCollect
-                      ? posTenderDue
-                      : finalAmount,
-                )}
-                // With an advance / gift voucher the box shows what is left to pay; typing still sets the bill total.
-                onChange={(e) => handleFinalAmountChange((parseFloat(e.target.value) || 0) + (showToCollect ? totalBillAdvance : 0))}
-                step="1"
-                readOnly={finalAmount < -0.005 || exchangeRefundDue > 0.005}
-              />
-              {enableMrp && effectiveDiscountPercent > 0 && (
-                <div className="text-xs font-extrabold text-lime-200 mt-0.5">
-                  ↓ {effectiveDiscountPercent.toFixed(1)}% off
-                </div>
-              )}
-              {showToCollect && (
-                <div className="text-[10px] text-orange-200 font-semibold mt-0.5 text-center">
-                  Bill ₹{Math.round(finalAmount).toLocaleString('en-IN')} − Adv ₹{Math.round(totalBillAdvance).toLocaleString('en-IN')}
-                </div>
-              )}
-            </div>
+            {/* Right Summary — MRP (strikethrough), Net Amount, discount badge (PosNetAmountBox) */}
+            <PosNetAmountBox
+              finalAmount={finalAmount}
+              exchangeRefundDue={exchangeRefundDue}
+              totalBillAdvance={totalBillAdvance}
+              posTenderDue={posTenderDue}
+              showToCollect={showToCollect}
+              enableMrp={enableMrp}
+              mrp={totals.mrp}
+              effectiveDiscountPercent={effectiveDiscountPercent}
+              onFinalAmountChange={handleFinalAmountChange}
+            />
           </div>
         </div>
 
