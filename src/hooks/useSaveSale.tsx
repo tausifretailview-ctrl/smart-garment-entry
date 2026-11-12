@@ -48,11 +48,11 @@ import {
   warnSettlementPathMismatch,
 } from "@/utils/saleSettlement";
 import { planPosUpdateCredit } from "@/utils/posUpdateCreditPlan";
-import { newPosCreditIdempotencyKey } from "@/utils/applyPosCredit";
+import { applyPosCreditFifo, newPosCreditIdempotencyKey } from "@/utils/applyPosCredit";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import { posTenderDueAfterAdvance } from "@/utils/posApplyAdvance";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
-import { isSaleReturnConsumedAtBilling } from "@/utils/saleReturnCnBalance";
+import { formatCnApplyError, isSaleReturnConsumedAtBilling } from "@/utils/saleReturnCnBalance";
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
 import {
   assertMixPaymentHasBreakdown,
@@ -818,27 +818,48 @@ export const useSaveSale = () => {
     let creditApplyError: string | null = null;
     if (amount > 0.01) {
       try {
-        const { returns: cnPool } = await getAvailableCN(
-          supabase,
-          args.customerId,
-          currentOrganization.id,
-          { includeUnlinkedAdjusted: true },
-        );
-        posSaveMark("cn_pool");
-        if (!cnPool.length) {
-          throw new Error("No credit note balance available for this customer");
-        }
-        await applyCreditNoteFifoToSale(supabase, {
+        // Plan Phase 2 step 4: the whole FIFO in one database transaction (all or nothing).
+        const fifo = await applyPosCreditFifo(supabase, {
           organizationId: currentOrganization.id,
           saleId: args.saleId,
+          customerId: args.customerId,
           amount,
-          cnPool,
+          idempotencyKey: key,
           adjustedBy: user?.id ?? null,
           notes: "POS credit apply",
-          idempotencyKey: key,
         });
+        if (fifo) {
+          posSaveMark("cn_fifo_rpc");
+          // SRA can over-settle an advance-paid invoice; restore unused advance bookings.
+          try {
+            const { releaseExcessAdvanceOnSale } = await import("@/utils/releaseExcessAdvanceSettlement");
+            await releaseExcessAdvanceOnSale(currentOrganization.id, args.saleId, supabase);
+          } catch (releaseErr) {
+            console.warn("POS credit: excess advance release failed", args.saleId, releaseErr);
+          }
+        } else {
+          const { returns: cnPool } = await getAvailableCN(
+            supabase,
+            args.customerId,
+            currentOrganization.id,
+            { includeUnlinkedAdjusted: true },
+          );
+          posSaveMark("cn_pool");
+          if (!cnPool.length) {
+            throw new Error("No credit note balance available for this customer");
+          }
+          await applyCreditNoteFifoToSale(supabase, {
+            organizationId: currentOrganization.id,
+            saleId: args.saleId,
+            amount,
+            cnPool,
+            adjustedBy: user?.id ?? null,
+            notes: "POS credit apply",
+            idempotencyKey: key,
+          });
+        }
       } catch (err) {
-        creditApplyError = err instanceof Error ? err.message : "Could not apply credit to this bill.";
+        creditApplyError = err instanceof Error ? formatCnApplyError(err) : "Could not apply credit to this bill.";
         console.error("POS credit apply failed:", err);
       }
     }

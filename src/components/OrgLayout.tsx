@@ -86,6 +86,8 @@ import { DC_ONLY_RIGHT } from "@/lib/dcVisibility";
 import { formatDocumentTitle } from "@/lib/pageTitles";
 import { setCloudUsageRoutePath } from "@/lib/cloudUsageDiagnostics";
 import { useScreenTimeTracking } from "@/hooks/useScreenTimeTracking";
+import { useSaleJournalCatchUp } from "@/hooks/useSaleJournalCatchUp";
+import { useSettings } from "@/hooks/useSettings";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, RefreshCw } from "lucide-react";
 
@@ -226,6 +228,12 @@ export const OrgLayout = () => {
       ? currentOrganization?.id
       : undefined;
   useScreenTimeTracking(screenTimeOrgId, user?.id, currentPath);
+  // Plan Phase 2 step 5: post sale journals recent bills are still waiting for.
+  const { data: orgSettingsForJournal } = useSettings();
+  useSaleJournalCatchUp(
+    screenTimeOrgId,
+    orgSettingsForJournal as { accounting_engine_enabled?: boolean | null } | null | undefined,
+  );
 
   const isEntryPage = isEntryTabPath(currentPath);
   const isCacheableEntryActive = isCacheableEntryTabPath(currentPath);
