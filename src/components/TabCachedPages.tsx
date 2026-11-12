@@ -1,4 +1,5 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { noteScreenOpenEnd, noteScreenOpenStart } from "@/lib/appTiming";
 import { AlertCircle } from "lucide-react";
 import {
   getLazyTabPage,
@@ -258,6 +259,7 @@ function TabPageWithPerf({
   onReady?: () => void;
 }) {
   useEffect(() => {
+    noteScreenOpenEnd(path);
     if (!isNavigationPerfEnabled()) return;
     recordChunkLoadEnd(path);
   }, [path]);
@@ -309,6 +311,7 @@ function TabPageFallback({
       setShowSoftHint(false);
       return;
     }
+    noteScreenOpenStart(path);
     if (isNavigationPerfEnabled()) {
       recordChunkLoadStart(path);
     }

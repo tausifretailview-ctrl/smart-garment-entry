@@ -1,4 +1,5 @@
 import { posSaveBegin, posSaveMark } from "@/lib/posSaveTiming";
+import { PosWallClock } from "@/components/pos/PosWallClock";
 import { CustomerBalanceBadge } from "@/components/CustomerBalanceBadge";
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { createPortal, flushSync } from "react-dom";
@@ -1206,7 +1207,8 @@ export default function POSSales() {
     el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [highlightCartItemId, items]);
   const [showAddCustomerDialog, setShowAddCustomerDialog] = useState(false);
-  const [currentDateTime, setCurrentDateTime] = useState(new Date());
+  // Re-renders the screen once a minute so an idle print copy never shows a stale minute.
+  const [, setPrintClockTick] = useState(0);
   // Optional backdated POS invoice date (only used when the admin setting is ON).
   const [posInvoiceDate, setPosInvoiceDate] = useState<Date>(new Date());
   // Day of the saved bill opened for edit (null = new bill). The picker shows this day
@@ -2251,11 +2253,11 @@ export default function POSSales() {
     setPaymentMethod(raw === "card" || raw === "upi" ? raw : "cash");
   }, [settingsData, currentSaleId, items.length]);
 
-  // Update date and time every second
+  // The footer clock ticks inside <PosWallClock /> on its own. This screen only needs a
+  // fresh time for the hidden print copy: every action before a print (save, reprint,
+  // estimate, dialog) already redraws it, and this minute tick covers an idle screen.
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentDateTime(new Date());
-    }, 1000);
+    const timer = setInterval(() => setPrintClockTick((n) => n + 1), 60_000);
     return () => clearInterval(timer);
   }, []);
 
@@ -6228,7 +6230,7 @@ export default function POSSales() {
                 || currentInvoiceNumber
                 || 'DRAFT'
             }
-            date={currentDateTime}
+            date={new Date()}
             customerName={savedInvoiceData?.customerName || customerName || 'Walk in Customer'}
             customerAddress={savedInvoiceData?.customerAddress || customers.find((c) => c.id === customerId)?.address || ''}
             customerMobile={savedInvoiceData?.customerPhone || customerPhone || ''}
@@ -9223,7 +9225,7 @@ export default function POSSales() {
 
             <div className="w-px h-8 bg-white/20 shrink-0" />
 
-            {/* Invoice / wall clock — uses same 1s tick as print date */}
+            {/* Invoice / wall clock — ticks on its own (PosWallClock), not the whole screen */}
             <div className="text-center px-2 shrink-0 min-w-[7.5rem]">
               <div className="text-[11px] text-white/70 uppercase tracking-wider font-semibold">
                 {footerLoadedInvoiceTime && currentSaleId ? "Invoice time" : "Time"}
@@ -9231,7 +9233,7 @@ export default function POSSales() {
               <div className="text-sm font-extrabold text-white tabular-nums leading-tight mt-0.5 whitespace-nowrap">
                 {footerLoadedInvoiceTime && currentSaleId
                   ? footerLoadedInvoiceTime
-                  : format(currentDateTime, "HH:mm:ss")}
+                  : <PosWallClock />}
               </div>
             </div>
             
