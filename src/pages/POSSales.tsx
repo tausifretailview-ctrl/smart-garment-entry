@@ -6,6 +6,8 @@ import { PosNetAmountBox } from "@/components/pos/PosNetAmountBox";
 import { PosFlatDiscountField } from "@/components/pos/PosFlatDiscountField";
 import { PosRoundOffField } from "@/components/pos/PosRoundOffField";
 import { PosSrAdjustField } from "@/components/pos/PosSrAdjustField";
+import { PosAdvanceField, PosLegacyCreditField, PosPointsField } from "@/components/pos/PosFooterCreditFields";
+import { PosSalesmanPicker, type PosSalesmanOption } from "@/components/pos/PosSalesmanPicker";
 import { POS_PLAIN_NUMBER_CLASS, posPlainNumberProps } from "@/components/pos/posPlainNumber";
 import { CustomerBalanceBadge } from "@/components/CustomerBalanceBadge";
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
@@ -341,6 +343,8 @@ interface POSBarcodeRuntimeSettings {
 
 const POS_CART_BARCODE_COL_MIN = 128;
 const POS_CART_BARCODE_COL_MAX = 170;
+/** Stable empty list while employees load (keeps the memo salesman picker from redrawing). */
+const EMPTY_POS_EMPLOYEES: PosSalesmanOption[] = [];
 const POS_CART_MIN_DISPLAY_ROWS = 5;
 /** Approximate row height for viewport-fill blank rows (px). */
 const POS_CART_ROW_HEIGHT_PX = 44;
@@ -2658,10 +2662,6 @@ export default function POSSales() {
     enabled: !!currentOrganization?.id,
   });
 
-  // Filter employees based on search
-  const filteredEmployees = (employees || []).filter((emp: any) =>
-    emp.employee_name.toLowerCase().includes(salesmanSearchInput.toLowerCase())
-  );
 
   useEffect(() => {
     const handleNavigationKeyPress = (e: KeyboardEvent) => {
@@ -4937,6 +4937,25 @@ export default function POSSales() {
     }
     setAdvanceApplied(maxApplicable);
   };
+
+  // Stable handles for the memo footer Cr / Adv boxes: always call the latest function.
+  const handleApplyCreditRef = useRef(handleApplyCredit);
+  const handleApplyAdvanceRef = useRef(handleApplyAdvance);
+  useLayoutEffect(() => {
+    handleApplyCreditRef.current = handleApplyCredit;
+    handleApplyAdvanceRef.current = handleApplyAdvance;
+  });
+  const handleApplyCreditStable = useCallback((amount: number) => handleApplyCreditRef.current(amount), []);
+  const handleApplyAdvanceStable = useCallback((amount: number) => handleApplyAdvanceRef.current(amount), []);
+  const clearCreditApplied = useCallback(() => setCreditApplied(0), [setCreditApplied]);
+
+  // Footer points box: old balance, the settings minimum and the most this bill allows.
+  const customerPointsBalance = customerPointsData?.balance || 0;
+  const minPointsForRedemption = pointsSettings?.min_points_for_redemption || 1;
+  const maxRedeemablePoints = calculateMaxRedeemablePoints(
+    Math.max(0, totals.subtotal - saleReturnAdjust - flatDiscountAmount),
+    customerPointsBalance,
+  );
 
   // Gift voucher: apply its amount (not more) as soon as the voucher customer's advance is loaded.
   useEffect(() => {
@@ -8278,89 +8297,18 @@ export default function POSSales() {
             </label>
           )}
 
-          {/* Salesperson Search - After Customer Name */}
-          <Popover
+          {/* Salesperson Search - After Customer Name (PosSalesmanPicker) */}
+          <PosSalesmanPicker
             open={openSalesmanSearch}
-            onOpenChange={(open) => {
-              setOpenSalesmanSearch(open);
-              if (!open) {
-                setSalesmanSearchInput("");
-                // Return cursor to barcode — Esc or select (scanner must not type into filter).
-                refocusBarcodeAfterSalesmanPicker();
-              }
-            }}
-          >
-            <PopoverTrigger asChild>
-              <div className="relative w-36 shrink-0">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">Salesperson</Label>
-                <Input
-                  value={selectedSalesman}
-                  onChange={(e) => {
-                    setSelectedSalesman(e.target.value);
-                    setOpenSalesmanSearch(true);
-                  }}
-                  className="h-10 text-sm pr-8 border-border/80 focus:border-primary"
-                  placeholder="Select..."
-                />
-                {selectedSalesman && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="absolute right-1 top-1/2 translate-y-0.5 h-7 w-7"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedSalesman("");
-                    }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </PopoverTrigger>
-            <PopoverContent
-              className="w-[250px] p-0 z-50"
-              align="start"
-              data-pos-salesman-picker
-              onCloseAutoFocus={(e) => {
-                e.preventDefault();
-                refocusBarcodeAfterSalesmanPicker();
-              }}
-            >
-              <Command shouldFilter={false}>
-                <CommandInput 
-                  placeholder="Search employee..." 
-                  value={salesmanSearchInput}
-                  onValueChange={setSalesmanSearchInput}
-                />
-                <CommandList>
-                  <CommandEmpty>No employees found.</CommandEmpty>
-                  <CommandGroup heading="Employees">
-                    {filteredEmployees.map((emp: any) => (
-                      <CommandItem
-                        key={emp.id}
-                        value={emp.employee_name}
-                        onSelect={() => {
-                          setSelectedSalesman(emp.employee_name);
-                          setOpenSalesmanSearch(false);
-                          setSalesmanSearchInput("");
-                          focusBarcodeScanInput();
-                        }}
-                        className="cursor-pointer"
-                      >
-                        <Check className={`mr-2 h-4 w-4 ${selectedSalesman === emp.employee_name ? 'opacity-100' : 'opacity-0'}`} />
-                        <div className="flex flex-col">
-                          <span className="font-medium">{emp.employee_name}</span>
-                          {emp.designation && (
-                            <span className="text-xs text-muted-foreground">{emp.designation}</span>
-                          )}
-                        </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+            setOpen={setOpenSalesmanSearch}
+            search={salesmanSearchInput}
+            setSearch={setSalesmanSearchInput}
+            selectedSalesman={selectedSalesman}
+            setSelectedSalesman={setSelectedSalesman}
+            employees={employees || EMPTY_POS_EMPLOYEES}
+            onClosed={refocusBarcodeAfterSalesmanPicker}
+            onPicked={focusBarcodeScanInput}
+          />
 
           {/* Invoice number. Width is in ch of this field's own font (16px), not rem.
               Compact desktop sets the root to 13px, so a rem width clips the last digit. */}
@@ -9123,124 +9071,42 @@ export default function POSSales() {
                 onReset={handleResetRoundOff}
               />
 
-              {/* Redeem old CRM points only — current-bill earn stays pending until save */}
+              {/* Redeem old CRM points only — current-bill earn stays pending until save (PosPointsField) */}
               {customerId && isPointsEnabled && isRedemptionEnabled && (
-                <div className="text-center">
-                  <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">
-                    Pts ({customerPointsData?.balance || 0})
-                  </div>
-                  <Input
-                    type="number"
-                    className="w-24 h-10 bg-amber-100 text-amber-800 text-center text-lg font-semibold border-0 rounded-md"
-                    value={pointsToRedeem || ""}
-                    placeholder="0"
-                    min={0}
-                    max={calculateMaxRedeemablePoints(
-                      Math.max(0, totals.subtotal - saleReturnAdjust - flatDiscountAmount),
-                      customerPointsData?.balance || 0,
-                    )}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value, 10) || 0;
-                      const maxPoints = calculateMaxRedeemablePoints(
-                        Math.max(0, totals.subtotal - saleReturnAdjust - flatDiscountAmount),
-                        customerPointsData?.balance || 0,
-                      );
-                      setPointsToRedeem(Math.min(Math.max(0, value), maxPoints));
-                    }}
-                    disabled={
-                      !customerId ||
-                      calculateMaxRedeemablePoints(
-                        Math.max(0, totals.subtotal - saleReturnAdjust - flatDiscountAmount),
-                        customerPointsData?.balance || 0,
-                      ) <= 0
-                    }
-                    title={
-                      (customerPointsData?.balance || 0) <= 0
-                        ? "No old points to redeem"
-                        : (customerPointsData?.balance || 0) < (pointsSettings?.min_points_for_redemption || 1)
-                          ? `Need at least ${pointsSettings?.min_points_for_redemption || 1} old pts (this bill's +pts are pending)`
-                          : `Redeem old points only (max ${calculateMaxRedeemablePoints(
-                              Math.max(0, totals.subtotal - saleReturnAdjust - flatDiscountAmount),
-                              customerPointsData?.balance || 0,
-                            )})`
-                    }
-                  />
-                  {pointsToRedeem > 0 ? (
-                    <div className="text-[10px] text-amber-200 font-semibold mt-0.5 text-center">
-                      −₹{calculateRedemptionValue(pointsToRedeem).toFixed(0)}
-                    </div>
-                  ) : (customerPointsData?.balance || 0) > 0 &&
-                    (customerPointsData?.balance || 0) < (pointsSettings?.min_points_for_redemption || 1) ? (
-                    <div className="text-[10px] text-white/70 font-semibold mt-0.5 text-center">
-                      Min {pointsSettings?.min_points_for_redemption || 1} pts
-                    </div>
-                  ) : null}
-                </div>
+                <PosPointsField
+                  balance={customerPointsBalance}
+                  minPoints={minPointsForRedemption}
+                  maxRedeemable={maxRedeemablePoints}
+                  pointsToRedeem={pointsToRedeem}
+                  redemptionValue={pointsToRedeem > 0 ? calculateRedemptionValue(pointsToRedeem) : 0}
+                  setPointsToRedeem={setPointsToRedeem}
+                />
               )}
 
-              {/* Credit Applied */}
               {/* Old separate "Cr" box removed: it drew from the same credit pool as the S/R Adj box
                   above and caused double entry. Shown only if a legacy amount is set, so it can be cleared. */}
               {creditApplied > 0 && (
-                <div className="text-center">
-                  <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Cr ₹{availableCreditBalance.toFixed(0)}</div>
-                  <Input 
-                    type="number"
-                    className="w-24 h-10 bg-purple-100 text-purple-700 text-center text-lg font-semibold border-0 rounded-md" 
-                    value={creditApplied || ""}
-                    placeholder="0"
-                    onChange={(e) => {
-                      const value = parseFloat(e.target.value) || 0;
-                      if (value <= 0) {
-                        setCreditApplied(0);
-                        return;
-                      }
-                      const maxApplicable = Math.min(value, availableCreditBalance, amountBeforeCredit);
-                      handleApplyCredit(maxApplicable > 0 ? maxApplicable : value);
-                    }}
-                    max={Math.min(availableCreditBalance, amountBeforeCredit)}
-                    step="0.01"
-                    disabled={!customerId || isApplyingCredit}
-                  />
-                  {creditApplied > 0 && (
-                    <div className="text-[10px] text-green-400 font-semibold mt-0.5 text-center">
-                      ✓ Applied
-                    </div>
-                  )}
-                </div>
+                <PosLegacyCreditField
+                  creditApplied={creditApplied}
+                  availableCreditBalance={availableCreditBalance}
+                  amountBeforeCredit={amountBeforeCredit}
+                  hasCustomer={Boolean(customerId)}
+                  isApplyingCredit={isApplyingCredit}
+                  onClear={clearCreditApplied}
+                  onApplyCredit={handleApplyCreditStable}
+                />
               )}
 
               {(availableAdvanceBalance > 0 || advanceApplied > 0) && (
-                <div className="text-center">
-                  <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Adv ₹{availableAdvanceBalance.toFixed(0)}</div>
-                  <Input
-                    type="number"
-                    className="w-24 h-10 bg-orange-100 text-orange-800 text-center text-lg font-semibold border-0 rounded-md"
-                    value={advanceApplied || ""}
-                    placeholder="0"
-                    onChange={(e) => {
-                      const value = parseFloat(e.target.value) || 0;
-                      handleApplyAdvance(value);
-                    }}
-                    max={capPosAdvanceApplyAmount({
-                      requested: availableAdvanceBalance,
-                      availableAdvanceBalance,
-                      billRoom: Math.max(0, finalAmount),
-                    })}
-                    step="0.01"
-                    disabled={
-                      !customerId ||
-                      availableAdvanceBalance <= 0 ||
-                      exchangeRefundDue > 0.005 ||
-                      openingBalanceRemaining > 0.01
-                    }
-                  />
-                  {advanceApplied > 0 && (
-                    <div className="text-[10px] text-green-400 font-semibold mt-0.5 text-center">
-                      ✓ Applied
-                    </div>
-                  )}
-                </div>
+                <PosAdvanceField
+                  availableAdvanceBalance={availableAdvanceBalance}
+                  advanceApplied={advanceApplied}
+                  finalAmount={finalAmount}
+                  hasCustomer={Boolean(customerId)}
+                  exchangeRefundDue={exchangeRefundDue}
+                  openingBalanceRemaining={openingBalanceRemaining}
+                  onApplyAdvance={handleApplyAdvanceStable}
+                />
               )}
             </div>
             
