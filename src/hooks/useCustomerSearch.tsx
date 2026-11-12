@@ -263,8 +263,10 @@ export const useCustomerBalances = (options?: UseCustomerBalancesOptions) => {
     refetchOnWindowFocus: false,
   });
 
+  // Shop rule (Nov 2026): balance = bills still unpaid; unused advance is shown separately
+  // (getCustomerAdvance), never subtracted from it.
   const getCustomerBalance = useCallback(
-    (customer: Customer) => snapshotByCustomerId[customer.id]?.outstandingDr ?? 0,
+    (customer: Customer) => snapshotByCustomerId[customer.id]?.grossOutstandingDr ?? 0,
     [snapshotByCustomerId],
   );
 

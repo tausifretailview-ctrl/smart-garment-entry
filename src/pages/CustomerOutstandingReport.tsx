@@ -60,9 +60,15 @@ export default function CustomerOutstandingReport() {
 
   const outstandingRows = useMemo(() => {
     const all = payload?.rows ?? [];
+    // Shop rule (Nov 2026): the balance is the bills still unpaid; an unused advance is shown
+    // beside it, not subtracted. gross_outstanding = bills due, advance_available = advance.
     return all
-      .filter((r) => Math.round(Number(r.net_position) || 0) !== 0)
-      .sort((a, b) => Number(b.net_position) - Number(a.net_position));
+      .filter(
+        (r) =>
+          Math.round(Number(r.gross_outstanding) || 0) !== 0 ||
+          Math.round(Number(r.advance_available) || 0) > 0,
+      )
+      .sort((a, b) => Number(b.gross_outstanding) - Number(a.gross_outstanding));
   }, [payload]);
 
   const searchTerm = search.trim().toLowerCase();
@@ -91,7 +97,11 @@ export default function CustomerOutstandingReport() {
   const pageEnd = Math.min(currentPage * CUSTOMER_OUTSTANDING_PAGE_SIZE, matchingCount);
 
   const grandTotal = useMemo(
-    () => filteredRows.reduce((sum, r) => sum + (Number(r.net_position) || 0), 0),
+    () => filteredRows.reduce((sum, r) => sum + (Number(r.gross_outstanding) || 0), 0),
+    [filteredRows],
+  );
+  const grandAdvance = useMemo(
+    () => filteredRows.reduce((sum, r) => sum + Math.max(0, Number(r.advance_available) || 0), 0),
     [filteredRows],
   );
 
@@ -195,19 +205,22 @@ export default function CustomerOutstandingReport() {
                   <TableHead className="h-10 w-[11rem] text-right text-xs font-bold uppercase tracking-wide text-white">
                     Total Balance
                   </TableHead>
+                  <TableHead className="h-10 w-[9rem] text-right text-xs font-bold uppercase tracking-wide text-white">
+                    Advance
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="h-20 text-center text-base text-muted-foreground">
+                    <TableCell colSpan={4} className="h-20 text-center text-base text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
                       Loading balances…
                     </TableCell>
                   </TableRow>
                 ) : matchingCount === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="h-20 text-center text-base text-muted-foreground">
+                    <TableCell colSpan={4} className="h-20 text-center text-base text-muted-foreground">
                       {searchTerm
                         ? debouncedSearch.length >= 2 && isFetching
                           ? "Searching…"
@@ -225,10 +238,13 @@ export default function CustomerOutstandingReport() {
                       <TableCell
                         className={cn(
                           "py-2.5 text-right tabular-nums text-base font-semibold font-mono",
-                          r.net_position >= 0 ? "text-red-600" : "text-emerald-600",
+                          r.gross_outstanding >= 0 ? "text-red-600" : "text-emerald-600",
                         )}
                       >
-                        ₹{fmtAmt(r.net_position)} {r.net_position >= 0 ? "Dr" : "Cr"}
+                        ₹{fmtAmt(r.gross_outstanding)} {r.gross_outstanding >= 0 ? "Dr" : "Cr"}
+                      </TableCell>
+                      <TableCell className="py-2.5 text-right tabular-nums text-sm font-mono text-emerald-700">
+                        {Number(r.advance_available) > 0.5 ? `₹${fmtAmt(r.advance_available)}` : "—"}
                       </TableCell>
                     </TableRow>
                   ))
@@ -240,7 +256,10 @@ export default function CustomerOutstandingReport() {
           {matchingCount > 0 && (
             <>
               <div className="flex items-center justify-between gap-4 px-3 py-2 border-t border-slate-100 bg-slate-50 text-sm font-semibold shrink-0">
-                <span className="text-slate-800">Grand Total (all matching)</span>
+                <span className="text-slate-800">
+                  Grand Total (all matching)
+                  {grandAdvance > 0.5 ? ` · Advance ₹${fmtAmt(grandAdvance)}` : ""}
+                </span>
                 <span
                   className={cn(
                     "tabular-nums font-mono",
