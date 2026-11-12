@@ -93,3 +93,86 @@ export async function fetchDcReturnSplit(
     return lookupFailed(e);
   }
 }
+
+/** Pure part of {@link fetchReturnsTiedToDcBills}: which returns point at a DC bill. */
+export function returnsTiedToDcBills(
+  returns: readonly { id: string; original_sale_number?: string | null; linked_sale_id?: string | null }[],
+  dcBillIds: ReadonlySet<string>,
+  dcBillNumbers: ReadonlySet<string>,
+): Set<string> {
+  const out = new Set<string>();
+  for (const r of returns) {
+    const original = String(r.original_sale_number || "").trim();
+    if ((r.linked_sale_id && dcBillIds.has(r.linked_sale_id)) || (original && dcBillNumbers.has(original))) {
+      out.add(r.id);
+    }
+  }
+  return out;
+}
+
+/**
+ * Returns tied to a DC bill, hidden with DC like the DC bill itself on the POS Dashboard:
+ * the bill it came back from (original_sale_number) is a DC bill, or its credit was used on a
+ * DC bill (linked_sale_id), e.g. SR/26-27/22 redeemed on DC/26-27/45. Only for Hide DC mode;
+ * GST reports still read each return line by its own DC flag.
+ * A lookup error hides nothing and is logged, like {@link fetchDcReturnSplit}.
+ */
+export async function fetchReturnsTiedToDcBills(
+  supabaseClient: unknown,
+  organizationId: string,
+  fromDate?: string | null,
+  toDate?: string | null,
+): Promise<Set<string>> {
+  const client = supabaseClient as Client;
+  try {
+    type Ret = { id: string; original_sale_number?: string | null; linked_sale_id?: string | null };
+    const returns: Ret[] = [];
+    for (let offset = 0; ; offset += PAGE) {
+      let q = client
+        .from("sale_returns")
+        .select("id, original_sale_number, linked_sale_id")
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null)
+        .or("linked_sale_id.not.is.null,original_sale_number.not.is.null");
+      if (fromDate) q = q.gte("return_date", fromDate);
+      if (toDate) q = q.lte("return_date", toDate);
+      const { data, error } = await q.order("id").range(offset, offset + PAGE - 1);
+      if (error) return tiedLookupFailed(error);
+      returns.push(...((data || []) as Ret[]));
+      if (!data || data.length < PAGE) break;
+    }
+    if (returns.length === 0) return new Set();
+
+    const linkedIds = [...new Set(returns.map((r) => r.linked_sale_id).filter((v): v is string => !!v))];
+    const originalNumbers = [
+      ...new Set(returns.map((r) => String(r.original_sale_number || "").trim()).filter(Boolean)),
+    ];
+    const dcBillIds = new Set<string>();
+    const dcBillNumbers = new Set<string>();
+    const lookUp = async (column: "id" | "sale_number", values: string[]) => {
+      for (let i = 0; i < values.length; i += CHUNK) {
+        const { data, error } = await client
+          .from("sales")
+          .select("id, sale_number")
+          .eq("organization_id", organizationId)
+          .eq("is_dc_bill", true)
+          .in(column, values.slice(i, i + CHUNK));
+        if (error) throw error;
+        for (const s of (data || []) as Array<{ id: string; sale_number: string | null }>) {
+          dcBillIds.add(s.id);
+          if (s.sale_number) dcBillNumbers.add(s.sale_number);
+        }
+      }
+    };
+    await lookUp("id", linkedIds);
+    await lookUp("sale_number", originalNumbers);
+    return returnsTiedToDcBills(returns, dcBillIds, dcBillNumbers);
+  } catch (e) {
+    return tiedLookupFailed(e);
+  }
+}
+
+function tiedLookupFailed(error: unknown): Set<string> {
+  console.warn("[dcSaleReturnShare] DC bill lookup for returns failed; those returns are shown", error);
+  return new Set();
+}

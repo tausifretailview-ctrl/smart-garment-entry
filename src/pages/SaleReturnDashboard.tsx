@@ -5,7 +5,7 @@ import { postCustomerRefundVoucherJournal } from "@/utils/accounting/journalServ
 import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
-import { fetchDcReturnSplit } from "@/utils/dcSaleReturnShare";
+import { fetchDcReturnSplit, fetchReturnsTiedToDcBills } from "@/utils/dcSaleReturnShare";
 import {
   dcViewKeyParts,
   filterSaleLinesForDcView,
@@ -495,12 +495,17 @@ export default function SaleReturnDashboard() {
       );
 
       // DC (No GST) hidden: returns of only DC lines left out; a mixed return keeps its full row.
+      // So are returns from a DC bill or redeemed on one (like the DC bill on the POS Dashboard).
       // Their ids are dropped in the browser below: a "not in" filter put every id in the URL,
       // which the server rejects once a shop has a few hundred DC returns.
       let hiddenDc: Set<string> | null = null;
       if (hideDc) {
-        const { allDc } = await fetchDcReturnSplit(supabase, currentOrganization.id, fromDate, toDate);
-        if (allDc.size > 0) hiddenDc = allDc;
+        const [{ allDc }, tiedToDcBill] = await Promise.all([
+          fetchDcReturnSplit(supabase, currentOrganization.id, fromDate, toDate),
+          fetchReturnsTiedToDcBills(supabase, currentOrganization.id, fromDate, toDate),
+        ]);
+        const hide = new Set([...allDc, ...tiedToDcBill]);
+        if (hide.size > 0) hiddenDc = hide;
       }
 
       let searchOrClause: string | null = null;
@@ -803,12 +808,18 @@ export default function SaleReturnDashboard() {
 
       // DC (No GST) hidden: all-DC returns left out, DC share of mixed returns taken off the tiles.
       // DC User: only returns with a DC line, only their DC share on the tiles.
-      const dcSplit = hideDc || onlyDc
-        ? await fetchDcReturnSplit(supabase, currentOrganization.id, fromDate, toDate)
-        : null;
+      const [dcSplit, tiedToDcBill] = await Promise.all([
+        hideDc || onlyDc
+          ? fetchDcReturnSplit(supabase, currentOrganization.id, fromDate, toDate)
+          : Promise.resolve(null),
+        // Hidden DC: returns from a DC bill or redeemed on one are left out too.
+        hideDc
+          ? fetchReturnsTiedToDcBills(supabase, currentOrganization.id, fromDate, toDate)
+          : Promise.resolve(new Set<string>()),
+      ]);
       // All-DC returns are dropped from the rows read below, not with a "not in" filter: that put
       // every id in the URL, which the server rejects once a shop has a few hundred DC returns.
-      const hiddenDc = (id: string) => hideDc && !!dcSplit?.allDc.has(id);
+      const hiddenDc = (id: string) => hideDc && (!!dcSplit?.allDc.has(id) || tiedToDcBill.has(id));
       const keepShare = (id: string) => {
         if (onlyDc) return dcSplit?.allDc.has(id) ? 1 : dcSplit?.dcShare.get(id) ?? 0;
         return 1 - (dcSplit?.dcShare.get(id) ?? 0);

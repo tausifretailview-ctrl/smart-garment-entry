@@ -6,11 +6,9 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import {
-  ALWAYS_SHOW_DC_RIGHT,
   DC_ONLY_RIGHT,
   canFlipDcVisibility,
   dcVisibilityStorageKey,
-  effectiveDcVisibilityMode,
   isDcVisibilityFlipped,
   resolveDcVisibilityMode,
   setDcVisibilityFlipped,
@@ -47,12 +45,9 @@ export function useDcVisibility(): DcVisibility {
   // a manager whose rights are still loading starts on DC only rather than flash GST bills.
   const isDcUser = hasSpecialPermission(DC_ONLY_RIGHT);
   const onlyDc = isDcUser || (permissionsLoading && organizationRole === "manager");
-  const mode = effectiveDcVisibilityMode(
-    resolveDcVisibilityMode(
-      (settings as { purchase_settings?: { dc_visibility_mode?: string | null } | null } | null)
-        ?.purchase_settings,
-    ),
-    hasSpecialPermission(ALWAYS_SHOW_DC_RIGHT),
+  const mode = resolveDcVisibilityMode(
+    (settings as { purchase_settings?: { dc_visibility_mode?: string | null } | null } | null)
+      ?.purchase_settings,
   );
   const key =
     user?.id && currentOrganization?.id
