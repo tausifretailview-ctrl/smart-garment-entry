@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SaleNumberRequest } from "@/utils/saleNumber";
 
 /**
  * Plan Phase 2, step 1: save a bill header and its lines in one database transaction
@@ -33,7 +34,7 @@ export function isMissingAtomicSaleSaveRpc(err: RpcError): boolean {
   return (
     err?.code === "PGRST202" ||
     err?.code === "42883" ||
-    /save_sale_with_items_atomic/i.test(String(err?.message || err?.hint || "")) && /not find|does not exist/i.test(String(err?.message || ""))
+    /save_sale_with_items_(atomic|numbered)/i.test(String(err?.message || err?.hint || "")) && /not find|does not exist/i.test(String(err?.message || ""))
   );
 }
 
@@ -73,4 +74,35 @@ export async function saveSaleWithItemsAtomic(
     throw error;
   }
   return parseAtomicSaleSaveResult(data, items.length);
+}
+
+/**
+ * Plan Phase 2, step 2: the database takes the next POS/INV number inside the same
+ * transaction as the bill (save_sale_with_items_numbered), so two counters can never get
+ * the same number and a failed save does not use one up. Returns null when that function
+ * is not applied yet: the caller then takes the number first, as before.
+ */
+export async function saveSaleWithItemsNumbered(
+  client: SupabaseClient,
+  organizationId: string,
+  sale: Record<string, unknown>,
+  items: Record<string, unknown>[],
+  numbering: SaleNumberRequest,
+): Promise<(AtomicSaleSaveResult & { saleNumber: string }) | null> {
+  const { data, error } = await client.rpc("save_sale_with_items_numbered" as never, {
+    p_organization_id: organizationId,
+    p_sale: sale,
+    p_items: items,
+    p_numbering: numbering,
+  } as never);
+  if (error) {
+    if (isMissingAtomicSaleSaveRpc(error as RpcError)) return null;
+    throw error;
+  }
+  const parsed = parseAtomicSaleSaveResult(data, items.length);
+  const saleNumber = String(parsed.sale.sale_number ?? "").trim();
+  if (!saleNumber) {
+    throw new Error("Bill save returned no bill number. Check the sales list before saving again.");
+  }
+  return { ...parsed, saleNumber };
 }

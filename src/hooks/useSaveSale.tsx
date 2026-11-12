@@ -1,6 +1,6 @@
 import { posSaveMark } from "@/lib/posSaveTiming";
 import type { Tables } from "@/integrations/supabase/types";
-import { ATOMIC_SALE_ID_PLACEHOLDER, isAtomicBillSaveEnabled, saveSaleWithItemsAtomic } from "@/lib/saveSaleAtomic";
+import { ATOMIC_SALE_ID_PLACEHOLDER, isAtomicBillSaveEnabled, saveSaleWithItemsAtomic, saveSaleWithItemsNumbered } from "@/lib/saveSaleAtomic";
 import { notifyOwnersOfNewBill } from "@/lib/ownerPush";
 import { salesFinanceFields, salesHasFinanceColumn } from "@/utils/salesFinanceColumn";
 import { posExchangeVoucherRequestId } from "@/utils/exchangeRefundAfterDelete";
@@ -58,7 +58,7 @@ import {
   assertMixPaymentHasBreakdown,
   MIX_PAYMENT_BREAKDOWN_REQUIRED_MESSAGE,
 } from "@/utils/mixPaymentSaveGuard";
-import { generateOrgSaleNumber } from "@/utils/saleNumber";
+import { buildSaleNumberRequest, generateOrgSaleNumber } from "@/utils/saleNumber";
 import {
   posBillHasExchangeRefundDue,
   shouldPromoteHoldNumberToPos,
@@ -1366,47 +1366,32 @@ export const useSaveSale = () => {
       // expired" mid-save.
       await ensureFreshSupabaseSession();
       // Read cached settings (no extra round-trip)
-      let saleNumber: string;
+      let saleNumber = "";
       const saleSettings = (orgSettings as any)?.sale_settings as Record<string, any> | null;
-      
+      const numberKind: "pos" | "sale" = saleType === 'pos' ? 'pos' : 'sale';
+      const atomicSave = isAtomicBillSaveEnabled(saleSettings);
+
       // Use POS format for POS sales, Invoice format for regular sales
       const dcBillNumber =
         saleType === 'pos' && !runtimeOptions?.presetSaleNumber
           ? await allocateDcBillNumber(saleData.items)
           : null;
+      // Same series and format rules for both ways of taking the number:
+      // custom format / "Series Start From" from Settings, else POS/YY-YY/N or INV/YY-YY/N.
+      const allocateSaleNumber = () =>
+        generateOrgSaleNumber(currentOrganization.id, saleSettings, numberKind);
+      // Plan Phase 2 step 2: with one-step save the database takes the number inside the
+      // save itself (so two counters never get the same number). Offline slips and DC bills
+      // already have their number.
+      const numberInSave = atomicSave && !runtimeOptions?.presetSaleNumber && !dcBillNumber;
       if (runtimeOptions?.presetSaleNumber) {
         // Offline bill being sent: keep the number already printed on the slip.
         saleNumber = runtimeOptions.presetSaleNumber;
       } else if (dcBillNumber) {
         // Every line is a DC item: DC series instead of POS.
         saleNumber = dcBillNumber;
-      } else if (saleType === 'pos') {
-        // Check for custom POS format first
-        if (saleSettings?.pos_numbering_format) {
-          saleNumber = await generateInvoiceNumber(saleSettings.pos_numbering_format, saleSettings?.pos_series_start, 'pos');
-        } else if (saleSettings?.pos_series_start) {
-          // No custom format but has series start — use it as literal format
-          saleNumber = await generateInvoiceNumber(saleSettings.pos_series_start, saleSettings.pos_series_start, 'pos');
-        } else {
-          // Use default POS format: POS/YY-YY/N
-          const { data: defaultNumber, error: numberError } = await supabase
-            .rpc('generate_pos_number_atomic', { p_organization_id: currentOrganization.id });
-          if (numberError) throw numberError;
-          saleNumber = defaultNumber;
-        }
-      } else {
-        // Sale Invoice format
-        if (saleSettings?.invoice_numbering_format) {
-          saleNumber = await generateInvoiceNumber(saleSettings.invoice_numbering_format, saleSettings?.invoice_series_start);
-        } else if (saleSettings?.invoice_series_start) {
-          saleNumber = await generateInvoiceNumber(saleSettings.invoice_series_start, saleSettings.invoice_series_start);
-        } else {
-          // Use default INV format: INV/YY-YY/N
-          const { data: defaultNumber, error: numberError } = await supabase
-            .rpc('generate_sale_number_atomic', { p_organization_id: currentOrganization.id });
-          if (numberError) throw numberError;
-          saleNumber = defaultNumber;
-        }
+      } else if (!numberInSave) {
+        saleNumber = await allocateSaleNumber();
       }
 
       posSaveMark("invoice_number");
@@ -1472,13 +1457,34 @@ export const useSaveSale = () => {
 
       // Plan Phase 2 step 1 (Settings → POS "One-step bill save", on by default): header and lines in one
       // database transaction, so a dropped connection can never leave a bill without lines.
-      if (isAtomicBillSaveEnabled(saleSettings)) {
-        const atomic = await saveSaleWithItemsAtomic(
-          supabase,
-          currentOrganization.id,
-          saleInsertRow,
-          buildSaleItemInsertRows(ATOMIC_SALE_ID_PLACEHOLDER, saleData, perLineSalesman),
-        );
+      if (atomicSave) {
+        const atomicItems = buildSaleItemInsertRows(ATOMIC_SALE_ID_PLACEHOLDER, saleData, perLineSalesman);
+        let atomic: Awaited<ReturnType<typeof saveSaleWithItemsAtomic>> = null;
+        if (numberInSave) {
+          const numbered = await saveSaleWithItemsNumbered(
+            supabase,
+            currentOrganization.id,
+            saleInsertRow,
+            atomicItems,
+            buildSaleNumberRequest(saleSettings, numberKind),
+          );
+          if (numbered) {
+            atomic = numbered;
+            saleNumber = numbered.saleNumber;
+          } else {
+            // Numbering-in-save SQL not applied yet: take the number first, as before.
+            saleNumber = await allocateSaleNumber();
+            saleInsertRow.sale_number = saleNumber;
+          }
+        }
+        if (!atomic) {
+          atomic = await saveSaleWithItemsAtomic(
+            supabase,
+            currentOrganization.id,
+            saleInsertRow,
+            atomicItems,
+          );
+        }
         if (atomic) {
           sale = atomic.sale as unknown as Tables<"sales">;
           lineInsert = { salesmanColumnMissing: atomic.droppedItemKeys.includes("salesman") };
