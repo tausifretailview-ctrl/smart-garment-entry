@@ -7,6 +7,8 @@ import { allocateSupplierVoucherNumber } from "@/utils/supplierVoucherNumber";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/hooks/useSettings";
+import { isAtomicBillSaveEnabled } from "@/lib/saveSaleAtomic";
+import { ATOMIC_RETURN_ID_PLACEHOLDER, saveReturnWithItemsAtomic } from "@/lib/saveReturnAtomic";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1448,17 +1450,49 @@ const PurchaseReturnEntry = () => {
           discount_percent: discountPercent,
         };
 
+        // Plan Phase 2 (returns): number, header and lines in one database transaction, so a
+        // return is never left without its lines. Unknown columns (is_dc before its SQL) are
+        // dropped by the database. Old steps below while the SQL is missing or the switch is off.
         let returnRecord: any = null;
-        const { is_dc: _ignoreIsDc, ...fallbackHeaderPayload } = headerPayload;
-        try {
-          const insertResult = await supabase
-            .from("purchase_returns" as any)
-            .insert(headerPayload)
-            .select()
-            .single();
+        if (isAtomicBillSaveEnabled((settings as { sale_settings?: Record<string, unknown> } | null)?.sale_settings)) {
+          const atomic = await saveReturnWithItemsAtomic(
+            supabase,
+            "purchase_return",
+            currentOrganization!.id,
+            headerPayload,
+            lineItems.map((item) => ({
+              return_id: ATOMIC_RETURN_ID_PLACEHOLDER,
+              ...buildPurchaseReturnItemPayload(item, isDC),
+            })) as Record<string, unknown>[],
+          );
+          if (atomic) {
+            returnRecord = atomic.row;
+            freshReturnNumber = atomic.returnNumber;
+          }
+        }
+        if (!returnRecord) {
+          const { is_dc: _ignoreIsDc, ...fallbackHeaderPayload } = headerPayload;
+          try {
+            const insertResult = await supabase
+              .from("purchase_returns" as any)
+              .insert(headerPayload)
+              .select()
+              .single();
 
-          if (insertResult.error) {
-            if (!isMissingDcColumnError(insertResult.error)) throw insertResult.error;
+            if (insertResult.error) {
+              if (!isMissingDcColumnError(insertResult.error)) throw insertResult.error;
+              const fallbackInsertResult = await supabase
+                .from("purchase_returns" as any)
+                .insert(fallbackHeaderPayload)
+                .select()
+                .single();
+              if (fallbackInsertResult.error) throw fallbackInsertResult.error;
+              returnRecord = fallbackInsertResult.data;
+            } else {
+              returnRecord = insertResult.data;
+            }
+          } catch (insertErr: any) {
+            if (!isMissingDcColumnError(insertErr)) throw insertErr;
             const fallbackInsertResult = await supabase
               .from("purchase_returns" as any)
               .insert(fallbackHeaderPayload)
@@ -1466,45 +1500,34 @@ const PurchaseReturnEntry = () => {
               .single();
             if (fallbackInsertResult.error) throw fallbackInsertResult.error;
             returnRecord = fallbackInsertResult.data;
-          } else {
-            returnRecord = insertResult.data;
           }
-        } catch (insertErr: any) {
-          if (!isMissingDcColumnError(insertErr)) throw insertErr;
-          const fallbackInsertResult = await supabase
-            .from("purchase_returns" as any)
-            .insert(fallbackHeaderPayload)
-            .select()
-            .single();
-          if (fallbackInsertResult.error) throw fallbackInsertResult.error;
-          returnRecord = fallbackInsertResult.data;
-        }
 
-        // Insert return items
-        const itemsToInsertWithDc = lineItems.map((item) => ({
-          return_id: (returnRecord as any).id,
-          ...buildPurchaseReturnItemPayload(item, isDC),
-        }));
+          // Insert return items
+          const itemsToInsertWithDc = lineItems.map((item) => ({
+            return_id: (returnRecord as any).id,
+            ...buildPurchaseReturnItemPayload(item, isDC),
+          }));
 
-        const itemsToInsertWithoutDc = stripIsDcFromItems(itemsToInsertWithDc as any[]);
-        try {
-          const itemsInsertRes = await supabase
-            .from("purchase_return_items" as any)
-            .insert(itemsToInsertWithDc);
+          const itemsToInsertWithoutDc = stripIsDcFromItems(itemsToInsertWithDc as any[]);
+          try {
+            const itemsInsertRes = await supabase
+              .from("purchase_return_items" as any)
+              .insert(itemsToInsertWithDc);
 
-          if (itemsInsertRes.error) {
-            if (!isMissingDcColumnError(itemsInsertRes.error)) throw itemsInsertRes.error;
+            if (itemsInsertRes.error) {
+              if (!isMissingDcColumnError(itemsInsertRes.error)) throw itemsInsertRes.error;
+              const fallbackItemsInsert = await supabase
+                .from("purchase_return_items" as any)
+                .insert(itemsToInsertWithoutDc as any);
+              if (fallbackItemsInsert.error) throw fallbackItemsInsert.error;
+            }
+          } catch (itemsErr: any) {
+            if (!isMissingDcColumnError(itemsErr)) throw itemsErr;
             const fallbackItemsInsert = await supabase
               .from("purchase_return_items" as any)
               .insert(itemsToInsertWithoutDc as any);
             if (fallbackItemsInsert.error) throw fallbackItemsInsert.error;
           }
-        } catch (itemsErr: any) {
-          if (!isMissingDcColumnError(itemsErr)) throw itemsErr;
-          const fallbackItemsInsert = await supabase
-            .from("purchase_return_items" as any)
-            .insert(itemsToInsertWithoutDc as any);
-          if (fallbackItemsInsert.error) throw fallbackItemsInsert.error;
         }
 
         const prId = (returnRecord as unknown as { id: string }).id;
