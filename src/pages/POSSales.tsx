@@ -152,6 +152,7 @@ import {
   effectiveCartLineSalesman,
   withDefaultLineSalesman,
 } from "@/utils/posLineSalesman";
+import { posFocusMovedToOtherField } from "@/utils/posBarcodeRefocus";
 import { buildSalesmanCommissionRecords } from "@/utils/salesmanCommissionLineRepair";
 import { TabletPOSLayout } from "@/components/tablet/TabletPOSLayout";
 import { PosSchemeAppliedTag } from "@/components/pos/PosSchemeAppliedTag";
@@ -1610,6 +1611,18 @@ export default function POSSales() {
       focusBarcodeScanInput();
     }, isElectronShell() ? 120 : 80);
   }, [isIOS, focusBarcodeScanInput, shouldSkipBarcodeFocusRecovery]);
+
+  /**
+   * Header Salesperson picker closed: back to the barcode box, unless the cashier closed it by
+   * clicking into another field. Taking focus from a cart line's salesman list shut that list
+   * as soon as it opened, so the line salesman could not be picked on the first click.
+   */
+  const refocusBarcodeAfterSalesmanPicker = useCallback(() => {
+    requestAnimationFrame(() => {
+      if (posFocusMovedToOtherField(document.activeElement, barcodeInputRef.current, "[data-pos-salesman-picker]")) return;
+      focusBarcodeScanInput();
+    });
+  }, [focusBarcodeScanInput]);
 
   // Focus barcode when POS opens, tab becomes visible, or New Sale is clicked.
   useEffect(() => {
@@ -8275,7 +8288,7 @@ export default function POSSales() {
               if (!open) {
                 setSalesmanSearchInput("");
                 // Return cursor to barcode — Esc or select (scanner must not type into filter).
-                focusBarcodeScanInput();
+                refocusBarcodeAfterSalesmanPicker();
               }
             }}
           >
@@ -8312,7 +8325,7 @@ export default function POSSales() {
               data-pos-salesman-picker
               onCloseAutoFocus={(e) => {
                 e.preventDefault();
-                focusBarcodeScanInput();
+                refocusBarcodeAfterSalesmanPicker();
               }}
             >
               <Command shouldFilter={false}>
