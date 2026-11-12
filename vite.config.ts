@@ -234,6 +234,13 @@ export default defineConfig(({ mode }) => ({
           if (id.includes("vite/preload-helper")) return "vite-preload";
           if (!id.includes("node_modules")) return;
 
+          // clsx is what cn() uses in nearly every component. Recharts uses it too, and when it
+          // was left unassigned Rollup packed it into chart-vendor, so the app shell imported the
+          // whole 109 KB gz charts chunk at start-up for one 300-byte helper. Keep it with the
+          // other always-loaded UI code.
+          if (id.includes("node_modules/clsx/") || id.includes("node_modules/tailwind-merge/")) {
+            return "ui-vendor";
+          }
           if (id.includes("@tanstack/react-query")) return "query-vendor";
           if (id.includes("@supabase")) return "supabase-vendor";
           if (id.includes("recharts") || id.includes("d3-")) return "chart-vendor";
