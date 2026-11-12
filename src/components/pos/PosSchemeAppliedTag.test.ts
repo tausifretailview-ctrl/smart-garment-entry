@@ -33,8 +33,10 @@ describe("PosSchemeAppliedTag", () => {
   });
 
   it("shows on POS cart rows when categoryTierApplied is set", () => {
+    // Desktop POS cart lines are rendered by PosCartRow (moved out of POSSales, Phase 4).
+    expect(readSrc("../../pages/POSSales.tsx")).toContain("<PosCartRow");
     const surfaces = [
-      "../../pages/POSSales.tsx",
+      "./PosCartRow.tsx",
       "../tablet/TabletPOSLayout.tsx",
       "../mobile/MobilePOSCartItem.tsx",
       "../../pages/mobile/MobilePosBilling.tsx",
