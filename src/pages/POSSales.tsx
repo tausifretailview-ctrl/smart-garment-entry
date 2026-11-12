@@ -3,6 +3,9 @@ import { PosActionBar } from "@/components/pos/PosActionBar";
 import { PosShortcutBar } from "@/components/pos/PosShortcutBar";
 import { PosFooterInfo } from "@/components/pos/PosFooterInfo";
 import { PosNetAmountBox } from "@/components/pos/PosNetAmountBox";
+import { PosFlatDiscountField } from "@/components/pos/PosFlatDiscountField";
+import { PosRoundOffField } from "@/components/pos/PosRoundOffField";
+import { POS_PLAIN_NUMBER_CLASS, posPlainNumberProps } from "@/components/pos/posPlainNumber";
 import { CustomerBalanceBadge } from "@/components/CustomerBalanceBadge";
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { createPortal, flushSync } from "react-dom";
@@ -90,7 +93,6 @@ import {
   posPickedPriceKey,
   getPosCartStockIndicator,
   minUnitPriceForDiscountCap,
-  normalizeFlatDiscountInput,
   posLineNetUnitPrice,
   resolveBillFlatForPosEdit,
   computePosLiveMargin,
@@ -164,7 +166,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Scan, X, Plus, Trash2, CreditCard, Printer, ChevronLeft, ChevronDown, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Play, Loader2, AlertCircle, Coins, Package, History, Search, Gift, Calendar as CalendarIcon } from "lucide-react";
+import { Scan, X, Plus, Trash2, CreditCard, Printer, ChevronLeft, ChevronDown, FileText, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Play, Loader2, AlertCircle, Coins, Package, History, Search, Gift, Calendar as CalendarIcon } from "lucide-react";
 import { MobilePOSLayout } from "@/components/mobile/MobilePOSLayout";
 import { FloatingPOSReports } from "@/components/FloatingPOSReports";
 import { FloatingSaleReturn } from "@/components/FloatingSaleReturn";
@@ -232,7 +234,7 @@ import { autoCorrectFY, generateOrgEstimateNumber, minSequenceFromSeriesStart, s
 import { Checkbox } from "@/components/ui/checkbox";
 import { fetchSalePrintFirm, normalizePrintFirm, resolveSecondFirm, type PrintFirm } from "@/utils/secondFirm";
 import { posLineDisplayTotal } from "@/utils/posGstTotals";
-import { getAvailableCN, maxCombinedDiscountForGross } from "@/utils/saleSettlement";
+import { getAvailableCN } from "@/utils/saleSettlement";
 import { clampQty, minQtyForUom } from "@/utils/qtyInput";
 import { fetchProductQtyMeta } from "@/utils/productQtyMeta";
 import {
@@ -371,17 +373,6 @@ function posCartGridColumns(
   const purchaseCodeCol = showPurchaseCodeColumn ? " 68px" : "";
   return `36px ${barcodeColPx}px minmax(120px, 1fr)${purchaseCodeCol} 52px 64px${salesmanCol} 56px${mrpCol} 68px 92px 96px 110px 118px`;
 }
-
-/** Discount boxes: no spinner arrows, mouse wheel or ArrowUp/Down nudging (cashiers changed discounts by mistake). */
-const POS_PLAIN_NUMBER_CLASS =
-  "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
-const posPlainNumberProps = {
-  inputMode: "decimal" as const,
-  onWheel: (e: React.WheelEvent<HTMLInputElement>) => e.currentTarget.blur(),
-  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
-  },
-};
 
 /** Default POS service price from variant master (MRP, else sale price from product entry). */
 function resolveServiceVariantDefaultMrp(variant: {
@@ -1023,12 +1014,6 @@ export default function POSSales() {
     buildSaleData,
     maxSrFromBill: billingMaxSrFromBill,
   } = billing;
-
-  /** Text while the cashier types in Round (the stored round-off is snapped to a whole-rupee bill). */
-  const [roundOffDraft, setRoundOffDraft] = useState<string | null>(null);
-  useEffect(() => {
-    if (!isManualRoundOff) setRoundOffDraft(null);
-  }, [isManualRoundOff]);
 
   const hydrateCartPurchasePrices = useCallback(
     async (variantIds: Array<string | null | undefined>) => {
@@ -9082,69 +9067,19 @@ export default function POSSales() {
             
             {/* Middle Fields — Flat Disc, S/R Adj, Round (items-start + hint slots keep inputs aligned) */}
             <div className="flex items-start gap-3 flex-nowrap justify-end shrink-0 min-w-0">
-              {/* Flat Disc — combined with line disc capped to gross (before S/R) */}
-              <div className="text-center flex flex-col items-center min-h-[4.5rem]">
-                <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Flat Disc</div>
-                <div className="flex items-center h-10">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="bg-white/20 text-white px-2 py-1 text-base rounded-l-md h-10 hover:bg-white/30 border-0 font-bold min-w-[30px]"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setFlatDiscountMode(flatDiscountMode === 'percent' ? 'amount' : 'percent');
-                    }}
-                  >
-                    {flatDiscountMode === 'percent' ? '%' : '₹'}
-                  </Button>
-                  <Input 
-                    type="number"
-                    {...posPlainNumberProps}
-                    className={`w-24 h-10 bg-white text-foreground text-center text-lg font-semibold rounded-l-none border-0 ${POS_PLAIN_NUMBER_CLASS}`}
-                    value={flatDiscountValue === 0 ? "" : String(flatDiscountValue)}
-                    placeholder=""
-                    step="1"
-                    min={0}
-                    max={flatDiscountMode === "amount" ? maxFlatDiscountForGross : undefined}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      if (raw === "" || raw === "-") {
-                        setFlatDiscountValue(0);
-                        return;
-                      }
-                      const n = parseFloat(raw);
-                      if (!Number.isFinite(n)) return;
-                      setFlatDiscountValue(Math.round(n));
-                    }}
-                    onBlur={() => {
-                      let next = normalizeFlatDiscountInput(flatDiscountValue);
-                      if (flatDiscountMode === "amount" && next > maxFlatDiscountForGross + 0.01) {
-                        toast.warning(
-                          `Only ₹${maxFlatDiscountForGross.toLocaleString("en-IN", { maximumFractionDigits: 0 })} discount can be applied to this bill`,
-                        );
-                        next = Math.round(maxFlatDiscountForGross);
-                      } else if (flatDiscountMode === "percent" && flatDiscountCapped) {
-                        toast.warning(
-                          `Only ₹${maxCombinedDiscountForGross(totals.mrp).toLocaleString("en-IN", { maximumFractionDigits: 0 })} discount can be applied to this bill`,
-                        );
-                        const base = Math.max(0.01, totals.mrp - saleReturnAdjust);
-                        next = Math.min(
-                          100,
-                          Math.round((maxFlatDiscountForGross / base) * 100),
-                        );
-                      }
-                      handleFlatDiscountValueChange(next);
-                    }}
-                  />
-                </div>
-                {flatDiscountCapped && (
-                  <div className="text-[10px] text-amber-200 mt-0.5 max-w-[9rem] leading-tight">
-                    Only ₹{maxCombinedDiscountForGross(totals.mrp).toLocaleString("en-IN", { maximumFractionDigits: 0 })} discount can be applied to this bill
-                  </div>
-                )}
-              </div>
-              
+              {/* Flat Disc — combined with line disc capped to gross (before S/R) (PosFlatDiscountField) */}
+              <PosFlatDiscountField
+                mode={flatDiscountMode}
+                value={flatDiscountValue}
+                maxFlatDiscountForGross={maxFlatDiscountForGross}
+                flatDiscountCapped={flatDiscountCapped}
+                mrp={totals.mrp}
+                saleReturnAdjust={saleReturnAdjust}
+                onModeChange={setFlatDiscountMode}
+                onValueChange={setFlatDiscountValue}
+                onValueCommit={handleFlatDiscountValueChange}
+              />
+
               {/* S/R Adj — manual sale return / credit note adjust (old CN balance, return taken at
                   another shop) and the ONE place to use a customer's pending credit note (Use button).
                   Same-bill exchange may exceed bill (Mix refund/CN); pre-existing credit stays bill-capped. */}
@@ -9309,45 +9244,13 @@ export default function POSSales() {
                 )}
               </div>
               
-              {/* Round */}
-              <div className="text-center flex flex-col items-center min-h-[4.5rem]">
-                <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">
-                  Round{isManualRoundOff && <span className="text-yellow-300 normal-case"> (M)</span>}
-                </div>
-                <div className="flex items-center gap-0.5 h-10">
-                  {isManualRoundOff && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="bg-white/20 text-white px-1.5 py-1 text-xs rounded h-7 hover:bg-white/30"
-                            onClick={handleResetRoundOff}
-                          >
-                            <RotateCcw className="h-2.5 w-2.5" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Reset to auto round-off</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                  <Input 
-                    type="number"
-                    className={`w-24 h-10 text-center text-lg font-semibold border-0 rounded-md ${roundOff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
-                    value={roundOffDraft ?? (roundOff || "")}
-                    placeholder="0"
-                    onChange={(e) => {
-                      setRoundOffDraft(e.target.value);
-                      handleRoundOffChange(parseFloat(e.target.value) || 0);
-                    }}
-                    onBlur={() => setRoundOffDraft(null)}
-                    step="1"
-                  />
-                </div>
-              </div>
+              {/* Round (PosRoundOffField) */}
+              <PosRoundOffField
+                roundOff={roundOff}
+                isManualRoundOff={isManualRoundOff}
+                onRoundOffChange={handleRoundOffChange}
+                onReset={handleResetRoundOff}
+              />
 
               {/* Redeem old CRM points only — current-bill earn stays pending until save */}
               {customerId && isPointsEnabled && isRedemptionEnabled && (
