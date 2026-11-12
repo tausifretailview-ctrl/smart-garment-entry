@@ -11563,6 +11563,7 @@ export type Database = {
           api_version: string
           auto_send_fee_receipt: boolean | null
           auto_send_fee_reminder: boolean | null
+          auto_send_payment_receipt: boolean
           auto_send_invoice: boolean
           auto_send_invoice_link: boolean | null
           auto_send_payment_reminder: boolean
@@ -11638,6 +11639,7 @@ export type Database = {
           api_version?: string
           auto_send_fee_receipt?: boolean | null
           auto_send_fee_reminder?: boolean | null
+          auto_send_payment_receipt?: boolean
           auto_send_invoice?: boolean
           auto_send_invoice_link?: boolean | null
           auto_send_payment_reminder?: boolean
@@ -11713,6 +11715,7 @@ export type Database = {
           api_version?: string
           auto_send_fee_receipt?: boolean | null
           auto_send_fee_reminder?: boolean | null
+          auto_send_payment_receipt?: boolean
           auto_send_invoice?: boolean
           auto_send_invoice_link?: boolean | null
           auto_send_payment_reminder?: boolean

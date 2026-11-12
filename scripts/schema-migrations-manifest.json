@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-11-12",
-  "count": 933,
-  "fileCount": 951,
+  "count": 934,
+  "fileCount": 952,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -936,7 +936,8 @@
     "20270415120000",
     "20270416120000",
     "20270417120000",
-    "20270418120000"
+    "20270418120000",
+    "20270419120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1889,7 +1890,8 @@
     "20270415120000_org_public_info_named_fields.sql",
     "20270416120000_save_sale_with_items_atomic.sql",
     "20270417120000_save_sale_numbered_atomic.sql",
-    "20270418120000_save_sale_settle_in_save.sql"
+    "20270418120000_save_sale_settle_in_save.sql",
+    "20270419120000_whatsapp_auto_send_payment_receipt.sql"
   ],
   "duplicateVersions": [
     {

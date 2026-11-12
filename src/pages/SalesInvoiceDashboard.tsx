@@ -158,7 +158,7 @@ import {
   buildBulkInvoicePrintCss,
   injectCssIntoHtmlDocument,
 } from "@/utils/bulkInvoicePrint";
-import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
+import { autoSendPaymentReceiptWhatsApp, whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import {
   applyCreditNoteFifoToSale,
   createReceiptVoucher,
@@ -3196,6 +3196,17 @@ export default function SalesInvoiceDashboard() {
       setReceiptData(newReceiptData);
       setShowPaymentDialog(false);
       setShowReceiptDialog(true);
+      // Settings → WhatsApp "Auto-send Payment Receipt": the customer gets the receipt without a click.
+      void autoSendPaymentReceiptWhatsApp(supabase, {
+        organizationId: orgId,
+        phone: newReceiptData.customerPhone,
+        message: buildReceiptWhatsAppMessage(newReceiptData),
+        saleId,
+      }).then((sent) => {
+        if (sent === "sent") {
+          toast({ title: "Receipt sent on WhatsApp", description: `To ${newReceiptData.customerPhone}` });
+        }
+      });
       invalidateAfterCustomerPaymentMutation(
         queryClient,
         orgId,
@@ -3237,6 +3248,16 @@ export default function SalesInvoiceDashboard() {
     },
   });
 
+  const buildReceiptWhatsAppMessage = (data: NonNullable<typeof receiptData>) => {
+    const payMode = String(data.paymentMethod ?? data.paymentMode ?? "").toUpperCase();
+    const disc = whatsappPaymentReceiptDiscountLines(
+      data.discountAmount,
+      data.discountReason,
+      (n) => n.toFixed(2)
+    );
+    return `*PAYMENT RECEIPT*\n\nReceipt No: ${data.voucherNumber}\nDate: ${data.voucherDate ? format(new Date(data.voucherDate), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${data.customerName}\nInvoice: ${data.invoiceNumber}\n\nInvoice Amount: ₹${data.invoiceAmount.toFixed(2)}\nPaid Amount: ₹${data.paidAmount.toFixed(2)}${disc}\nBalance: ₹${data.currentBalance.toFixed(2)}\n\nPayment Mode: ${payMode}\n${data.narration ? `\nNotes: ${data.narration}` : ''}\n\nThank you for your payment!`;
+  };
+
   const handleSendReceiptWhatsApp = () => {
     if (!receiptData || !receiptData.customerPhone) {
       toast({
@@ -3247,15 +3268,7 @@ export default function SalesInvoiceDashboard() {
       return;
     }
 
-    const payMode = String(receiptData.paymentMethod ?? receiptData.paymentMode ?? "").toUpperCase();
-    const disc = whatsappPaymentReceiptDiscountLines(
-      receiptData.discountAmount,
-      receiptData.discountReason,
-      (n) => n.toFixed(2)
-    );
-    const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${receiptData.voucherDate ? format(new Date(receiptData.voucherDate), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${receiptData.customerName}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${receiptData.invoiceAmount.toFixed(2)}\nPaid Amount: ₹${receiptData.paidAmount.toFixed(2)}${disc}\nBalance: ₹${receiptData.currentBalance.toFixed(2)}\n\nPayment Mode: ${payMode}\n${receiptData.narration ? `\nNotes: ${receiptData.narration}` : ''}\n\nThank you for your payment!`;
-
-    sendWhatsApp(receiptData.customerPhone, message);
+    sendWhatsApp(receiptData.customerPhone, buildReceiptWhatsAppMessage(receiptData));
   };
 
   const openStatusDialog = async (invoice: any) => {

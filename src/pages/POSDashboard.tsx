@@ -140,7 +140,7 @@ import {
   typedSaleNumberMatches,
 } from "@/utils/posSaleDeleteGuard";
 import { waitForPrintReady } from "@/utils/printReady";
-import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
+import { autoSendPaymentReceiptWhatsApp, whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import { buildPublicInvoiceViewUrl } from "@/utils/publicInvoiceLink";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useEntryOwnership } from "@/hooks/useEntryOwnership";
@@ -2750,6 +2750,17 @@ const POSDashboard = () => {
       setReceiptData(newReceiptData);
       setShowPaymentDialog(false);
       setShowReceiptDialog(true);
+      // Settings → WhatsApp "Auto-send Payment Receipt": the customer gets the receipt without a click.
+      void autoSendPaymentReceiptWhatsApp(supabase, {
+        organizationId: orgId,
+        phone: newReceiptData.customerPhone,
+        message: buildReceiptWhatsAppMessage(newReceiptData),
+        saleId,
+      }).then((sent) => {
+        if (sent === "sent") {
+          toast({ title: "Receipt sent on WhatsApp", description: `To ${newReceiptData.customerPhone}` });
+        }
+      });
       // Patch already shows Paid in this tab; broadcast to other tabs / PCs.
       invalidateMoneyViewsAfterMutation(
         queryClient,
@@ -2809,6 +2820,12 @@ const POSDashboard = () => {
     },
   });
 
+  const buildReceiptWhatsAppMessage = (data: NonNullable<typeof receiptData>) => {
+    const fmt = (n: number) => Math.round(n).toLocaleString("en-IN");
+    const disc = whatsappPaymentReceiptDiscountLines(data.discountAmount, data.discountReason, fmt);
+    return `*PAYMENT RECEIPT*\n\nReceipt No: ${data.voucherNumber}\nDate: ${data.voucherDate ? format(new Date(data.voucherDate), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${data.customerName?.toUpperCase()}\nInvoice: ${data.invoiceNumber}\n\nInvoice Amount: ₹${fmt(data.invoiceAmount)}\nPaid Amount: ₹${fmt(data.paidAmount)}${disc}\nBalance: ₹${fmt(data.currentBalance)}\n\nPayment Mode: ${data.paymentMethod.toUpperCase()}\n${data.narration ? `\nNotes: ${data.narration}` : ''}\n\nThank you for your payment!`;
+  };
+
   const handleSendReceiptWhatsApp = () => {
     if (!receiptData || !receiptData.customerPhone) {
       toast({
@@ -2819,11 +2836,7 @@ const POSDashboard = () => {
       return;
     }
 
-    const fmt = (n: number) => Math.round(n).toLocaleString("en-IN");
-    const disc = whatsappPaymentReceiptDiscountLines(receiptData.discountAmount, receiptData.discountReason, fmt);
-    const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${receiptData.voucherDate ? format(new Date(receiptData.voucherDate), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${receiptData.customerName?.toUpperCase()}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${fmt(receiptData.invoiceAmount)}\nPaid Amount: ₹${fmt(receiptData.paidAmount)}${disc}\nBalance: ₹${fmt(receiptData.currentBalance)}\n\nPayment Mode: ${receiptData.paymentMethod.toUpperCase()}\n${receiptData.narration ? `\nNotes: ${receiptData.narration}` : ''}\n\nThank you for your payment!`;
-
-    sendWhatsApp(receiptData.customerPhone, message);
+    sendWhatsApp(receiptData.customerPhone, buildReceiptWhatsAppMessage(receiptData));
   };
 
   const emptySummaryStats: PosDashboardSummaryStats = {

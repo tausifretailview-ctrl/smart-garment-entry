@@ -213,6 +213,7 @@ export const WhatsAppAPISettings = () => {
     fee_reminder_template_params: [] as TemplateParam[],
     // Auto-send fee settings
     auto_send_fee_receipt: false,
+    auto_send_payment_receipt: true,
     auto_send_fee_reminder: false,
     // Chatbot settings
     chatbot_enabled: false,
@@ -291,6 +292,7 @@ export const WhatsAppAPISettings = () => {
         fee_receipt_template_params: (settings as any).fee_receipt_template_params || [],
         fee_reminder_template_params: (settings as any).fee_reminder_template_params || [],
         auto_send_fee_receipt: (settings as any).auto_send_fee_receipt || false,
+        auto_send_payment_receipt: (settings as { auto_send_payment_receipt?: boolean }).auto_send_payment_receipt !== false,
         auto_send_fee_reminder: (settings as any).auto_send_fee_reminder || false,
         // Chatbot settings
         chatbot_enabled: settings.chatbot_enabled || false,
@@ -467,6 +469,10 @@ export const WhatsAppAPISettings = () => {
       const payload = { ...rest, api_provider: "third_party" as const };
       if (!payload.wappconnect_pdf_invoice_template?.trim()) {
         payload.wappconnect_pdf_invoice_template = null;
+      }
+      // Column arrives with the 20270419120000 migration; never send it before that.
+      if (!settings || !("auto_send_payment_receipt" in settings)) {
+        delete (payload as { auto_send_payment_receipt?: boolean }).auto_send_payment_receipt;
       }
       // Column arrives with the 20270117120000 migration; never send it before that.
       if (!settings || !("wappconnect_single_message" in settings)) {
@@ -1436,6 +1442,23 @@ export const WhatsAppAPISettings = () => {
               id="auto_reminder"
               checked={formData.auto_send_payment_reminder}
               onCheckedChange={(checked) => handleInputChange("auto_send_payment_reminder", checked)}
+              disabled={!formData.is_active}
+            />
+          </div>
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="auto_payment_receipt">Auto-send Payment Receipt</Label>
+              <p className="text-xs text-muted-foreground">
+                Send the receipt after you collect a payment on the POS / Sales dashboard (Ezzy WhatsApp or WappConnect)
+              </p>
+            </div>
+            <Switch
+              id="auto_payment_receipt"
+              checked={formData.auto_send_payment_receipt}
+              onCheckedChange={(checked) => handleInputChange("auto_send_payment_receipt", checked)}
               disabled={!formData.is_active}
             />
           </div>
