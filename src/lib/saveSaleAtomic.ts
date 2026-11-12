@@ -109,3 +109,16 @@ export async function saveSaleWithItemsNumbered(
   }
   return { ...parsed, saleNumber };
 }
+
+/**
+ * The one-step save settles paid / status from the cash, UPI and card columns
+ * (compute_sale_settlement). A Sales invoice paid partly by bank transfer or finance is paid
+ * beyond those columns, so it keeps the old save steps and its paid amount stays as entered.
+ */
+export function invoiceTenderCoversPaid(
+  payment: { cashAmount?: number; upiAmount?: number; cardAmount?: number; totalPaid?: number } | null | undefined,
+): boolean {
+  if (!payment) return true;
+  const tender = (payment.cashAmount || 0) + (payment.upiAmount || 0) + (payment.cardAmount || 0);
+  return Math.abs(tender - (payment.totalPaid || 0)) <= 0.01;
+}

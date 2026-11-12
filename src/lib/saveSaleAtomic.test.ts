@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   ATOMIC_SALE_ID_PLACEHOLDER,
+  invoiceTenderCoversPaid,
   isAtomicBillSaveEnabled,
   isMissingAtomicSaleSaveRpc,
   parseAtomicSaleSaveResult,
@@ -99,5 +100,16 @@ describe("payment state settled in the save", () => {
     expect(parseAtomicSaleSaveResult({ ...okReply, settled: true }, 2).settledInSave).toBe(true);
     expect(parseAtomicSaleSaveResult(okReply, 2).settledInSave).toBe(false);
     expect(parseAtomicSaleSaveResult({ ...okReply, settled: "yes" }, 2).settledInSave).toBe(false);
+  });
+});
+
+describe("invoiceTenderCoversPaid", () => {
+  it("lets cash / UPI / card invoices and unpaid invoices use the one-step save", () => {
+    expect(invoiceTenderCoversPaid(null)).toBe(true);
+    expect(invoiceTenderCoversPaid({ cashAmount: 500, upiAmount: 0, cardAmount: 0, totalPaid: 500 })).toBe(true);
+    expect(invoiceTenderCoversPaid({ cashAmount: 200, upiAmount: 150, cardAmount: 150, totalPaid: 500 })).toBe(true);
+  });
+  it("keeps a bank transfer or finance part on the old steps", () => {
+    expect(invoiceTenderCoversPaid({ cashAmount: 200, upiAmount: 0, cardAmount: 0, totalPaid: 500 })).toBe(false);
   });
 });

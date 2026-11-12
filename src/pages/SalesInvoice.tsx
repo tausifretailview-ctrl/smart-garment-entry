@@ -104,7 +104,15 @@ import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { waitForPrintReady } from "@/utils/printReady";
 import { deleteJournalEntryByReference, postSaleJournalInBackground } from "@/utils/accounting/journalService";
-import { generateOrgSaleNumber, minSequenceFromSeriesStart, saleFormatToLikePattern, autoCorrectFY } from "@/utils/saleNumber";
+import { buildSaleNumberRequest, generateOrgSaleNumber, minSequenceFromSeriesStart, saleFormatToLikePattern, autoCorrectFY } from "@/utils/saleNumber";
+import type { Tables } from "@/integrations/supabase/types";
+import {
+  ATOMIC_SALE_ID_PLACEHOLDER,
+  invoiceTenderCoversPaid,
+  isAtomicBillSaveEnabled,
+  saveSaleWithItemsAtomic,
+  saveSaleWithItemsNumbered,
+} from "@/lib/saveSaleAtomic";
 import { buildPublicInvoiceViewUrl } from "@/utils/publicInvoiceLink";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import {
@@ -3763,58 +3771,45 @@ Thank you for choosing us!`;
         });
         setShowPrintDialog(true);
       } else {
-        const saleNumber = await generateOrgSaleNumber(
-          currentOrganization!.id,
-          settingsData?.sale_settings as Record<string, unknown> | undefined,
-          "sale",
-        );
+        const saleSettingsForSave = settingsData?.sale_settings as Record<string, unknown> | undefined;
+        const saleHeaderRow: Record<string, unknown> = {
+          sale_date: format(invoiceDate, "yyyy-MM-dd"),
+          sale_type: 'invoice',
+          customer_id: selectedCustomerId,
+          customer_name: selectedCustomer.customer_name,
+          customer_phone: selectedCustomer.phone || null,
+          customer_email: selectedCustomer.email || null,
+          customer_address: selectedCustomer.address || null,
+          gross_amount: persistedGrossAmount,
+          discount_amount: lineItemDiscount,
+          flat_discount_percent: flatDiscountPercent,
+          flat_discount_amount: flatDiscountAmount,
+          other_charges: otherCharges,
+          round_off: roundOff,
+          net_amount: netAmount,
+          points_redeemed_amount: pointsRedemptionValue,
+          payment_method: paymentOverride?.method ?? 'pay_later',
+          payment_status: paymentOverride
+            ? (paymentOverride.totalPaid >= netAmount ? 'completed' : 'partial')
+            : 'pending',
+          paid_amount: paymentOverride?.totalPaid ?? 0,
+          cash_amount: paymentOverride?.cashAmount ?? 0,
+          upi_amount: paymentOverride?.upiAmount ?? 0,
+          card_amount: paymentOverride?.cardAmount ?? 0,
+          organization_id: currentOrganization?.id,
+          shop_name: shopName || null,
+          due_date: dueDate.toISOString().split('T')[0],
+          payment_term: paymentTerm || null,
+          terms_conditions: termsConditions || null,
+          notes: notes || null,
+          shipping_address: shippingAddress || null,
+          shipping_instructions: shippingInstructions || null,
+          salesman: salesman || null,
+          tax_type: taxType,
+          ...b2bPatch,
+        };
 
-        const { data: saleData, error: saleError } = await supabase
-          .from('sales')
-          .insert([{
-            sale_number: saleNumber,
-            sale_date: format(invoiceDate, "yyyy-MM-dd"),
-            sale_type: 'invoice',
-            customer_id: selectedCustomerId,
-            customer_name: selectedCustomer.customer_name,
-            customer_phone: selectedCustomer.phone || null,
-            customer_email: selectedCustomer.email || null,
-            customer_address: selectedCustomer.address || null,
-            gross_amount: persistedGrossAmount,
-            discount_amount: lineItemDiscount,
-            flat_discount_percent: flatDiscountPercent,
-            flat_discount_amount: flatDiscountAmount,
-            other_charges: otherCharges,
-            round_off: roundOff,
-            net_amount: netAmount,
-            points_redeemed_amount: pointsRedemptionValue,
-            payment_method: paymentOverride?.method ?? 'pay_later',
-            payment_status: paymentOverride
-              ? (paymentOverride.totalPaid >= netAmount ? 'completed' : 'partial')
-              : 'pending',
-            paid_amount: paymentOverride?.totalPaid ?? 0,
-            cash_amount: paymentOverride?.cashAmount ?? 0,
-            upi_amount: paymentOverride?.upiAmount ?? 0,
-            card_amount: paymentOverride?.cardAmount ?? 0,
-            organization_id: currentOrganization?.id,
-            shop_name: shopName || null,
-            due_date: dueDate.toISOString().split('T')[0],
-            payment_term: paymentTerm || null,
-            terms_conditions: termsConditions || null,
-            notes: notes || null,
-            shipping_address: shippingAddress || null,
-            shipping_instructions: shippingInstructions || null,
-            salesman: salesman || null,
-            tax_type: taxType,
-            ...b2bPatch,
-          }])
-          .select()
-          .single();
-
-        if (saleError) throw saleError;
-        newSaleIdForRollback = saleData.id;
-
-        const saleItems = filledItems.map(item => {
+        const buildInvoiceSaleItems = (saleId: string) => filledItems.map(item => {
           const itemGross = item.lineTotal;
           const discountShare = persistedGrossAmount > 0
             ? (itemGross / persistedGrossAmount) * (flatDiscountAmount || 0)
@@ -3824,7 +3819,7 @@ Thank you for choosing us!`;
             : 0;
           const netAfterDiscount = itemGross - discountShare + roundOffShare;
           return {
-            sale_id: saleData.id,
+            sale_id: saleId,
             product_id: item.productId,
             variant_id: item.variantId,
             product_name: item.productName,
@@ -3848,7 +3843,56 @@ Thank you for choosing us!`;
           };
         });
 
-        await insertSaleItemsInChunks(supabase, saleItems as Record<string, unknown>[]);
+        // Plan Phase 2 (Sales invoice): with "One-step bill save" (on by default) the bill number,
+        // header and lines are saved in one database transaction: no half-saved invoice, and two
+        // users never get the same number. Falls back to the old steps while the SQL is missing.
+        let savedSale: Tables<"sales"> | null = null;
+        let saleNumber = "";
+        // The one-step save settles paid / status from the cash, UPI and card columns. A mix
+        // payment with bank transfer or finance is paid beyond those columns, so it keeps the old
+        // steps and its paid amount stays exactly as entered.
+        const tenderCoversPaid = invoiceTenderCoversPaid(paymentOverride);
+        if (isAtomicBillSaveEnabled(saleSettingsForSave) && tenderCoversPaid) {
+          const atomicItems = buildInvoiceSaleItems(ATOMIC_SALE_ID_PLACEHOLDER) as Record<string, unknown>[];
+          const numbered = await saveSaleWithItemsNumbered(
+            supabase,
+            currentOrganization!.id,
+            saleHeaderRow,
+            atomicItems,
+            buildSaleNumberRequest(saleSettingsForSave, "sale"),
+          );
+          if (numbered) {
+            savedSale = numbered.sale as unknown as Tables<"sales">;
+            saleNumber = numbered.saleNumber;
+          } else {
+            saleNumber = await generateOrgSaleNumber(currentOrganization!.id, saleSettingsForSave, "sale");
+            const atomic = await saveSaleWithItemsAtomic(
+              supabase,
+              currentOrganization!.id,
+              { ...saleHeaderRow, sale_number: saleNumber },
+              atomicItems,
+            );
+            if (atomic) savedSale = atomic.sale as unknown as Tables<"sales">;
+          }
+        }
+
+        if (!savedSale) {
+          if (!saleNumber) {
+            saleNumber = await generateOrgSaleNumber(currentOrganization!.id, saleSettingsForSave, "sale");
+          }
+          const { data: insertedSale, error: saleError } = await supabase
+            .from('sales')
+            .insert([{ ...saleHeaderRow, sale_number: saleNumber } as never])
+            .select()
+            .single();
+
+          if (saleError) throw saleError;
+          savedSale = insertedSale as Tables<"sales">;
+          newSaleIdForRollback = savedSale.id;
+
+          await insertSaleItemsInChunks(supabase, buildInvoiceSaleItems(savedSale.id) as Record<string, unknown>[]);
+        }
+        const saleData = savedSale;
         newSaleIdForRollback = null;
         keepDraftOnFailure = false;
         // Goods out of a godown (Industrial mode). Never throws: the bill is already saved.
