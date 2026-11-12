@@ -308,6 +308,7 @@ interface SaleSettings {
   /** When true, POS asks qty/discount in a dialog when picking or scanning regular goods. */
   pos_goods_ask_qty_dialog?: boolean;
   pos_dashboard_show_purchase_code?: boolean;
+  atomic_bill_save?: boolean;
   /** Shared / Sale default GST mode (existing setting — unchanged for current orgs) */
   default_tax_type?: 'inclusive' | 'exclusive' | 'no_gst';
   /** Optional POS-only override; omit to keep using `default_tax_type` */

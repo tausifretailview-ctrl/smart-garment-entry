@@ -46,6 +46,7 @@ type SaleSlice = {
   pos_goods_ask_qty_dialog?: boolean;
   /** POS Dashboard expanded Sale Items: P.Code column. Default false. */
   pos_dashboard_show_purchase_code?: boolean;
+  atomic_bill_save?: boolean;
   pos_category_tier_pricing?: boolean;
   /** Festival leftover pricing for discount schemes. Default false = leftover at Single (₹). */
   pos_scheme_auto_calculate_discount?: boolean;
@@ -339,6 +340,14 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
             description="Coded purchase price in Sale Items on the POS Dashboard. Never printed."
             checked={sale.pos_dashboard_show_purchase_code === true}
             onCheckedChange={(checked) => patchSale({ pos_dashboard_show_purchase_code: checked })}
+          />
+
+          <SettingsToggle
+            id="atomic_bill_save"
+            label="One-step bill save (new)"
+            description="Saves the bill and all its items together, so a network drop can never leave a bill without items. Turn off if anything looks wrong."
+            checked={sale.atomic_bill_save === true}
+            onCheckedChange={(checked) => patchSale({ atomic_bill_save: checked })}
           />
         </div>
         <div className="border-t border-slate-100 px-4 py-3">
