@@ -344,9 +344,9 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
 
           <SettingsToggle
             id="atomic_bill_save"
-            label="One-step bill save (new)"
-            description="Saves the bill and all its items together, so a network drop can never leave a bill without items. Turn off if anything looks wrong."
-            checked={sale.atomic_bill_save === true}
+            label="One-step bill save"
+            description="Saves the bill and all its items together, so a network drop can never leave a bill without items. On by default; turn off if anything looks wrong."
+            checked={sale.atomic_bill_save !== false}
             onCheckedChange={(checked) => patchSale({ atomic_bill_save: checked })}
           />
         </div>
