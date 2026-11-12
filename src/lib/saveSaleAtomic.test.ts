@@ -5,6 +5,7 @@ import {
   isMissingAtomicSaleSaveRpc,
   parseAtomicSaleSaveResult,
   saveSaleWithItemsAtomic,
+  saveSaleWithItemsNumbered,
 } from "./saveSaleAtomic";
 
 const okReply = {
@@ -61,5 +62,34 @@ describe("isAtomicBillSaveEnabled", () => {
     expect(isAtomicBillSaveEnabled({})).toBe(true);
     expect(isAtomicBillSaveEnabled({ atomic_bill_save: true })).toBe(true);
     expect(isAtomicBillSaveEnabled({ atomic_bill_save: false })).toBe(false);
+  });
+});
+
+describe("one-step bill save with the number taken in the save", () => {
+  const numbering = { kind: "pos" as const, format: null, year: "2026", month: "11", min_sequence: 1 };
+
+  it("sends the numbering request and returns the number the database gave", async () => {
+    const { client, rpc } = clientReturning({ data: okReply });
+    const lines = [{ quantity: 1 }, { quantity: 2 }];
+    const r = await saveSaleWithItemsNumbered(client, "org1", { net_amount: 500 }, lines, numbering);
+    expect(rpc).toHaveBeenCalledWith("save_sale_with_items_numbered", {
+      p_organization_id: "org1",
+      p_sale: { net_amount: 500 },
+      p_items: lines,
+      p_numbering: numbering,
+    });
+    expect(r?.saleNumber).toBe("POS/1");
+  });
+
+  it("falls back (null) when the function is not applied, throws anything else", async () => {
+    const missing = clientReturning({ error: { code: "PGRST202", message: "Could not find the function" } });
+    await expect(saveSaleWithItemsNumbered(missing.client, "org1", {}, [{}], numbering)).resolves.toBeNull();
+    const conflict = clientReturning({ error: { code: "23505", message: "duplicate key" } });
+    await expect(saveSaleWithItemsNumbered(conflict.client, "org1", {}, [{}], numbering)).rejects.toMatchObject({ code: "23505" });
+  });
+
+  it("refuses a reply without a bill number", async () => {
+    const { client } = clientReturning({ data: { ...okReply, sale: { id: "s1" } } });
+    await expect(saveSaleWithItemsNumbered(client, "org1", {}, [{}, {}], numbering)).rejects.toThrow(/no bill number/);
   });
 });
