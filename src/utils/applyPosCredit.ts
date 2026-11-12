@@ -134,3 +134,86 @@ function readApplyResult(data: unknown, requestedAmount: number): ApplyPosCredit
     raw: data,
   };
 }
+
+export type ApplyPosCreditFifoParams = {
+  organizationId: string;
+  saleId: string;
+  customerId: string;
+  amount: number;
+  idempotencyKey: string;
+  adjustedBy?: string | null;
+  notes?: string | null;
+};
+
+export type ApplyPosCreditFifoResult = {
+  applied: number;
+  chunks: Array<{
+    saleReturnId: string;
+    creditNoteId: string;
+    voucherEntryId: string;
+    voucherNumber: string;
+    amount: number;
+    alreadyApplied: boolean;
+  }>;
+  /** paid_amount / payment_status settled in the same transaction. */
+  settled: boolean;
+};
+
+/** True when apply_pos_credit_fifo is not in the database yet (step 4 SQL pending). */
+export function isMissingPosCreditFifoRpc(error: { message?: string; code?: string } | null): boolean {
+  if (!error) return false;
+  if (error.code === "PGRST202" || error.code === "42883") return true;
+  const msg = String(error.message || "");
+  return msg.includes("apply_pos_credit_fifo") && /schema cache|does not exist/i.test(msg);
+}
+
+export function parsePosCreditFifoResult(data: unknown): ApplyPosCreditFifoResult {
+  const row = readRpcObject(data) ?? {};
+  const chunks = Array.isArray(row.chunks) ? (row.chunks as Record<string, unknown>[]) : [];
+  return {
+    applied: Math.round((Number(row.applied) || 0) * 100) / 100,
+    chunks: chunks.map((c) => ({
+      saleReturnId: String(c.sale_return_id ?? ""),
+      creditNoteId: String(c.credit_note_id ?? ""),
+      voucherEntryId: String(c.voucher_entry_id ?? ""),
+      voucherNumber: String(c.voucher_number ?? ""),
+      amount: Number(c.amount) || 0,
+      alreadyApplied: c.already_applied === true,
+    })),
+    settled: row.settled === true,
+  };
+}
+
+/**
+ * Plan Phase 2 step 4: apply the customer's credit notes to a POS bill in ONE database
+ * transaction (apply_pos_credit_fifo: same pool, order and per-note apply_pos_credit as
+ * applyCreditNoteFifoToSale). All or nothing. Returns null when the function is not applied
+ * yet, so the caller runs the browser FIFO as before. Any other error is thrown.
+ */
+export async function applyPosCreditFifo(
+  supabase: SupabaseClient,
+  params: ApplyPosCreditFifoParams,
+): Promise<ApplyPosCreditFifoResult | null> {
+  const key = String(params.idempotencyKey || "").trim();
+  if (!key) throw new Error("Credit apply requires an idempotency key.");
+  const sb = supabase as unknown as {
+    rpc: (
+      fn: string,
+      args: Record<string, unknown>,
+    ) => Promise<{ data: unknown; error: { message?: string; code?: string } | null }>;
+  };
+  const { data, error } = await sb.rpc("apply_pos_credit_fifo", {
+    p_organization_id: params.organizationId,
+    p_sale_id: params.saleId,
+    p_customer_id: params.customerId,
+    p_amount: Math.round((Number(params.amount) || 0) * 100) / 100,
+    p_idempotency_key: key,
+    p_adjusted_by: params.adjustedBy ?? null,
+    p_notes: params.notes ?? null,
+  });
+  if (error) {
+    if (isMissingPosCreditFifoRpc(error)) return null;
+    throw new Error(error.message || "Could not apply credit to this bill.");
+  }
+  return parsePosCreditFifoResult(data);
+}
