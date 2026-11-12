@@ -101,3 +101,84 @@ export async function runSaleJournalCatchUp(
   }
   return result;
 }
+
+export type CatchUpPurchaseRow = {
+  id: string;
+  bill_date?: string | null;
+  net_amount?: number | null;
+  paid_amount?: number | null;
+};
+
+/**
+ * Purchase bills of this shop that still need their journal: same 48 h / 2 min window and
+ * batch as sales. A purchase bill's journal is posted by PurchaseEntry right after the
+ * one-step save; this covers a closed tab, a dropped connection or a failed post.
+ */
+export async function findPurchasesNeedingJournal(
+  client: CatchUpClient,
+  organizationId: string,
+  now = Date.now(),
+): Promise<CatchUpPurchaseRow[]> {
+  const { from, to } = journalCatchUpWindow(now);
+  const { data, error } = await client
+    .from("purchase_bills")
+    .select("id, bill_date, net_amount, paid_amount")
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null)
+    .eq("is_cancelled", false)
+    .in("journal_status", ["pending", "failed"])
+    .gt("net_amount", 0)
+    .gte("created_at", from)
+    .lte("created_at", to)
+    .order("created_at", { ascending: true })
+    .limit(JOURNAL_CATCH_UP_BATCH);
+  if (error) throw error;
+  return ((data || []) as CatchUpPurchaseRow[]).filter((row) => !!row.id);
+}
+
+/**
+ * Post the journals of those purchase bills with the same builder as the save and the
+ * backfill (recordPurchaseJournalEntry; purchase bills carry no payment method, so both
+ * pass pay_later with the bill's paid amount). Outcome written to journal_status.
+ */
+export async function runPurchaseJournalCatchUp(
+  client: CatchUpClient,
+  organizationId: string,
+  postPurchaseJournal: (
+    billId: string,
+    organizationId: string,
+    netAmount: number,
+    paidAmount: number,
+    billDate?: string,
+  ) => Promise<unknown>,
+  now = Date.now(),
+): Promise<JournalCatchUpResult> {
+  const rows = await findPurchasesNeedingJournal(client, organizationId, now);
+  const result: JournalCatchUpResult = { checked: rows.length, posted: 0, failed: 0 };
+  for (const row of rows) {
+    try {
+      await postPurchaseJournal(
+        row.id,
+        organizationId,
+        Number(row.net_amount ?? 0),
+        Number(row.paid_amount ?? 0),
+        row.bill_date ? String(row.bill_date).slice(0, 10) : undefined,
+      );
+      await client
+        .from("purchase_bills")
+        .update({ journal_status: "posted", journal_error: null })
+        .eq("id", row.id)
+        .eq("organization_id", organizationId);
+      result.posted += 1;
+    } catch (err) {
+      result.failed += 1;
+      const message = err instanceof Error ? err.message : String(err || "Failed to post journal");
+      await client
+        .from("purchase_bills")
+        .update({ journal_status: "failed", journal_error: message.slice(0, 2000) })
+        .eq("id", row.id)
+        .eq("organization_id", organizationId);
+    }
+  }
+  return result;
+}

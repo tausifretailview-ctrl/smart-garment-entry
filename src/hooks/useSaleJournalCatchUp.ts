@@ -1,14 +1,14 @@
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
-import { runSaleJournalCatchUp } from "@/lib/saleJournalCatchUp";
+import { runPurchaseJournalCatchUp, runSaleJournalCatchUp } from "@/lib/saleJournalCatchUp";
 
 const FIRST_RUN_MS = 90 * 1000;
 const EVERY_MS = 10 * 60 * 1000;
 
 /**
- * Plan Phase 2 step 5: while a shop screen is open, post the sale journals its recent bills
- * are still waiting for (see src/lib/saleJournalCatchUp.ts). First run 90 s after opening,
+ * Plan Phase 2 step 5: while a shop screen is open, post the sale and purchase journals its
+ * recent bills are still waiting for (see src/lib/saleJournalCatchUp.ts). First run 90 s after opening,
  * then every 10 minutes, only while the tab is visible, one tab per shop at a time.
  */
 export function useSaleJournalCatchUp(
@@ -27,9 +27,14 @@ export function useSaleJournalCatchUp(
       running = true;
       try {
         const work = async () => {
-          const { recordSaleJournalEntry } = await import("@/utils/accounting/journalService");
+          const { recordPurchaseJournalEntry, recordSaleJournalEntry } = await import(
+            "@/utils/accounting/journalService"
+          );
           await runSaleJournalCatchUp(supabase, organizationId, (saleId, orgId, saleDate) =>
             recordSaleJournalEntry(saleId, orgId, supabase, saleDate),
+          );
+          await runPurchaseJournalCatchUp(supabase, organizationId, (billId, orgId, net, paid, billDate) =>
+            recordPurchaseJournalEntry(billId, orgId, net, paid, "pay_later", supabase, billDate),
           );
         };
         const locks = (navigator as Navigator & { locks?: LockManager }).locks;
