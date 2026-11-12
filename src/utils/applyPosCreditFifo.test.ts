@@ -45,7 +45,11 @@ describe("applyPosCreditFifo (one transaction)", () => {
   });
 
   it("returns null only when the function is not applied yet", async () => {
-    for (const error of [{ code: "PGRST202", message: "Could not find the function" }, { code: "42883", message: "x" }]) {
+    for (const error of [
+      { code: "PGRST202", message: "Could not find the function" },
+      { code: "42883", message: "function public.apply_pos_credit does not exist" },
+      { code: "42703", message: "column ia.idempotency_key does not exist" },
+    ]) {
       await expect(applyPosCreditFifo(client({ error }).sb, params)).resolves.toBeNull();
     }
     expect(isMissingPosCreditFifoRpc({ message: "Insufficient credit note balance. Applied ₹0, requested ₹1200." })).toBe(false);

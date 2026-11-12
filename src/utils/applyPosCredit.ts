@@ -159,10 +159,15 @@ export type ApplyPosCreditFifoResult = {
   settled: boolean;
 };
 
-/** True when apply_pos_credit_fifo is not in the database yet (step 4 SQL pending). */
+/**
+ * True when apply_pos_credit_fifo cannot run yet: the step 4 SQL is pending (PGRST202), or a
+ * function / column it needs (apply_pos_credit, invoice_adjustments.idempotency_key, SQL of
+ * 23 Dec 2026) is missing (42883 / 42703). The transaction rolled back, so the browser FIFO
+ * can safely run instead.
+ */
 export function isMissingPosCreditFifoRpc(error: { message?: string; code?: string } | null): boolean {
   if (!error) return false;
-  if (error.code === "PGRST202" || error.code === "42883") return true;
+  if (error.code === "PGRST202" || error.code === "42883" || error.code === "42703") return true;
   const msg = String(error.message || "");
   return msg.includes("apply_pos_credit_fifo") && /schema cache|does not exist/i.test(msg);
 }
