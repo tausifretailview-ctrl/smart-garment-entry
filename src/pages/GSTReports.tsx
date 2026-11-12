@@ -90,38 +90,7 @@ import {
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { cn } from "@/lib/utils";
 import { addGstHsnReportLine, type GstHsnReportRow } from "@/utils/gstHsnReport";
-
-/** Per-line taxable + GST — mirrors get_gst_summary / calculateGSTBreakup tax_type rules. */
-function lineTaxableAndGst(
-  lineTotal: number,
-  rate: number,
-  taxType: GstTaxType,
-): { taxable: number; gst: number } {
-  const total = lineTotal || 0;
-  const gstPercent = rate || 0;
-  if (taxType === "no_gst" || gstPercent <= 0) {
-    return { taxable: total, gst: 0 };
-  }
-  if (taxType === "exclusive") {
-    return { taxable: total, gst: total * (gstPercent / 100) };
-  }
-  const taxable = total / (1 + gstPercent / 100);
-  return { taxable, gst: total - taxable };
-}
-
-/** Prefer sale.tax_type; if null/blank, fall back to org Sale/POS defaults. */
-function resolveReportTaxType(
-  saleTaxType: string | null | undefined,
-  saleType: string | null | undefined,
-  saleSettings?: SaleSettingsTaxDefaults | null,
-): GstTaxType {
-  const raw = String(saleTaxType ?? "").trim();
-  if (raw) return normalizeGstTaxType(raw);
-  if (String(saleType || "").toLowerCase() === "pos") {
-    return resolvePosDefaultTaxType(saleSettings);
-  }
-  return resolveSaleDefaultTaxType(saleSettings);
-}
+import { lineTaxableAndGst, outwardTotalsFromBills, resolveReportTaxType } from "@/utils/gstOutwardTotals";
 
 /**
  * Sale returns with DC (No GST) lines taken out; returns of only DC lines are dropped.
@@ -246,6 +215,11 @@ interface GSTR3BSummary {
     cgst: number;
     sgst: number;
   };
+  /**
+   * 3.1 as the earlier database summary (get_gst_summary) gave it, shown beside the new figure
+   * for one month after the switch (owner decision, 12 Nov 2026).
+   */
+  earlierOutward?: { taxable: number; igst: number; cgst: number; sgst: number };
   itcCarryForward?: {
     igst: number;
     cgst: number;
@@ -847,7 +821,59 @@ const GSTReports = () => {
       const settings = await fetchBusinessInfo();
       const businessGSTIN = settings?.gst_number || "";
 
-      // Use server-side RPC for outward GST aggregation
+      const saleSettings = ((settings as { sale_settings?: SaleSettingsTaxDefaults | null } | null)?.sale_settings) || null;
+
+      // 3.1 outward supplies with the SAME rules as the GSTR-1 file (Plan Phase 3, B4, 12 Nov 2026):
+      // bill discount off each line, shop default tax type, held / cancelled / debit-note bills
+      // out, DC lines out, inter-state and export / SEZ bills as IGST.
+      const fromIso = new Date(fromDate);
+      const toIso = new Date(toDate);
+      toIso.setHours(23, 59, 59, 999);
+      type OutwardSaleRow = {
+        id: string;
+        sale_number: string | null;
+        sale_type: string | null;
+        tax_type: string | null;
+        payment_status: string | null;
+        payment_method: string | null;
+        is_cancelled: boolean | null;
+        customers: { gst_number?: string | null } | null;
+        b2b_details?: unknown;
+      };
+      const outwardSales = await fetchAllPages<OutwardSaleRow>((from, to) =>
+        supabase
+          .from("sales")
+          .select(
+            "id, sale_number, sale_type, tax_type, payment_status, payment_method, is_cancelled, customers(gst_number)" +
+              (industrial ? ", b2b_details" : ""),
+          )
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .eq("is_cancelled", false)
+          .gt("net_amount", 0)
+          .gte("sale_date", fromIso.toISOString())
+          .lte("sale_date", toIso.toISOString())
+          .order("sale_date", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: OutwardSaleRow[] | null; error: unknown }>,
+      );
+      const outwardBills = outwardSales.filter((s) => !isHeldOrCancelledSale(s) && !isDebitNoteSale(s));
+      const outwardLines = outwardBills.length
+        ? withoutDcLines(await fetchAllSaleItems(outwardBills.map((s) => String(s.id))))
+        : [];
+      const billOutward = outwardTotalsFromBills(
+        outwardBills.map((s) => ({
+          id: String(s.id),
+          sale_type: s.sale_type,
+          tax_type: s.tax_type,
+          customerGstin: s.customers?.gst_number ?? "",
+          zeroRated: industrial ? gstr1SupplyOf(s.b2b_details) != null : false,
+        })),
+        outwardLines as never,
+        { businessGstin: businessGSTIN, saleSettings },
+      );
+
+      // Earlier method (database summary), kept only to show beside the new figure.
       const { data: gstSummary, error: rpcError } = await supabase.rpc('get_gst_summary', {
         p_organization_id: currentOrganization.id,
         p_from_date: fromDate,
@@ -866,7 +892,7 @@ const GSTReports = () => {
       const { data: saleReturnsData } = await supabase
         .from("sale_returns")
         // Industrial mode also reads the bill number, to find returns of export / SEZ bills.
-        .select((industrial ? "id, net_amount, gst_amount, original_sale_number" : "id, net_amount, gst_amount") as "id, net_amount, gst_amount")
+        .select((industrial ? "id, net_amount, gst_amount, customer_id, original_sale_number" : "id, net_amount, gst_amount, customer_id") as "id, net_amount, gst_amount, customer_id")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .gte("return_date", fromDate)
@@ -907,6 +933,24 @@ const GSTReports = () => {
         : null;
       const zeroRatedIgst = zeroRated ? zeroRated.igst : 0;
 
+      // Returns of sales to another state (or of export / SEZ bills) reduce IGST, the rest CGST / SGST.
+      const returnCustomerIds = [...new Set(gstSaleReturns.map((r) => String((r as { customer_id?: string | null }).customer_id || "")).filter(Boolean))];
+      const returnGstinById = new Map<string, string>();
+      for (let i = 0; i < returnCustomerIds.length; i += 200) {
+        const { data: custRows } = await supabase
+          .from("customers")
+          .select("id, gst_number")
+          .in("id", returnCustomerIds.slice(i, i + 200));
+        for (const c of custRows || []) returnGstinById.set(String(c.id), String(c.gst_number || ""));
+      }
+      const zeroReturnIds = new Set(zeroReturns.map((r) => String(r.id)));
+      const returnIgst = gstSaleReturns.reduce((sum, r) => {
+        const gstin = returnGstinById.get(String((r as { customer_id?: string | null }).customer_id || "")) || "";
+        const inter = zeroReturnIds.has(String(r.id)) || isInterState(businessGSTIN, gstin.trim().toUpperCase());
+        return inter ? sum + (r.gst_amount || 0) : sum;
+      }, 0);
+      const returnIntraGst = returnGST - returnIgst;
+
       // Fetch purchases
       const { data: purchaseData } = await supabase
         .from("purchase_bills")
@@ -920,11 +964,18 @@ const GSTReports = () => {
       const inwardTaxable = purchaseData?.reduce((acc, p) => acc + ((p.net_amount || 0) - (p.gst_amount || 0)), 0) || 0;
       const inwardGST = purchaseData?.reduce((acc, p) => acc + (p.gst_amount || 0), 0) || 0;
 
-      // FIX G6+G7: ITC cross-utilization
-      // For now, treat all outward as intra-state split (CGST/SGST) since RPC doesn't distinguish
-      const liabilityIGST = zeroRatedIgst; // RPC doesn't separate inter/intra yet; export / SEZ IGST only
-      const liabilityCGST = (netOutwardGST - zeroRatedIgst) / 2;
-      const liabilitySGST = (netOutwardGST - zeroRatedIgst) / 2;
+      // Earlier method's 3.1 (all CGST / SGST except export IGST), shown beside the new one.
+      const earlierOutward = {
+        taxable: netOutwardTaxable,
+        igst: zeroRatedIgst,
+        cgst: (netOutwardGST - zeroRatedIgst) / 2,
+        sgst: (netOutwardGST - zeroRatedIgst) / 2,
+      };
+      // 3.1 now: GSTR-1 bill totals, less returns, plus debit notes (debit notes stay CGST / SGST).
+      const liabilityIGST = billOutward.igst - returnIgst;
+      const liabilityCGST = billOutward.cgst - returnIntraGst / 2 + debitNoteHeads.gst / 2;
+      const liabilitySGST = billOutward.sgst - returnIntraGst / 2 + debitNoteHeads.gst / 2;
+      const newOutwardTaxable = billOutward.taxable - returnTaxable + debitNoteHeads.taxable;
 
       const itcIGST = 0; // purchases don't have inter-state split from this query
       const itcCGST = inwardGST / 2;
@@ -948,7 +999,7 @@ const GSTReports = () => {
       const carryForwardSGST = Math.max(0, itcSGST - sgstAfterIGST);
 
       // With IGST to pay on exports, CGST / SGST credit may pay it too (s.49, Rule 88A).
-      const zeroSetOff = zeroRatedIgst > 0
+      const zeroSetOff = liabilityIGST > 0
         ? computeGstSetOff(
             { igst: liabilityIGST, cgst: liabilityCGST, sgst: liabilitySGST },
             { igst: itcIGST, cgst: itcCGST, sgst: itcSGST },
@@ -957,7 +1008,7 @@ const GSTReports = () => {
 
       setGstr3bData({
         outwardSupplies: {
-          taxable: netOutwardTaxable,
+          taxable: newOutwardTaxable,
           igst: liabilityIGST,
           cgst: liabilityCGST,
           sgst: liabilitySGST
@@ -988,6 +1039,7 @@ const GSTReports = () => {
               sgst: carryForwardSGST
             },
         ...(zeroRated ? { zeroRated } : {}),
+        earlierOutward,
       });
 
       toast({ title: "Success", description: "GSTR-3B summary generated" });
@@ -1854,6 +1906,26 @@ const GSTReports = () => {
                 <InsightsKpiCard label="CGST" value={gstr3bData.outwardSupplies.cgst} valueFormat="inr" tone="neutral" />
                 <InsightsKpiCard label="SGST" value={gstr3bData.outwardSupplies.sgst} valueFormat="inr" tone="neutral" />
               </div>
+              {gstr3bData.earlierOutward &&
+                (["taxable", "igst", "cgst", "sgst"] as const).some(
+                  (k) => Math.abs((gstr3bData.earlierOutward?.[k] ?? 0) - gstr3bData.outwardSupplies[k]) > 1,
+                ) && (
+                  <Alert className="border-amber-200 bg-amber-50 py-2">
+                    <AlertTitle className="text-sm text-amber-900">Changed from the earlier GSTR-3B summary</AlertTitle>
+                    <AlertDescription className="text-xs text-amber-900 space-y-1">
+                      <p>
+                        Earlier method: Taxable ₹{Math.round(gstr3bData.earlierOutward.taxable).toLocaleString("en-IN")} · IGST ₹
+                        {Math.round(gstr3bData.earlierOutward.igst).toLocaleString("en-IN")} · CGST ₹
+                        {Math.round(gstr3bData.earlierOutward.cgst).toLocaleString("en-IN")} · SGST ₹
+                        {Math.round(gstr3bData.earlierOutward.sgst).toLocaleString("en-IN")}
+                      </p>
+                      <p>
+                        3.1 now uses the same rules as GSTR-1: bill discounts are taken off before GST, held bills are left out,
+                        and sales to another state are IGST. File with the figures above.
+                      </p>
+                    </AlertDescription>
+                  </Alert>
+                )}
             </div>
 
             {gstr3bData.zeroRated && (
