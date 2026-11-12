@@ -798,6 +798,9 @@ export const ProductEntryDialog = ({
   
   // Mobile ERP: qty input & IMEI scan
   const [mobileERPQty, setMobileERPQty] = useState<number>(1);
+  // Mobile ERP "Normal product": a local item with no maker barcode (accessories etc.). Saved like
+  // an accessory (IMEI off, one SKU), and its barcode is generated automatically on save.
+  const [mobileLocalItem, setMobileLocalItem] = useState(false);
   const [imeiScanOpen, setImeiScanOpen] = useState(false);
   const [imeiScanColor, setImeiScanColor] = useState<string>("");
   
@@ -1550,6 +1553,7 @@ export const ProductEntryDialog = ({
   }, [LAST_PRODUCT_KEY, open]);
 
   const resetForm = () => {
+    setMobileLocalItem(false);
     // Try to load last saved product details for pre-fill
     let lastProduct: Partial<ProductForm> = {};
     try {
@@ -2612,7 +2616,8 @@ export const ProductEntryDialog = ({
     if (variantsToCreate.length > 0) {
       // Sale Order master create has no barcode column on the size chips.
       // Fill any blank barcode here so the checked sizes are real variants.
-      if ((hideOpeningQty && isAutoBarcode) || masterOnly) {
+      // Mobile ERP "Normal product" always gets a generated barcode when none was typed.
+      if ((hideOpeningQty && isAutoBarcode) || masterOnly || (mobileERPMode?.enabled && mobileLocalItem)) {
         for (let i = 0; i < variantsToCreate.length; i++) {
           if (!variantsToCreate[i].barcode) {
             variantsToCreate[i] = variantWithGeneratedBarcode(
@@ -3097,30 +3102,64 @@ export const ProductEntryDialog = ({
                   {([
                     { value: 'goods' as ProductType, icon: '📦', label: 'Goods' },
                     { value: 'service' as ProductType, icon: '🔧', label: 'Service' },
-                  ]).map(pt => (
+                  ]).map(pt => {
+                    const isActive = formData.product_type === pt.value && !mobileLocalItem;
+                    return (
                     <button
                       key={pt.value}
                       type="button"
                       onClick={() => {
                         const isService = pt.value === 'service';
+                        const leavingLocalItem = mobileLocalItem;
+                        setMobileLocalItem(false);
                         setFormData({
                           ...formData,
                           product_type: pt.value as ProductType,
                           default_pur_price: isService ? 1 : formData.default_pur_price,
                           default_sale_price: isService ? 1 : formData.default_sale_price,
                           default_mrp: isService ? undefined : formData.default_mrp,
+                          // Back from "Normal product": IMEI choice returns to the usual default.
+                          ...(leavingLocalItem
+                            ? { requires_imei: getRequiresImeiFormDefault(formData.category) }
+                            : {}),
                         });
                       }}
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg border-[1.5px] cursor-pointer transition-all duration-200 text-left ${
-                        formData.product_type === pt.value
+                        isActive
                           ? 'border-primary bg-primary/5'
                           : 'border-border bg-card hover:border-primary/30'
                       }`}
                     >
                       <span className="text-sm">{pt.icon}</span>
-                      <span className={cn("font-bold", isPurchaseBillForm ? "text-sm" : "text-xs", formData.product_type === pt.value ? 'text-primary' : 'text-foreground')}>{pt.label}</span>
+                      <span className={cn("font-bold", isPurchaseBillForm ? "text-sm" : "text-xs", isActive ? 'text-primary' : 'text-foreground')}>{pt.label}</span>
                     </button>
-                  ))}
+                    );
+                  })}
+                  {mobileERPMode?.enabled && (
+                    <button
+                      key="mobile-local-item"
+                      type="button"
+                      title="Local item without a maker barcode: no IMEI, barcode generated automatically"
+                      onClick={() => {
+                        setMobileLocalItem(true);
+                        setFormData({
+                          ...formData,
+                          product_type: "goods",
+                          requires_imei: false,
+                          default_pur_price: formData.product_type === "service" ? undefined : formData.default_pur_price,
+                          default_sale_price: formData.product_type === "service" ? undefined : formData.default_sale_price,
+                        });
+                      }}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border-[1.5px] cursor-pointer transition-all duration-200 text-left ${
+                        mobileLocalItem
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border bg-card hover:border-primary/30'
+                      }`}
+                    >
+                      <span className="text-sm">🏷️</span>
+                      <span className={cn("font-bold", isPurchaseBillForm ? "text-sm" : "text-xs", mobileLocalItem ? 'text-primary' : 'text-foreground')}>Normal product</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Image Import */}
@@ -3287,7 +3326,7 @@ export const ProductEntryDialog = ({
                   </div>
                 )}
 
-                {mobileERPMode?.enabled && formData.product_type !== "service" && (
+                {mobileERPMode?.enabled && formData.product_type !== "service" && !mobileLocalItem && (
                   <div className="flex items-center justify-between gap-3 p-3 border rounded-lg bg-muted/30 col-span-full">
                     <div className="space-y-0.5 min-w-0">
                       <Label htmlFor="requires_imei" className="text-sm font-medium">
@@ -3862,7 +3901,9 @@ export const ProductEntryDialog = ({
                       </Button>
                     )}
                     <span className="text-xs text-muted-foreground">
-                      {formData.requires_imei === false
+                      {mobileLocalItem
+                        ? "Normal product — barcode is generated automatically on save"
+                        : formData.requires_imei === false
                         ? mobileERPQty === 1
                           ? "1 unit — scan shared barcode (EAN) below"
                           : `${mobileERPQty} unit rows — scan one shared barcode (EAN) for all`
@@ -3874,7 +3915,7 @@ export const ProductEntryDialog = ({
                   {formData.requires_imei === false && variants.length > 0 && (
                     <div className="space-y-1.5 rounded-lg border border-emerald-200 bg-emerald-50/40 p-3">
                       <Label htmlFor="mobile-erp-shared-barcode" className="text-sm font-semibold text-emerald-900">
-                        Barcode (EAN / shared)
+                        {mobileLocalItem ? "Barcode (optional — leave blank to auto-generate)" : "Barcode (EAN / shared)"}
                       </Label>
                       <Input
                         id="mobile-erp-shared-barcode"
@@ -3889,7 +3930,7 @@ export const ProductEntryDialog = ({
                             })),
                           );
                         }}
-                        placeholder="Scan or type shared barcode..."
+                        placeholder={mobileLocalItem ? "Leave blank — generated on save" : "Scan or type shared barcode..."}
                         className="font-mono tracking-wider h-10 text-[15px]"
                         autoComplete="off"
                       />
