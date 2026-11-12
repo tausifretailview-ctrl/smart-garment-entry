@@ -6,6 +6,7 @@ import { PosNetAmountBox } from "@/components/pos/PosNetAmountBox";
 import { PosFlatDiscountField } from "@/components/pos/PosFlatDiscountField";
 import { PosRoundOffField } from "@/components/pos/PosRoundOffField";
 import { PosSrAdjustField } from "@/components/pos/PosSrAdjustField";
+import { PosAdvanceField, PosLegacyCreditField, PosPointsField } from "@/components/pos/PosFooterCreditFields";
 import { POS_PLAIN_NUMBER_CLASS, posPlainNumberProps } from "@/components/pos/posPlainNumber";
 import { CustomerBalanceBadge } from "@/components/CustomerBalanceBadge";
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
@@ -4938,6 +4939,25 @@ export default function POSSales() {
     setAdvanceApplied(maxApplicable);
   };
 
+  // Stable handles for the memo footer Cr / Adv boxes: always call the latest function.
+  const handleApplyCreditRef = useRef(handleApplyCredit);
+  const handleApplyAdvanceRef = useRef(handleApplyAdvance);
+  useLayoutEffect(() => {
+    handleApplyCreditRef.current = handleApplyCredit;
+    handleApplyAdvanceRef.current = handleApplyAdvance;
+  });
+  const handleApplyCreditStable = useCallback((amount: number) => handleApplyCreditRef.current(amount), []);
+  const handleApplyAdvanceStable = useCallback((amount: number) => handleApplyAdvanceRef.current(amount), []);
+  const clearCreditApplied = useCallback(() => setCreditApplied(0), [setCreditApplied]);
+
+  // Footer points box: old balance, the settings minimum and the most this bill allows.
+  const customerPointsBalance = customerPointsData?.balance || 0;
+  const minPointsForRedemption = pointsSettings?.min_points_for_redemption || 1;
+  const maxRedeemablePoints = calculateMaxRedeemablePoints(
+    Math.max(0, totals.subtotal - saleReturnAdjust - flatDiscountAmount),
+    customerPointsBalance,
+  );
+
   // Gift voucher: apply its amount (not more) as soon as the voucher customer's advance is loaded.
   useEffect(() => {
     const pending = pendingVoucherRef.current;
@@ -9123,124 +9143,42 @@ export default function POSSales() {
                 onReset={handleResetRoundOff}
               />
 
-              {/* Redeem old CRM points only — current-bill earn stays pending until save */}
+              {/* Redeem old CRM points only — current-bill earn stays pending until save (PosPointsField) */}
               {customerId && isPointsEnabled && isRedemptionEnabled && (
-                <div className="text-center">
-                  <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">
-                    Pts ({customerPointsData?.balance || 0})
-                  </div>
-                  <Input
-                    type="number"
-                    className="w-24 h-10 bg-amber-100 text-amber-800 text-center text-lg font-semibold border-0 rounded-md"
-                    value={pointsToRedeem || ""}
-                    placeholder="0"
-                    min={0}
-                    max={calculateMaxRedeemablePoints(
-                      Math.max(0, totals.subtotal - saleReturnAdjust - flatDiscountAmount),
-                      customerPointsData?.balance || 0,
-                    )}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value, 10) || 0;
-                      const maxPoints = calculateMaxRedeemablePoints(
-                        Math.max(0, totals.subtotal - saleReturnAdjust - flatDiscountAmount),
-                        customerPointsData?.balance || 0,
-                      );
-                      setPointsToRedeem(Math.min(Math.max(0, value), maxPoints));
-                    }}
-                    disabled={
-                      !customerId ||
-                      calculateMaxRedeemablePoints(
-                        Math.max(0, totals.subtotal - saleReturnAdjust - flatDiscountAmount),
-                        customerPointsData?.balance || 0,
-                      ) <= 0
-                    }
-                    title={
-                      (customerPointsData?.balance || 0) <= 0
-                        ? "No old points to redeem"
-                        : (customerPointsData?.balance || 0) < (pointsSettings?.min_points_for_redemption || 1)
-                          ? `Need at least ${pointsSettings?.min_points_for_redemption || 1} old pts (this bill's +pts are pending)`
-                          : `Redeem old points only (max ${calculateMaxRedeemablePoints(
-                              Math.max(0, totals.subtotal - saleReturnAdjust - flatDiscountAmount),
-                              customerPointsData?.balance || 0,
-                            )})`
-                    }
-                  />
-                  {pointsToRedeem > 0 ? (
-                    <div className="text-[10px] text-amber-200 font-semibold mt-0.5 text-center">
-                      −₹{calculateRedemptionValue(pointsToRedeem).toFixed(0)}
-                    </div>
-                  ) : (customerPointsData?.balance || 0) > 0 &&
-                    (customerPointsData?.balance || 0) < (pointsSettings?.min_points_for_redemption || 1) ? (
-                    <div className="text-[10px] text-white/70 font-semibold mt-0.5 text-center">
-                      Min {pointsSettings?.min_points_for_redemption || 1} pts
-                    </div>
-                  ) : null}
-                </div>
+                <PosPointsField
+                  balance={customerPointsBalance}
+                  minPoints={minPointsForRedemption}
+                  maxRedeemable={maxRedeemablePoints}
+                  pointsToRedeem={pointsToRedeem}
+                  redemptionValue={pointsToRedeem > 0 ? calculateRedemptionValue(pointsToRedeem) : 0}
+                  setPointsToRedeem={setPointsToRedeem}
+                />
               )}
 
-              {/* Credit Applied */}
               {/* Old separate "Cr" box removed: it drew from the same credit pool as the S/R Adj box
                   above and caused double entry. Shown only if a legacy amount is set, so it can be cleared. */}
               {creditApplied > 0 && (
-                <div className="text-center">
-                  <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Cr ₹{availableCreditBalance.toFixed(0)}</div>
-                  <Input 
-                    type="number"
-                    className="w-24 h-10 bg-purple-100 text-purple-700 text-center text-lg font-semibold border-0 rounded-md" 
-                    value={creditApplied || ""}
-                    placeholder="0"
-                    onChange={(e) => {
-                      const value = parseFloat(e.target.value) || 0;
-                      if (value <= 0) {
-                        setCreditApplied(0);
-                        return;
-                      }
-                      const maxApplicable = Math.min(value, availableCreditBalance, amountBeforeCredit);
-                      handleApplyCredit(maxApplicable > 0 ? maxApplicable : value);
-                    }}
-                    max={Math.min(availableCreditBalance, amountBeforeCredit)}
-                    step="0.01"
-                    disabled={!customerId || isApplyingCredit}
-                  />
-                  {creditApplied > 0 && (
-                    <div className="text-[10px] text-green-400 font-semibold mt-0.5 text-center">
-                      ✓ Applied
-                    </div>
-                  )}
-                </div>
+                <PosLegacyCreditField
+                  creditApplied={creditApplied}
+                  availableCreditBalance={availableCreditBalance}
+                  amountBeforeCredit={amountBeforeCredit}
+                  hasCustomer={Boolean(customerId)}
+                  isApplyingCredit={isApplyingCredit}
+                  onClear={clearCreditApplied}
+                  onApplyCredit={handleApplyCreditStable}
+                />
               )}
 
               {(availableAdvanceBalance > 0 || advanceApplied > 0) && (
-                <div className="text-center">
-                  <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Adv ₹{availableAdvanceBalance.toFixed(0)}</div>
-                  <Input
-                    type="number"
-                    className="w-24 h-10 bg-orange-100 text-orange-800 text-center text-lg font-semibold border-0 rounded-md"
-                    value={advanceApplied || ""}
-                    placeholder="0"
-                    onChange={(e) => {
-                      const value = parseFloat(e.target.value) || 0;
-                      handleApplyAdvance(value);
-                    }}
-                    max={capPosAdvanceApplyAmount({
-                      requested: availableAdvanceBalance,
-                      availableAdvanceBalance,
-                      billRoom: Math.max(0, finalAmount),
-                    })}
-                    step="0.01"
-                    disabled={
-                      !customerId ||
-                      availableAdvanceBalance <= 0 ||
-                      exchangeRefundDue > 0.005 ||
-                      openingBalanceRemaining > 0.01
-                    }
-                  />
-                  {advanceApplied > 0 && (
-                    <div className="text-[10px] text-green-400 font-semibold mt-0.5 text-center">
-                      ✓ Applied
-                    </div>
-                  )}
-                </div>
+                <PosAdvanceField
+                  availableAdvanceBalance={availableAdvanceBalance}
+                  advanceApplied={advanceApplied}
+                  finalAmount={finalAmount}
+                  hasCustomer={Boolean(customerId)}
+                  exchangeRefundDue={exchangeRefundDue}
+                  openingBalanceRemaining={openingBalanceRemaining}
+                  onApplyAdvance={handleApplyAdvanceStable}
+                />
               )}
             </div>
             
