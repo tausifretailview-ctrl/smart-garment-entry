@@ -211,7 +211,8 @@ import { formatPurchaseBillSaveFailedCopy } from "@/utils/purchaseSaveFailedCopy
 import { fetchProductsByIds, fetchPurchaseItemsByBillId } from "@/utils/fetchAllRows";
 import { isPurchaseBillLoadIncomplete } from "@/utils/purchaseBillLoadIncomplete";
 import { barcodePrintingPathWithBill } from "@/utils/barcodePurchaseBillItems";
-import { resolveLabelPurchaseBillDate } from "@/utils/purchaseCodeEncoder";
+import { buildPurchaseBarcodeLabels, purchaseLabelCount } from "@/utils/purchaseBarcodeLabels";
+import { PurchaseSavedPrintDialog } from "@/components/purchase/PurchaseSavedPrintDialog";
 import { stashPurchaseBarcodePrintPayload } from "@/utils/barcodePurchaseBillContext";
 import { DuplicatePurchaseBillDialog, type ExistingDuplicateBill } from "@/components/DuplicatePurchaseBillDialog";
 import { deleteJournalEntryByReference, recordPurchaseJournalEntry } from "@/utils/accounting/journalService";
@@ -7576,6 +7577,82 @@ const PurchaseEntry = () => {
       .in("sku_id", skuIds);
   };
 
+  /** The bill's supplier code for the labels ("" when none). */
+  const fetchPurchaseSupplierCode = async (): Promise<string> => {
+    const suppId = savedSupplierId || billData.supplier_id;
+    if (!suppId) return "";
+    const { data: supplierData } = await supabase
+      .from("suppliers")
+      .select("supplier_code")
+      .eq("id", suppId)
+      .single();
+    return supplierData?.supplier_code || "";
+  };
+
+  /** Hand the labels to the Barcode Printing screen (stashed too, so a reload keeps them). */
+  const openBarcodePrintingWithLabels = (
+    billId: string,
+    barcodeItems: ReturnType<typeof buildPurchaseBarcodeLabels>,
+  ) => {
+    stashPurchaseBarcodePrintPayload(billId, barcodeItems);
+    navigate(barcodePrintingPathWithBill(billId), {
+      state: { purchaseItems: barcodeItems, billId },
+    });
+  };
+
+  /**
+   * "Bill Saved" dialog: Print All / Selected (`all`) or Print New Only (`new`). Only for the bill
+   * just saved; marks the printed lines as barcode_printed. (Was two near-identical handlers.)
+   */
+  const printSavedBillLabels = async (which: "all" | "new") => {
+    const gate = purchaseBarcodePrintGate;
+    if (!gate.allowed || gate.itemSource !== "just-saved-items") {
+      const reason = gate.allowed ? "unsaved-draft" : ("reason" in gate ? gate.reason : "unsaved-draft");
+      const blocked = purchaseBarcodePrintBlockedMessage(reason);
+      toast({
+        title: blocked.title,
+        description: blocked.description,
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      const supplierCode = await fetchPurchaseSupplierCode();
+
+      const itemsToPrint = which === "all" ? resolvePurchaseItemsToPrint(savedPurchaseItems) : newlyAddedItems;
+      if (which === "all" && itemsToPrint.length === 0) {
+        toast({
+          title: "No Items Selected",
+          description: "Please select items to print barcodes",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const barcodeItems = buildPurchaseBarcodeLabels(itemsToPrint, {
+        billNumber: softwareBillNo,
+        screenBillDate: format(billDate, "yyyy-MM-dd"),
+        savedInvoiceDate: savedPurchaseInvoiceDateRef.current,
+        supplierCode,
+      });
+
+      if (savedBillId && itemsToPrint.length > 0) {
+        await markPurchaseItemsBarcodePrinted(savedBillId, itemsToPrint);
+      }
+
+      if (which === "all") setSelectedForPrint(new Set());
+      setShowPrintDialog(false);
+      openBarcodePrintingWithLabels(gate.billId, barcodeItems);
+    } catch (error) {
+      console.error("Error preparing barcode data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to prepare barcode data",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handlePrintBarcodes = async () => {
     const gate = purchaseBarcodePrintGate;
     if (!gate.allowed) {
@@ -7603,51 +7680,21 @@ const PurchaseEntry = () => {
     }
 
     try {
-      // Fetch supplier code
-      let supplierCode = "";
-      const suppId = savedSupplierId || billData.supplier_id;
-      if (suppId) {
-        const { data: supplierData } = await supabase
-          .from("suppliers")
-          .select("supplier_code")
-          .eq("id", suppId)
-          .single();
-        supplierCode = supplierData?.supplier_code || "";
-      }
+      const supplierCode = await fetchPurchaseSupplierCode();
 
       // Format items for barcode printing page
-      const barcodeItems = itemsToPrint.map((item) => ({
-        sku_id: item.sku_id,
-        product_name: item.product_name || "",
-        brand: item.brand || "",
-        category: item.category || "",
-        color: item.color || "",
-        style: item.style || "",
-        size: item.size,
-        sale_price: item.sale_price,
-        mrp: item.mrp,
-        pur_price: item.pur_price,
-        barcode: item.barcode,
-        qty: item.qty,
-        bill_number: softwareBillNo || "",
-        bill_date:
-          resolveLabelPurchaseBillDate({
-            savedInvoiceDate:
-              gate.itemSource === "just-saved-items" ? savedPurchaseInvoiceDateRef.current : null,
-            itemBillDate: format(billDate, "yyyy-MM-dd"),
-          }) ?? format(billDate, "yyyy-MM-dd"),
-        supplier_code: supplierCode,
-      }));
+      const barcodeItems = buildPurchaseBarcodeLabels(itemsToPrint, {
+        billNumber: softwareBillNo,
+        screenBillDate: format(billDate, "yyyy-MM-dd"),
+        savedInvoiceDate: gate.itemSource === "just-saved-items" ? savedPurchaseInvoiceDateRef.current : null,
+        supplierCode,
+      });
 
       // Clear selection after navigation
       setSelectedForPrint(new Set());
       setShowPrintDialog(false);
 
-      stashPurchaseBarcodePrintPayload(gate.billId, barcodeItems);
-      // Navigate to barcode printing page with items
-      navigate(barcodePrintingPathWithBill(gate.billId), { 
-        state: { purchaseItems: barcodeItems, billId: gate.billId } 
-      });
+      openBarcodePrintingWithLabels(gate.billId, barcodeItems);
     } catch (error) {
       console.error("Error preparing barcode data:", error);
       toast({
@@ -10074,239 +10121,24 @@ const PurchaseEntry = () => {
           onConfirm={handleRollEntryConfirm}
         />
 
-        {/* Print Barcode Dialog with Smart Selection */}
-        <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Printer className="h-5 w-5" />
-                Bill Saved Successfully
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <p className="text-muted-foreground">
-                Your purchase bill has been saved. Would you like to print barcodes?
-              </p>
-              
-              {/* Show item counts */}
-              <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span>Total Items:</span>
-                  <span className="font-semibold">{savedPurchaseItems.reduce((sum, i) => sum + i.qty, 0)} labels</span>
-                </div>
-                {newlyAddedItems.length > 0 && (
-                  <div className="flex justify-between text-primary">
-                    <span>Newly Added:</span>
-                    <span className="font-semibold">{newlyAddedItems.reduce((sum, i) => sum + i.qty, 0)} labels</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-col gap-2">
-                {/* Print All Labels Button */}
-                <Button
-                  onClick={async () => {
-                    if (
-                      !purchaseBarcodePrintGate.allowed ||
-                      purchaseBarcodePrintGate.itemSource !== "just-saved-items"
-                    ) {
-                      const reason = purchaseBarcodePrintGate.allowed
-                        ? "unsaved-draft"
-                        : ("reason" in purchaseBarcodePrintGate ? purchaseBarcodePrintGate.reason : "unsaved-draft");
-                      const blocked = purchaseBarcodePrintBlockedMessage(reason);
-                      toast({
-                        title: blocked.title,
-                        description: blocked.description,
-                        variant: "destructive",
-                      });
-                      return;
-                    }
-                    try {
-                      // Fetch supplier code from suppliers table
-                      let supplierCode = "";
-                      const suppId = savedSupplierId || billData.supplier_id;
-                      if (suppId) {
-                        const { data: supplierData } = await supabase
-                          .from("suppliers")
-                          .select("supplier_code")
-                          .eq("id", suppId)
-                          .single();
-                        supplierCode = supplierData?.supplier_code || "";
-                      }
-
-                      const itemsToPrint = resolvePurchaseItemsToPrint(savedPurchaseItems);
-                      if (itemsToPrint.length === 0) {
-                        toast({
-                          title: "No Items Selected",
-                          description: "Please select items to print barcodes",
-                          variant: "destructive",
-                        });
-                        return;
-                      }
-
-                      const barcodeItems = itemsToPrint.map(item => ({
-                        sku_id: item.sku_id,
-                        product_name: item.product_name || "",
-                        brand: item.brand || "",
-                        category: item.category || "",
-                        color: item.color || "",
-                        style: item.style || "",
-                        size: item.size,
-                        sale_price: item.sale_price,
-                        mrp: item.mrp,
-                        pur_price: item.pur_price,
-                        barcode: item.barcode,
-                        qty: item.qty,
-                        bill_number: softwareBillNo || "",
-                        bill_date:
-                          resolveLabelPurchaseBillDate({
-                            savedInvoiceDate: savedPurchaseInvoiceDateRef.current,
-                            itemBillDate: format(billDate, "yyyy-MM-dd"),
-                          }) ?? format(billDate, "yyyy-MM-dd"),
-                        supplier_code: supplierCode,
-                      }));
-
-                      if (savedBillId) {
-                        await markPurchaseItemsBarcodePrinted(savedBillId, itemsToPrint);
-                      }
-
-                      setSelectedForPrint(new Set());
-                      setShowPrintDialog(false);
-                      stashPurchaseBarcodePrintPayload(purchaseBarcodePrintGate.billId, barcodeItems);
-                      navigate(barcodePrintingPathWithBill(purchaseBarcodePrintGate.billId), { 
-                        state: { purchaseItems: barcodeItems, billId: purchaseBarcodePrintGate.billId } 
-                      });
-                    } catch (error) {
-                      console.error("Error preparing barcode data:", error);
-                      toast({
-                        title: "Error",
-                        description: "Failed to prepare barcode data",
-                        variant: "destructive",
-                      });
-                    }
-                  }}
-                  className="w-full gap-2"
-                >
-                  <Printer className="h-4 w-4" />
-                  {selectedForPrint.size > 0
-                    ? `Print Selected (${selectedForPrint.size})`
-                    : `Print All Labels (${savedPurchaseItems.reduce((sum, i) => sum + i.qty, 0)})`}
-                </Button>
-
-                {/* Print New Labels Only Button - only show if there are newly added items */}
-                {newlyAddedItems.length > 0 && (
-                  <Button
-                    variant="secondary"
-                    onClick={async () => {
-                      if (
-                        !purchaseBarcodePrintGate.allowed ||
-                        purchaseBarcodePrintGate.itemSource !== "just-saved-items"
-                      ) {
-                        const reason = purchaseBarcodePrintGate.allowed
-                          ? "unsaved-draft"
-                          : ("reason" in purchaseBarcodePrintGate ? purchaseBarcodePrintGate.reason : "unsaved-draft");
-                        const blocked = purchaseBarcodePrintBlockedMessage(reason);
-                        toast({
-                          title: blocked.title,
-                          description: blocked.description,
-                          variant: "destructive",
-                        });
-                        return;
-                      }
-                      try {
-                        // Fetch supplier code from suppliers table
-                        let supplierCode = "";
-                        const suppId = savedSupplierId || billData.supplier_id;
-                        if (suppId) {
-                          const { data: supplierData } = await supabase
-                            .from("suppliers")
-                            .select("supplier_code")
-                            .eq("id", suppId)
-                            .single();
-                          supplierCode = supplierData?.supplier_code || "";
-                        }
-
-                        const barcodeItems = newlyAddedItems.map(item => ({
-                          sku_id: item.sku_id,
-                          product_name: item.product_name || "",
-                          brand: item.brand || "",
-                          category: item.category || "",
-                          color: item.color || "",
-                          style: item.style || "",
-                          size: item.size,
-                          sale_price: item.sale_price,
-                          mrp: item.mrp,
-                          pur_price: item.pur_price,
-                          barcode: item.barcode,
-                          qty: item.qty,
-                          bill_number: softwareBillNo || "",
-                          bill_date:
-                            resolveLabelPurchaseBillDate({
-                              savedInvoiceDate: savedPurchaseInvoiceDateRef.current,
-                              itemBillDate: format(billDate, "yyyy-MM-dd"),
-                            }) ?? format(billDate, "yyyy-MM-dd"),
-                          supplier_code: supplierCode,
-                        }));
-
-                        // Mark only new items as printed
-                        if (savedBillId && newlyAddedItems.length > 0) {
-                          const newSkuIds = newlyAddedItems.map(i => i.sku_id).filter(Boolean);
-                          if (newSkuIds.length > 0) {
-                            await supabase
-                              .from("purchase_items")
-                              .update({ barcode_printed: true })
-                              .eq("bill_id", savedBillId)
-                              .in("sku_id", newSkuIds);
-                          }
-                        }
-
-                        setShowPrintDialog(false);
-                        stashPurchaseBarcodePrintPayload(purchaseBarcodePrintGate.billId, barcodeItems);
-                        navigate(barcodePrintingPathWithBill(purchaseBarcodePrintGate.billId), { 
-                          state: { purchaseItems: barcodeItems, billId: purchaseBarcodePrintGate.billId } 
-                        });
-                      } catch (error) {
-                        console.error("Error preparing barcode data:", error);
-                        toast({
-                          title: "Error",
-                          description: "Failed to prepare barcode data",
-                          variant: "destructive",
-                        });
-                      }
-                    }}
-                    className="w-full gap-2"
-                  >
-                    <Printer className="h-4 w-4" />
-                    Print New Only ({newlyAddedItems.reduce((sum, i) => sum + i.qty, 0)})
-                  </Button>
-                )}
-
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setShowPrintDialog(false);
-                    if (savedBillId) {
-                      // Re-open the same bill in edit mode to add more products
-                      navigate("/purchase-entry", { state: { editBillId: savedBillId } });
-                    }
-                  }}
-                  className="w-full gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Continue Adding Products
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={() => setShowPrintDialog(false)}
-                  className="w-full"
-                >
-                  Skip
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+        {/* Print Barcode Dialog with Smart Selection (PurchaseSavedPrintDialog) */}
+        <PurchaseSavedPrintDialog
+          open={showPrintDialog}
+          onOpenChange={setShowPrintDialog}
+          totalLabels={purchaseLabelCount(savedPurchaseItems)}
+          hasNewLines={newlyAddedItems.length > 0}
+          newLabels={purchaseLabelCount(newlyAddedItems)}
+          selectedCount={selectedForPrint.size}
+          onPrintAll={() => void printSavedBillLabels("all")}
+          onPrintNew={() => void printSavedBillLabels("new")}
+          onContinueAdding={() => {
+            setShowPrintDialog(false);
+            if (savedBillId) {
+              // Re-open the same bill in edit mode to add more products
+              navigate("/purchase-entry", { state: { editBillId: savedBillId } });
+            }
+          }}
+        />
 
         {/* Excel Import Dialog */}
         <LazyOpen open={showExcelImport}>
