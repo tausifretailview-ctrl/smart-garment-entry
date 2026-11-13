@@ -216,6 +216,8 @@ import {
 } from "@/components/purchase/PurchaseSearchResults";
 import { formatProductDescription } from "@/utils/purchaseProductDescription";
 import { PurchaseEntryHeader } from "@/components/purchase/PurchaseEntryHeader";
+import { PurchaseDcWarning, PurchaseSerialHint } from "@/components/purchase/PurchaseSerialHint";
+import { previewNextPurchaseBillNo } from "@/utils/purchaseBillNoPreview";
 import {
   PurchaseBarcodeConflictDialog,
   PurchaseDuplicateBillDialog,
@@ -8976,17 +8978,7 @@ const PurchaseEntry = () => {
                 </Label>
                 <Input
                   id="software_bill_no"
-                  value={isEditMode ? softwareBillNo : (() => {
-                    if (lastPurchaseBill?.software_bill_no) {
-                      const match = lastPurchaseBill.software_bill_no.match(/^(PUR\/\d{2}-\d{2}\/)(\d+)$/);
-                      if (match) return `${match[1]}${Number(match[2]) + 1}`;
-                    }
-                    const now = billDate || new Date();
-                    const m = now.getMonth() + 1;
-                    const y = now.getFullYear() % 100;
-                    const fy = m >= 4 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
-                    return `PUR/${fy}/1`;
-                  })()}
+                  value={isEditMode ? softwareBillNo : previewNextPurchaseBillNo(lastPurchaseBill?.software_bill_no, billDate)}
                   readOnly
                   className="h-11 bg-muted font-mono font-bold text-base"
                   placeholder="Auto-generated"
@@ -9120,58 +9112,16 @@ const PurchaseEntry = () => {
             </div>
 
             {!isEditMode && (
-              <p className="text-[11px] text-muted-foreground leading-snug mt-1.5 min-h-[16px]">
-                {supplierPaperInvoiceNo ? (
-                  <>
-                    Supplier&apos;s bill: <span className="font-mono">{supplierPaperInvoiceNo}</span>
-                    {" · "}
-                    our serial <span className="font-mono">{nextSupplierInvNo ?? "…"}</span> is assigned when you save
-                  </>
-                ) : autoSerialSourceBill ? (
-                  <>
-                    Previous auto serial{" "}
-                    <span className="font-mono">{autoSerialSourceBill.serial.toString()}</span>
-                    {autoSerialSourceBill.software_bill_no ? (
-                      <>
-                        {" on "}
-                        <span className="font-mono">{autoSerialSourceBill.software_bill_no}</span>
-                        {autoSerialSourceBill.bill_date ? (
-                          <>
-                            {" ("}
-                            {format(new Date(autoSerialSourceBill.bill_date), "dd MMM yyyy")}
-                            {")"}
-                          </>
-                        ) : null}
-                      </>
-                    ) : null}
-                    {nextSupplierInvNo ? (
-                      <> · next serial <span className="font-mono">{nextSupplierInvNo}</span></>
-                    ) : null}
-                  </>
-                ) : lastPurchaseBill?.supplier_invoice_no ? (
-                  <>
-                    Previous bill used <span className="font-mono">{lastPurchaseBill.supplier_invoice_no}</span>
-                    {nextSupplierInvNo ? (
-                      <> · next serial <span className="font-mono">{nextSupplierInvNo}</span></>
-                    ) : null}
-                  </>
-                ) : nextSupplierInvNo ? (
-                  <>Auto serial <span className="font-mono">{nextSupplierInvNo}</span> on save</>
-                ) : (
-                  "\u00a0"
-                )}
-              </p>
+              <PurchaseSerialHint
+                supplierPaperInvoiceNo={supplierPaperInvoiceNo}
+                nextSerial={nextSupplierInvNo}
+                autoSerialSource={autoSerialSourceBill}
+                lastBillSupplierInvoiceNo={lastPurchaseBill?.supplier_invoice_no}
+              />
             )}
 
             {/* DC Warning */}
-            {isDcPurchase && (
-              <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md">
-                <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
-                <span className="text-xs text-amber-700 dark:text-amber-400">
-                  DC Purchase — GST set to 0% for all items. This bill will NOT appear in GST Purchase Register.
-                </span>
-              </div>
-            )}
+            {isDcPurchase && <PurchaseDcWarning />}
 
             {purchaseGodown.visible && (
               <PurchaseGodownBar
