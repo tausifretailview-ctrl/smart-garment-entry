@@ -27,17 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, Camera, ChevronLeft, ChevronRight, Check, AlertTriangle, SkipBack, Search, Save, Trash2, Pencil, Lock, LockOpen, RotateCcw } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, Camera, ChevronLeft, ChevronRight, Check, AlertTriangle, SkipBack, Search, Save, Trash2, Pencil, Lock, RotateCcw } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -213,6 +203,12 @@ import { isPurchaseBillLoadIncomplete } from "@/utils/purchaseBillLoadIncomplete
 import { barcodePrintingPathWithBill } from "@/utils/barcodePurchaseBillItems";
 import { buildPurchaseBarcodeLabels, purchaseLabelCount } from "@/utils/purchaseBarcodeLabels";
 import { PurchaseSavedPrintDialog } from "@/components/purchase/PurchaseSavedPrintDialog";
+import {
+  PurchaseBarcodeConflictDialog,
+  PurchaseDuplicateBillDialog,
+  PurchaseLockedBanner,
+  PurchaseUnlockDialog,
+} from "@/components/purchase/PurchaseBillGuards";
 import { stashPurchaseBarcodePrintPayload } from "@/utils/barcodePurchaseBillContext";
 import { DuplicatePurchaseBillDialog, type ExistingDuplicateBill } from "@/components/DuplicatePurchaseBillDialog";
 import { deleteJournalEntryByReference, recordPurchaseJournalEntry } from "@/utils/accounting/journalService";
@@ -9279,26 +9275,7 @@ const PurchaseEntry = () => {
           </section>
 
         {/* Locked Banner */}
-        {isBillLocked && (
-          <div className="shrink-0 flex items-center justify-between px-4 py-2.5 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg mx-4 mt-2">
-            <div className="flex items-center gap-2">
-              <Lock className="h-4 w-4 text-amber-600 shrink-0" />
-              <div>
-                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Bill is Locked</p>
-                <p className="text-xs text-amber-700 dark:text-amber-400">This purchase bill is locked. Unlock to make changes.</p>
-              </div>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="shrink-0 border-amber-400 text-amber-700 hover:bg-amber-100"
-              onClick={() => setShowUnlockConfirm(true)}
-            >
-              <LockOpen className="h-3.5 w-3.5 mr-1.5" />
-              Unlock Bill
-            </Button>
-          </div>
-        )}
+        {isBillLocked && <PurchaseLockedBanner onUnlock={() => setShowUnlockConfirm(true)} />}
 
         <section className={cn("purchase-bill-toolbar bg-slate-50 border-b border-slate-200 py-2 shrink-0", entryPageSectionX)}>
           <div className="flex items-center gap-3 flex-wrap">
@@ -10222,98 +10199,31 @@ const PurchaseEntry = () => {
         </LazyOpen>
 
       {/* Unlock Confirmation Dialog */}
-      <AlertDialog open={showUnlockConfirm} onOpenChange={setShowUnlockConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <LockOpen className="h-5 w-5 text-amber-600" />
-              Unlock Purchase Bill?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This bill is locked to prevent accidental changes. Unlocking will allow editing.
-              You can lock it again from the Purchase Bills dashboard.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-amber-600 hover:bg-amber-700"
-              onClick={handleUnlockBill}
-            >
-              <LockOpen className="h-4 w-4 mr-1.5" />
-              Unlock & Edit
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <PurchaseUnlockDialog open={showUnlockConfirm} onOpenChange={setShowUnlockConfirm} onConfirm={handleUnlockBill} />
 
       {/* Duplicate Bill Warning Dialog */}
-      <AlertDialog open={showDuplicateBillWarning} onOpenChange={setShowDuplicateBillWarning}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-600" />
-              Possible Duplicate Bill
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              A purchase bill with the same supplier, date, and amount already exists
-              {duplicateBillInfo ? ` (Bill: ${duplicateBillInfo.bill_no}, Date: ${duplicateBillInfo.bill_date})` : ''}.
-              Are you sure you want to save another bill?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-amber-600 hover:bg-amber-700"
-              onClick={() => {
-                setShowDuplicateBillWarning(false);
-                pendingSaveRef.current = true;
-                handleSave();
-              }}
-            >
-              Save Anyway
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <PurchaseDuplicateBillDialog
+        open={showDuplicateBillWarning}
+        onOpenChange={setShowDuplicateBillWarning}
+        duplicate={duplicateBillInfo}
+        onSaveAnyway={() => {
+          setShowDuplicateBillWarning(false);
+          pendingSaveRef.current = true;
+          handleSave();
+        }}
+      />
 
       {/* Barcode conflict — confirm before save (inline row warnings stay primary) */}
-      <AlertDialog open={showBarcodeConflictDialog} onOpenChange={setShowBarcodeConflictDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-600" />
-              Duplicate Barcode Detected
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-2 text-sm">
-                <p>
-                  {barcodeWarnings.size === 1
-                    ? "1 line item has a barcode conflict"
-                    : `${barcodeWarnings.size} line items have barcode conflicts`}
-                  {" "}(duplicate in this bill or already used on another product).
-                </p>
-                <p className="text-muted-foreground">
-                  Review the amber/red warnings under the BARCODE column. Saving with duplicate barcodes can cause stock and billing errors.
-                </p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Review Items</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-amber-600 hover:bg-amber-700"
-              onClick={() => {
-                setShowBarcodeConflictDialog(false);
-                pendingBarcodeSaveRef.current = true;
-                handleSave();
-              }}
-            >
-              Save Anyway
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <PurchaseBarcodeConflictDialog
+        open={showBarcodeConflictDialog}
+        onOpenChange={setShowBarcodeConflictDialog}
+        conflictCount={barcodeWarnings.size}
+        onSaveAnyway={() => {
+          setShowBarcodeConflictDialog(false);
+          pendingBarcodeSaveRef.current = true;
+          handleSave();
+        }}
+      />
 
       {/* Desktop Mobile-ERP: IMEI multi-scan (was only mounted on the mobile layout before). */}
       {isMobileERPMode && (
