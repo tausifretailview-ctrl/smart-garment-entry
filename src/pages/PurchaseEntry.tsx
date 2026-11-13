@@ -26,7 +26,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, Camera, Check, AlertTriangle, Search, Save, Trash2, Pencil, Lock, RotateCcw } from "lucide-react";
+import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, Check, AlertTriangle, Search, Save, Trash2, Pencil, RotateCcw } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -216,6 +216,13 @@ import {
 } from "@/components/purchase/PurchaseSearchResults";
 import { formatProductDescription } from "@/utils/purchaseProductDescription";
 import { PurchaseEntryHeader } from "@/components/purchase/PurchaseEntryHeader";
+import {
+  PurchaseBarcodeConflictStrip,
+  PurchaseLargeBillNotice,
+  PurchaseLockedOverlay,
+  PurchaseToolbarButtons,
+  PurchaseTotalQtyBadge,
+} from "@/components/purchase/PurchaseToolbarActions";
 import { PurchaseDcWarning, PurchaseSerialHint } from "@/components/purchase/PurchaseSerialHint";
 import { previewNextPurchaseBillNo } from "@/utils/purchaseBillNoPreview";
 import {
@@ -9242,50 +9249,17 @@ const PurchaseEntry = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                <Button
-                  onClick={() => setShowExcelImport(true)}
-                  variant="outline"
-                  size="sm"
-                  className="h-10 gap-2 border-slate-300"
-                  disabled={excelImportLoading !== null}
-                >
-                  <FileSpreadsheet className="h-4 w-4" />
-                  <span className="hidden xl:inline">Import&nbsp;</span>Excel
-                </Button>
-                {photoImportOn && (
-                  <Button
-                    onClick={() => setShowPhotoImport(true)}
-                    variant="outline"
-                    size="sm"
-                    className="h-10 gap-2 border-teal-300 text-teal-700"
-                    disabled={excelImportLoading !== null || isBillLocked}
-                    title="Read a supplier bill photo into this purchase"
-                  >
-                    <Camera className="h-4 w-4" />
-                    Photo
-                  </Button>
-                )}
-                <Button
-                  onClick={() => void openAddProductDialog()}
-                  onMouseEnter={prefetchProductEntryDialog}
-                  onFocus={prefetchProductEntryDialog}
-                  variant="outline"
-                  size="sm"
-                  className="h-10 gap-2 border-slate-300"
-                  disabled={isBillLocked}
-                >
-                  <Plus className="h-4 w-4" />
-                  Add<span className="hidden xl:inline">&nbsp;New</span>&nbsp;Product
-                </Button>
-              </div>
+              <PurchaseToolbarButtons
+                importing={excelImportLoading !== null}
+                isBillLocked={isBillLocked}
+                photoImportOn={photoImportOn}
+                onImportExcel={() => setShowExcelImport(true)}
+                onImportPhoto={() => setShowPhotoImport(true)}
+                onAddProduct={() => void openAddProductDialog()}
+                onPrefetchAddProduct={prefetchProductEntryDialog}
+              />
 
-            <div className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg ml-auto shrink-0">
-              <span className="text-[12px] font-semibold text-white/80">Total Qty</span>
-              <span className="text-[18px] font-black text-white tabular-nums font-mono leading-none">
-                {lineItems.reduce((sum, item) => sum + item.qty, 0)}
-              </span>
-            </div>
+            <PurchaseTotalQtyBadge totalQty={lineItems.reduce((sum, item) => sum + item.qty, 0)} />
           </div>
           {repurchaseMode && (
             <p className="text-xs text-primary font-medium mt-2">
@@ -9296,21 +9270,8 @@ const PurchaseEntry = () => {
 
         <section className={cn("purchase-bill-lines-panel flex-1 min-h-0 pb-1 overflow-hidden bg-slate-100 relative", entryPageSectionX)}>
           <div className="h-full flex flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm bg-white">
-            {lineItems.length > 100 && (
-              <div className="flex items-center justify-between px-3 py-1.5 bg-muted/50 border-b text-xs text-muted-foreground shrink-0">
-                <span className="font-medium">📦 Large bill: {lineItems.length} items</span>
-                <span>Showing {Math.min(visibleItemCount, lineItems.length)} rows — scroll to load more</span>
-              </div>
-            )}
-            {barcodeWarnings.size > 0 && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border-b border-amber-200 text-sm text-amber-900 shrink-0">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
-                <span>
-                  <strong>{barcodeWarnings.size}</strong> barcode conflict
-                  {barcodeWarnings.size === 1 ? "" : "s"} — check SIZE/BARCODE columns below before saving.
-                </span>
-              </div>
-            )}
+            <PurchaseLargeBillNotice lineCount={lineItems.length} shownCount={visibleItemCount} />
+            <PurchaseBarcodeConflictStrip count={barcodeWarnings.size} />
             <div
               className={`purchase-bill-lines-scroll relative flex-1 min-h-0 overflow-x-auto overflow-y-auto isolate ${isBillLocked ? "pointer-events-none" : ""}`}
               onScroll={(e) => {
@@ -9321,14 +9282,7 @@ const PurchaseEntry = () => {
                 }
               }}
             >
-              {isBillLocked && (
-                <div className="absolute inset-0 bg-background/60 z-10 flex items-center justify-center rounded-lg backdrop-blur-[1px]">
-                  <div className="flex items-center gap-2 bg-amber-100 dark:bg-amber-900 border border-amber-300 rounded-lg px-4 py-2">
-                    <Lock className="h-4 w-4 text-amber-600" />
-                    <span className="text-sm font-medium text-amber-700 dark:text-amber-300">Locked — click Unlock to edit</span>
-                  </div>
-                </div>
-              )}
+              {isBillLocked && <PurchaseLockedOverlay />}
               <Table className="table-fixed w-full min-w-0 border-separate border-spacing-0 erp-desktop-table erp-entry-lines-table">
                 <TableHeader className="sticky top-0 z-10 erp-invoice-table-header">
                   <TableRow>
