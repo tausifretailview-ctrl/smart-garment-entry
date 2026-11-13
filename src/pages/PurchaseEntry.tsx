@@ -15,10 +15,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
+import { Table, TableBody } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, ShoppingCart, Plus, Copy, Printer, ChevronDown, Check, Search, Save, Trash2, RotateCcw } from "lucide-react";
+import { Loader2, ShoppingCart, Plus, Copy, Printer, Check, Search, Save, Trash2, RotateCcw } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -217,8 +217,10 @@ import {
 } from "@/components/purchase/PurchaseToolbarActions";
 import { PurchaseBillDetailsFields } from "@/components/purchase/PurchaseBillDetailsFields";
 import {
+  PurchaseInlineSearchRow,
   PurchaseLineRow,
   PurchaseLinesTableHeader,
+  PurchaseLinesTotalRow,
   type PurchaseLineEditableField,
 } from "@/components/purchase/PurchaseLineRow";
 import { PurchaseDcWarning, PurchaseSerialHint } from "@/components/purchase/PurchaseSerialHint";
@@ -9218,89 +9220,46 @@ const PurchaseEntry = () => {
                     />
                   ))}
                   
-                  {/* Inline Search Row - Always visible at bottom */}
-                  <TableRow className="bg-accent/30 relative" style={{ zIndex: 50 }}>
-                    <TableCell className="w-[40px]"></TableCell>
-                    <TableCell className="w-[60px] text-center font-medium text-muted-foreground">
-                      {lineItems.length + 1}
-                    </TableCell>
-                    <TableCell colSpan={3} className="relative overflow-visible" style={{ overflow: 'visible' }}>
-                      <div className="relative" style={{ overflow: 'visible' }}>
-                        <Input
-                          ref={inlineSearchInputRef}
-                          value={inlineSearchQuery}
-                          onChange={(e) => setInlineSearchQuery(e.target.value)}
-                          onFocus={() => {
-                            if (inlineSearchQuery.length >= 1) {
-                              setShowInlineSearch(true);
-                            }
-                          }}
-                          onBlur={() => {
-                            // Delay hiding to allow click/touch on dropdown items (longer for mobile)
-                            setTimeout(() => setShowInlineSearch(false), 400);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'ArrowDown') {
-                              e.preventDefault();
-                              if (inlineSearchResults.length > 0) {
-                                setSelectedInlineIndex(prev => 
-                                  prev < inlineSearchResults.length - 1 ? prev + 1 : 0
-                                );
-                              }
-                            } else if (e.key === 'ArrowUp') {
-                              e.preventDefault();
-                              if (inlineSearchResults.length > 0) {
-                                setSelectedInlineIndex(prev => 
-                                  prev > 0 ? prev - 1 : inlineSearchResults.length - 1
-                                );
-                              }
-                            } else if (e.key === 'Enter') {
-                              e.preventDefault();
-                              if (inlineSearchResults.length > 0) {
-                                handleInlineProductSelect(inlineSearchResults[selectedInlineIndex]);
-                              }
-                            }
-                          }}
-                          placeholder="Search product name, brand, style..."
-                          className="w-full pr-8"
+                  {/* Inline search row - always at the bottom */}
+                  <PurchaseInlineSearchRow
+                    nextSrNo={lineItems.length + 1}
+                    inputRef={inlineSearchInputRef}
+                    query={inlineSearchQuery}
+                    onQueryChange={setInlineSearchQuery}
+                    resultCount={inlineSearchResults.length}
+                    selectedIndex={selectedInlineIndex}
+                    onSelectedIndexChange={setSelectedInlineIndex}
+                    onPickSelected={() => handleInlineProductSelect(inlineSearchResults[selectedInlineIndex])}
+                    onShowMenu={setShowInlineSearch}
+                    onAddNew={handleAddNewProductFromInline}
+                    showSize={showPurCol.size}
+                    showMrp={showMrp}
+                    showGst={showPurCol.gst}
+                    showDiscPercent={showPurCol.disc_percent}
+                    menu={
+                      showInlineSearch && inlineSearchInputRef.current ? (
+                        <PurchaseInlineSearchMenu
+                          anchor={inlineSearchInputRef.current}
+                          query={inlineSearchQuery}
+                          results={inlineSearchResults}
+                          displayLimit={inlineDisplayLimit}
+                          onLoadMore={() => setInlineDisplayLimit((prev) => prev + 100)}
+                          selectedIndex={selectedInlineIndex}
+                          onHoverIndex={setSelectedInlineIndex}
+                          onSelect={handleInlineProductSelect}
+                          onAddNew={handleAddNewProductFromInline}
                         />
-                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                        
-                        {/* Inline Search Dropdown - Using Portal to escape table overflow (PurchaseInlineSearchMenu) */}
-                        {showInlineSearch && inlineSearchInputRef.current && (
-                          <PurchaseInlineSearchMenu
-                            anchor={inlineSearchInputRef.current}
-                            query={inlineSearchQuery}
-                            results={inlineSearchResults}
-                            displayLimit={inlineDisplayLimit}
-                            onLoadMore={() => setInlineDisplayLimit((prev) => prev + 100)}
-                            selectedIndex={selectedInlineIndex}
-                            onHoverIndex={setSelectedInlineIndex}
-                            onSelect={handleInlineProductSelect}
-                            onAddNew={handleAddNewProductFromInline}
-                          />
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell colSpan={(showMrp ? 1 : 0) + (showPurCol.gst ? 1 : 0) + (showPurCol.disc_percent ? 1 : 0) + 6} className="text-muted-foreground text-sm">
-                      <span className="hidden md:inline">Type to search or </span>
-                      <button 
-                        onClick={handleAddNewProductFromInline}
-                        className="text-primary hover:underline font-medium"
-                      >
-                        + Add New Product
-                      </button>
-                    </TableCell>
-                  </TableRow>
-                  
-                  {/* Footer row with QTY total */}
+                      ) : null
+                    }
+                  />
                   {lineItems.length > 0 && (
-                    <TableRow className="bg-muted/50 font-semibold">
-                      <TableCell colSpan={4} className="text-right font-semibold">Total:</TableCell>
-                      <TableCell className="w-[130px]"></TableCell>
-                      <TableCell className="w-[110px] text-right font-semibold tabular-nums">{totals.totalQty}</TableCell>
-                      <TableCell colSpan={(showMrp ? 1 : 0) + (showPurCol.gst ? 1 : 0) + (showPurCol.disc_percent ? 1 : 0) + 5}></TableCell>
-                    </TableRow>
+                    <PurchaseLinesTotalRow
+                      totalQty={totals.totalQty}
+                      showSize={showPurCol.size}
+                      showMrp={showMrp}
+                      showGst={showPurCol.gst}
+                      showDiscPercent={showPurCol.disc_percent}
+                    />
                   )}
                 </TableBody>
               </Table>
