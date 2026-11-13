@@ -13,6 +13,12 @@ import {
   saleReturnsSelectForDcView,
 } from "@/utils/dcView";
 import { useToast } from "@/hooks/use-toast";
+import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
+import {
+  buildCreditNoteWhatsAppMessage,
+  canSendCreditNoteWhatsApp,
+  sendCreditNoteWhatsApp,
+} from "@/utils/creditNoteWhatsApp";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -31,7 +37,7 @@ import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronDown, ChevronUp, Printer, Trash2, Plus, Search, Receipt, TrendingDown, IndianRupee, CreditCard, Banknote, ArrowLeftRight, Pencil, FileSpreadsheet, Package, Settings2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Printer, Trash2, Plus, Search, Receipt, TrendingDown, IndianRupee, CreditCard, Banknote, ArrowLeftRight, Pencil, FileSpreadsheet, Package, Settings2, MessageCircle, Loader2 } from "lucide-react";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -255,6 +261,50 @@ export default function SaleReturnDashboard() {
   const isDesktop = useIsDesktop();
   const rowContextMenu = useContextMenu<SaleReturn>();
 
+  // Send a credit note with credit left to the customer through the shop's WhatsApp
+  // (Settings → WhatsApp: Ezzy WhatsApp built-in or WappConnect).
+  const { settings: waSettings } = useWhatsAppAPI();
+  const waCnReady = canSendCreditNoteWhatsApp(waSettings);
+  const [sendingCnWhatsAppId, setSendingCnWhatsAppId] = useState<string | null>(null);
+  const canWhatsAppCn = (ret: SaleReturn) =>
+    waCnReady &&
+    !!ret.customer_id &&
+    (ret.credit_status || "").toLowerCase() !== "refunded" &&
+    !isSaleReturnConsumedAtBilling(ret) &&
+    getAvailableCN(ret) > 0;
+  const handleSendCnWhatsApp = async (ret: SaleReturn) => {
+    if (!currentOrganization?.id || !ret.customer_id || sendingCnWhatsAppId) return;
+    setSendingCnWhatsAppId(ret.id);
+    try {
+      const res = await sendCreditNoteWhatsApp(supabase, {
+        organizationId: currentOrganization.id,
+        customerId: ret.customer_id,
+        creditNoteId: ret.credit_note_id || null,
+        message: buildCreditNoteWhatsAppMessage({
+          shopName: currentOrganization.name || "",
+          customerName: ret.customer_name || "",
+          creditNoteNumber: ret.credit_note_number || null,
+          returnNumber: ret.return_number || "",
+          amount: Number(ret.net_amount || 0),
+          balanceAmount: getAvailableCN(ret),
+          returnDate: ret.return_date,
+          originalBillNumber: ret.original_sale_number,
+          itemCount: Number(ret.total_qty || 0),
+        }),
+      });
+      const label = ret.credit_note_number || ret.return_number || "Credit note";
+      if (res.status === "sent") {
+        toast({ title: "WhatsApp sent", description: `${label} sent to ${ret.customer_name || "the customer"}` });
+      } else if (res.status === "no_phone") {
+        toast({ title: "WhatsApp not sent", description: "The customer has no phone number saved.", variant: "destructive" });
+      } else {
+        toast({ title: "WhatsApp not sent", description: res.message || "Check Settings → WhatsApp.", variant: "destructive" });
+      }
+    } finally {
+      setSendingCnWhatsAppId(null);
+    }
+  };
+
   const getReturnContextMenuItems = (ret: SaleReturn): ContextMenuItem[] => {
     const status = (ret.credit_status || "").toLowerCase();
     const canAdjust =
@@ -298,6 +348,14 @@ export default function SaleReturnDashboard() {
           setShowRefundDialog(true);
         },
         hidden: !canRefund,
+      },
+      {
+        label: "Send CN on WhatsApp",
+        icon: MessageCircle,
+        onClick: () => {
+          void handleSendCnWhatsApp(ret);
+        },
+        hidden: !canWhatsAppCn(ret),
       },
       {
         label: "Print",
@@ -1586,6 +1644,21 @@ export default function SaleReturnDashboard() {
                           Refund
                         </button>
                       )}
+                      {canWhatsAppCn(ret) && (
+                        <button
+                          type="button"
+                          onClick={() => void handleSendCnWhatsApp(ret)}
+                          disabled={sendingCnWhatsAppId === ret.id}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-green-600 active:bg-green-50 touch-manipulation disabled:opacity-50"
+                        >
+                          {sendingCnWhatsAppId === ret.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <MessageCircle className="h-3.5 w-3.5" />
+                          )}
+                          WhatsApp
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handlePrintClick(ret)}
@@ -2112,6 +2185,22 @@ export default function SaleReturnDashboard() {
                                 </Button>
                               );
                             })()}
+                            {canWhatsAppCn(ret) && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => void handleSendCnWhatsApp(ret)}
+                                disabled={sendingCnWhatsAppId === ret.id}
+                                title="Send credit note on WhatsApp"
+                                data-testid="sr-send-cn-whatsapp"
+                              >
+                                {sendingCnWhatsAppId === ret.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <MessageCircle className="h-4 w-4 text-green-600" />
+                                )}
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
