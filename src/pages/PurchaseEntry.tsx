@@ -15,7 +15,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CalculatorInput } from "@/components/ui/calculator-input";
 import { QtyInput } from "@/components/ui/qty-input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -24,9 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, Check, AlertTriangle, Search, Save, Trash2, Pencil, RotateCcw } from "lucide-react";
+import { Loader2, ShoppingCart, Plus, X, Copy, Printer, ChevronDown, Check, AlertTriangle, Search, Save, Trash2, Pencil, RotateCcw } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -58,7 +55,7 @@ import {
 import { resolveTabCachePath } from "@/lib/tabPageRegistry";
 import { isTabCachePaneMounted } from "@/lib/tabCacheMountRegistry";
 import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
-import { formatPurchaseBillEntryAt, getPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
+import { getPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import type { ImportProgress } from "@/components/ExcelImportDialog";
 import {
@@ -223,6 +220,7 @@ import {
   PurchaseToolbarButtons,
   PurchaseTotalQtyBadge,
 } from "@/components/purchase/PurchaseToolbarActions";
+import { PurchaseBillDetailsFields } from "@/components/purchase/PurchaseBillDetailsFields";
 import { PurchaseDcWarning, PurchaseSerialHint } from "@/components/purchase/PurchaseSerialHint";
 import { previewNextPurchaseBillNo } from "@/utils/purchaseBillNoPreview";
 import {
@@ -778,7 +776,6 @@ const PurchaseEntry = () => {
   const [billDate, setBillDate] = useState<Date>(() =>
     initialBrowserSnapshot?.billDate ? new Date(initialBrowserSnapshot.billDate) : new Date(),
   );
-  const [billDateOpen, setBillDateOpen] = useState(false);
   /** When this bill was first saved in EzzyERP (read-only after save). */
   const [billEntryAt, setBillEntryAt] = useState<string | null>(null);
   const [grossAmount, setGrossAmount] = useState(0);
@@ -2786,6 +2783,16 @@ const PurchaseEntry = () => {
     setNavBillIndex(newIndex);
     loadBillById(allBillIds[newIndex].id);
   }, [allBillIds, navBillIndex, loadBillById]);
+
+  const openSupplierList = useCallback(() => setSupplierListEnabled(true), []);
+  const openAddSupplierDialog = useCallback(() => setShowAddSupplierDialog(true), []);
+  const handleSupplierPicked = useCallback(
+    (value: string) => {
+      const supplier = suppliers.find((s) => s.id === value);
+      setBillData((prev) => ({ ...prev, supplier_id: value, supplier_name: supplier?.supplier_name || "" }));
+    },
+    [suppliers],
+  );
 
   const handleSupplierInvoiceNoChange = useCallback((value: string) => {
     supplierInvManuallyEditedRef.current = true;
@@ -8780,11 +8787,8 @@ const PurchaseEntry = () => {
           <PurchaseMobileSupplierCard
             supplierId={billData.supplier_id}
             suppliers={suppliers}
-            onSupplierListOpen={() => setSupplierListEnabled(true)}
-            onSupplierChange={(value) => {
-              const s = suppliers.find((s: any) => s.id === value);
-              setBillData({ ...billData, supplier_id: value, supplier_name: s?.supplier_name || "" });
-            }}
+            onSupplierListOpen={openSupplierList}
+            onSupplierChange={handleSupplierPicked}
             billDate={format(billDate, "yyyy-MM-dd")}
             onBillDateChange={(value) => setBillDate(new Date(value))}
             serial={billData.supplier_invoice_no}
@@ -8978,145 +8982,23 @@ const PurchaseEntry = () => {
       <main className={cn(entryPageMainClass, "purchase-entry-main")}>
 
         <section className={cn("purchase-bill-details-section bg-white border-b border-slate-100 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-x-3 gap-y-2 items-start purchase-entry-meta-grid entry-vasy-key-fields">
-              <div className="space-y-1.5 min-w-0 entry-key-field entry-key-field--doc-no">
-                <Label htmlFor="software_bill_no" className="entry-key-label text-[13px] font-semibold text-slate-500 leading-none">
-                  Software Bill No
-                </Label>
-                <Input
-                  id="software_bill_no"
-                  value={isEditMode ? softwareBillNo : previewNextPurchaseBillNo(lastPurchaseBill?.software_bill_no, billDate)}
-                  readOnly
-                  className="h-11 bg-muted font-mono font-bold text-base"
-                  placeholder="Auto-generated"
-                />
-              </div>
-
-              <div className="col-span-2 space-y-1.5 min-w-0 entry-key-field entry-key-field--party">
-                <Label htmlFor="supplier_name" className="entry-key-label text-[13px] font-semibold text-slate-500 leading-none">
-                  Supplier <span className="text-red-500">*</span>
-                </Label>
-                <div className="flex gap-1.5 min-w-0">
-                  <Select
-                    value={billData.supplier_id}
-                    onOpenChange={(open) => {
-                      if (open) setSupplierListEnabled(true);
-                    }}
-                    onValueChange={(value) => {
-                      const supplier = suppliers.find(s => s.id === value);
-                      setBillData({ 
-                        ...billData, 
-                        supplier_id: value,
-                        supplier_name: supplier?.supplier_name || ""
-                      });
-                    }}
-                  >
-                    <SelectTrigger id="supplier_name" className="h-11 flex-1 min-w-0 text-base font-semibold">
-                      <SelectValue placeholder="Select supplier" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background z-50">
-                      {suppliers.map((supplier) => (
-                        <SelectItem key={supplier.id} value={supplier.id}>
-                          {supplier.supplier_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setShowAddSupplierDialog(true)}
-                    title="Add New Supplier"
-                    className="h-11 w-11 shrink-0"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-1.5 min-w-0 entry-key-field entry-key-field--doc-no">
-                <Label htmlFor="supplier_invoice_no" className="entry-key-label text-[13px] font-semibold text-slate-500 leading-none">
-                  Supplier Invoice No <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="supplier_invoice_no"
-                  data-field="supplier-invoice-no"
-                  value={billData.supplier_invoice_no}
-                  onChange={(e) => handleSupplierInvoiceNoChange(e.target.value)}
-                  placeholder={nextSupplierInvNo ? `Serial on save: ${nextSupplierInvNo}` : "Invoice number"}
-                  className="h-11 text-base font-semibold"
-                />
-              </div>
-
-              <div className="space-y-1.5 min-w-0 entry-key-field entry-key-field--date">
-                <Label htmlFor="bill_date" className="entry-key-label text-[13px] font-semibold text-slate-500 leading-none">
-                  Supplier bill date
-                </Label>
-                <Popover open={billDateOpen} onOpenChange={setBillDateOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      id="bill_date"
-                      variant="outline"
-                      className={cn(
-                        "h-11 w-full justify-start text-left font-semibold text-base px-3",
-                        !billDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                      <span className="truncate">
-                        {billDate ? format(billDate, "dd MMM yyyy") : "Pick a date"}
-                      </span>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={billDate}
-                      onSelect={(date) => { if (date) { setBillDate(date); setBillDateOpen(false); } }}
-                      initialFocus
-                      className={cn("p-3 pointer-events-auto")}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              <div className="space-y-1.5 min-w-0 entry-key-field entry-key-field--date">
-                <Label className="entry-key-label text-[13px] font-semibold text-slate-500 leading-none">
-                  Bill entry date &amp; time
-                </Label>
-                <div
-                  className="h-11 px-3 flex items-center rounded-md border border-input bg-muted/40 text-base tabular-nums min-w-0 font-semibold"
-                  title="When this purchase bill was saved in EzzyERP"
-                >
-                  {billEntryAt ? (
-                    <span className="text-foreground font-medium truncate">
-                      {formatPurchaseBillEntryAt({ bill_entry_at: billEntryAt })}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground text-xs truncate">
-                      Recorded automatically when you save
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-1.5 min-w-0 self-start">
-                <span className="text-[13px] font-semibold text-slate-500 leading-none invisible select-none block" aria-hidden>
-                  Options
-                </span>
-                <label title="DC Purchase (No GST)" className="flex items-center gap-2 cursor-pointer h-10 px-3 border border-orange-300 bg-orange-50 dark:bg-orange-950/20 rounded-md w-full xl:w-auto max-w-full">
-                  <Checkbox
-                    checked={isDcPurchase}
-                    disabled={isDcUser}
-                    onCheckedChange={(checked) => setIsDcPurchase(checked === true)}
-                  />
-                  <span className="text-xs font-medium text-orange-700 dark:text-orange-400 whitespace-nowrap truncate">
-                    DC Purchase<span className="hidden xl:inline"> (No GST)</span>
-                  </span>
-                </label>
-              </div>
-            </div>
+            <PurchaseBillDetailsFields
+              softwareBillNo={isEditMode ? softwareBillNo : previewNextPurchaseBillNo(lastPurchaseBill?.software_bill_no, billDate)}
+              supplierId={billData.supplier_id}
+              suppliers={suppliers}
+              onSupplierListOpen={openSupplierList}
+              onSupplierChange={handleSupplierPicked}
+              onAddSupplier={openAddSupplierDialog}
+              supplierInvoiceNo={billData.supplier_invoice_no}
+              onSupplierInvoiceNoChange={handleSupplierInvoiceNoChange}
+              nextSerial={nextSupplierInvNo}
+              billDate={billDate}
+              onBillDateChange={setBillDate}
+              billEntryAt={billEntryAt}
+              isDcPurchase={isDcPurchase}
+              dcLocked={isDcUser}
+              onDcPurchaseChange={setIsDcPurchase}
+            />
 
             {!isEditMode && (
               <PurchaseSerialHint

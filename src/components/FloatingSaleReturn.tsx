@@ -61,6 +61,14 @@ import {
   gateSaleReturnAgainstHistory,
 } from "@/utils/saleReturnBarcodeLookup";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
+import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  buildCreditNoteWhatsAppMessage,
+  canSendCreditNoteWhatsApp,
+  sendCreditNoteWhatsApp,
+} from "@/utils/creditNoteWhatsApp";
 
 type RefundType = "cash_refund" | "credit_note" | "exchange";
 
@@ -241,6 +249,11 @@ export const FloatingSaleReturn = ({
     autoSubmitDelay: 120,
   });
   const [refundType, setRefundType] = useState<RefundType>("exchange");
+  // Credit note: send it to the customer through the shop's WhatsApp (Settings → WhatsApp).
+  const { settings: waSettings } = useWhatsAppAPI();
+  const { currentOrganization } = useOrganization();
+  const canSendCnWhatsApp = canSendCreditNoteWhatsApp(waSettings);
+  const [sendCnWhatsApp, setSendCnWhatsApp] = useState(true);
   /** When refund type is direct refund: how the shop paid the customer (Cash → 1000, UPI/Card/Bank → 1010). */
   const [directRefundPaymentMethod, setDirectRefundPaymentMethod] = useState<DirectRefundPaymentMethod>("cash");
   const [useOriginalPrice, setUseOriginalPrice] = useState(false);
@@ -1124,6 +1137,7 @@ export const FloatingSaleReturn = ({
     setSaving(true);
     let createdReturnId: string | null = null;
     let savedCreditNoteNumber: string | null = null;
+    let savedCreditNoteId: string | null = null;
     try {
       if (billSaleId || billNumber.trim()) {
         let saleCheckQuery = supabase
@@ -1323,6 +1337,7 @@ export const FloatingSaleReturn = ({
             .single();
 
           if (creditNote) {
+            savedCreditNoteId = creditNote.id;
             await supabase
               .from('sale_returns')
               .update({
@@ -1441,6 +1456,41 @@ export const FloatingSaleReturn = ({
       const refundLabel =
         refundType === "cash_refund" ? "Direct refund" : refundType === "exchange" ? "Exchange" : "Credit Note";
       toast({ title: "Return Saved", description: `Return ${returnNumber} — ₹${Math.round(grossAmount)} (${refundLabel})` });
+
+      if (
+        refundType === "credit_note" &&
+        savedCreditNoteId &&
+        savedCreditNoteNumber &&
+        effectiveCustomerId &&
+        sendCnWhatsApp &&
+        canSendCnWhatsApp
+      ) {
+        // In the background: the window closes now, the result arrives as a toast.
+        const cnNumberForMsg = savedCreditNoteNumber;
+        void sendCreditNoteWhatsApp(supabase, {
+          organizationId,
+          customerId: effectiveCustomerId,
+          creditNoteId: savedCreditNoteId,
+          message: buildCreditNoteWhatsAppMessage({
+            shopName: currentOrganization?.name || "",
+            customerName: effectiveCustomerName || "",
+            creditNoteNumber: cnNumberForMsg,
+            returnNumber,
+            amount: grossAmount,
+            returnDate: returnDateYmd,
+            originalBillNumber: billSaleId ? billNumber.trim() : null,
+            itemCount: returnItems.reduce((sum, item) => sum + item.quantity, 0),
+          }),
+        }).then((res) => {
+          if (res.status === "sent") {
+            toast({ title: "WhatsApp sent", description: `Credit note ${cnNumberForMsg} sent to the customer` });
+          } else if (res.status === "no_phone") {
+            toast({ title: "WhatsApp not sent", description: "The customer has no phone number saved.", variant: "destructive" });
+          } else {
+            toast({ title: "WhatsApp not sent", description: res.message || "Check Settings → WhatsApp.", variant: "destructive" });
+          }
+        });
+      }
       const effectiveReturnAmount = returnItems.length === 0 ? appliedCreditAmount : grossAmount;
       const effectiveRefundType: RefundType = returnItems.length === 0 ? "credit_note" : refundType;
 
@@ -2117,6 +2167,16 @@ export const FloatingSaleReturn = ({
                 <span className="font-mono">1010</span>.
               </p>
             </div>
+          )}
+          {refundType === "credit_note" && canSendCnWhatsApp && (
+            <label className="mt-2 flex items-center gap-2 text-xs cursor-pointer w-fit">
+              <Checkbox
+                checked={sendCnWhatsApp}
+                onCheckedChange={(checked) => setSendCnWhatsApp(checked === true)}
+                data-testid="send-credit-note-whatsapp"
+              />
+              Send credit note to customer on WhatsApp
+            </label>
           )}
           {refundType === "exchange" && (
             <div className="mt-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700 dark:bg-orange-900/20 dark:border-orange-800 dark:text-orange-400">
