@@ -62,3 +62,9 @@ supabase/.temp/
 *.tsbuildinfo
 # Added by code-review-graph
 .code-review-graph/
+
+# Playwright browser tests (npm run test:e2e)
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
