@@ -5186,6 +5186,49 @@ export default function POSSales() {
     return validateCartSettlementLocks(items);
   };
 
+  /**
+   * After a save, every path: store the bill's financer details and keep its one finance-discount
+   * voucher in step (an edited bill updates it instead of adding another). Nothing when the bill
+   * has no financer. A voucher failure is logged and does not undo the saved bill.
+   */
+  const saveFinancerAfterSave = async (result: { id: string; sale_number: string }) => {
+    if (!financerDetails?.financer_name) return;
+    await saveFinancerDetails(result.id, currentOrganization?.id || '', financerDetails);
+    if (currentOrganization?.id) {
+      try {
+        await syncFinanceDiscountVoucher({
+          organizationId: currentOrganization.id,
+          saleId: result.id,
+          saleNumber: result.sale_number,
+          financerName: financerDetails.financer_name,
+          financeDiscount: Number(financerDetails.finance_discount) || 0,
+          voucherDate: buildPosVoucherDate(),
+        });
+      } catch (vErr) { console.error("Finance discount voucher failed:", vErr); }
+    }
+  };
+
+  /**
+   * After a save, every path: book the salesman commission (not awaited, as before). Skipped for a
+   * bill saved offline (useOfflinePosSync books it when the bill is sent) and when
+   * shouldCreatePosCommissionOnSave says no (no salesman, or an edited bill).
+   */
+  const recordCommissionAfterSave = (
+    result: { id: string; sale_number: string; sale_date?: string | null; net_amount: number },
+    salesmanName: string,
+    isEditingExistingSale: boolean,
+  ) => {
+    if ((result as { offline?: boolean }).offline) return;
+    if (!shouldCreatePosCommissionOnSave({ salesmanName, isEditingExistingSale })) return;
+    createCommissionRecords(
+      result.id,
+      result.sale_number,
+      result.sale_date || new Date().toISOString().split('T')[0],
+      salesmanName,
+      result.net_amount,
+    );
+  };
+
   const handleSaveSale = async (forcePaymentMethod?: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later') => {
     // Same-bill exchange with refund due: force Mix so shop chooses cash refund vs CN.
     if (posHasRefundDue(finalAmount, exchangeRefundDue)) {
@@ -5244,22 +5287,7 @@ export default function POSSales() {
     if (result) {
       announceOtherDayBill(result);
       // Save financer details if provided
-      if (financerDetails?.financer_name) {
-        await saveFinancerDetails(result.id, currentOrganization?.id || '', financerDetails);
-        // One voucher per bill: an edited bill updates it instead of adding another.
-        if (currentOrganization?.id) {
-          try {
-            await syncFinanceDiscountVoucher({
-              organizationId: currentOrganization.id,
-              saleId: result.id,
-              saleNumber: result.sale_number,
-              financerName: financerDetails.financer_name,
-              financeDiscount: Number(financerDetails.finance_discount) || 0,
-              voucherDate: buildPosVoucherDate(),
-            });
-          } catch (vErr) { console.error("Finance discount voucher failed:", vErr); }
-        }
-      }
+      await saveFinancerAfterSave(result);
       // Store invoice number for printing
       setCurrentInvoiceNumber(result.sale_number);
       
@@ -5309,15 +5337,7 @@ export default function POSSales() {
       
       // Auto-record salesman commission
       // Offline bills get their commission when they are sent (useOfflinePosSync).
-      if (
-        !(result as { offline?: boolean }).offline &&
-        shouldCreatePosCommissionOnSave({
-          salesmanName: selectedSalesman,
-          isEditingExistingSale: !!currentSaleId,
-        })
-      ) {
-        createCommissionRecords(result.id, result.sale_number, result.sale_date || new Date().toISOString().split('T')[0], selectedSalesman, result.net_amount);
-      }
+      recordCommissionAfterSave(result, selectedSalesman, !!currentSaleId);
 
       // Clear cart on success
       resetPosBillAfterSave();
@@ -5528,22 +5548,7 @@ export default function POSSales() {
     if (result) {
       announceOtherDayBill(result);
       // Save financer details if provided
-      if (financerDetails?.financer_name) {
-        await saveFinancerDetails(result.id, currentOrganization?.id || '', financerDetails);
-        // One voucher per bill: an edited bill updates it instead of adding another.
-        if (currentOrganization?.id) {
-          try {
-            await syncFinanceDiscountVoucher({
-              organizationId: currentOrganization.id,
-              saleId: result.id,
-              saleNumber: result.sale_number,
-              financerName: financerDetails.financer_name,
-              financeDiscount: Number(financerDetails.finance_discount) || 0,
-              voucherDate: buildPosVoucherDate(),
-            });
-          } catch (vErr) { console.error("Finance discount voucher failed:", vErr); }
-        }
-      }
+      await saveFinancerAfterSave(result);
       // Store invoice number and sale ID for printing
       setCurrentInvoiceNumber(result.sale_number);
       const wasEditing = !!currentSaleId;
@@ -5615,15 +5620,7 @@ export default function POSSales() {
       
       // Auto-record salesman commission
       // Offline bills get their commission when they are sent (useOfflinePosSync).
-      if (
-        !(result as { offline?: boolean }).offline &&
-        shouldCreatePosCommissionOnSave({
-          salesmanName: salesmanForPrint,
-          isEditingExistingSale: wasEditing,
-        })
-      ) {
-        createCommissionRecords(result.id, result.sale_number, result.sale_date || new Date().toISOString().split('T')[0], salesmanForPrint, result.net_amount);
-      }
+      recordCommissionAfterSave(result, salesmanForPrint, wasEditing);
 
       // WhatsApp invoice auto-send is handled by useSaveSale hook — do NOT send here to avoid duplicates
       // Set print snapshot first so hidden invoice re-renders with salesman before cart clears.
@@ -5764,22 +5761,7 @@ export default function POSSales() {
     if (result) {
       announceOtherDayBill(result);
       // Save financer details if provided
-      if (financerDetails?.financer_name) {
-        await saveFinancerDetails(result.id, currentOrganization?.id || '', financerDetails);
-        // One voucher per bill: an edited bill updates it instead of adding another.
-        if (currentOrganization?.id) {
-          try {
-            await syncFinanceDiscountVoucher({
-              organizationId: currentOrganization.id,
-              saleId: result.id,
-              saleNumber: result.sale_number,
-              financerName: financerDetails.financer_name,
-              financeDiscount: Number(financerDetails.finance_discount) || 0,
-              voucherDate: buildPosVoucherDate(),
-            });
-          } catch (vErr) { console.error("Finance discount voucher failed:", vErr); }
-        }
-      }
+      await saveFinancerAfterSave(result);
       // Store invoice number and sale ID for printing
       setCurrentInvoiceNumber(result.sale_number);
       const wasEditing = !!currentSaleId;
@@ -5910,15 +5892,7 @@ export default function POSSales() {
       
       // Auto-record salesman commission
       // Offline bills get their commission when they are sent (useOfflinePosSync).
-      if (
-        !(result as { offline?: boolean }).offline &&
-        shouldCreatePosCommissionOnSave({
-          salesmanName: selectedSalesman,
-          isEditingExistingSale: !!currentSaleId,
-        })
-      ) {
-        createCommissionRecords(result.id, result.sale_number, result.sale_date || new Date().toISOString().split('T')[0], selectedSalesman, result.net_amount);
-      }
+      recordCommissionAfterSave(result, selectedSalesman, !!currentSaleId);
 
       // WhatsApp invoice auto-send is handled by useSaveSale hook — do NOT send here to avoid duplicates
 
