@@ -1,7 +1,6 @@
 import { posSaveBegin, posSaveMark } from "@/lib/posSaveTiming";
 import { lazy, Suspense, useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type ChangeEvent, type ReactNode } from "react";
 import { isDecimalUOM, getUOMLabel } from "@/constants/uom";
-import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -211,6 +210,8 @@ import {
   PurchaseMobileTotalsCard,
 } from "@/components/purchase/PurchaseMobileParts";
 import { PurchaseDraftLoadingOverlay } from "@/components/purchase/PurchaseDraftLoadingOverlay";
+import { PurchaseInlineSearchMenu, PurchaseMobileSearchResults } from "@/components/purchase/PurchaseSearchResults";
+import { formatProductDescription } from "@/utils/purchaseProductDescription";
 import {
   PurchaseBarcodeConflictDialog,
   PurchaseDuplicateBillDialog,
@@ -423,22 +424,6 @@ interface SizeGridVariant {
   isCustomSize?: boolean;
 }
 
-// Helper function to format product description
-const formatProductDescription = (item: {
-  product_name: string;
-  category?: string;
-  brand?: string;
-  style?: string;
-  color?: string;
-  size?: string;
-}) => {
-  const parts = [item.product_name];
-  if (item.style && item.style.trim() && item.style.trim() !== '-') parts.push(item.style);
-  if (item.color && item.color.trim() && item.color.trim() !== '-') parts.push(item.color);
-  if (item.brand && item.brand.trim() && item.brand.trim() !== '-') parts.push(item.brand);
-  if (item.category && item.category.trim() && item.category.trim() !== '-') parts.push(item.category);
-  return parts.join('-');
-};
 
 type ExcelImportLoadingState = {
   current: number;
@@ -8871,47 +8856,9 @@ const PurchaseEntry = () => {
                 className="h-11 w-11 rounded-xl shrink-0"
               />
             </div>
-            {/* Mobile Search Results Dropdown */}
+            {/* Mobile Search Results Dropdown (PurchaseMobileSearchResults) */}
             {showSearch && searchResults.length > 0 && (
-              <div className="bg-popover border border-border rounded-xl shadow-lg max-h-72 overflow-auto -mx-0.5">
-                {searchResults.slice(0, 50).map((result, idx) => (
-                  <button
-                    key={result.id + idx}
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => handleProductSelect(result)}
-                    className="w-full text-left px-3.5 py-2.5 border-b border-border/30 last:border-0 active:bg-accent/70 transition-colors"
-                  >
-                    <div className="flex justify-between items-start gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-foreground truncate">{result.product_name}</p>
-                        <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                          {result.brand && <span className="text-[11px] bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-1.5 py-0.5 rounded">{result.brand}</span>}
-                          {result.category && <span className="text-[11px] bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-1.5 py-0.5 rounded">{result.category}</span>}
-                          {result.style && <span className="text-[11px] bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-1.5 py-0.5 rounded">{result.style}</span>}
-                          {result.color && result.color !== '-' && <span className="text-[11px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">{result.color}</span>}
-                        </div>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          {result.size_range && <span className="text-[11px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">{result.size_range}</span>}
-                          {result.groupedVariantCount && result.groupedVariantCount > 1 && (
-                            <span className="text-[11px] text-muted-foreground">{result.groupedVariantCount} sizes</span>
-                          )}
-                          {result.groupedMrpTierCount && result.groupedMrpTierCount > 1 && (
-                            <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-semibold">
-                              {result.groupedMrpTierCount} MRP
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-sm font-bold text-primary">Buy: {purchaseSearchRateLabels(result).buy}</p>
-                        <p className="text-[12px] font-bold text-amber-600 dark:text-amber-400">MRP: {purchaseSearchRateLabels(result).mrp}</p>
-                        <p className="text-[11px] text-muted-foreground">Sale: {purchaseSearchRateLabels(result).sale}</p>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
+              <PurchaseMobileSearchResults results={searchResults} onSelect={handleProductSelect} />
             )}
             {!showSearch &&
               searchResults.length === 0 &&
@@ -9829,110 +9776,19 @@ const PurchaseEntry = () => {
                         />
                         <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                         
-                        {/* Inline Search Dropdown - Using Portal to escape table overflow */}
-                        {showInlineSearch && inlineSearchInputRef.current && createPortal(
-                          <div 
-                            className="bg-popover border border-border rounded-md shadow-xl max-h-80 overflow-auto"
-                            style={{ 
-                              position: 'fixed',
-                              top: inlineSearchInputRef.current.getBoundingClientRect().bottom + 4,
-                              left: inlineSearchInputRef.current.getBoundingClientRect().left,
-                              width: Math.min(800, window.innerWidth - inlineSearchInputRef.current.getBoundingClientRect().left - 16),
-                              zIndex: 9999,
-                            }}
-                          >
-                            {inlineSearchResults.length > 0 ? (
-                              <>
-                                {inlineSearchResults.length > inlineDisplayLimit && (
-                                  <div className="px-3 py-2 text-sm text-muted-foreground bg-muted/50 border-b flex items-center justify-between">
-                                    <span>Showing {inlineDisplayLimit} of {inlineSearchResults.length} results</span>
-                                    <Button
-                                      variant="link"
-                                      size="sm"
-                                      className="h-auto p-0 text-primary"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setInlineDisplayLimit(prev => prev + 100);
-                                      }}
-                                    >
-                                      Load More
-                                    </Button>
-                                  </div>
-                                )}
-                                {inlineSearchResults.slice(0, inlineDisplayLimit).map((result, idx) => (
-                                  <button
-                                    key={result.id + idx}
-                                    onMouseDown={(e) => e.preventDefault()}
-                                    onClick={() => handleInlineProductSelect(result)}
-                                    onMouseEnter={() => setSelectedInlineIndex(idx)}
-                                    className={cn(
-                                      "w-full text-left px-4 py-3 border-b border-border last:border-0 transition-colors",
-                                      idx === selectedInlineIndex ? "bg-primary text-primary-foreground [&_*]:text-primary-foreground" : "text-popover-foreground hover:bg-accent/50"
-                                    )}
-                                  >
-                                    <div className="font-medium flex items-center gap-2">
-                                      <span>
-                                        {formatProductDescription({
-                                          product_name: result.product_name,
-                                          category: result.category,
-                                          brand: result.brand,
-                                          style: result.style,
-                                          color: result.color,
-                                        })}
-                                      </span>
-                                      {result.size_range && (
-                                        <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold">
-                                          {result.size_range}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                      {result.groupedVariantCount && result.groupedVariantCount > 1 && (
-                                        <span>{result.groupedVariantCount} sizes</span>
-                                      )}
-                                      {result.groupedMrpTierCount && result.groupedMrpTierCount > 1 && (
-                                        <span className="text-amber-700 dark:text-amber-400 font-semibold">
-                                          {result.groupedMrpTierCount} MRP
-                                        </span>
-                                      )}
-                                      <span className="text-primary font-medium">
-                                        Pur: {purchaseSearchRateLabels(result).buy}
-                                      </span>
-                                      <span className="text-amber-600 dark:text-amber-400 font-bold">
-                                        MRP: {purchaseSearchRateLabels(result).mrp}
-                                      </span>
-                                      <span className="text-green-600 dark:text-green-400 font-medium">
-                                        Sale: {purchaseSearchRateLabels(result).sale}
-                                      </span>
-                                    </div>
-                                  </button>
-                                ))}
-                                {/* Add New Product button at bottom of results */}
-                                <button
-                                  onClick={handleAddNewProductFromInline}
-                                  className="w-full text-left px-4 py-3 text-primary font-medium border-t border-border hover:bg-accent/50 transition-colors flex items-center gap-2"
-                                >
-                                  <Plus className="h-4 w-4" />
-                                  Add New Product
-                                </button>
-                              </>
-                            ) : inlineSearchQuery.length >= 1 ? (
-                              <>
-                                <div className="px-4 py-3 text-sm text-muted-foreground">
-                                  No products found for "{inlineSearchQuery}"
-                                </div>
-                                {/* Add New Product button when no results */}
-                                <button
-                                  onClick={handleAddNewProductFromInline}
-                                  className="w-full text-left px-4 py-3 text-primary font-medium border-t border-border hover:bg-accent/50 transition-colors flex items-center gap-2"
-                                >
-                                  <Plus className="h-4 w-4" />
-                                  Add New Product
-                                </button>
-                              </>
-                            ) : null}
-                          </div>,
-                          document.body
+                        {/* Inline Search Dropdown - Using Portal to escape table overflow (PurchaseInlineSearchMenu) */}
+                        {showInlineSearch && inlineSearchInputRef.current && (
+                          <PurchaseInlineSearchMenu
+                            anchor={inlineSearchInputRef.current}
+                            query={inlineSearchQuery}
+                            results={inlineSearchResults}
+                            displayLimit={inlineDisplayLimit}
+                            onLoadMore={() => setInlineDisplayLimit((prev) => prev + 100)}
+                            selectedIndex={selectedInlineIndex}
+                            onHoverIndex={setSelectedInlineIndex}
+                            onSelect={handleInlineProductSelect}
+                            onAddNew={handleAddNewProductFromInline}
+                          />
                         )}
                       </div>
                     </TableCell>
