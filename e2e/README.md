@@ -42,4 +42,4 @@ order. Selects understand `col=eq.value` filters; other filters return the whole
 | 3 | POS Sale Return (F5): customer, scan, Credit Note, save | `sale-return-credit-note.spec.ts` |
 | 4 | Sales Invoice: customer, scan, Ctrl+S, invoice number | `sales-invoice.spec.ts` |
 | 5 | Barcode Printing: search, 3 labels, Print → A4 label PDF checked | `barcode-print.spec.ts` |
-| 6 | Customer payment receipt | to do |
+| 6 | Customer receipt (POS → Payments): customer, invoice, cash; overpay refused | `customer-receipt.spec.ts` |
