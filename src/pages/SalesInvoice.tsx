@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import { SalesInvoiceCustomerPicker } from "@/components/sales-invoice/SalesInvoiceCustomerPicker";
 import { invalidateQuotationViewsAfterSave } from "@/utils/quotationViews";
 import { CustomerBalanceBadge } from "@/components/CustomerBalanceBadge";
 import { CustomerCreditChip } from "@/components/customers/CustomerCreditChip";
@@ -59,7 +60,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, AlertCircle, Scan, Printer, ChevronLeft, ChevronRight, SkipBack, Lock, FileText, Coins, Trash2, Save, RefreshCw } from "lucide-react";
+import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, Scan, Printer, ChevronLeft, ChevronRight, SkipBack, Lock, FileText, Coins, Trash2, Save, RefreshCw } from "lucide-react";
 import { Banknote, Smartphone, Wallet } from "lucide-react";
 import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
@@ -4510,6 +4511,175 @@ Thank you for choosing us!`;
     </AlertDialog>
   );
 
+  // Shared by the desktop and phone layouts (the phone layout had no customer list and a
+  // New Customer dialog whose Create did nothing).
+  type InvoicePickerCustomer = (typeof filteredCustomers)[number];
+  const customerPickerProps = {
+    open: openCustomerSearch,
+    onOpenChange: setOpenCustomerSearch,
+    search: customerSearchInput,
+    onSearchChange: setCustomerSearchInput,
+    customers: filteredCustomers,
+    hasMore: !!hasMoreCustomers,
+    loading: isCustomersLoading,
+    error: isCustomersError,
+    onRetry: () => void refetchCustomers(),
+    getBalance: (customer: InvoicePickerCustomer) => getCustomerBalance(customer),
+    getAdvance: (customerId: string) => getCustomerAdvance(customerId),
+    onPick: (customer: InvoicePickerCustomer) => {
+      setSelectedCustomerId(customer.id);
+      setSelectedCustomer(customer);
+      if (customer.id !== selectedCustomerId) setShippingAddress("");
+      setPointsToRedeem(0);
+      setOpenCustomerSearch(false);
+      setCustomerSearchInput("");
+    },
+    onCreateFromSearch: (search: string) => {
+      const searchVal = search.trim();
+      const isPhone = /^\d{10,}$/.test(searchVal.replace(/\D/g, ''));
+      customerForm.reset({
+        customer_name: isPhone ? "" : searchVal,
+        phone: isPhone ? searchVal : "",
+        email: "",
+        address: "",
+        gst_number: "",
+      });
+      setOpenCustomerSearch(false);
+      setOpenCustomerDialog(true);
+    },
+  };
+
+  const createCustomerDialog = (
+        <Dialog open={openCustomerDialog} onOpenChange={setOpenCustomerDialog}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Add New Customer</DialogTitle>
+            </DialogHeader>
+            <Form {...customerForm}>
+              <form onSubmit={customerForm.handleSubmit(handleCreateCustomer)} className="space-y-4">
+                <FormField
+                  control={customerForm.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Mobile Number<span className="text-destructive">*</span></FormLabel>
+                      <FormControl>
+                        <CustomerPhoneLookupInput
+                          {...field}
+                          autoFocus
+                          onExistingCustomerSelect={handleSelectExistingCustomerFromAddDialog}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={customerForm.control}
+                  name="customer_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Customer Name</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Enter customer name (optional)" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={customerForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input {...field} type="email" placeholder="Enter email address" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={customerForm.control}
+                  name="address"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Address</FormLabel>
+                      <FormControl>
+                        <Textarea {...field} placeholder="Enter address" rows={3} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={customerForm.control}
+                  name="gst_number"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>GST Number</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="Enter GST number" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={customerForm.control}
+                  name="transport_details"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Transport Details</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="e.g., VRL Logistics, Navi Mumbai" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={customerForm.control}
+                  name="fssai_number"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>FSSAI Number</FormLabel>
+                      <FormControl>
+                        <Input {...field} inputMode="numeric" placeholder="Food shops only (optional)" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="flex justify-end gap-3 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      customerForm.reset();
+                      setOpenCustomerDialog(false);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit">
+                    Create Customer
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+  );
+
   if (isMobile) {
     const filledItems = lineItems.filter(i => i.productId !== '');
     const totalQty = filledItems.reduce((s, i) => s + (i.quantity || 0), 0);
@@ -4525,16 +4695,33 @@ Thank you for choosing us!`;
           {/* Customer Section */}
           <div className="bg-background rounded-2xl p-3.5 border border-border/40 shadow-sm space-y-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Customer</p>
-            <button
-              onClick={() => setOpenCustomerSearch(true)}
-              className="w-full h-10 rounded-xl border border-border bg-muted/30 px-3 text-left text-sm"
-            >
-              {selectedCustomer ? (
-                <span className="font-medium text-foreground">{selectedCustomer.customer_name} {selectedCustomer.phone ? `· ${selectedCustomer.phone}` : ''}</span>
-              ) : (
-                <span className="text-muted-foreground">Tap to select customer…</span>
-              )}
-            </button>
+            <div className="flex gap-2">
+              <SalesInvoiceCustomerPicker
+                {...customerPickerProps}
+                trigger={
+                  <button
+                    type="button"
+                    className="flex-1 min-w-0 h-10 rounded-xl border border-border bg-muted/30 px-3 text-left text-sm"
+                  >
+                    {selectedCustomer ? (
+                      <span className="font-medium text-foreground">{selectedCustomer.customer_name} {selectedCustomer.phone ? `· ${selectedCustomer.phone}` : ''}</span>
+                    ) : (
+                      <span className="text-muted-foreground">Tap to select customer…</span>
+                    )}
+                  </button>
+                }
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 shrink-0 rounded-xl"
+                onClick={() => setOpenCustomerDialog(true)}
+                aria-label="New customer"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Barcode / Product Search */}
@@ -4702,28 +4889,7 @@ Thank you for choosing us!`;
         </div>
 
         {/* All existing dialogs */}
-        <Dialog open={openCustomerDialog} onOpenChange={setOpenCustomerDialog}>
-          <DialogContent><DialogHeader><DialogTitle>New Customer</DialogTitle></DialogHeader>
-            <Form {...customerForm}>
-              <form onSubmit={customerForm.handleSubmit((data) => { /* handled by existing logic */ })} className="space-y-3">
-                <FormField control={customerForm.control} name="phone" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone *</FormLabel>
-                    <FormControl>
-                      <CustomerPhoneLookupInput
-                        {...field}
-                        onExistingCustomerSelect={handleSelectExistingCustomerFromAddDialog}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={customerForm.control} name="customer_name" render={({ field }) => (<FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                <Button type="submit" className="w-full">Create</Button>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+        {createCustomerDialog}
         {paidLineEditDialog}
         {creditLimitDialog}
         <AlertDialog
@@ -4961,8 +5127,9 @@ Thank you for choosing us!`;
           <div className="col-span-2 md:col-span-1 lg:col-span-2 entry-key-field entry-key-field--party">
             <Label className="entry-key-label text-[13px] font-semibold text-slate-500">Customer <span className="text-red-500">*</span></Label>
             <div className="flex gap-1.5">
-              <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
-                <PopoverTrigger asChild>
+              <SalesInvoiceCustomerPicker
+                {...customerPickerProps}
+                trigger={
                   <Button
                     variant="outline"
                     role="combobox"
@@ -4977,120 +5144,8 @@ Thank you for choosing us!`;
                     )}
                     <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[400px] p-0 z-50" align="start">
-                  <Command shouldFilter={false}>
-                    <CommandInput 
-                      placeholder="Search by name, phone, email..." 
-                      value={customerSearchInput}
-                      onValueChange={(val) => {
-                        setCustomerSearchInput(val);
-                      }}
-                    />
-                    <CommandList className="max-h-[300px]">
-                      {isCustomersLoading ? (
-                        <div className="flex items-center justify-center py-6">
-                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                        </div>
-                      ) : isCustomersError ? (
-                        <CommandEmpty className="py-4 text-center">
-                          <div className="text-destructive flex items-center justify-center gap-2">
-                            <AlertCircle className="h-4 w-4" />
-                            <span>Error loading customers</span>
-                          </div>
-                          <Button
-                            variant="link"
-                            size="sm"
-                            onClick={() => refetchCustomers()}
-                            className="mt-2"
-                          >
-                            Try again
-                          </Button>
-                        </CommandEmpty>
-                      ) : filteredCustomers.length === 0 && customerSearchInput.length >= 1 ? (
-                        <CommandEmpty className="py-3">
-                          <div className="text-center text-sm text-muted-foreground mb-2">No customers found</div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const searchVal = customerSearchInput.trim();
-                              const isPhone = /^\d{10,}$/.test(searchVal.replace(/\D/g, ''));
-                              customerForm.reset({
-                                customer_name: isPhone ? "" : searchVal,
-                                phone: isPhone ? searchVal : "",
-                                email: "",
-                                address: "",
-                                gst_number: "",
-                              });
-                              setOpenCustomerSearch(false);
-                              setOpenCustomerDialog(true);
-                            }}
-                            className="gap-1"
-                          >
-                            <Plus className="h-4 w-4" />
-                            Create "{customerSearchInput}"
-                          </Button>
-                        </CommandEmpty>
-                      ) : filteredCustomers.length === 0 ? (
-                        <div className="py-6 text-center text-sm text-muted-foreground">
-                          Start typing to search customers...
-                        </div>
-                      ) : (
-                        <>
-                          <CommandGroup heading={`Found ${filteredCustomers.length} customers${hasMoreCustomers ? ' - refine search for more' : ''}`}>
-                            {filteredCustomers.map((customer: any) => {
-                              const balance = getCustomerBalance(customer);
-                              const advanceAmt = getCustomerAdvance(customer.id);
-                              return (
-                                <CommandItem
-                                  key={customer.id}
-                                  value={customer.id}
-                                  onSelect={() => {
-                                    setSelectedCustomerId(customer.id);
-                                    setSelectedCustomer(customer);
-                                    if (customer.id !== selectedCustomerId) setShippingAddress("");
-                                    setPointsToRedeem(0);
-                                    setOpenCustomerSearch(false);
-                                    setCustomerSearchInput("");
-                                  }}
-                                  className="cursor-pointer"
-                                >
-                                  <div className="flex flex-col gap-1 w-full">
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-medium uppercase">{customer.customer_name}</span>
-                                      <div className="flex items-center gap-1.5">
-                                        {advanceAmt > 0 && (
-                                          <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-600">
-                                            ₹{advanceAmt.toLocaleString('en-IN')} Adv
-                                          </span>
-                                        )}
-                                        {balance !== 0 && (
-                                          <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                                            balance > 0 
-                                              ? 'bg-destructive/10 text-destructive' 
-                                              : 'bg-green-500/10 text-green-600'
-                                          }`}>
-                                            ₹{Math.abs(balance).toLocaleString('en-IN')} {balance > 0 ? 'Due' : 'Cr'}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <span className="text-sm text-muted-foreground">
-                                      {customer.phone && `Phone: ${customer.phone}`}
-                                      {customer.email && ` | Email: ${customer.email}`}
-                                    </span>
-                                  </div>
-                                </CommandItem>
-                              );
-                            })}
-                          </CommandGroup>
-                        </>
-                      )}
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+                }
+              />
               <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => setOpenCustomerDialog(true)}>
                 <Plus className="h-4 w-4" />
               </Button>
@@ -6149,135 +6204,8 @@ Thank you for choosing us!`;
         }}
       />
 
-      {/* Create Customer Dialog */}
-      <Dialog open={openCustomerDialog} onOpenChange={setOpenCustomerDialog}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Add New Customer</DialogTitle>
-          </DialogHeader>
-          <Form {...customerForm}>
-            <form onSubmit={customerForm.handleSubmit(handleCreateCustomer)} className="space-y-4">
-              <FormField
-                control={customerForm.control}
-                name="phone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Mobile Number<span className="text-destructive">*</span></FormLabel>
-                    <FormControl>
-                      <CustomerPhoneLookupInput
-                        {...field}
-                        autoFocus
-                        onExistingCustomerSelect={handleSelectExistingCustomerFromAddDialog}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={customerForm.control}
-                name="customer_name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Customer Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="Enter customer name (optional)" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={customerForm.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input {...field} type="email" placeholder="Enter email address" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={customerForm.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Address</FormLabel>
-                    <FormControl>
-                      <Textarea {...field} placeholder="Enter address" rows={3} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={customerForm.control}
-                name="gst_number"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>GST Number</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="Enter GST number" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={customerForm.control}
-                name="transport_details"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Transport Details</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="e.g., VRL Logistics, Navi Mumbai" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={customerForm.control}
-                name="fssai_number"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>FSSAI Number</FormLabel>
-                    <FormControl>
-                      <Input {...field} inputMode="numeric" placeholder="Food shops only (optional)" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="flex justify-end gap-3 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    customerForm.reset();
-                    setOpenCustomerDialog(false);
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit">
-                  Create Customer
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+      {/* Create Customer Dialog (shared with the phone layout) */}
+      {createCustomerDialog}
 
       {/* Refresh brand discounts (edit mode — in-memory only until save) */}
       <AlertDialog open={showRefreshDiscountsDialog} onOpenChange={setShowRefreshDiscountsDialog}>
