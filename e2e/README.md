@@ -38,7 +38,7 @@ order. Selects understand `col=eq.value` filters; other filters return the whole
 | # | Flow | Spec |
 |---|------|------|
 | 1 | POS: scan, save with Cash, bill number | `pos-cash-bill.spec.ts` |
-| 2 | Purchase bill save | to do |
+| 2 | Purchase: draft line, supplier, invoice no, Save Bill | `purchase-bill.spec.ts` |
 | 3 | Sale return with credit note | to do |
 | 4 | Sales invoice save | to do |
 | 5 | Barcode label print | to do |
