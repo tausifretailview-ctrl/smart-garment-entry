@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { reportIfFails } from "@/lib/reportIfFails";
 import { findProductNameMatch } from "@/utils/productNameDedupe";
 import { cleanProductName } from "@/utils/productNameMerge";
 import { useQueryClient } from "@tanstack/react-query";
@@ -528,7 +529,7 @@ const ProductEditPanel = ({
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") { onClose(); e.preventDefault(); }
-      if (e.ctrlKey && e.key === "s") { handleSave(); e.preventDefault(); }
+      if (e.ctrlKey && e.key === "s") { reportIfFails(handleSave(), "save the product"); e.preventDefault(); }
       if (e.ctrlKey && e.key === "ArrowLeft" && currentIndex > 0) { navigateTo(currentIndex - 1); e.preventDefault(); }
       if (e.ctrlKey && e.key === "ArrowRight" && currentIndex < lineItems.length - 1) { navigateTo(currentIndex + 1); e.preventDefault(); }
     };

@@ -1,4 +1,5 @@
 import { posSaveBegin, posSaveMark } from "@/lib/posSaveTiming";
+import { reportIfFails } from "@/lib/reportIfFails";
 import { PosActionBar } from "@/components/pos/PosActionBar";
 import { PosShortcutBar } from "@/components/pos/PosShortcutBar";
 import { PosFooterInfo } from "@/components/pos/PosFooterInfo";
@@ -2155,22 +2156,22 @@ export default function POSSales() {
     // F1 - Cash Payment (Save & Print)
     if (e.key === 'F1') {
       e.preventDefault();
-      handlePaymentAndPrint('cash');
+      reportIfFails(handlePaymentAndPrint('cash'), "save the bill");
     }
     // F2 - UPI Payment (Save & Print)
     else if (e.key === 'F2') {
       e.preventDefault();
-      handlePaymentAndPrint('upi');
+      reportIfFails(handlePaymentAndPrint('upi'), "save the bill");
     }
     // F3 - Card Payment (Save & Print)
     else if (e.key === 'F3') {
       e.preventDefault();
-      handlePaymentAndPrint('card');
+      reportIfFails(handlePaymentAndPrint('card'), "save the bill");
     }
     // F4 - Credit (Pay Later)
     else if (e.key === 'F4') {
       e.preventDefault();
-      handlePaymentAndPrint('pay_later');
+      reportIfFails(handlePaymentAndPrint('pay_later'), "save the bill");
     }
     // F5 - Sale Return
     else if (e.key === 'F5') {
@@ -2188,7 +2189,7 @@ export default function POSSales() {
       if (items.length === 0 || isHeldSale) {
         setShowHoldPanel(prev => !prev);
       } else {
-        handleHoldBill();
+        reportIfFails(handleHoldBill(), "hold the bill");
       }
     }
     // F8 - Cashier Report
@@ -2217,7 +2218,7 @@ export default function POSSales() {
     else if (e.ctrlKey && e.key === 'p') {
       e.preventDefault();
       if (savedInvoiceData) {
-        handlePrintFromDialog();
+        reportIfFails(handlePrintFromDialog(), "print the bill");
       }
     }
     // F10 - Add New Customer
@@ -2550,7 +2551,7 @@ export default function POSSales() {
       }
     };
     
-    previewNextInvoice();
+    reportIfFails(previewNextInvoice(), "preview the next bill number", { silent: true });
   }, [currentSaleId, currentOrganization?.id, settingsData]);
 
   // Fetch today's sales
@@ -7751,7 +7752,7 @@ export default function POSSales() {
           if (items.length === 0 || isHeldSale) {
             setShowHoldPanel(true);
           } else {
-            handleHoldBill();
+            reportIfFails(handleHoldBill(), "hold the bill");
           }
         }}
         onEstimate={handleEstimatePrint}
@@ -7759,7 +7760,7 @@ export default function POSSales() {
         onLast={handleLastInvoice}
         onReprint={() => {
           if (savedInvoiceData?.saleId && savedInvoiceData?.invoiceNumber) {
-            handlePrintFromDialog();
+            reportIfFails(handlePrintFromDialog(), "print the bill");
           } else {
             toast.error("No saved invoice to print", {
               description:

@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import { reportIfFails } from "@/lib/reportIfFails";
 import { formatInvoicePaymentModeFallback } from "@/utils/invoicePaymentModeDisplay";
 import { SalesInvoiceCustomerPicker } from "@/components/sales-invoice/SalesInvoiceCustomerPicker";
 import { invalidateQuotationViewsAfterSave } from "@/utils/quotationViews";
@@ -788,7 +789,7 @@ export default function SalesInvoice() {
     if (hasDraft && draftData && !initialDraftCheckDone.current) {
       initialDraftCheckDone.current = true;
       loadDraftData(draftData);
-      deleteDraft(); // Clear the draft from database after loading
+      reportIfFails(deleteDraft(), "clear the draft", { silent: true }); // Clear the draft from database after loading
     }
   }, [location.state?.loadDraft, hasDraft, draftData, loadDraftData, deleteDraft]);
 
@@ -935,7 +936,7 @@ export default function SalesInvoice() {
     if (pendingAutoSaveRef.current && paymentOverride) {
       pendingAutoSaveRef.current = false;
       if (!isSaving && !savingLockRef.current) {
-        handleSaveInvoice();
+        reportIfFails(handleSaveInvoice(), "save the invoice");
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1298,7 +1299,7 @@ export default function SalesInvoice() {
       }
     };
     
-    previewNextInvoice();
+    reportIfFails(previewNextInvoice(), "preview the next invoice number", { silent: true });
   }, [currentOrganization?.id, editingInvoiceId, settingsData, settingsFetched]);
 
   // Pre-populate form if editing existing invoice
@@ -1404,7 +1405,7 @@ export default function SalesInvoice() {
     const editId = location.state?.editInvoiceId;
     const hasFullData = location.state?.invoiceData;
     if (editId && !hasFullData && currentOrganization?.id) {
-      loadInvoiceById(editId);
+      reportIfFails(loadInvoiceById(editId), "open the invoice");
     }
   }, [location.state?.editInvoiceId, location.state?.invoiceData, currentOrganization?.id]);
 
@@ -2850,21 +2851,21 @@ export default function SalesInvoice() {
   const handleLastInvoice = useCallback(() => {
     if (!allInvoiceIds || allInvoiceIds.length === 0) return;
     setNavInvoiceIndex(0);
-    loadInvoiceById(allInvoiceIds[0].id);
+    reportIfFails(loadInvoiceById(allInvoiceIds[0].id), "open the invoice");
   }, [allInvoiceIds, loadInvoiceById]);
 
   const handlePreviousInvoice = useCallback(() => {
     if (!allInvoiceIds || navInvoiceIndex === null) return;
     const newIndex = Math.min(navInvoiceIndex + 1, allInvoiceIds.length - 1);
     setNavInvoiceIndex(newIndex);
-    loadInvoiceById(allInvoiceIds[newIndex].id);
+    reportIfFails(loadInvoiceById(allInvoiceIds[newIndex].id), "open the invoice");
   }, [allInvoiceIds, navInvoiceIndex, loadInvoiceById]);
 
   const handleNextInvoice = useCallback(() => {
     if (!allInvoiceIds || navInvoiceIndex === null) return;
     const newIndex = Math.max(navInvoiceIndex - 1, 0);
     setNavInvoiceIndex(newIndex);
-    loadInvoiceById(allInvoiceIds[newIndex].id);
+    reportIfFails(loadInvoiceById(allInvoiceIds[newIndex].id), "open the invoice");
   }, [allInvoiceIds, navInvoiceIndex, loadInvoiceById]);
 
 
@@ -5062,7 +5063,7 @@ Thank you for choosing us!`;
                 setPointsToRedeem(0);
                 setSearchInput("");
                 setProductSearchResults([]);
-                deleteDraft();
+                reportIfFails(deleteDraft(), "clear the draft", { silent: true });
                 savingLockRef.current = false;
               }}
               className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1 px-2 sm:px-2.5"
@@ -5119,7 +5120,7 @@ Thank you for choosing us!`;
                     if (match) {
                       const idx = allInvoiceIds.indexOf(match);
                       setNavInvoiceIndex(idx);
-                      loadInvoiceById(match.id);
+                      reportIfFails(loadInvoiceById(match.id), "open the invoice");
                       (e.target as HTMLInputElement).value = '';
                     } else {
                       toast({ variant: 'destructive', title: 'Not Found', description: `Invoice "${searchVal}" not found` });

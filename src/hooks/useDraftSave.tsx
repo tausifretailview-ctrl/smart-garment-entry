@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { reportIfFails } from "@/lib/reportIfFails";
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -349,7 +350,7 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
 
     autoSaveTimerRef.current = setInterval(() => {
       if (currentDataRef.current) {
-        saveDraft(currentDataRef.current, false);
+        reportIfFails(saveDraft(currentDataRef.current, false), "save the draft", { silent: true });
       }
     }, autoSaveInterval);
   }, [autoSaveInterval, saveDraft]);
@@ -367,7 +368,7 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
     return () => {
       // Don't save if draft was intentionally cleared (e.g., after successful save)
       if (currentDataRef.current && !draftClearedRef.current) {
-        saveDraft(currentDataRef.current, false);
+        reportIfFails(saveDraft(currentDataRef.current, false), "save the draft", { silent: true });
       }
       stopAutoSave();
     };
