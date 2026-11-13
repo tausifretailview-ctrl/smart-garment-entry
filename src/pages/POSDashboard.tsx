@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { reportIfFails } from "@/lib/reportIfFails";
 import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
 import { createPortal, flushSync } from "react-dom";
 import { useLocation } from "react-router-dom";
@@ -4599,7 +4600,7 @@ const POSDashboard = () => {
                                       size="icon"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleInitiateDelete(sale);
+                                        reportIfFails(handleInitiateDelete(sale), "delete the bill");
                                       }}
                                       disabled={!own.allowed}
                                       title={own.allowed ? "Delete cancelled invoice" : own.reason}
@@ -4633,7 +4634,7 @@ const POSDashboard = () => {
                                             className="shrink-0 border-red-300 text-red-700 hover:bg-red-100 hover:text-red-800 dark:border-red-700 dark:text-red-400"
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              handleInitiateDelete(sale);
+                                              reportIfFails(handleInitiateDelete(sale), "delete the bill");
                                             }}
                                             disabled={!own.allowed}
                                             title={own.allowed ? "Delete cancelled invoice" : own.reason}

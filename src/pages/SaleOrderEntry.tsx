@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { reportIfFails } from "@/lib/reportIfFails";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings, useProductFieldSettings } from "@/hooks/useSettings";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
@@ -255,7 +256,7 @@ export default function SaleOrderEntry() {
     if (location.state?.loadDraft && hasDraft && draftData && !initialDraftCheckDone.current) {
       initialDraftCheckDone.current = true;
       loadDraftData(draftData);
-      deleteDraft(); // Clear the draft from database after loading
+      reportIfFails(deleteDraft(), "clear the draft", { silent: true }); // Clear the draft from database after loading
     }
   }, [location.state?.loadDraft, hasDraft, draftData, loadDraftData, deleteDraft]);
 
@@ -348,7 +349,7 @@ export default function SaleOrderEntry() {
         console.error('Error generating order number:', error);
       }
     };
-    generateOrderNumber();
+    reportIfFails(generateOrderNumber(), "get the next order number", { silent: true });
   }, [currentOrganization?.id, editingOrderId, location.state?.orderData]);
 
   // Server-side customer search (replaces fetch-all loop)

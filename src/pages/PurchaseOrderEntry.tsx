@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { reportIfFails } from "@/lib/reportIfFails";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSettings } from "@/hooks/useSettings";
@@ -216,7 +217,7 @@ export default function PurchaseOrderEntry() {
         console.error('Error generating order number:', error);
       }
     };
-    generateOrderNumber();
+    reportIfFails(generateOrderNumber(), "get the next order number", { silent: true });
   }, [currentOrganization?.id, editingOrderId]);
 
   // Fetch suppliers
@@ -570,7 +571,7 @@ export default function PurchaseOrderEntry() {
       if (itemsError) throw itemsError;
 
       skipDraftSaveOnUnmountRef.current = true;
-      deleteDraft();
+      reportIfFails(deleteDraft(), "clear the draft", { silent: true });
 
       toast({ title: "Success", description: `Purchase Order ${orderNumber} saved successfully` });
       navigate('/purchase-orders');
@@ -593,7 +594,7 @@ export default function PurchaseOrderEntry() {
           setShowDraftDialog(false);
         }}
         onStartFresh={() => {
-          deleteDraft();
+          reportIfFails(deleteDraft(), "clear the draft", { silent: true });
           setShowDraftDialog(false);
         }}
         draftType="purchase_order"

@@ -1,4 +1,5 @@
 import { installAuthRefreshGuard } from "@/lib/authRefreshGuard";
+import { reportUnhandledRejection } from "@/lib/unhandledRejectionReport";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -40,6 +41,8 @@ window.addEventListener("beforeinstallprompt", (e) => {
 
 window.addEventListener("unhandledrejection", (event) => {
   console.error("Unhandled promise rejection:", event.reason);
+  // Make it visible to support (Admin Health): deduped, capped, page-file errors skipped.
+  reportUnhandledRejection(event.reason);
 });
 
 window.addEventListener("error", (event) => {

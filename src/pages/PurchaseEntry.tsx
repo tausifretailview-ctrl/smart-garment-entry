@@ -1,4 +1,5 @@
 import { posSaveBegin, posSaveMark } from "@/lib/posSaveTiming";
+import { reportIfFails } from "@/lib/reportIfFails";
 import { lazy, Suspense, useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type ChangeEvent, type ReactNode } from "react";
 import { isDecimalUOM, getUOMLabel } from "@/constants/uom";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -2769,21 +2770,21 @@ const PurchaseEntry = () => {
   const handleLastBill = useCallback(() => {
     if (!allBillIds || allBillIds.length === 0) return;
     setNavBillIndex(0);
-    loadBillById(allBillIds[0].id);
+    reportIfFails(loadBillById(allBillIds[0].id), "open the bill");
   }, [allBillIds, loadBillById]);
 
   const handlePreviousBill = useCallback(() => {
     if (!allBillIds || navBillIndex === null) return;
     const newIndex = Math.min(navBillIndex + 1, allBillIds.length - 1);
     setNavBillIndex(newIndex);
-    loadBillById(allBillIds[newIndex].id);
+    reportIfFails(loadBillById(allBillIds[newIndex].id), "open the bill");
   }, [allBillIds, navBillIndex, loadBillById]);
 
   const handleNextBill = useCallback(() => {
     if (!allBillIds || navBillIndex === null) return;
     const newIndex = Math.max(navBillIndex - 1, 0);
     setNavBillIndex(newIndex);
-    loadBillById(allBillIds[newIndex].id);
+    reportIfFails(loadBillById(allBillIds[newIndex].id), "open the bill");
   }, [allBillIds, navBillIndex, loadBillById]);
 
   const openSupplierList = useCallback(() => setSupplierListEnabled(true), []);
@@ -9371,7 +9372,7 @@ const PurchaseEntry = () => {
         onSaveAnyway={() => {
           setShowDuplicateBillWarning(false);
           pendingSaveRef.current = true;
-          handleSave();
+          reportIfFails(handleSave(), "save the purchase bill");
         }}
       />
 
@@ -9383,7 +9384,7 @@ const PurchaseEntry = () => {
         onSaveAnyway={() => {
           setShowBarcodeConflictDialog(false);
           pendingBarcodeSaveRef.current = true;
-          handleSave();
+          reportIfFails(handleSave(), "save the purchase bill");
         }}
       />
 

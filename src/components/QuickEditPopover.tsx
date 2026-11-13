@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { reportIfFails } from "@/lib/reportIfFails";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -87,7 +88,7 @@ const QuickEditPopover = ({
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") handleSave();
+              if (e.key === "Enter") reportIfFails(handleSave(), "save the change");
               if (e.key === "Escape") setOpen(false);
             }}
             className="h-8 text-sm no-uppercase"
