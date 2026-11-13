@@ -110,6 +110,7 @@ import {
   type ProductEntryUnsavedDraft,
 } from "@/utils/productEntryUnsavedDraft";
 import { expandRowsIntoPieces, isPerPieceBarcodeEnabled, isPerPieceMeasuredUom } from "@/utils/purchasePerPieceBarcode";
+import { colorSuggestEnterOrTab } from "@/utils/colorSuggestKeys";
 
 type ProductType = 'goods' | 'service' | 'combo';
 
@@ -540,6 +541,8 @@ function ColorSuggestInput({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const suppressOpenRef = useRef(false);
+  // Arrow keys used in the open list since it opened / the text changed (Enter then picks).
+  const navigatedRef = useRef(false);
 
   // Only the text after the last comma is being typed right now.
   const query = (value.split(",").pop() ?? "").trim();
@@ -568,6 +571,14 @@ function ColorSuggestInput({
   }, [value, open, displayItems.length]);
 
   useEffect(() => {
+    navigatedRef.current = false;
+  }, [value]);
+
+  useEffect(() => {
+    if (!open) navigatedRef.current = false;
+  }, [open]);
+
+  useEffect(() => {
     if (!open || displayItems.length === 0) return;
     const el = listRef.current?.querySelector(`[data-combobox-item="${highlightIndex}"]`);
     el?.scrollIntoView({ block: "nearest" });
@@ -591,6 +602,7 @@ function ColorSuggestInput({
     if (e.key === "ArrowDown") {
       e.preventDefault();
       e.stopPropagation();
+      navigatedRef.current = true;
       if (!open) setOpen(true);
       else setHighlightIndex((i) => Math.min(i + 1, displayItems.length - 1));
       return;
@@ -598,25 +610,31 @@ function ColorSuggestInput({
     if (e.key === "ArrowUp" && open) {
       e.preventDefault();
       e.stopPropagation();
+      navigatedRef.current = true;
       setHighlightIndex((i) => Math.max(i - 1, 0));
       return;
     }
     if (e.key === "Enter" || e.key === "Tab") {
-      if (value.trim()) {
+      const action = colorSuggestEnterOrTab({
+        key: e.key,
+        value,
+        open,
+        navigated: navigatedRef.current,
+        items: displayItems,
+        highlightIndex,
+      });
+      if (action.kind === "pick" || action.kind === "add-typed") {
         e.preventDefault();
         e.stopPropagation();
-        const item = open ? displayItems[highlightIndex] : undefined;
-        if (item && (highlightIndex > 0 || !item.isNew)) pick(item.value);
+        if (action.kind === "pick") pick(action.value);
         else onAdd(value);
         return;
       }
-      if (e.key === "Enter") {
+      setOpen(false);
+      if (action.kind === "enter-empty") {
         e.preventDefault();
         e.stopPropagation();
-        setOpen(false);
         onEnterEmpty(e);
-      } else {
-        setOpen(false);
       }
       return;
     }
