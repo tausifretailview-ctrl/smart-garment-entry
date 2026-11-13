@@ -25,6 +25,7 @@ export function formatInvoicePaymentModeFallback(paymentMethod?: string | null):
   if (lower === "multiple") return "Mix";
   if (lower === "bank_transfer" || lower === "bank") return "Bank Transfer";
   if (lower === "pay_later") return "Pay Later";
+  if (lower === "upi") return "UPI";
   return raw.charAt(0).toUpperCase() + raw.slice(1).replace(/_/g, " ");
 }
 

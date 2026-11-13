@@ -100,6 +100,19 @@ test("Sales invoice: customer, scan, Ctrl+S, invoice number shown", async ({ pag
   // The old multi-step save path must not run as well.
   expect(backend.calls.filter((c) => (c.kind === "insert" || c.kind === "upsert") && (c.name === "sales" || c.name === "sale_items"))).toEqual([]);
 
+  // The copy kept ready for printing shows how this bill was paid (it used to say Cash for
+  // every invoice, even unpaid ones).
+  const readPrintCopy = async () =>
+    (
+      await page.evaluate(() =>
+        [...document.querySelectorAll('div[style*="-9999px"]')].map((d) => (d as HTMLElement).innerText).join(" "),
+      )
+    ).replace(/\s+/g, " ");
+  await expect.poll(readPrintCopy).toContain("INV/26-27/1");
+  const printCopy = await readPrintCopy();
+  expect(printCopy).toMatch(/Payment: PAY LATER/i);
+  expect(printCopy).not.toMatch(/Payment: CASH/i);
+
   await saved.getByRole("button", { name: "Skip" }).click();
   await expect(saved).toBeHidden();
   await expect(page.locator("tr", { hasText: "100001" })).toHaveCount(0);

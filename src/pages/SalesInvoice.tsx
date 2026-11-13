@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import { formatInvoicePaymentModeFallback } from "@/utils/invoicePaymentModeDisplay";
 import { SalesInvoiceCustomerPicker } from "@/components/sales-invoice/SalesInvoiceCustomerPicker";
 import { invalidateQuotationViewsAfterSave } from "@/utils/quotationViews";
 import { CustomerBalanceBadge } from "@/components/CustomerBalanceBadge";
@@ -2817,6 +2818,7 @@ export default function SalesInvoice() {
       setSavedInvoiceData({
         invoiceNumber: invoiceData.sale_number,
         sale_number: invoiceData.sale_number,
+        paymentMethod: invoiceData.payment_method || null,
         filledItems,
         netAmount: invoiceData.net_amount,
         grossAmount: invoiceData.gross_amount,
@@ -3753,6 +3755,7 @@ Thank you for choosing us!`;
         // Store invoice data and show print dialog
         setSavedInvoiceData({
           invoiceNumber: invoiceData?.sale_number,
+          paymentMethod: updatedSale?.payment_method ?? paymentOverride?.method ?? null,
           filledItems,
           netAmount,
           grossAmount,
@@ -3967,6 +3970,8 @@ Thank you for choosing us!`;
         // Store invoice data for print + WhatsApp PDF capture before clearing the form
         const invoiceDataForPrint = {
           invoiceNumber: saleNumber,
+          // What this bill was saved with (the print used to say "Cash" for every invoice).
+          paymentMethod: paymentOverride?.method ?? 'pay_later',
           filledItems,
           netAmount,
           grossAmount,
@@ -4549,6 +4554,34 @@ Thank you for choosing us!`;
     },
   };
 
+  const printConfirmDialog = (
+        <AlertDialog
+          open={showPrintDialog}
+          onOpenChange={(open) => {
+            if (!open) handleClosePrintDialog();
+            else setShowPrintDialog(true);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Print Invoice?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Invoice {savedInvoiceData?.invoiceNumber} has been saved successfully.
+                Would you like to print it now?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={handleClosePrintDialog}>
+                Skip
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={(e) => { e.preventDefault(); handlePrintInvoice(); }}>
+                Print Now
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+  );
+
   const createCustomerDialog = (
         <Dialog open={openCustomerDialog} onOpenChange={setOpenCustomerDialog}>
           <DialogContent className="sm:max-w-[500px]">
@@ -4892,22 +4925,11 @@ Thank you for choosing us!`;
         {createCustomerDialog}
         {paidLineEditDialog}
         {creditLimitDialog}
-        <AlertDialog
-          open={showPrintDialog}
-          onOpenChange={(open) => {
-            if (!open) handleClosePrintDialog();
-            else setShowPrintDialog(true);
-          }}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader><AlertDialogTitle>Print Invoice?</AlertDialogTitle><AlertDialogDescription>Invoice saved successfully.</AlertDialogDescription></AlertDialogHeader>
-            <AlertDialogFooter><AlertDialogCancel onClick={handleClosePrintDialog}>Skip</AlertDialogCancel><AlertDialogAction onClick={(e) => { e.preventDefault(); handlePrintInvoice(); }}>Print</AlertDialogAction></AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {printConfirmDialog}
         <SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={sizeGridProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} showStock validateStock={!allowNegativeStock} title="Enter Size-wise Qty" isLoading={sizeGridLoading} />
         <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
           {savedInvoiceData?.invoiceNumber && (savedInvoiceData?.filledItems?.length ?? 0) > 0 ? (
-            <InvoiceWrapper ref={printRef} template={effectiveInvoicePrintTemplate} billNo={savedInvoiceData.invoiceNumber} date={invoiceDate} dueDate={dueDate} customerName={savedInvoiceData?.customer?.customer_name || selectedCustomer?.customer_name || ""} customerAddress={savedInvoiceData?.customer?.address || ""} shippingAddress={savedInvoiceData?.shippingAddress || ""} customerMobile={savedInvoiceData?.customer?.phone || ""} customerGSTIN={savedInvoiceData?.customer?.gst_number || ""} customerTransportDetails="" b2bDetails={savedInvoiceData?.b2bDetails as SaleB2BDetails | null | undefined} items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({ sr: index + 1, particulars: item.productName, productId: item.productId, size: item.size, barcode: item.barcode || "", hsn: item.hsnCode || "", sp: item.salePrice, mrp: item.mrp, qty: item.quantity, rate: item.salePrice, total: item.lineTotal, color: item.color || "", gstPercent: item.gstPercent || 0, discountPercent: item.discountPercent || 0 }))} subTotal={savedInvoiceData?.grossAmount ?? grossAmount} discount={savedInvoiceData?.totalDiscount ?? totalDiscount} grandTotal={savedInvoiceData?.netAmount ?? netAmount} notes={savedInvoiceData?.notes ?? notes} pointsBalance={savedInvoiceData?.pointsBalance} pointsRedeemed={savedInvoiceData?.pointsRedeemed} otherCharges={savedInvoiceData?.otherCharges ?? otherCharges} roundOff={roundOff} paymentMethod="Cash" taxType={taxType} financerDetails={financerDetails} />
+            <InvoiceWrapper ref={printRef} template={effectiveInvoicePrintTemplate} billNo={savedInvoiceData.invoiceNumber} date={invoiceDate} dueDate={dueDate} customerName={savedInvoiceData?.customer?.customer_name || selectedCustomer?.customer_name || ""} customerAddress={savedInvoiceData?.customer?.address || selectedCustomer?.address || ""} shippingAddress={savedInvoiceData?.shippingAddress || ""} customerMobile={savedInvoiceData?.customer?.phone || selectedCustomer?.phone || ""} customerGSTIN={savedInvoiceData?.customer?.gst_number || selectedCustomer?.gst_number || ""} customerTransportDetails={savedInvoiceData?.customer?.transport_details || selectedCustomer?.transport_details || ""} b2bDetails={savedInvoiceData?.b2bDetails as SaleB2BDetails | null | undefined} items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({ sr: index + 1, particulars: item.productName, productId: item.productId, size: item.size, barcode: item.barcode || "", hsn: item.hsnCode || "", sp: item.salePrice, mrp: item.mrp, qty: item.quantity, rate: item.salePrice, total: item.lineTotal, color: item.color || "", gstPercent: item.gstPercent || 0, discountPercent: item.discountPercent || 0 }))} subTotal={savedInvoiceData?.grossAmount ?? grossAmount} discount={savedInvoiceData?.totalDiscount ?? totalDiscount} grandTotal={savedInvoiceData?.netAmount ?? netAmount} notes={savedInvoiceData?.notes ?? notes} pointsBalance={savedInvoiceData?.pointsBalance} pointsRedeemed={savedInvoiceData?.pointsRedeemed} otherCharges={savedInvoiceData?.otherCharges ?? otherCharges} roundOff={roundOff} paymentMethod={formatInvoicePaymentModeFallback(savedInvoiceData?.paymentMethod)} taxType={taxType} financerDetails={financerDetails} />
           ) : <div ref={printRef} />}
         </div>
         {historyProduct && currentOrganization && <ProductHistoryDialog isOpen={!!historyProduct} onClose={() => setHistoryProduct(null)} productId={historyProduct.id} productName={historyProduct.name} organizationId={currentOrganization.id} />}
@@ -6236,32 +6258,8 @@ Thank you for choosing us!`;
       {paidLineEditDialog}
       {creditLimitDialog}
 
-      {/* Print Confirmation Dialog */}
-      <AlertDialog
-        open={showPrintDialog}
-        onOpenChange={(open) => {
-          if (!open) handleClosePrintDialog();
-          else setShowPrintDialog(true);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Print Invoice?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Invoice {savedInvoiceData?.invoiceNumber} has been saved successfully.
-              Would you like to print it now?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleClosePrintDialog}>
-              Skip
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={(e) => { e.preventDefault(); handlePrintInvoice(); }}>
-              Print Now
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Print Confirmation Dialog (shared with the phone layout) */}
+      {printConfirmDialog}
 
       {/* Size Grid Dialog */}
       <SizeGridDialog
@@ -6318,7 +6316,7 @@ Thank you for choosing us!`;
             pointsRedeemed={savedInvoiceData?.pointsRedeemed}
             otherCharges={savedInvoiceData?.otherCharges ?? otherCharges}
             roundOff={roundOff}
-            paymentMethod="Cash"
+            paymentMethod={formatInvoicePaymentModeFallback(savedInvoiceData?.paymentMethod)}
             taxType={taxType}
             financerDetails={financerDetails}
           />
