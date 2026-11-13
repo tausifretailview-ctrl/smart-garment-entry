@@ -15,6 +15,7 @@ export const E2E_ORG_ID = "22222222-2222-4222-8222-222222222222";
 export const E2E_ORG_SLUG = "demo";
 
 type Row = Record<string, unknown>;
+/** Return the RPC result, or a Promise of it to make the reply slow (e.g. a busy database). */
 export type RpcHandler = (args: Record<string, unknown>) => unknown;
 export type RecordedCall = { kind: "rpc" | "insert" | "update" | "upsert" | "delete" | "function"; name: string; body: unknown };
 
@@ -140,7 +141,8 @@ export class MockBackend {
       const body = (parseBody(request.postData()) ?? {}) as Record<string, unknown>;
       this.calls.push({ kind: "rpc", name, body });
       const handler = this.rpcHandlers[name];
-      return route.fulfill({ json: handler ? (handler(body) ?? null) : null });
+      const result = handler ? await handler(body) : null;
+      return route.fulfill({ json: result ?? null });
     }
     if (path.startsWith("/rest/v1/")) {
       const table = path.slice("/rest/v1/".length);
@@ -149,7 +151,12 @@ export class MockBackend {
       const kind = method === "DELETE" ? "delete" : method === "PATCH" ? "update" : (request.headers()["prefer"] || "").includes("merge-duplicates") ? "upsert" : "insert";
       const body = parseBody(request.postData());
       this.calls.push({ kind, name: table, body });
-      const rows = Array.isArray(body) ? body : body ? [body] : [];
+      // Like the database: an inserted row comes back with an id.
+      const rows = (Array.isArray(body) ? body : body ? [body] : []).map((row, i) =>
+        kind === "insert" && row && typeof row === "object" && !("id" in row)
+          ? { id: `${table}-${this.calls.length}-${i + 1}`, ...(row as Row) }
+          : row,
+      );
       const single = (request.headers()["accept"] || "").includes("vnd.pgrst.object");
       return route.fulfill({ json: single ? (rows[0] ?? {}) : rows });
     }
