@@ -200,3 +200,96 @@ export function PurchaseInlineSearchMenu<T extends PurchaseSearchRow>({
     document.body,
   );
 }
+
+/**
+ * Desktop toolbar search dropdown under "SEARCH BY NAME, BRAND, CATEGORY OR STYLE…": rows with
+ * chips, size range, counts and MRP / Buy / Sale, plus "+ All variants" per product.
+ */
+export function PurchaseToolbarSearchDropdown<T extends PurchaseSearchRow & { product_id: string }>({
+  results,
+  selectedIndex,
+  onHoverIndex,
+  onSelect,
+  onAddAllVariants,
+}: {
+  results: T[];
+  selectedIndex: number;
+  onHoverIndex: (index: number) => void;
+  onSelect: (result: T) => void;
+  /** "+ All variants": add every size of this product (each qty 1). */
+  onAddAllVariants: (result: T) => void;
+}) {
+  return (
+    <div className="purchase-search-dropdown absolute left-0 top-full mt-1 w-full min-w-[560px] bg-popover border border-border rounded-md shadow-lg z-[100] max-h-[420px] overflow-auto">
+      {results.map((result, idx) => {
+        const selected = idx === selectedIndex;
+        const rates = purchaseSearchRateLabels(result);
+        return (
+          <div
+            key={result.product_id + idx}
+            onMouseEnter={() => onHoverIndex(idx)}
+            className={cn(
+              "w-full text-left px-4 py-3 border-b border-border last:border-0 transition-colors flex items-start gap-2",
+              selected ? "bg-accent text-accent-foreground" : "text-popover-foreground hover:bg-accent/50",
+            )}
+          >
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => onSelect(result)}
+              className="flex-1 min-w-0 text-left"
+            >
+              <div className="flex justify-between items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-sm flex items-center gap-2">
+                    <span>{result.product_name}</span>
+                    {result.size_range && (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold">
+                        {result.size_range}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {result.brand && <span className="text-[10px] bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-1 py-0.5 rounded">{result.brand}</span>}
+                    {result.category && <span className="text-[10px] bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-1 py-0.5 rounded">{result.category}</span>}
+                    {result.style && <span className="text-[10px] bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-1 py-0.5 rounded">{result.style}</span>}
+                    {result.color && result.color !== "-" && <span className="text-[10px] bg-muted text-muted-foreground px-1 py-0.5 rounded">{result.color}</span>}
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
+                    {result.groupedVariantCount && result.groupedVariantCount > 1 && <span>{result.groupedVariantCount} sizes</span>}
+                    {result.groupedMrpTierCount && result.groupedMrpTierCount > 1 && (
+                      <span className="text-amber-700 dark:text-amber-400 font-semibold">{result.groupedMrpTierCount} MRP</span>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right shrink-0 tabular-nums font-mono">
+                  <div className={cn("font-bold text-[15px] leading-tight", selected ? "text-accent-foreground" : "text-amber-600 dark:text-amber-400")}>
+                    MRP: {rates.mrp}
+                  </div>
+                  <div className={cn("text-[12px] font-semibold leading-tight", selected ? "text-accent-foreground/90" : "text-primary")}>
+                    Buy: {rates.buy}
+                  </div>
+                  <div className={cn("text-[12px] leading-tight", selected ? "text-accent-foreground/80" : "text-muted-foreground")}>
+                    Sale: {rates.sale}
+                  </div>
+                </div>
+              </div>
+            </button>
+            <button
+              type="button"
+              title="Add all variants of this product (each qty 1)"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddAllVariants(result);
+              }}
+              className="shrink-0 self-center text-[11px] font-semibold px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20 border border-primary/30"
+            >
+              + All variants
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
