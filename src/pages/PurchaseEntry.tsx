@@ -204,6 +204,7 @@ import { barcodePrintingPathWithBill } from "@/utils/barcodePurchaseBillItems";
 import { buildPurchaseBarcodeLabels, purchaseLabelCount } from "@/utils/purchaseBarcodeLabels";
 import { PurchaseSavedPrintDialog } from "@/components/purchase/PurchaseSavedPrintDialog";
 import { PurchaseTotalsFooter } from "@/components/purchase/PurchaseTotalsFooter";
+import { PurchaseMobileItemsCard, PurchaseMobileSaveBar, PurchaseMobileTotalsCard } from "@/components/purchase/PurchaseMobileParts";
 import {
   PurchaseBarcodeConflictDialog,
   PurchaseDuplicateBillDialog,
@@ -8778,93 +8779,53 @@ const PurchaseEntry = () => {
             </div>
           </div>
 
-          {/* Items list */}
-          {filledItems.length > 0 && (
-            <div className="bg-background rounded-2xl border border-border/40 shadow-sm overflow-hidden">
-              <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-border/30">
-                <p className="text-xs font-semibold text-foreground">Items ({filledItems.length})</p>
-                <p className="text-xs text-muted-foreground">{totalQty} pcs</p>
-              </div>
-              <div className="divide-y divide-border/20">
-                {filledItems.map((item) => {
-                  const realIdx = lineItems.indexOf(item);
-                  return (
-                    <div key={item.temp_id} className="flex items-center justify-between px-3.5 py-2.5">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-foreground truncate">{item.product_name || item.barcode}</p>
-                        <p className="text-[11px] text-muted-foreground">{isMobileERPMode ? formatMobileErpSizeCell(item.size) : item.size} {item.color}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <button onClick={() => {
-                            const u = [...lineItems];
-                            const min = minQtyForUom(u[realIdx].uom);
-                            if (u[realIdx].qty > min) {
-                              u[realIdx] = { ...u[realIdx], qty: adjustQtyByStep(u[realIdx].qty, -1, u[realIdx].uom) };
-                              setLineItems(u);
-                            }
-                          }}
-                            className="w-8 h-8 bg-muted rounded-lg text-base font-bold flex items-center justify-center active:scale-90 touch-manipulation">−</button>
-                          <span className="min-w-[2.5rem] text-center text-sm font-semibold tabular-nums">{item.qty}</span>
-                          {item.uom && item.uom !== "NOS" && item.uom !== "PCS" && (
-                            <span className="text-[10px] text-muted-foreground">{getUOMLabel(item.uom)}</span>
-                          )}
-                          <button onClick={() => {
-                            const u = [...lineItems];
-                            u[realIdx] = { ...u[realIdx], qty: adjustQtyByStep(u[realIdx].qty, 1, u[realIdx].uom) };
-                            setLineItems(u);
-                          }}
-                            className="w-8 h-8 bg-muted rounded-lg text-base font-bold flex items-center justify-center active:scale-90 touch-manipulation">+</button>
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0 ml-3">
-                        <CalculatorInput
-                          value={item.pur_price}
-                          onChange={(val) => updateLineItem(item.temp_id, "pur_price", val)}
-                          className="w-20 h-8 text-right text-sm rounded-lg border"
-                          placeholder="Price"
-                        />
-                        <p className="text-xs font-semibold text-foreground mt-1 tabular-nums">= ₹{Math.round((item.pur_price || 0) * getMtrMultiplier(item)).toLocaleString("en-IN")}</p>
-                        <button onClick={() => void removeLineItem(item.temp_id)} className="text-[10px] text-destructive font-medium mt-1">Remove</button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          {/* Items list (PurchaseMobileItemsCard) */}
+          <PurchaseMobileItemsCard
+            lines={filledItems.map((item) => ({
+              tempId: item.temp_id,
+              title: item.product_name || item.barcode,
+              subtitle: `${isMobileERPMode ? formatMobileErpSizeCell(item.size) : item.size} ${item.color ?? ""}`,
+              qty: item.qty,
+              uomLabel: item.uom && item.uom !== "NOS" && item.uom !== "PCS" ? getUOMLabel(item.uom) : null,
+              purPrice: item.pur_price,
+              amount: (item.pur_price || 0) * getMtrMultiplier(item),
+            }))}
+            totalQty={totalQty}
+            onQtyStep={(tempId, direction) => {
+              const realIdx = lineItems.findIndex((l) => l.temp_id === tempId);
+              if (realIdx < 0) return;
+              const u = [...lineItems];
+              if (direction < 0) {
+                const min = minQtyForUom(u[realIdx].uom);
+                if (u[realIdx].qty > min) {
+                  u[realIdx] = { ...u[realIdx], qty: adjustQtyByStep(u[realIdx].qty, -1, u[realIdx].uom) };
+                  setLineItems(u);
+                }
+              } else {
+                u[realIdx] = { ...u[realIdx], qty: adjustQtyByStep(u[realIdx].qty, 1, u[realIdx].uom) };
+                setLineItems(u);
+              }
+            }}
+            onPriceChange={(tempId, val) => updateLineItem(tempId, "pur_price", val)}
+            onRemove={(tempId) => void removeLineItem(tempId)}
+          />
 
           {/* Totals */}
           {filledItems.length > 0 && (
-            <div className="bg-background rounded-2xl p-3.5 border border-border/40 shadow-sm space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Total Qty</span>
-                <span className="font-medium tabular-nums">{totalQty} pcs</span>
-              </div>
-              <div className="flex justify-between text-base font-bold pt-1 border-t border-border/30">
-                <span>Grand Total</span>
-                <span className="tabular-nums">₹{Math.round(totals.netAmount || 0).toLocaleString("en-IN")}</span>
-              </div>
-            </div>
+            <PurchaseMobileTotalsCard totalQty={totalQty} netAmount={totals.netAmount} />
           )}
         </div>
 
         {/* Fixed save bar — hidden while Edit Product panel is open */}
         {!showEditPanel && (
-        <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border p-4 z-30" style={{ paddingBottom: "env(safe-area-inset-bottom, 16px)" }}>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={loading || excelImportLoading !== null || lineItems.length === 0}
-            aria-busy={loading}
-            className="w-full bg-primary text-primary-foreground rounded-xl h-12 font-semibold text-sm flex items-center justify-center gap-2 active:scale-95 touch-manipulation shadow-sm disabled:opacity-50 disabled:pointer-events-none"
-          >
-            {excelImportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {excelImportLoading
-              ? `Importing ${excelImportLoading.current.toLocaleString("en-IN")} / ${excelImportLoading.total.toLocaleString("en-IN")}...`
-              : loading
-                ? "Saving…"
-                : `Save Bill${filledItems.length > 0 ? ` · ₹${Math.round(totals.netAmount || 0).toLocaleString("en-IN")}` : ""}`}
-          </button>
-        </div>
+          <PurchaseMobileSaveBar
+            onSave={handleSave}
+            loading={loading}
+            excelImport={excelImportLoading}
+            lineCount={lineItems.length}
+            filledCount={filledItems.length}
+            netAmount={totals.netAmount}
+          />
         )}
 
         {/* All existing dialogs */}
