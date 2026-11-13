@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -31,9 +30,8 @@ import {
   resolveBarcodeSlotMm,
 } from "@/utils/barcodeLabelLayout";
 import type { LabelData, TSPLTemplateConfig } from "@/utils/tsplGenerator";
-import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer, AlertTriangle, Plus, Loader2, ChevronDown, ChevronLeft, Search, Package, History, Maximize2 } from "lucide-react";
+import { Check, Save, Trash2, Download, RefreshCw, Edit, Printer, Plus, Loader2, ChevronDown, ChevronLeft, Search, Package, History, Maximize2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Badge } from "@/components/ui/badge";
 import type jsPDFType from "jspdf";
 /** Lazily loaded on export — keeps jsPDF/html2canvas off this page's initial chunk. */
 let jsPdfPromise: Promise<typeof jsPDFType> | null = null;
@@ -201,7 +199,7 @@ import {
   footwearFormSizeMm,
   type FootwearFormDesign,
 } from "@/utils/labels/precisionProFootwearDesign";
-import { migrateCustomTextFields } from "@/utils/labelCustomText";
+
 import { LabelCalibrationUI, type CalibrationPreset } from "@/components/precision-barcode/LabelCalibrationUI";
 import { TestLabelPrint } from "@/components/precision-barcode/TestLabelPrint";
 import { PrecisionPrintCSS } from "@/components/precision-barcode/PrecisionPrintCSS";
@@ -214,170 +212,36 @@ import {
 } from "@/constants/fixedBuiltinLabelPresets";
 import {
   isBoutiqueGridPresetName,
-  resolveBoutiqueGridLabelConfig,
 } from "@/constants/boutiqueGridLabelTemplate";
 import {
   LABEL_STYLE_BOUTIQUE_GRID,
-  isBoutiqueGridLabelStyle,
 } from "@/types/labelTypes";
 import {
   RANAWAT_BLING_TEMPLATE_NAME,
   isRanawatBlingPresetName,
-  resolveRanawatBlingLabelConfig,
 } from "@/constants/ranawatBlingLabelTemplate";
 import {
   RETAIL_NARROW_TEMPLATE_NAME,
   isRetailNarrowPresetName,
-  resolveRetailNarrowLabelConfig,
 } from "@/constants/retailNarrowLabelTemplate";
 import { upsertPrinterPresetRow } from "@/utils/printerPresetDbCompat";
 import { fetchSaleDiscPercentBySkuId } from "@/utils/pricingSaleDiscPercentLookup";
 import { escapeHtml } from "@/utils/escapeHtml";
 import { formatDateDMY } from "@/lib/dateDisplay";
+import {
+  ensureCompleteFieldOrder,
+  mapPrinterPresetFromRow,
+  resolvePresetLabelConfig,
+  sortItemsBySize,
+} from "@/lib/barcode/barcodeLabelConfig";
+import { BarcodeLabelListPanel } from "@/components/barcode/BarcodeLabelListPanel";
+import { BarcodePrintFooter } from "@/components/barcode/BarcodePrintFooter";
+import { builtInLabelTemplates, sheetPresetLabels, sheetPresets, type SheetType } from "@/lib/barcode/sheetPresets";
 
 const precisionPresetStorageKey = (orgId: string) => `precision_active_preset_${orgId}`;
 
 /** Same ceiling as mobile PDF share — recover from hung fetches without a full reload. */
 const BARCODE_SETTINGS_LOAD_TIMEOUT_MS = 8_000;
-
-function mapPrinterPresetFromRow(p: Record<string, unknown>): CalibrationPreset {
-  return {
-    id: p.id != null ? String(p.id) : undefined,
-    name: String(p.name),
-    xOffset: Number(p.x_offset),
-    yOffset: Number(p.y_offset),
-    vGap: Number(p.v_gap),
-    hGap: p.h_gap != null ? Number(p.h_gap) : 0,
-    width: Number(p.label_width),
-    height: Number(p.label_height),
-    a4Cols: p.a4_cols != null ? Number(p.a4_cols) : undefined,
-    a4Rows: p.a4_rows != null ? Number(p.a4_rows) : undefined,
-    printMode: (p.print_mode as CalibrationPreset["printMode"]) || undefined,
-    labelConfig: p.label_config as LabelDesignConfig | null,
-    isDefault: Boolean(p.is_default),
-    thermalCols: p.thermal_cols != null ? Number(p.thermal_cols) : undefined,
-  };
-}
-
-const resolvePresetLabelConfig = (
-  presetName: string,
-  stored?: Partial<LabelDesignConfig> | null,
-): LabelDesignConfig => {
-  const fixed = resolveFixedBuiltinLabelConfig(presetName);
-  if (fixed) return fixed;
-  // Boutique Grid: opt-in style — merge saved field toggles, always keep labelStyle.
-  if (isBoutiqueGridPresetName(presetName) || isBoutiqueGridLabelStyle(stored)) {
-    if (stored && (stored.fieldOrder?.length || stored.businessName || stored.barcode)) {
-      return ensureCompleteFieldOrder({
-        ...stored,
-        labelStyle: LABEL_STYLE_BOUTIQUE_GRID,
-      });
-    }
-    return resolveBoutiqueGridLabelConfig();
-  }
-  if (isRanawatBlingPresetName(presetName)) {
-    if (stored && (stored.fieldOrder?.length || stored.businessName || stored.barcode)) {
-      return ensureCompleteFieldOrder(stored);
-    }
-    return resolveRanawatBlingLabelConfig();
-  }
-  // Retail Narrow is an editable starting design (never locked): resolve the
-  // built-in only when nothing saved exists under that name.
-  if (isRetailNarrowPresetName(presetName)) {
-    if (stored && (stored.fieldOrder?.length || stored.businessName || stored.barcode)) {
-      return ensureCompleteFieldOrder(stored);
-    }
-    return resolveRetailNarrowLabelConfig();
-  }
-  return ensureCompleteFieldOrder(stored || {});
-};
-
-// Utility function to sort items by size, barcode, name, price, or keep original order (Sr No)
-const sortItemsBySize = (items: LabelItem[], order: SizeSortOrder): LabelItem[] => {
-  if (order === 'none') return items;
-  
-  // Barcode-based sorting
-  if (order === 'barcode_asc' || order === 'barcode_desc') {
-    return [...items].sort((a, b) => {
-      const barcodeA = a.barcode || '';
-      const barcodeB = b.barcode || '';
-      const cmp = barcodeA.localeCompare(barcodeB, undefined, { numeric: true });
-      return order === 'barcode_desc' ? -cmp : cmp;
-    });
-  }
-  
-  // Product name sorting (A-Z)
-  if (order === 'name_asc') {
-    return [...items].sort((a, b) => (a.product_name || '').localeCompare(b.product_name || ''));
-  }
-  
-  // Price sorting
-  if (order === 'price_asc' || order === 'price_desc') {
-    return [...items].sort((a, b) => {
-      const diff = (a.sale_price || 0) - (b.sale_price || 0);
-      return order === 'price_desc' ? -diff : diff;
-    });
-  }
-  
-  // Size-based sorting
-  return [...items].sort((a, b) => {
-    const parseSize = (size: string): number => {
-      if (!size) return 0;
-      const match = size.match(/[\d.]+/);
-      return match ? parseFloat(match[0]) : 0;
-    };
-    
-    const sizeA = parseSize(a.size);
-    const sizeB = parseSize(b.size);
-    return order === 'descending' ? sizeB - sizeA : sizeA - sizeB;
-  });
-};
-
-const mergeLabelField = (
-  partial: Partial<LabelFieldConfig> | undefined,
-  fallback: LabelFieldConfig,
-): LabelFieldConfig => (partial ? { ...fallback, ...partial } : { ...fallback });
-
-// Helper function to ensure all fields are in fieldOrder (for migrating old configs)
-const ensureCompleteFieldOrder = (config: Partial<LabelDesignConfig>): LabelDesignConfig => {
-  const allFields: FieldKey[] = [
-    'businessName', 'brand', 'productName', 'category', 'color', 'style', 'size', 'price', 'mrp', 'saleDiscPercent', 'qty',
-    'customText', 'barcode', 'barcodeText', 'billNumber', 'supplierCode', 'purchaseCode', 'supplierInvoiceNo'
-  ];
-
-  const existingOrder = config.fieldOrder || [];
-  const missingFields = allFields.filter(f => !existingOrder.includes(f));
-  const base = DEFAULT_PRECISION_CONFIG;
-
-  return {
-    brand: mergeLabelField(config.brand, base.brand),
-    businessName: mergeLabelField(config.businessName, base.businessName),
-    productName: mergeLabelField(config.productName, base.productName),
-    category: mergeLabelField(config.category, base.category),
-    color: mergeLabelField(config.color, base.color),
-    style: mergeLabelField(config.style, base.style),
-    size: mergeLabelField(config.size, base.size),
-    price: mergeLabelField(config.price, base.price),
-    mrp: mergeLabelField(config.mrp, base.mrp),
-    saleDiscPercent: mergeLabelField(config.saleDiscPercent, base.saleDiscPercent!),
-    qty: mergeLabelField(config.qty, base.qty),
-    customText: mergeLabelField(config.customText, base.customText),
-    barcode: mergeLabelField(config.barcode, base.barcode),
-    barcodeText: mergeLabelField(config.barcodeText, base.barcodeText),
-    billNumber: mergeLabelField(config.billNumber, base.billNumber),
-    supplierCode: mergeLabelField(config.supplierCode, base.supplierCode),
-    purchaseCode: mergeLabelField(config.purchaseCode, base.purchaseCode),
-    supplierInvoiceNo: mergeLabelField(config.supplierInvoiceNo, base.supplierInvoiceNo!),
-    fieldOrder: [...existingOrder, ...missingFields] as FieldKey[],
-    barcodeHeight: config.barcodeHeight ?? base.barcodeHeight,
-    barcodeWidth: config.barcodeWidth ?? base.barcodeWidth,
-    customTextValue: config.customTextValue ?? base.customTextValue ?? '',
-    customTextFields: migrateCustomTextFields(config),
-    lines: config.lines ?? base.lines ?? [],
-    // Pass through only when already set — never invent a style for existing presets.
-    ...(config.labelStyle ? { labelStyle: config.labelStyle } : {}),
-  };
-};
 
 // Helper function to render barcode as inline SVG string (vector, no blur)
 const renderBarcodeToSVG = (
@@ -444,915 +308,8 @@ interface MarginPreset {
   description?: string;
 }
 
-
-
-type SheetType = 
-  // A4 Sheet Types
-  "novajet48" | "novajet40" | "a4_40sheet" | "a4_39x35_40sheet" | "novajet65" | "a4_12x4" | "a4_65sheet" | "a4_32sheet" | 
-  "a4_24sheet" | "a4_20sheet" | "a4_35square" | "a4_21sheet" | "a4_80sheet" | "a4_36sheet" |
-  // Thermal 1UP Types
-  "thermal_50x30_1up" | "thermal_50x38_1up" | "thermal_50x25_1up" | "thermal_38x25_1up" | 
-  "thermal_40x20_1up" | "thermal_40x30_1up" | "thermal_50x40_1up" |
-  "thermal_60x30_1up" | "thermal_60x40_1up" | "thermal_100x50_1up" | 
-  "thermal_75x50_1up" | "thermal_100x100_1up" | "thermal_80x40_1up" |
-  "precision_pro_tsc" |
-  "jewellery_100x15_1up" |
-  // Thermal 2UP Types
-  "thermal_50x30_2up" | "thermal_50x25_2up" | "thermal_38x25_2up" |
-  "thermal_40x20_2up" | "thermal_40x30_2up" | "thermal_60x30_2up" | 
-  "thermal_60x40_2up" | "thermal_75x50_2up" |
-  // Custom
-  "custom";
 type DesignFormat = "BT1" | "BT2" | "BT3" | "BT4";
 type QuantityMode = "manual" | "lastPurchase" | "byBill";
-
-const sheetPresets = {
-  // ===== A4 Sheet Presets =====
-  // Small Labels
-  novajet48: { cols: 8, rows: 6, width: "33mm", height: "19mm", gap: "1mm", category: "a4" },
-  a4_80sheet: { cols: 10, rows: 20, width: "26mm", height: "14mm", gap: "0.5mm", category: "a4" },
-  novajet65: { cols: 5, rows: 13, width: "38mm", height: "21mm", gap: "1mm", category: "a4" },
-  a4_65sheet: { cols: 5, rows: 12, width: "38mm", height: "22mm", gap: "1mm", category: "a4" },
-  
-  // Medium Labels
-  // TechNova NovaJet MPL 40L — official 39×35mm, 5×8, gap 0 (die-cut).
-  // Gap>0 / 38mm width caused cumulative skew (top-right / bottom-left drift).
-  novajet40: { cols: 5, rows: 8, width: "39mm", height: "35mm", gap: "0mm", category: "a4" },
-  a4_40sheet: { cols: 5, rows: 8, width: "39mm", height: "35mm", gap: "0mm", category: "a4" },
-  a4_39x35_40sheet: { cols: 5, rows: 8, width: "39mm", height: "35mm", gap: "0mm", category: "a4" },
-  a4_35x37: { cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "1.2mm", category: "a4" },
-  // TechNova NovaJet MPL 48L (NJMPL 48L / 48×24WR) — top margin baked into computeA4SheetMargins
-  a4_12x4: {
-    cols: 4,
-    rows: 12,
-    width: "48mm",
-    height: "24mm",
-    gap: "0mm",
-    category: "a4",
-    defaultTop: 0,
-    defaultLeft: 0,
-    defaultBottom: 0,
-    defaultRight: 0,
-  },
-  a4_36sheet: { cols: 4, rows: 9, width: "48mm", height: "30mm", gap: "1mm", category: "a4" },
-  a4_32sheet: { cols: 4, rows: 8, width: "52mm", height: "30mm", gap: "1mm", category: "a4" },
-  a4_35square: { cols: 5, rows: 7, width: "35mm", height: "35mm", gap: "2mm", category: "a4" },
-  
-  // Large Labels
-  a4_24sheet: { cols: 3, rows: 8, width: "70mm", height: "35mm", gap: "1mm", category: "a4" },
-  a4_21sheet: { cols: 3, rows: 7, width: "63.5mm", height: "38.1mm", gap: "1mm", category: "a4" },
-  a4_20sheet: { cols: 2, rows: 10, width: "100mm", height: "50mm", gap: "1mm", category: "a4" },
-
-  // ===== Thermal Roll Presets (1UP - Single Column) =====
-  // Extra Small
-  thermal_40x20_1up: { cols: 1, width: "40mm", height: "20mm", gap: "0mm", category: "thermal", thermal: true },
-  thermal_40x30_1up: { cols: 1, width: "40mm", height: "30mm", gap: "0mm", category: "thermal", thermal: true },
-  thermal_38x25_1up: { cols: 1, width: "38mm", height: "25mm", gap: "0mm", category: "thermal", thermal: true },
-  
-  // Small
-  thermal_50x25_1up: { cols: 1, width: "50mm", height: "25mm", gap: "0mm", category: "thermal", thermal: true },
-  thermal_50x30_1up: { cols: 1, width: "50mm", height: "30mm", gap: "0mm", category: "thermal", thermal: true },
-  thermal_50x38_1up: { cols: 1, width: "50mm", height: "38mm", gap: "0mm", category: "thermal", thermal: true },
-  thermal_50x40_1up: { cols: 1, width: "50mm", height: "40mm", gap: "0mm", category: "thermal", thermal: true },
-  
-  // Medium
-  thermal_60x30_1up: { cols: 1, width: "60mm", height: "30mm", gap: "0mm", category: "thermal", thermal: true },
-  thermal_60x40_1up: { cols: 1, width: "60mm", height: "40mm", gap: "0mm", category: "thermal", thermal: true },
-  thermal_75x50_1up: { cols: 1, width: "75mm", height: "50mm", gap: "0mm", category: "thermal", thermal: true },
-  thermal_80x40_1up: { cols: 1, width: "80mm", height: "40mm", gap: "0mm", category: "thermal", thermal: true },
-  
-  // Large / Shipping
-  thermal_100x50_1up: { cols: 1, width: "100mm", height: "50mm", gap: "0mm", category: "thermal", thermal: true },
-  thermal_100x100_1up: { cols: 1, width: "100mm", height: "100mm", gap: "0mm", category: "thermal", thermal: true },
-  precision_pro_tsc: { cols: 1, width: "102mm", height: "53mm", gap: "2mm", category: "thermal", thermal: true },
-  jewellery_100x15_1up: { cols: 1, width: "100mm", height: "15mm", gap: "2mm", category: "thermal", thermal: true },
-
-  // ===== Thermal Roll Presets (2UP - Two Columns) =====
-  thermal_40x20_2up: { cols: 2, width: "40mm", height: "20mm", gap: "2mm", category: "thermal", thermal: true },
-  thermal_40x30_2up: { cols: 2, width: "40mm", height: "30mm", gap: "2mm", category: "thermal", thermal: true },
-  thermal_38x25_2up: { cols: 2, width: "38mm", height: "25mm", gap: "2mm", category: "thermal", thermal: true },
-  thermal_50x25_2up: { cols: 2, width: "50mm", height: "25mm", gap: "2mm", category: "thermal", thermal: true },
-  thermal_50x30_2up: { cols: 2, width: "50mm", height: "30mm", gap: "2mm", category: "thermal", thermal: true },
-  thermal_60x30_2up: { cols: 2, width: "60mm", height: "30mm", gap: "2mm", category: "thermal", thermal: true },
-  thermal_60x40_2up: { cols: 2, width: "60mm", height: "40mm", gap: "2mm", category: "thermal", thermal: true },
-  thermal_75x50_2up: { cols: 2, width: "75mm", height: "50mm", gap: "2mm", category: "thermal", thermal: true },
-
-  // Custom
-  custom: { cols: 4, width: "50mm", height: "25mm", gap: "2mm", category: "custom" },
-};
-
-// Sheet preset labels for UI with grouping
-const sheetPresetLabels: Record<string, { label: string; description: string; group: string }> = {
-  // A4 Sheets - Small
-  novajet48: { label: "Novajet 48", description: "33×19mm, 8 cols", group: "A4 - Small Labels" },
-  a4_80sheet: { label: "A4 80-Sheet", description: "26×14mm, 10 cols (tiny)", group: "A4 - Small Labels" },
-  novajet65: { label: "Novajet 65", description: "38×21mm, 5 cols", group: "A4 - Small Labels" },
-  a4_65sheet: { label: "A4 65-Sheet", description: "38×22mm, 5 cols (shelf)", group: "A4 - Small Labels" },
-  
-  // A4 Sheets - Medium
-  novajet40: { label: "Novajet 40", description: "39×35mm, 5×8 (40 labels) MPL 40L", group: "A4 - Medium Labels" },
-  a4_40sheet: { label: "A4 40-Sheet", description: "39×35mm, 5×8 (40 labels) MPL 40L ✓ Exact", group: "A4 - Medium Labels" },
-  a4_39x35_40sheet: { label: "A4 40-Sheet (39×35mm)", description: "39×35mm, 5×8 (40 labels) — Al Nisa / MPL 40L", group: "A4 - Medium Labels" },
-  a4_35x37: { label: "A4 35×37mm", description: "35×37mm, 5×8 (40 labels)", group: "A4 - Medium Labels" },
-  a4_12x4: { label: "NovaJet MPL 48L", description: "48×24mm, 4×12 (NJMPL)", group: "A4 - Medium Labels" },
-  a4_36sheet: { label: "A4 36-Sheet", description: "48×30mm, 4×9", group: "A4 - Medium Labels" },
-  a4_32sheet: { label: "A4 32-Sheet", description: "52×30mm, 4×8 (retail)", group: "A4 - Medium Labels" },
-  a4_35square: { label: "A4 35-Square", description: "35×35mm, 5×7 (square)", group: "A4 - Medium Labels" },
-  
-  // A4 Sheets - Large
-  a4_24sheet: { label: "A4 24-Sheet", description: "70×35mm, 3×8 (warehouse)", group: "A4 - Large Labels" },
-  a4_21sheet: { label: "A4 21-Sheet", description: "63.5×38.1mm, 3×7 (address)", group: "A4 - Large Labels" },
-  a4_20sheet: { label: "A4 20-Sheet", description: "100×50mm, 2×10 (shipping)", group: "A4 - Large Labels" },
-  
-  // Thermal 1UP - Small
-  thermal_40x20_1up: { label: "40×20mm (1UP)", description: "Jewelry/small items", group: "Thermal 1UP - Small" },
-  thermal_38x25_1up: { label: "38×25mm (1UP)", description: "Compact retail", group: "Thermal 1UP - Small" },
-  thermal_40x30_1up: { label: "40×30mm (1UP)", description: "Small retail", group: "Thermal 1UP - Small" },
-  thermal_50x25_1up: { label: "50×25mm (1UP)", description: "Standard small", group: "Thermal 1UP - Small" },
-  thermal_50x30_1up: { label: "50×30mm (1UP)", description: "Standard retail", group: "Thermal 1UP - Small" },
-  thermal_50x38_1up: { label: "50×38mm (1UP)", description: "Ella Noor / garment", group: "Thermal 1UP - Small" },
-  
-  // Thermal 1UP - Medium
-  thermal_50x40_1up: { label: "50×40mm (1UP)", description: "Detailed info", group: "Thermal 1UP - Medium" },
-  thermal_60x30_1up: { label: "60×30mm (1UP)", description: "Wide format", group: "Thermal 1UP - Medium" },
-  thermal_60x40_1up: { label: "60×40mm (1UP)", description: "Large detailed", group: "Thermal 1UP - Medium" },
-  thermal_75x50_1up: { label: "75×50mm (1UP)", description: "Medium shipping", group: "Thermal 1UP - Medium" },
-  thermal_80x40_1up: { label: "80×40mm (1UP)", description: "Wide shipping", group: "Thermal 1UP - Medium" },
-  
-  // Thermal 1UP - Large
-  thermal_100x50_1up: { label: "100×50mm (1UP)", description: "Shipping label", group: "Thermal 1UP - Large" },
-  thermal_100x100_1up: { label: "100×100mm (1UP)", description: "Large shipping", group: "Thermal 1UP - Large" },
-  precision_pro_tsc: { label: "Precision Pro TSC (102×53mm — Box + Pair)", description: "Footwear box + 2 pair labels", group: "Thermal 1UP - Large" },
-  jewellery_100x15_1up: { label: "Jewellery Tag (100×15mm 1UP)", description: "Jewellery tag with G/L/N weight", group: "Thermal 1UP - Jewellery" },
-  
-  // Thermal 2UP
-  thermal_40x20_2up: { label: "40×20mm (2UP)", description: "Dual small", group: "Thermal 2UP" },
-  thermal_40x30_2up: { label: "40×30mm (2UP)", description: "Dual compact", group: "Thermal 2UP" },
-  thermal_38x25_2up: { label: "38×25mm (2UP)", description: "Dual compact", group: "Thermal 2UP" },
-  thermal_50x25_2up: { label: "50×25mm (2UP)", description: "Dual standard", group: "Thermal 2UP" },
-  thermal_50x30_2up: { label: "50×30mm (2UP)", description: "Dual retail", group: "Thermal 2UP" },
-  thermal_60x30_2up: { label: "60×30mm (2UP)", description: "Dual wide", group: "Thermal 2UP" },
-  thermal_60x40_2up: { label: "60×40mm (2UP)", description: "Dual large", group: "Thermal 2UP" },
-  thermal_75x50_2up: { label: "75×50mm (2UP)", description: "Dual shipping", group: "Thermal 2UP" },
-  
-  // Custom
-  custom: { label: "Custom Size", description: "Set your own dimensions", group: "Custom" },
-};
-
-// Built-in label templates for thermal printers
-const builtInLabelTemplates: LabelTemplate[] = [
-  {
-    name: "Thermal - Classic",
-    config: {
-      brand: { show: true, fontSize: 10, bold: true, textAlign: 'center', x: 0, y: 0, width: 100 },
-      businessName: { show: false, fontSize: 8, bold: true, textAlign: 'center', x: 0, y: 0, width: 100 },
-      productName: { show: true, fontSize: 9, bold: true, textAlign: 'center', x: 0, y: 4, width: 100 },
-      category: { show: false, fontSize: 8, bold: false, textAlign: 'center', x: 0, y: 8, width: 100 },
-      color: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 25, y: 8, width: 50 },
-      style: { show: true, fontSize: 8, bold: false, textAlign: 'left', x: 0, y: 8, width: 50 },
-      size: { show: true, fontSize: 10, bold: true, textAlign: 'right', x: 25, y: 8, width: 50 },
-      price: { show: true, fontSize: 11, bold: true, textAlign: 'center', x: 0, y: 12, width: 100 },
-      mrp: { show: false, fontSize: 9, bold: false, textAlign: 'center', x: 0, y: 16, width: 50 },
-      qty: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 16, width: 50 },
-      customText: { show: false, fontSize: 8, bold: false, textAlign: 'center', x: 25, y: 16, width: 50 },
-      barcode: { show: true, fontSize: 8, bold: false, textAlign: 'center', x: 0, y: 16, width: 100 },
-      barcodeText: { show: true, fontSize: 8, bold: false, textAlign: 'center', x: 0, y: 24, width: 100 },
-      billNumber: { show: false, fontSize: 6, bold: false, textAlign: 'center', x: 0, y: 27, width: 100 },
-      supplierCode: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 27, width: 50 },
-      purchaseCode: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 25, y: 27, width: 50 },
-      fieldOrder: ['businessName', 'brand', 'style', 'size', 'price', 'mrp', 'qty', 'customText', 'barcode', 'barcodeText', 'productName', 'category', 'color', 'billNumber', 'supplierCode', 'purchaseCode'],
-      barcodeHeight: 25,
-      barcodeWidth: 1.5,
-    }
-  },
-  {
-    name: "Thermal - Minimal",
-    config: {
-      brand: { show: true, fontSize: 9, bold: true, textAlign: 'center', x: 0, y: 0, width: 100 },
-      businessName: { show: false, fontSize: 8, bold: true, textAlign: 'center', x: 0, y: 0, width: 100 },
-      productName: { show: false, fontSize: 8, bold: true, textAlign: 'center', x: 0, y: 4, width: 100 },
-      category: { show: false, fontSize: 8, bold: false, textAlign: 'center', x: 0, y: 8, width: 100 },
-      color: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 8, width: 100 },
-      style: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 8, width: 100 },
-      size: { show: true, fontSize: 10, bold: true, textAlign: 'center', x: 0, y: 4, width: 100 },
-      price: { show: true, fontSize: 12, bold: true, textAlign: 'center', x: 0, y: 8, width: 100 },
-      mrp: { show: false, fontSize: 9, bold: false, textAlign: 'center', x: 0, y: 12, width: 50 },
-      qty: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 12, width: 50 },
-      customText: { show: false, fontSize: 8, bold: false, textAlign: 'center', x: 25, y: 12, width: 50 },
-      barcode: { show: true, fontSize: 8, bold: false, textAlign: 'center', x: 0, y: 12, width: 100 },
-      barcodeText: { show: true, fontSize: 8, bold: true, textAlign: 'center', x: 0, y: 20, width: 100 },
-      billNumber: { show: false, fontSize: 6, bold: false, textAlign: 'center', x: 0, y: 24, width: 100 },
-      supplierCode: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 24, width: 100 },
-      purchaseCode: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 27, width: 100 },
-      fieldOrder: ['businessName', 'brand', 'size', 'price', 'mrp', 'qty', 'customText', 'barcode', 'barcodeText', 'productName', 'category', 'style', 'color', 'billNumber', 'supplierCode', 'purchaseCode'],
-      barcodeHeight: 28,
-      barcodeWidth: 1.6,
-    }
-  },
-  {
-    name: "Thermal - With Code",
-    config: {
-      brand: { show: true, fontSize: 9, bold: true, textAlign: 'center', x: 0, y: 0, width: 100 },
-      businessName: { show: false, fontSize: 8, bold: true, textAlign: 'center', x: 0, y: 0, width: 100 },
-      productName: { show: true, fontSize: 8, bold: true, textAlign: 'center', x: 0, y: 4, width: 100 },
-      category: { show: false, fontSize: 8, bold: false, textAlign: 'center', x: 0, y: 8, width: 100 },
-      color: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 8, width: 100 },
-      style: { show: true, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 8, width: 100 },
-      size: { show: true, fontSize: 9, bold: true, textAlign: 'center', x: 0, y: 8, width: 50 },
-      price: { show: true, fontSize: 10, bold: true, textAlign: 'center', x: 25, y: 8, width: 50 },
-      mrp: { show: false, fontSize: 9, bold: false, textAlign: 'center', x: 0, y: 12, width: 50 },
-      qty: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 12, width: 50 },
-      customText: { show: false, fontSize: 8, bold: false, textAlign: 'center', x: 25, y: 12, width: 50 },
-      barcode: { show: true, fontSize: 8, bold: false, textAlign: 'center', x: 0, y: 12, width: 100 },
-      barcodeText: { show: true, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 20, width: 100 },
-      billNumber: { show: false, fontSize: 6, bold: false, textAlign: 'center', x: 0, y: 27, width: 100 },
-      supplierCode: { show: true, fontSize: 6, bold: false, textAlign: 'center', x: 0, y: 24, width: 50 },
-      purchaseCode: { show: true, fontSize: 6, bold: false, textAlign: 'center', x: 25, y: 24, width: 50 },
-      fieldOrder: ['businessName', 'brand', 'productName', 'category', 'style', 'size', 'price', 'mrp', 'qty', 'customText', 'barcode', 'barcodeText', 'supplierCode', 'purchaseCode', 'color', 'billNumber'],
-      barcodeHeight: 22,
-      barcodeWidth: 1.4,
-    }
-  },
-];
-
-interface LivePreviewLabelProps {
-  labelConfig: LabelDesignConfig;
-  businessName: string;
-  onConfigChange?: React.Dispatch<React.SetStateAction<LabelDesignConfig>>;
-  editable?: boolean;
-  sampleItem?: LabelItem | null;
-  labelWidth?: number;
-  labelHeight?: number;
-}
-
-interface DraggablePreviewFieldProps {
-  fieldKey: keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>;
-  labelConfig: LabelDesignConfig;
-  businessName: string;
-  sampleItem?: LabelItem | null;
-}
-
-function DraggablePreviewField({ fieldKey, labelConfig, businessName, sampleItem }: DraggablePreviewFieldProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: `preview-${fieldKey}` });
-
-  const field = labelConfig[fieldKey] as LabelFieldConfig;
-  if (!field.show) return null;
-
-  const scale = 0.7;
-  const fontSize = Math.max(5, field.fontSize * scale);
-  const pt = (field.paddingTop ?? 0) * scale;
-  const pb = (field.paddingBottom ?? 0) * scale;
-  const pl = (field.paddingLeft ?? 0) * scale;
-  const pr = (field.paddingRight ?? 0) * scale;
-
-  const style: React.CSSProperties = {
-    fontSize: `${fontSize}px`,
-    fontWeight: field.bold ? 'bold' : 'normal',
-    // Condensed (or any designer) font previews only when explicitly set —
-    // undefined keeps the container Arial default, pixel-identical to before.
-    ...previewFontFamilyStyle(field.fontFamily),
-    textAlign: (field.textAlign || 'center') as 'left' | 'center' | 'right',
-    margin: `${pt}px ${pr}px ${pb}px ${pl}px`,
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    cursor: 'grab',
-    backgroundColor: isDragging ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-    borderRadius: '2px',
-  };
-
-  const getContent = () => {
-    if (sampleItem) {
-      switch (fieldKey) {
-        case 'brand':
-          return sampleItem.brand || businessName || 'Brand';
-        case 'businessName':
-          return businessName || 'Business Name';
-        case 'productName':
-          return sampleItem.product_name;
-        case 'category':
-          return sampleItem.category || '';
-        case 'color':
-          return sampleItem.color ? `Color: ${sampleItem.color}` : '';
-        case 'style':
-          return sampleItem.style || '';
-        case 'price':
-          return `MRP: ${sampleItem.sale_price}`;
-        case 'barcodeText':
-          return sampleItem.barcode || '';
-        case 'billNumber':
-          return sampleItem.bill_number ? `Bill: ${sampleItem.bill_number}` : '';
-        case 'supplierCode':
-          return sampleItem.supplier_code || '';
-        case 'purchaseCode':
-          return sampleItem.purchase_code || '';
-        case 'supplierInvoiceNo':
-          return sampleItem.supplier_invoice_no ? `Inv: ${sampleItem.supplier_invoice_no}` : '';
-        case 'size':
-          return sampleItem.size || '';
-        default:
-          return '';
-      }
-    }
-    // Fallback to placeholder
-    switch (fieldKey) {
-      case 'brand':
-        return businessName || 'Brand';
-      case 'businessName':
-        return businessName || 'Business Name';
-      case 'productName':
-        return 'Sample Product';
-      case 'category':
-        return 'Category';
-      case 'color':
-        return 'Color: Blue';
-      case 'style':
-        return 'Style: Classic';
-      case 'price':
-        return 'MRP: 999';
-      case 'barcodeText':
-        return '12345678';
-      case 'billNumber':
-        return 'Bill: BILL001';
-      case 'supplierCode':
-        return 'SUP01';
-      case 'purchaseCode':
-        return 'PC123';
-      case 'supplierInvoiceNo':
-        return 'Inv: INV-2024-001';
-      case 'size':
-        return 'M';
-      default:
-        return '';
-    }
-  };
-
-  if (fieldKey === 'barcode') {
-    return (
-      <div
-        ref={setNodeRef}
-        {...attributes}
-        {...listeners}
-        style={{
-          margin: `${pt}px ${pr}px ${pb}px ${pl}px`,
-          display: 'flex',
-          justifyContent: 'center',
-          transform: CSS.Transform.toString(transform),
-          transition,
-          opacity: isDragging ? 0.5 : 1,
-          cursor: 'grab',
-          backgroundColor: isDragging ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-          borderRadius: '2px',
-        }}
-      >
-        <svg className={`preview-barcode-${fieldKey}`} style={{ height: '20px', width: '60px' }} />
-      </div>
-    );
-  }
-
-  return (
-    <div ref={setNodeRef} {...attributes} {...listeners} style={style}>
-      {getContent()}
-    </div>
-  );
-}
-
-function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable = false, sampleItem, labelWidth, labelHeight }: LivePreviewLabelProps) {
-  const previewRef = useRef<HTMLDivElement>(null);
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
-
-  const barcodeValue = sampleItem?.barcode || '12345678';
-
-  // Render barcodes after component mounts/updates
-  useEffect(() => {
-    if (!previewRef.current) return;
-    const svgs = previewRef.current.querySelectorAll('[class^="preview-barcode-"]');
-    svgs.forEach((svg) => {
-      try {
-        JsBarcode(svg, barcodeValue, {
-          format: 'CODE128',
-          width: 1,
-          height: 18,
-          displayValue: false,
-          margin: 0
-        });
-      } catch (e) {
-        
-      }
-    });
-  }, [labelConfig, barcodeValue]);
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id || !onConfigChange) return;
-
-    const activeKey = String(active.id).replace('preview-', '') as FieldKey;
-    const overKey = String(over.id).replace('preview-', '') as FieldKey;
-
-    onConfigChange(prev => {
-      const oldIndex = prev.fieldOrder.indexOf(activeKey);
-      const newIndex = prev.fieldOrder.indexOf(overKey);
-      if (oldIndex === -1 || newIndex === -1) return prev;
-      const newOrder = arrayMove(prev.fieldOrder, oldIndex, newIndex);
-      return { ...prev, fieldOrder: newOrder };
-    });
-  };
-
-  const visibleFields = labelConfig.fieldOrder.filter(key => {
-    const field = labelConfig[key] as LabelFieldConfig;
-    return field.show;
-  });
-
-  // Helper to get content based on sampleItem or placeholder
-  const getFieldContent = (fieldKey: keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue'>) => {
-    if (sampleItem) {
-      switch (fieldKey) {
-        case 'brand': return sampleItem.brand || businessName || 'Brand';
-        case 'businessName': return businessName || 'Business Name';
-        case 'productName': return sampleItem.product_name;
-        case 'category': return sampleItem.category || '';
-        case 'color': return sampleItem.color ? `Color: ${sampleItem.color}` : '';
-        case 'style': return sampleItem.style || '';
-        case 'price': return `Rs.${sampleItem.sale_price}`;
-        case 'mrp': return sampleItem.mrp ? `MRP: ${sampleItem.mrp}` : '';
-        case 'saleDiscPercent': return formatLabelSaleDiscPercent(sampleItem.sale_disc_percent);
-        case 'customText': return labelConfig.customTextValue || '';
-        case 'barcodeText': return sampleItem.barcode || '';
-        case 'billNumber': return sampleItem.bill_number ? `Bill: ${sampleItem.bill_number}` : '';
-        case 'supplierCode': return sampleItem.supplier_code || '';
-        case 'purchaseCode': return sampleItem.purchase_code || '';
-        case 'supplierInvoiceNo': return sampleItem.supplier_invoice_no ? `Inv: ${sampleItem.supplier_invoice_no}` : '';
-        case 'size': return sampleItem.size || '';
-        default: return '';
-      }
-    }
-    switch (fieldKey) {
-      case 'brand': return businessName || 'Brand';
-      case 'businessName': return businessName || 'Business Name';
-      case 'productName': return 'Sample Product';
-      case 'category': return 'Category';
-      case 'color': return 'Color: Blue';
-      case 'style': return 'Style: Classic';
-      case 'price': return 'Rs.999';
-      case 'mrp': return 'MRP: 1299';
-      case 'saleDiscPercent': return 'DIS: 25%';
-      case 'customText': return labelConfig.customTextValue || 'Custom Text';
-      case 'barcodeText': return '12345678';
-      case 'billNumber': return 'Bill: BILL001';
-      case 'supplierCode': return 'SUP01';
-      case 'purchaseCode': return 'PC123';
-      case 'size': return 'M';
-      default: return '';
-    }
-  };
-
-  if (editable && onConfigChange) {
-    return (
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={visibleFields.map(k => `preview-${k}`)} strategy={verticalListSortingStrategy}>
-          <div
-            ref={previewRef}
-            style={{
-              fontFamily: 'Arial, sans-serif',
-              textAlign: 'center',
-              padding: '2px',
-              fontSize: '6px',
-              lineHeight: 1.2,
-              width: '100%',
-              height: '100%',
-            }}
-          >
-            <style>{LABEL_NARROW_FONT_FACE_CSS}</style>
-            {visibleFields.map((fieldKey) => (
-              <DraggablePreviewField
-                key={fieldKey}
-                fieldKey={fieldKey}
-                labelConfig={labelConfig}
-                businessName={businessName}
-                sampleItem={sampleItem}
-              />
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
-    );
-  }
-
-  // Non-editable static preview
-  return (
-    <div
-      ref={previewRef}
-      style={{
-        fontFamily: 'Arial, sans-serif',
-        textAlign: 'center',
-        padding: '2px',
-        fontSize: '6px',
-        lineHeight: 1.2,
-        width: '100%',
-        height: '100%',
-      }}
-    >
-      <style>{LABEL_NARROW_FONT_FACE_CSS}</style>
-      {labelConfig.fieldOrder.map((fieldKey) => {
-        const field = labelConfig[fieldKey] as LabelFieldConfig;
-        if (!field.show) return null;
-
-        const scale = 0.7;
-        const fontSize = Math.max(5, field.fontSize * scale);
-        const pt = (field.paddingTop ?? 0) * scale;
-        const pb = (field.paddingBottom ?? 0) * scale;
-        const pl = (field.paddingLeft ?? 0) * scale;
-        const pr = (field.paddingRight ?? 0) * scale;
-
-        const style: React.CSSProperties = {
-          fontSize: `${fontSize}px`,
-          fontWeight: field.bold ? 'bold' : 'normal',
-          // Condensed (or any designer) font previews only when explicitly set —
-          // undefined keeps the container Arial default, pixel-identical to before.
-          ...previewFontFamilyStyle(field.fontFamily),
-          textAlign: (field.textAlign || 'center') as 'left' | 'center' | 'right',
-          margin: `${pt}px ${pr}px ${pb}px ${pl}px`,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        };
-
-        if (fieldKey === 'barcode') {
-          return (
-            <div
-              key={fieldKey}
-              style={{
-                margin: `${pt}px ${pr}px ${pb}px ${pl}px`,
-                display: 'flex',
-                justifyContent: 'center',
-              }}
-            >
-              <svg className={`preview-barcode-${fieldKey}`} style={{ height: '20px', width: '60px' }} />
-            </div>
-          );
-        }
-
-        return <div key={fieldKey} style={style}>{getFieldContent(fieldKey)}</div>;
-      })}
-    </div>
-  );
-}
-
-interface SortableFieldItemProps {
-  fieldKey: keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue'>;
-  labelConfig: LabelDesignConfig;
-  setLabelConfig: React.Dispatch<React.SetStateAction<LabelDesignConfig>>;
-  fieldLabels: Record<string, string>;
-}
-
-function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig, fieldLabels }: SortableFieldItemProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: fieldKey });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  const field = labelConfig[fieldKey] as LabelFieldConfig;
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="flex items-center gap-2 p-3 border rounded bg-background"
-    >
-      <div
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded"
-      >
-        <GripVertical className="h-4 w-4 text-muted-foreground" />
-      </div>
-      
-      <div className="flex items-center gap-2 flex-1">
-        <input
-          type="checkbox"
-          id={`show-${fieldKey}`}
-          checked={field.show}
-          onChange={(e) => {
-            setLabelConfig(prev => ({
-              ...prev,
-              [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), show: e.target.checked }
-            }));
-          }}
-          className="h-4 w-4"
-        />
-        <Label htmlFor={`show-${fieldKey}`} className="cursor-pointer font-medium">
-          {fieldLabels[fieldKey]}
-        </Label>
-      </div>
-      
-      {field.show && fieldKey !== 'barcode' && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <Input
-            type="number"
-            min="6"
-            max="20"
-            value={field.fontSize}
-            onChange={(e) => {
-              setLabelConfig(prev => ({
-                ...prev,
-                [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), fontSize: parseInt(e.target.value) || 9 }
-              }));
-            }}
-            className="w-16 h-8 text-xs"
-            title="Font size"
-          />
-          <span className="text-xs text-muted-foreground">px</span>
-          
-          <Button
-            size="sm"
-            variant={field.bold ? "default" : "outline"}
-            onClick={() => {
-              setLabelConfig(prev => ({
-                ...prev,
-                [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), bold: !(prev[fieldKey] as LabelFieldConfig).bold }
-              }));
-            }}
-            className="h-8 px-2 text-xs font-bold"
-            title="Toggle bold"
-          >
-            B
-          </Button>
-
-          <Select
-            value={
-              // Comic Sans removed from dropdown — map legacy saved values to Arial
-              field.fontFamily === 'Comic Sans MS' ? 'Arial' : (field.fontFamily || 'Arial')
-            }
-            onValueChange={(value) => {
-              setLabelConfig(prev => ({
-                ...prev,
-                [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), fontFamily: value }
-              }));
-            }}
-          >
-            <SelectTrigger className="w-32 h-8 text-xs">
-              <SelectValue placeholder="Font" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Arial">Arial</SelectItem>
-              <SelectItem value="Courier New">Courier New</SelectItem>
-              <SelectItem value="Georgia">Georgia</SelectItem>
-              <SelectItem value="Times New Roman">Times New Roman</SelectItem>
-              <SelectItem value="Verdana">Verdana</SelectItem>
-              <SelectItem value="Tahoma">Tahoma</SelectItem>
-              <SelectItem value="Trebuchet MS">Trebuchet MS</SelectItem>
-              <SelectItem value={LABEL_NARROW_FONT_FAMILY}>Arial Narrow / Condensed</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Select
-            value={field.textAlign || 'center'}
-            onValueChange={(value: 'left' | 'center' | 'right') => {
-              setLabelConfig(prev => ({
-                ...prev,
-                [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), textAlign: value }
-              }));
-            }}
-          >
-            <SelectTrigger className="w-24 h-8 text-xs">
-              <SelectValue placeholder="Align" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="left">Left</SelectItem>
-              <SelectItem value="center">Center</SelectItem>
-              <SelectItem value="right">Right</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          {/* Padding controls */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 px-2 text-xs">
-                Spacing
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-64 p-3">
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">Field Spacing (px)</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="flex items-center gap-1">
-                    <Label className="text-xs w-8">Top:</Label>
-                    <Input
-                      type="number"
-                      min="-10"
-                      max="20"
-                      value={field.paddingTop ?? 0}
-                      onChange={(e) => {
-                        setLabelConfig(prev => ({
-                          ...prev,
-                          [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), paddingTop: parseInt(e.target.value) || 0 }
-                        }));
-                      }}
-                      className="h-7 text-xs"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Label className="text-xs w-8">Bot:</Label>
-                    <Input
-                      type="number"
-                      min="-10"
-                      max="20"
-                      value={field.paddingBottom ?? 0}
-                      onChange={(e) => {
-                        setLabelConfig(prev => ({
-                          ...prev,
-                          [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), paddingBottom: parseInt(e.target.value) || 0 }
-                        }));
-                      }}
-                      className="h-7 text-xs"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Label className="text-xs w-8">Left:</Label>
-                    <Input
-                      type="number"
-                      min="-10"
-                      max="20"
-                      value={field.paddingLeft ?? 0}
-                      onChange={(e) => {
-                        setLabelConfig(prev => ({
-                          ...prev,
-                          [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), paddingLeft: parseInt(e.target.value) || 0 }
-                        }));
-                      }}
-                      className="h-7 text-xs"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Label className="text-xs w-8">Right:</Label>
-                    <Input
-                      type="number"
-                      min="-10"
-                      max="20"
-                      value={field.paddingRight ?? 0}
-                      onChange={(e) => {
-                        setLabelConfig(prev => ({
-                          ...prev,
-                          [fieldKey]: { ...(prev[fieldKey] as LabelFieldConfig), paddingRight: parseInt(e.target.value) || 0 }
-                        }));
-                      }}
-                      className="h-7 text-xs"
-                    />
-                  </div>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
-      )}
-      
-      {field.show && fieldKey === 'barcode' && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1">
-            <Label className="text-xs text-muted-foreground">Height:</Label>
-            <Input
-              type="number"
-              min="15"
-              max="80"
-              value={labelConfig.barcodeHeight || 28}
-              onChange={(e) => {
-                setLabelConfig(prev => ({
-                  ...prev,
-                  barcodeHeight: parseInt(e.target.value) || 28
-                }));
-              }}
-              className="w-16 h-8 text-xs"
-              title="Barcode height"
-            />
-            <span className="text-xs text-muted-foreground">px</span>
-          </div>
-          
-          <div className="flex items-center gap-1">
-            <Label className="text-xs text-muted-foreground">Width:</Label>
-            <Input
-              type="number"
-              min="1"
-              max="3"
-              step="0.1"
-              value={labelConfig.barcodeWidth || 1.8}
-              onChange={(e) => {
-                setLabelConfig(prev => ({
-                  ...prev,
-                  barcodeWidth: parseFloat(e.target.value) || 1.8
-                }));
-              }}
-              className="w-16 h-8 text-xs"
-              title="Barcode line width"
-            />
-          </div>
-          
-          {/* Spacing controls for barcode */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 px-2 text-xs">
-                Spacing
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-64 p-3">
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">Barcode Spacing (px)</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="flex items-center gap-1">
-                    <Label className="text-xs w-8">Top:</Label>
-                    <Input
-                      type="number"
-                      min="-10"
-                      max="20"
-                      value={field.paddingTop ?? 0}
-                      onChange={(e) => {
-                        setLabelConfig(prev => ({
-                          ...prev,
-                          barcode: { ...prev.barcode, paddingTop: parseInt(e.target.value) || 0 }
-                        }));
-                      }}
-                      className="h-7 text-xs"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Label className="text-xs w-8">Bot:</Label>
-                    <Input
-                      type="number"
-                      min="-10"
-                      max="20"
-                      value={field.paddingBottom ?? 0}
-                      onChange={(e) => {
-                        setLabelConfig(prev => ({
-                          ...prev,
-                          barcode: { ...prev.barcode, paddingBottom: parseInt(e.target.value) || 0 }
-                        }));
-                      }}
-                      className="h-7 text-xs"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Label className="text-xs w-8">Left:</Label>
-                    <Input
-                      type="number"
-                      min="-10"
-                      max="20"
-                      value={field.paddingLeft ?? 0}
-                      onChange={(e) => {
-                        setLabelConfig(prev => ({
-                          ...prev,
-                          barcode: { ...prev.barcode, paddingLeft: parseInt(e.target.value) || 0 }
-                        }));
-                      }}
-                      className="h-7 text-xs"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Label className="text-xs w-8">Right:</Label>
-                    <Input
-                      type="number"
-                      min="-10"
-                      max="20"
-                      value={field.paddingRight ?? 0}
-                      onChange={(e) => {
-                        setLabelConfig(prev => ({
-                          ...prev,
-                          barcode: { ...prev.barcode, paddingRight: parseInt(e.target.value) || 0 }
-                        }));
-                      }}
-                      className="h-7 text-xs"
-                    />
-                  </div>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function BarcodePrinting() {
   const location = useLocation();
@@ -7152,105 +6109,28 @@ export default function BarcodePrinting() {
 
       {/* Results Table */}
       {labelItems.length > 0 && (
-        <div className={cn(
-          "barcode-products-panel border rounded-md overflow-hidden flex flex-col",
-          standardListFillsPage
-            ? "flex-1 min-h-0"
-            : activeBarTab === "designer"
-              ? "shrink-0 max-h-[32vh]"
-              : activeBarTab === "precision"
-                ? "shrink-0 max-h-[42vh]"
-                : showCustomizeFields
-                  ? "shrink-0 max-h-[30vh]"
-                  : "shrink-0 max-h-[28vh]",
-        )}>
-          <div className="bg-slate-900 text-white px-3 py-2 border-b flex items-center justify-between gap-2">
-            <p className="text-sm font-semibold tabular-nums">
-              Products: <span className="font-bold">{labelItems.length}</span>
-              <span className="mx-1.5 opacity-40">|</span>
-              Labels: <span className="font-bold text-emerald-300">{totalLabelQty}</span>
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 shrink-0 gap-1.5 border-white/25 bg-white/10 text-xs font-semibold text-white hover:bg-destructive hover:text-white hover:border-destructive"
-              onClick={handleClearAll}
-              title="Remove all products from the print list"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Clear All
-            </Button>
-          </div>
-          <div className="overflow-auto flex-1 min-h-0">
-          <Table className="barcode-products-table">
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead>Product Description</TableHead>
-                <TableHead className="w-[70px]">Size</TableHead>
-                {showMrpColumn && <TableHead className="w-[80px]">MRP</TableHead>}
-                <TableHead className="w-[80px]">Sale</TableHead>
-                <TableHead className="w-[110px]">Barcode</TableHead>
-                <TableHead className="w-[90px]">Sup Code</TableHead>
-                <TableHead className="w-[80px]">Qty</TableHead>
-                <TableHead className="w-[48px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {labelItems.map((item) => {
-                const descParts = [item.product_name];
-                if (item.category && item.category.trim() && item.category.trim() !== '-') descParts.push(item.category);
-                if (item.style && item.style.trim() && item.style.trim() !== '-') descParts.push(item.style);
-                if (item.color && item.color.trim() && item.color.trim() !== '-') descParts.push(item.color);
-                if (item.brand && item.brand.trim() && item.brand.trim() !== '-') descParts.push(item.brand);
-                const fullDesc = descParts.join('-');
-                return (
-                <TableRow key={item.sku_id}>
-                  <TableCell className="barcode-products-desc font-semibold max-w-[320px] truncate" title={fullDesc}>{fullDesc}</TableCell>
-                  <TableCell className="font-medium">{item.size}</TableCell>
-                  {showMrpColumn && <TableCell className="font-mono tabular-nums">₹{item.mrp || 0}</TableCell>}
-                  <TableCell className="font-mono tabular-nums">₹{item.sale_price}</TableCell>
-                  <TableCell className="font-mono">
-                    <span>{item.barcode || "(auto-gen)"}</span>
-                    {item.barcode && (() => {
-                      const count = labelItems.filter(li => li.barcode === item.barcode).length;
-                      return count > 1 ? (
-                        <Badge className="ml-1 text-[10px] px-1 py-0 bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-400">
-                          DUP
-                        </Badge>
-                      ) : null;
-                    })()}
-                  </TableCell>
-                  <TableCell className="font-medium">{item.supplier_code || "-"}</TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={item.qty}
-                      onChange={(e) => handleQtyChange(item.sku_id, parseInt(e.target.value) || 0)}
-                      className="w-16 h-9 text-base font-mono tabular-nums"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setLabelItems(prev => prev.filter(i => i.sku_id !== item.sku_id));
-                        toast.success("Product removed");
-                      }}
-                      className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-          </div>
-        </div>
+        <BarcodeLabelListPanel
+          items={labelItems}
+          totalLabelQty={totalLabelQty}
+          showMrpColumn={showMrpColumn}
+          className={
+            standardListFillsPage
+              ? "flex-1 min-h-0"
+              : activeBarTab === "designer"
+                ? "shrink-0 max-h-[32vh]"
+                : activeBarTab === "precision"
+                  ? "shrink-0 max-h-[42vh]"
+                  : showCustomizeFields
+                    ? "shrink-0 max-h-[30vh]"
+                    : "shrink-0 max-h-[28vh]"
+          }
+          onClearAll={handleClearAll}
+          onQtyChange={handleQtyChange}
+          onRemove={(skuId) => {
+            setLabelItems((prev) => prev.filter((i) => i.sku_id !== skuId));
+            toast.success("Product removed");
+          }}
+        />
       )}
 
       {/* Printing Mode Tabs */}
@@ -8690,96 +7570,33 @@ export default function BarcodePrinting() {
       </Dialog>
 
       {/* Sticky print bar — always visible without scrolling */}
-      <footer className="barcode-print-footer shrink-0 border-t-2 border-emerald-500/50 bg-slate-900 text-white px-3 py-2 flex flex-wrap items-center gap-2 shadow-[0_-6px_24px_rgba(0,0,0,0.35)]">
-        <Button
-          onClick={handlePreview}
-          variant="secondary"
-          size="sm"
-          className="barcode-print-footer-btn h-9 font-semibold bg-slate-600 text-white hover:bg-slate-500 border-slate-500"
-        >
-          <Eye className="h-4 w-4 mr-1.5" />
-          Preview
-        </Button>
-        <Button
-          onClick={handlePrint}
-          size="sm"
-          className="barcode-print-footer-btn h-9 font-bold bg-emerald-600 hover:bg-emerald-500 text-white min-w-[108px] shadow-sm"
-          disabled={settingsLoading || isLoadingSettings || isPrecisionPrintRunning || labelItems.every((i) => !i.qty)}
-          title={
-            settingsLoading
-              ? "Loading print settings…"
-              : settingsLoadStale
-                ? "Print settings may be incomplete — use Retry if labels look wrong"
-                : "Print labels"
-          }
-        >
-          {settingsLoading || isPrecisionPrintRunning ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-              {isPrecisionPrintRunning ? "Printing…" : "Loading…"}
-            </>
-          ) : (
-            <>
-              <Printer className="h-4 w-4 mr-1.5" />
-              Print
-            </>
-          )}
-        </Button>
-        {settingsLoadStale ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="barcode-print-footer-btn-outline h-9 border-amber-400/70 text-amber-100 bg-amber-950/40 hover:bg-amber-900/60 hover:text-amber-50"
-            onClick={retryBarcodeSettingsLoad}
-            title="Printer presets or barcode settings did not finish loading"
-          >
-            <RefreshCw className="h-4 w-4 mr-1.5" />
-            Retry settings
-          </Button>
-        ) : null}
-        {(precisionSettings.enabled || activeBarTab === "precision" || activeBarTab === "designer") &&
-          !isPrecisionFootwearMode(precisionSettings.printMode) && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="barcode-print-footer-btn-outline h-9 border-amber-400/70 text-amber-100 bg-amber-950/40 hover:bg-amber-900/60 hover:text-amber-50"
-            onClick={handleTestPrint}
-          >
-            Test Label
-          </Button>
-        )}
-        {(isThermal1Up() || sheetType === "precision_pro_tsc" || sheetType === "custom") && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="barcode-print-footer-btn-outline h-9 border-emerald-400/80 text-emerald-100 bg-emerald-950/40 hover:bg-emerald-900/60 hover:text-emerald-50"
-            onClick={() => setIsDirectPrintDialogOpen(true)}
-          >
-            Direct Print
-          </Button>
-        )}
-        <Button
-          onClick={handleExportPDF}
-          variant="outline"
-          size="sm"
-          className="barcode-print-footer-btn-outline h-9 border-sky-400/70 text-sky-100 bg-sky-950/40 hover:bg-sky-900/60 hover:text-sky-50"
-        >
-          <Download className="h-4 w-4 mr-1.5" />
-          PDF
-        </Button>
-        {activeBarTab === "standard" && (
-          <Button
-            onClick={handleSaveAsDefault}
-            variant="outline"
-            size="sm"
-            className="barcode-print-footer-btn-outline h-9 border-violet-400/70 text-violet-100 bg-violet-950/40 hover:bg-violet-900/60 hover:text-violet-50 ml-auto"
-          >
-            <Save className="h-4 w-4 mr-1.5" />
-            {selectedLabelTemplate && isTemplateDefault(selectedLabelTemplate) ? "Default ✓" : "Save Default"}
-          </Button>
-        )}
-        {(precisionSettings.enabled || activeBarTab === "precision" || activeBarTab === "designer") && (
+      <BarcodePrintFooter
+        onPreview={handlePreview}
+        onPrint={handlePrint}
+        printDisabled={settingsLoading || isLoadingSettings || isPrecisionPrintRunning || labelItems.every((i) => !i.qty)}
+        settingsLoading={settingsLoading}
+        printing={isPrecisionPrintRunning}
+        settingsStale={settingsLoadStale}
+        onRetrySettings={retryBarcodeSettingsLoad}
+        onTestLabel={
+          (precisionSettings.enabled || activeBarTab === "precision" || activeBarTab === "designer") &&
+          !isPrecisionFootwearMode(precisionSettings.printMode)
+            ? handleTestPrint
+            : undefined
+        }
+        onDirectPrint={
+          isThermal1Up() || sheetType === "precision_pro_tsc" || sheetType === "custom"
+            ? () => setIsDirectPrintDialogOpen(true)
+            : undefined
+        }
+        onPdf={handleExportPDF}
+        saveDefault={
+          activeBarTab === "standard"
+            ? { isDefault: !!selectedLabelTemplate && isTemplateDefault(selectedLabelTemplate), onClick: handleSaveAsDefault }
+            : undefined
+        }
+        calibrate={
+          (precisionSettings.enabled || activeBarTab === "precision" || activeBarTab === "designer") && (
           <Dialog>
             <DialogTrigger asChild>
               <Button
@@ -8841,8 +7658,9 @@ export default function BarcodePrinting() {
               />
             </DialogContent>
           </Dialog>
-        )}
-      </footer>
+        )
+        }
+      />
 
       <Dialog open={isPreviewDialogOpen} onOpenChange={setIsPreviewDialogOpen}>
         <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-auto">

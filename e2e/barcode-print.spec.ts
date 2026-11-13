@@ -71,6 +71,8 @@ test("Barcode printing: search a product, 3 labels, Print → label sheet PDF", 
   await qty.press("Tab");
   await expect(page.getByText(/Labels:\s*3/)).toBeVisible();
 
+  const footer = page.locator("footer.barcode-print-footer");
+  await expect(footer.getByRole("button")).toHaveText(["Preview", "Print", "PDF", "Save Default"]);
   await page.locator(".barcode-print-footer-btn", { hasText: /^Print$/ }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __opened: string[] }).__opened.length)).toBe(1);
   expect(await page.evaluate(() => (window as unknown as { __printed: number }).__printed)).toBe(0);
