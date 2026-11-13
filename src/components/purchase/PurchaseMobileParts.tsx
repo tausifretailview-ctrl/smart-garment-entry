@@ -1,8 +1,12 @@
 import { Loader2, Save } from "lucide-react";
 import { CalculatorInput } from "@/components/ui/calculator-input";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 /*
- * Purchase Entry, phone layout: the items card, the totals card and the fixed Save bar. Moved out
+ * Purchase Entry, phone layout: the supplier card, the items card, the totals card and the fixed
+ * Save bar. Moved out
  * of PurchaseEntry.tsx unchanged (Plan Phase 4, S4); PurchaseEntry passes ready figures per line
  * and keeps every action.
  */
@@ -139,6 +143,77 @@ export function PurchaseMobileSaveBar({
             ? "Saving…"
             : `Save Bill${filledCount > 0 ? ` · ${rupees(netAmount || 0)}` : ""}`}
       </button>
+    </div>
+  );
+}
+
+/** Supplier & Bill Details card: supplier, bill date (yyyy-MM-dd) and our serial number. */
+export function PurchaseMobileSupplierCard({
+  supplierId,
+  suppliers,
+  onSupplierListOpen,
+  onSupplierChange,
+  billDate,
+  onBillDateChange,
+  serial,
+  onSerialChange,
+  nextSerial,
+  supplierPaperInvoiceNo,
+}: {
+  supplierId: string;
+  suppliers: Array<{ id: string; supplier_name: string }>;
+  /** The supplier list loads when it is first opened. */
+  onSupplierListOpen: () => void;
+  onSupplierChange: (supplierId: string) => void;
+  billDate: string;
+  onBillDateChange: (value: string) => void;
+  serial: string;
+  onSerialChange: (value: string) => void;
+  /** Next auto serial, shown as the placeholder. */
+  nextSerial: string | null | undefined;
+  /** The supplier's own (paper) invoice number, when known. */
+  supplierPaperInvoiceNo: string | null | undefined;
+}) {
+  return (
+    <div className="bg-background rounded-2xl p-3.5 border border-border/40 shadow-sm space-y-3">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Supplier & Bill Details</p>
+      <Select
+        value={supplierId}
+        onOpenChange={(open) => {
+          if (open) onSupplierListOpen();
+        }}
+        onValueChange={onSupplierChange}
+      >
+        <SelectTrigger className="h-10 rounded-xl">
+          <SelectValue placeholder="Select Supplier" />
+        </SelectTrigger>
+        <SelectContent>
+          {suppliers.map((s) => (
+            <SelectItem key={s.id} value={s.id}>
+              {s.supplier_name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label className="text-[11px]">Bill Date</Label>
+          <Input type="date" value={billDate} onChange={(e) => onBillDateChange(e.target.value)} className="h-9 text-sm rounded-xl" />
+        </div>
+        <div>
+          <Label className="text-[11px]">Our serial</Label>
+          <Input
+            data-field="supplier-invoice-no"
+            value={serial}
+            onChange={(e) => onSerialChange(e.target.value)}
+            placeholder={nextSerial ? `Serial: ${nextSerial}` : "Inv #"}
+            className="h-9 text-sm rounded-xl"
+          />
+          {supplierPaperInvoiceNo && (
+            <p className="text-[10px] text-muted-foreground mt-0.5">Supplier bill: {supplierPaperInvoiceNo}</p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
