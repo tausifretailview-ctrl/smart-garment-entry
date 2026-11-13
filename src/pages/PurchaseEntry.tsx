@@ -13,17 +13,12 @@ import { useDcVisibility } from "@/hooks/useDcVisibility";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CalculatorInput } from "@/components/ui/calculator-input";
-import { QtyInput } from "@/components/ui/qty-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, ShoppingCart, Plus, X, Copy, Printer, ChevronDown, Check, AlertTriangle, Search, Save, Trash2, Pencil, RotateCcw } from "lucide-react";
+import { Loader2, ShoppingCart, Plus, Copy, Printer, ChevronDown, Check, Search, Save, Trash2, RotateCcw } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -221,6 +216,11 @@ import {
   PurchaseTotalQtyBadge,
 } from "@/components/purchase/PurchaseToolbarActions";
 import { PurchaseBillDetailsFields } from "@/components/purchase/PurchaseBillDetailsFields";
+import {
+  PurchaseLineRow,
+  PurchaseLinesTableHeader,
+  type PurchaseLineEditableField,
+} from "@/components/purchase/PurchaseLineRow";
 import { PurchaseDcWarning, PurchaseSerialHint } from "@/components/purchase/PurchaseSerialHint";
 import { previewNextPurchaseBillNo } from "@/utils/purchaseBillNoPreview";
 import {
@@ -7725,7 +7725,7 @@ const PurchaseEntry = () => {
   const handlePrintBarcodesStable = useCallback(() => void handlePrintBarcodesRef.current(), []);
 
   // Toggle selection for a single item
-  const toggleItemSelection = (tempId: string) => {
+  const toggleItemSelection = useCallback((tempId: string) => {
     setSelectedForPrint(prev => {
       const newSet = new Set(prev);
       if (newSet.has(tempId)) {
@@ -7735,7 +7735,7 @@ const PurchaseEntry = () => {
       }
       return newSet;
     });
-  };
+  }, []);
 
   // Toggle select all
   const toggleSelectAll = () => {
@@ -7745,6 +7745,24 @@ const PurchaseEntry = () => {
       setSelectedForPrint(new Set(lineItems.map(item => item.temp_id)));
     }
   };
+
+  // Stable handles for the memo line rows (PurchaseLineRow): always run the latest handlers, so
+  // typing in one line does not redraw every other line.
+  const lineHandlersRef = useRef({ updateLineItem, removeLineItem, toggleSelectAll, handleImeiCorrection });
+  useLayoutEffect(() => {
+    lineHandlersRef.current = { updateLineItem, removeLineItem, toggleSelectAll, handleImeiCorrection };
+  });
+  const updateLineItemStable = useCallback(
+    (tempId: string, field: PurchaseLineEditableField, value: number) =>
+      lineHandlersRef.current.updateLineItem(tempId, field, value),
+    [],
+  );
+  const removeLineItemStable = useCallback((tempId: string) => void lineHandlersRef.current.removeLineItem(tempId), []);
+  const toggleSelectAllStable = useCallback(() => lineHandlersRef.current.toggleSelectAll(), []);
+  const handleImeiCorrectionStable = useCallback(
+    (item: LineItem, rawBarcode: string) => void lineHandlersRef.current.handleImeiCorrection(item, rawBarcode),
+    [],
+  );
 
   // Bill photo: lines go through the Excel import; supplier, bill no and date come from the photo header.
   const handlePhotoImport = async (rows: Record<string, unknown>[], header: PhotoBillHeader) => {
@@ -9166,206 +9184,39 @@ const PurchaseEntry = () => {
             >
               {isBillLocked && <PurchaseLockedOverlay />}
               <Table className="table-fixed w-full min-w-0 border-separate border-spacing-0 erp-desktop-table erp-entry-lines-table">
-                <TableHeader className="sticky top-0 z-10 erp-invoice-table-header">
-                  <TableRow>
-                    <TableHead className="w-[40px]">
-                      <input
-                        type="checkbox"
-                        checked={lineItems.length > 0 && lineItems.every((_, i) => document.getElementById(`check-${i}`)?.getAttribute('data-state') === 'checked')}
-                        className="rounded"
-                        readOnly
-                      />
-                    </TableHead>
-                    <TableHead className="w-[60px]">SR.NO</TableHead>
-                    <TableHead className="col-product w-[20rem] max-w-[20rem]">ITEM NAME</TableHead>
-                    {showPurCol.size && <TableHead className="pur-col-size w-[4.5rem] text-center">SIZE</TableHead>}
-                    <TableHead className="pur-col-barcode w-[9rem]">{isMobileERPMode ? "IMEI / BARCODE" : "BARCODE"}</TableHead>
-                    <TableHead className="pur-col-num w-[5.5rem] text-right pur-qty-col">QTY</TableHead>
-                    <TableHead className="pur-col-num w-[6.5rem] text-right pur-rate-col">PUR.RATE</TableHead>
-                    <TableHead className="pur-col-num w-[6.5rem] text-right sale-rate-col">SALE.RATE</TableHead>
-                    {showMrp && <TableHead className="pur-col-num w-[6.5rem] text-right">MRP</TableHead>}
-                    {showPurCol.gst && <TableHead className="pur-col-num w-[5.5rem] text-right">GST %</TableHead>}
-                    <TableHead className="pur-col-num w-[6rem] text-right">SUB TOTAL</TableHead>
-                    {showPurCol.disc_percent && <TableHead className="pur-col-num w-[5.5rem] text-right">DISC %</TableHead>}
-                    <TableHead className="pur-col-num w-[6rem] text-right total-col">TOTAL</TableHead>
-                    <TableHead className="w-[40px]"></TableHead>
-                    <TableHead className="w-[40px]">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
+                <PurchaseLinesTableHeader
+                  allSelected={lineItems.length > 0 && lineItems.every((li) => !!selectedForPrintObj[li.temp_id])}
+                  onToggleAll={toggleSelectAllStable}
+                  isMobileERPMode={isMobileERPMode}
+                  showSize={showPurCol.size}
+                  showMrp={showMrp}
+                  showGst={showPurCol.gst}
+                  showDiscPercent={showPurCol.disc_percent}
+                />
                 <TableBody>
-                  {lineItems.slice(0, visibleItemCount).map((item, index) => {
-                    const subTotal = computePurchaseLineSubTotal(item);
-                    const total = item.line_total;
-                    const gstAmount = (total * item.gst_per) / 100;
-                    
-                    return (
-                      <TableRow key={item.temp_id} className={`purchase-bill-line-row hover:bg-green-50/40 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}>
-                        <TableCell className="w-[40px]">
-                          <Checkbox
-                            checked={!!selectedForPrintObj[item.temp_id]}
-                            onCheckedChange={() => toggleItemSelection(item.temp_id)}
-                            aria-label={`Select ${item.product_name} for printing`}
-                          />
-                        </TableCell>
-                        <TableCell className="w-[60px] text-center font-medium">{index + 1}</TableCell>
-                        <TableCell className="col-product w-[20rem] max-w-[20rem] font-medium cursor-pointer" title={formatProductDescription(item)}
-                          onDoubleClick={() => openEditPanel(index, "product_name")}>
-                          <div className="entry-line-product-desc text-[15px] leading-snug font-semibold">{formatProductDescription(item)}</div>
-                        </TableCell>
-                        {showPurCol.size && (
-                          <TableCell className="pur-col-size w-[4.5rem] text-center text-[15px] font-bold">
-                            {(isMobileERPMode ? formatMobileErpSizeCell(item.size) : item.size) || "—"}
-                          </TableCell>
-                        )}
-                        <TableCell className="pur-col-barcode w-[9rem]">
-                          {isMobileERPMode && mobileERPSettings?.allow_imei_edit_after_save && !isBillLocked ? (
-                            <Input
-                              key={`imei-${item.temp_id}-${item.barcode}`}
-                              defaultValue={item.barcode || ""}
-                              onBlur={(e) => void handleImeiCorrection(item, e.target.value)}
-                              className="font-mono text-[13px] h-9 tracking-wider"
-                              placeholder="IMEI..."
-                              title="Edit IMEI — tab out to save"
-                            />
-                          ) : (
-                          <Badge variant="outline" className={cn("text-[14px] font-mono px-2 py-1", isMobileERPMode && "tracking-wider")}>
-                            {item.barcode || "—"}
-                          </Badge>
-                          )}
-                          {barcodeWarnings.has(item.temp_id) && (() => {
-                            const msg = barcodeWarnings.get(item.temp_id) || '';
-                            const isInBill = msg.includes('Duplicate barcode in this bill');
-                            return (
-                              <div className={cn(
-                                "flex items-start gap-1.5 mt-1 text-xs rounded px-2 py-1.5",
-                                isInBill
-                                  ? "text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800"
-                                  : "text-destructive bg-destructive/10 border border-destructive/30"
-                              )}>
-                                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                                <span>{msg}</span>
-                              </div>
-                            );
-                          })()}
-                        </TableCell>
-                        <TableCell className="pur-col-num w-[5.5rem]">
-                          <div className="flex items-center gap-0.5">
-                            <QtyInput
-                              ref={index === lineItems.length - 1 ? lastQtyInputRef : undefined}
-                              uom={item.uom}
-                              value={item.qty || minQtyForUom(item.uom)}
-                              onFocus={(e) => { if (sameBarcodeSeriesEnabled) e.target.select(); }}
-                              onChange={(val) => updateLineItem(item.temp_id, "qty", val)}
-                              className="w-full text-right px-2 bg-amber-50 border-amber-200 text-center text-[16px] font-bold h-10"
-                            />
-                            {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
-                              <span className="text-[10px] text-muted-foreground whitespace-nowrap">{getUOMLabel(item.uom)}</span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="pur-col-num w-[6.5rem]">
-                          <CalculatorInput
-                            value={item.pur_price}
-                            onChange={(val) =>
-                              updateLineItem(item.temp_id, "pur_price", val)
-                            }
-                            className="w-full text-right text-[16px] bg-green-50 border-green-200 text-green-800 font-bold h-10"
-                          />
-                        </TableCell>
-                        <TableCell className="pur-col-num w-[6.5rem]">
-                          <CalculatorInput
-                            value={item.sale_price}
-                            onChange={(val) =>
-                              updateLineItem(item.temp_id, "sale_price", val)
-                            }
-                            className="w-full text-right text-[16px] bg-blue-50 border-blue-200 text-blue-800 font-bold h-10"
-                          />
-                        </TableCell>
-                        {showMrp && (
-                          <TableCell className="pur-col-num w-[6.5rem]">
-                            <CalculatorInput
-                              value={item.mrp || 0}
-                              onChange={(val) =>
-                                updateLineItem(item.temp_id, "mrp", val)
-                              }
-                              className="w-full text-right text-[15px] font-semibold"
-                            />
-                          </TableCell>
-                        )}
-                        {showPurCol.gst && <TableCell className="pur-col-num w-[5.5rem]">
-                          <Select
-                            value={String(item.gst_per)}
-                            onValueChange={(value) =>
-                              updateLineItem(item.temp_id, "gst_per", Number(value))
-                            }
-                          >
-                            <SelectTrigger className="w-full h-10 text-[15px] font-semibold">
-                              <SelectValue placeholder="GST" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-background z-50">
-                              <SelectItem value="0">0%</SelectItem>
-                              <SelectItem value="5">5%</SelectItem>
-                              <SelectItem value="12">12%</SelectItem>
-                              <SelectItem value="18">18%</SelectItem>
-                              <SelectItem value="28">28%</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </TableCell>}
-                        <TableCell className="pur-col-num w-[6rem] text-right text-[15px] font-semibold tabular-nums">
-                          ₹{subTotal.toFixed(2)}
-                        </TableCell>
-                        {showPurCol.disc_percent && <TableCell className="pur-col-num w-[5.5rem]">
-                          <Input
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="0.01"
-                            value={item.discount_percent}
-                            onChange={(e) =>
-                              updateLineItem(
-                                item.temp_id,
-                                "discount_percent",
-                                parseFloat(e.target.value) || 0
-                              )
-                            }
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-full text-right text-[14px] font-semibold"
-                          />
-                        </TableCell>}
-                        <TableCell className="pur-col-num w-[6rem] text-right text-[15px] font-bold tabular-nums text-green-700 bg-green-50/40 font-mono">
-                          ₹{total.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="w-[40px]">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => removeLineItem(item.temp_id)}
-                          >
-                            <X className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
-                        <TableCell className="w-[40px]">
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 hover:bg-primary/10 group"
-                              onClick={() => openEditPanel(index)}
-                              title="Edit Product Details"
-                            >
-                              <Pencil className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                            </Button>
-                            {updatedRows.has(item.temp_id) && (
-                              <Badge variant="outline" className="text-[10px] px-1 py-0 text-green-600 border-green-300 bg-green-50 animate-in fade-in">
-                                ✓
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {lineItems.slice(0, visibleItemCount).map((item, index) => (
+                    <PurchaseLineRow
+                      key={item.temp_id}
+                      item={item}
+                      index={index}
+                      qtyInputRef={index === lineItems.length - 1 ? lastQtyInputRef : undefined}
+                      selected={!!selectedForPrintObj[item.temp_id]}
+                      barcodeWarning={barcodeWarnings.get(item.temp_id)}
+                      updated={updatedRows.has(item.temp_id)}
+                      isMobileERPMode={isMobileERPMode}
+                      imeiEditable={!!mobileERPSettings?.allow_imei_edit_after_save && !isBillLocked}
+                      selectQtyOnFocus={sameBarcodeSeriesEnabled}
+                      showSize={showPurCol.size}
+                      showMrp={showMrp}
+                      showGst={showPurCol.gst}
+                      showDiscPercent={showPurCol.disc_percent}
+                      onToggleSelect={toggleItemSelection}
+                      onUpdate={updateLineItemStable}
+                      onRemove={removeLineItemStable}
+                      onOpenEdit={openEditPanel}
+                      onImeiCorrection={handleImeiCorrectionStable}
+                    />
+                  ))}
                   
                   {/* Inline Search Row - Always visible at bottom */}
                   <TableRow className="bg-accent/30 relative" style={{ zIndex: 50 }}>
