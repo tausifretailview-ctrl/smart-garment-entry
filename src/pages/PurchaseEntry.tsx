@@ -26,7 +26,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, Camera, ChevronLeft, ChevronRight, Check, AlertTriangle, SkipBack, Search, Save, Trash2, Pencil, Lock, RotateCcw } from "lucide-react";
+import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, Camera, Check, AlertTriangle, Search, Save, Trash2, Pencil, Lock, RotateCcw } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -215,6 +215,7 @@ import {
   PurchaseToolbarSearchDropdown,
 } from "@/components/purchase/PurchaseSearchResults";
 import { formatProductDescription } from "@/utils/purchaseProductDescription";
+import { PurchaseEntryHeader } from "@/components/purchase/PurchaseEntryHeader";
 import {
   PurchaseBarcodeConflictDialog,
   PurchaseDuplicateBillDialog,
@@ -8949,92 +8950,21 @@ const PurchaseEntry = () => {
       {excelImportLoading && <ExcelImportLoadingOverlay progress={excelImportLoading} />}
       {/* Draft loading overlay for large bills */}
       {draftLoading && <PurchaseDraftLoadingOverlay loaded={draftLoadProgress.loaded} total={draftLoadProgress.total} />}
-      <header className="bg-gradient-to-r from-slate-900 to-slate-800 shrink-0 flex flex-col shadow-[0_2px_12px_rgba(0,0,0,.35)] relative z-50 border-b-2 border-green-500/50">
-        <div className={cn("entry-page-header-row h-[52px] flex items-center gap-2", entryPageSectionX)}>
-          <div className="entry-page-header-leading flex items-center gap-2 sm:gap-3 min-w-0">
-            <Button variant="ghost" size="sm" onClick={() => navigate('/purchase-bills')}
-              className="h-8 shrink-0 text-white/70 hover:text-white hover:bg-white/10 border border-white/15 text-xs gap-1.5">
-              <ChevronLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">Dashboard</span>
-            </Button>
-            <div className="w-px h-6 bg-white/15 shrink-0" />
-
-            <span className="text-white font-bold text-[15px] whitespace-nowrap hidden md:inline">
-              {isEditMode ? 'Edit Purchase Bill' : 'Purchase Entry'}
-            </span>
-
-            {(softwareBillNo || !isEditMode) && (
-              <span
-                className={cn(
-                  "text-white font-mono text-[11px] font-bold px-3 py-1 rounded-md whitespace-nowrap shrink-0",
-                  isEditMode ? "bg-amber-600" : "bg-green-600",
-                )}
-                title={isEditMode ? "Editing a saved bill. Click New for the next supplier bill." : undefined}
-              >
-                {isEditMode ? `EDITING ${softwareBillNo}` : softwareBillNo || 'NEW'}
-              </span>
-            )}
-            {navBillIndex !== null && allBillIds && (
-              <span className="text-white/50 text-xs hidden lg:inline shrink-0">
-                {navBillIndex + 1} of {allBillIds.length}
-              </span>
-            )}
-            {isLoadingNavBill && <Loader2 className="h-4 w-4 animate-spin text-white/60 shrink-0" />}
-          </div>
-
-          <div className="entry-page-header-actions flex items-center gap-0.5 shrink-0">
-            <Button
-              variant="ghost"
-              size="sm"
-            onClick={requestNewBill}
-            className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1 px-2 sm:px-2.5"
-            title="New Bill"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span className="hidden xl:inline">New</span>
-            </Button>
-            <div className="w-px h-6 bg-white/15 mx-0.5" />
-            <Button variant="ghost" size="sm" onClick={handleLastBill}
-              disabled={isLoadingNavBill || !allBillIds?.length}
-              className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 w-8 p-0"
-              title="Last Record">
-              <SkipBack className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="ghost" size="sm" onClick={handlePreviousBill}
-              disabled={isLoadingNavBill || navBillIndex === null || navBillIndex >= (allBillIds?.length || 0) - 1}
-              className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 w-8 p-0"
-              title="Previous">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="sm" onClick={handleNextBill}
-              disabled={isLoadingNavBill || navBillIndex === null || navBillIndex <= 0}
-              className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 w-8 p-0"
-              title="Next">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        {!isEditMode && lastPurchaseBill && lineItems.length > 0 && (
-          <div className={cn("h-[34px] bg-slate-800/80 border-t border-white/10 flex items-center gap-2 text-[12px] overflow-x-auto", entryPageSectionX)}>
-            <span className="text-white/50 shrink-0">Last:</span>
-            <span className="text-green-300 font-mono font-bold text-[11px] shrink-0">{lastPurchaseBill.software_bill_no}</span>
-            {lastPurchaseBill.supplier_invoice_no && (
-              <>
-                <span className="text-white/25">|</span>
-                <span className="text-white/50 shrink-0">Sup Inv:</span>
-                <span className="text-green-300 font-mono font-bold text-[11px] shrink-0">{lastPurchaseBill.supplier_invoice_no}</span>
-              </>
-            )}
-          </div>
-        )}
-        {isRestoringDraft && lineItems.length === 0 && (
-          <div className={cn("h-[34px] bg-amber-500/20 border-t border-amber-400/40 flex items-center gap-2 text-[12px]", entryPageSectionX)}>
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-200 shrink-0" />
-            <span className="text-amber-100 font-medium">Restoring your bill…</span>
-          </div>
-        )}
-      </header>
+      <PurchaseEntryHeader
+        sectionX={entryPageSectionX}
+        isEditMode={isEditMode}
+        softwareBillNo={softwareBillNo}
+        navIndex={navBillIndex}
+        billCount={allBillIds ? allBillIds.length : null}
+        isLoadingNavBill={isLoadingNavBill}
+        onBack={() => navigate('/purchase-bills')}
+        onNew={requestNewBill}
+        onLast={handleLastBill}
+        onPrevious={handlePreviousBill}
+        onNext={handleNextBill}
+        lastBill={!isEditMode && lastPurchaseBill && lineItems.length > 0 ? lastPurchaseBill : null}
+        showRestoring={isRestoringDraft && lineItems.length === 0}
+      />
 
       <main className={cn(entryPageMainClass, "purchase-entry-main")}>
 
