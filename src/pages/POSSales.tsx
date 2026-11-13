@@ -93,7 +93,8 @@ import {
   posRefundDueAmount,
 } from "@/lib/posBilling/refundRoute";
 import { posCartItemsForStockCheck } from "@/lib/posBilling/stockCheckItems";
-import { resolvePosCustomerName, resolveWhatsAppCustomerName } from "@/lib/posBilling/buildSaleData";
+import { buildPosInvoicePrintBase } from "@/lib/posBilling/invoicePrintBase";
+import { resolveWhatsAppCustomerName } from "@/lib/posBilling/buildSaleData";
 import {
   applyPosGarmentGstToItem,
   calculatePosCartLineNet,
@@ -5229,6 +5230,59 @@ export default function POSSales() {
     );
   };
 
+  /**
+   * Print snapshot fields every save path shares (bill, customer, totals, account, CRM points,
+   * tenders as saved, salesman, financer). Each path adds its own payment fields on top.
+   */
+  const buildSavedBillPrintBase = (
+    result: {
+      id: string;
+      sale_number: string;
+      cash_amount?: number | null;
+      upi_amount?: number | null;
+      card_amount?: number | null;
+    } & Parameters<typeof crmPointsFromSaveResult>[0],
+    account: { previousBalance: number; unusedAdvance: number },
+    salesmanForPrint: string,
+  ) =>
+    buildPosInvoicePrintBase({
+      saleNumber: result.sale_number,
+      saleId: result.id,
+      printFirm: posPrintFirm,
+      items,
+      totals,
+      flatDiscountAmount,
+      saleReturnAdjust,
+      creditApplied,
+      customerName,
+      customerPhone,
+      customerId,
+      customer: customers.find((c) => c.id === customerId) as
+        | { address?: string | null; gst_number?: string | null; transport_details?: string | null }
+        | undefined,
+      roundOff,
+      notes: saleNotes,
+      previousBalance: account.previousBalance,
+      unusedAdvance: account.unusedAdvance,
+      pointsRedemptionValue,
+      crmPoints: coalesceCrmPointsPrint(
+        crmPointsPrintSnapshot({
+          crmEnabled: isPointsEnabled,
+          customerId,
+          balanceBefore: customerPointsData?.balance || 0,
+          pointsToRedeem,
+          pointsEarned: calculatePoints(finalAmount),
+        }),
+        crmPointsFromSaveResult(result),
+      ),
+      cashAmount: result.cash_amount,
+      upiAmount: result.upi_amount,
+      cardAmount: result.card_amount,
+      salesman: salesmanForPrint,
+      taxType,
+      financerDetails,
+    });
+
   const handleSaveSale = async (forcePaymentMethod?: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later') => {
     // Same-bill exchange with refund due: force Mix so shop chooses cash refund vs CN.
     if (posHasRefundDue(finalAmount, exchangeRefundDue)) {
@@ -5572,50 +5626,15 @@ export default function POSSales() {
 
       // Store invoice data for print dialog BEFORE clearing the form
       const invoiceDataForPrint = {
-        invoiceNumber: result.sale_number,
-        saleId: result.id,
-        printFirm: posPrintFirm ?? null,
-        items: items,
-        totals: posPrintTotals(totals),
-        flatDiscountAmount: flatDiscountAmount,
-        saleReturnAdjust: posPrintSaleReturnAdjust(saleReturnAdjust, creditApplied),
+        ...buildSavedBillPrintBase(result, saveAccount, salesmanForPrint),
         finalAmount: cashExchangeRefund > 0.005 ? 0 : finalAmount,
         refundCash: cashExchangeRefund,
-        billNetAmount: totals.billAmount,
         method: cashExchangeRefund > 0.005 ? "multiple" : method,
-        customerName: resolvePosCustomerName(customerName),
-        customerPhone: customerPhone,
-        customerId: customerId,
-        customerAddress: customers.find(c => c.id === customerId)?.address || "",
-        customerGstNumber: customers.find(c => c.id === customerId)?.gst_number || "",
-        customerTransportDetails: (customers.find(c => c.id === customerId) as any)?.transport_details || "",
-        roundOff: roundOff,
-        creditApplied: creditApplied,
         // Credit-note redemption prints on the S/R line above, not as Credit tender.
         creditAmount: 0,
-        notes: saleNotes || null,
         paidAmount: cashExchangeRefund > 0.005 ? 0 : method === 'pay_later' ? 0 : posTenderDue,
         // Advance / gift voucher on this bill: prints as its own payment line.
         advanceAdjusted: cashExchangeRefund > 0.005 ? 0 : totalBillAdvance,
-        previousBalance: saveAccount.previousBalance,
-        unusedAdvance: saveAccount.unusedAdvance,
-        pointsRedemptionValue: pointsRedemptionValue,
-        ...coalesceCrmPointsPrint(
-          crmPointsPrintSnapshot({
-            crmEnabled: isPointsEnabled,
-            customerId,
-            balanceBefore: customerPointsData?.balance || 0,
-            pointsToRedeem,
-            pointsEarned: calculatePoints(finalAmount),
-          }),
-          crmPointsFromSaveResult(result),
-        ),
-        cashAmount: result.cash_amount || 0,
-        upiAmount: result.upi_amount || 0,
-        cardAmount: result.card_amount || 0,
-        salesman: salesmanForPrint || null,
-        taxType,
-        financerDetails: financerDetails || null,
       };
       
       // Auto-record salesman commission
@@ -5842,52 +5861,16 @@ export default function POSSales() {
 
       // Store invoice data BEFORE clearing the form (only for non-credit note cases)
       const invoiceDataForPrint = !isCreditNote ? {
-        invoiceNumber: result.sale_number,
-        saleId: result.id,
-        printFirm: posPrintFirm ?? null,
-        items: items,
-        totals: posPrintTotals(totals),
-        flatDiscountAmount: flatDiscountAmount,
-        saleReturnAdjust: posPrintSaleReturnAdjust(saleReturnAdjust, creditApplied),
+        ...buildSavedBillPrintBase(result, mixAccount, salesmanForPrint),
         finalAmount: isRefund ? 0 : finalAmount,
-        billNetAmount: totals.billAmount,
         method: isRefund ? `refund_${paymentData.refundMode || 'cash'}` : 'multiple',
-        customerName: resolvePosCustomerName(customerName),
-        customerPhone: customerPhone,
-        customerId: customerId,
-        customerAddress: customers.find(c => c.id === customerId)?.address || "",
-        customerGstNumber: customers.find(c => c.id === customerId)?.gst_number || "",
-        customerTransportDetails: (customers.find(c => c.id === customerId) as any)?.transport_details || "",
-        roundOff: roundOff,
         paymentBreakdown: breakdownForSave,
         refundAmount: paymentData.refundAmount,
         refundCash: isRefund ? paymentData.refundAmount : 0,
-        creditApplied: creditApplied,
-        notes: saleNotes || null,
         paidAmount: paymentData.totalPaid,
         advanceAdjusted: totalBillAdvance,
-        previousBalance: mixAccount.previousBalance,
-        unusedAdvance: mixAccount.unusedAdvance,
-        pointsRedemptionValue: pointsRedemptionValue,
-        ...coalesceCrmPointsPrint(
-          crmPointsPrintSnapshot({
-            crmEnabled: isPointsEnabled,
-            customerId,
-            balanceBefore: customerPointsData?.balance || 0,
-            pointsToRedeem,
-            pointsEarned: calculatePoints(finalAmount),
-          }),
-          crmPointsFromSaveResult(result),
-        ),
-        cashAmount: result.cash_amount || 0,
-        upiAmount: result.upi_amount || 0,
-        cardAmount: result.card_amount || 0,
         financeAmount: Number((result as any).finance_amount) || Math.min(Number(result.card_amount) || 0, Number(paymentData.financeAmount) || 0),
-        // Credit-note redemption prints on the S/R line above, not as Credit tender.
         creditAmount: paymentData.creditAmount || 0,
-        salesman: salesmanForPrint || null,
-        taxType,
-        financerDetails: financerDetails || null,
       } : null;
       
       // Auto-record salesman commission

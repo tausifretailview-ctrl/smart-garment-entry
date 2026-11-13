@@ -10,3 +10,4 @@ export * from "./liveMargin";
 export * from "./variantPurchasePrices";
 export * from "./refundRoute";
 export * from "./stockCheckItems";
+export * from "./invoicePrintBase";
