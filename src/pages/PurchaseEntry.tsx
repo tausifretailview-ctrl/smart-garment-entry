@@ -8626,6 +8626,139 @@ const PurchaseEntry = () => {
     />
   );
 
+  // Dialogs both layouts mount (built once; Plan Phase 4, S4).
+  const photoImportDialog = photoImportOn && currentOrganization && (
+    <LazyOpen open={showPhotoImport}>
+      <PhotoPurchaseImportDialog
+        open={showPhotoImport}
+        onClose={() => setShowPhotoImport(false)}
+        organizationId={currentOrganization.id}
+        onImport={handlePhotoImport}
+      />
+    </LazyOpen>
+  );
+  const excelImportDialog = (title: string) => (
+    <LazyOpen open={showExcelImport}>
+      <ExcelImportDialog
+        open={showExcelImport}
+        onClose={() => setShowExcelImport(false)}
+        targetFields={purchaseBillFields}
+        onImport={handleExcelImport}
+        title={title}
+        sampleData={purchaseBillSampleData}
+        sampleFileName="Purchase_Bill_Sample.xlsx"
+      />
+    </LazyOpen>
+  );
+  const productEntryDialog = (
+    <ProductEntryDialogGate
+      open={showProductDialog}
+      onOpenChange={closeProductDialog}
+      onProductCreated={handleProductCreated}
+      hideOpeningQty
+      isDcPurchase={isDcPurchase}
+      isAutoBarcode={isAutoBarcode}
+      mobileERPMode={mobileERPSettings || undefined}
+      initialBarcode={productDialogInitialBarcode}
+      onUseExistingProduct={handleUseExistingProductFromDialog}
+      onUseExistingProductSizes={handleUseExistingProductSizesFromDialog}
+      createdInPurchase
+    />
+  );
+  /** Desktop also says "Supplier Selected"; the phone layout never did. */
+  const addSupplierDialog = (announceSelection: boolean) => (
+    <LazyOpen open={showAddSupplierDialog}>
+      <AddSupplierDialog
+        open={showAddSupplierDialog}
+        onClose={() => setShowAddSupplierDialog(false)}
+        onSupplierCreated={(supplier) => {
+          refetchSuppliers();
+          setBillData((prev) => ({
+            ...prev,
+            supplier_id: supplier.id,
+            supplier_name: supplier.supplier_name,
+          }));
+          if (announceSelection) {
+            toast({
+              title: "Supplier Selected",
+              description: `${supplier.supplier_name} has been selected`,
+            });
+          }
+          setTimeout(() => {
+            const invInput = document.querySelector<HTMLInputElement>('[data-field="supplier-invoice-no"]');
+            invInput?.focus();
+            invInput?.select();
+          }, 200);
+        }}
+      />
+    </LazyOpen>
+  );
+  // Size Grid Dialog with Color Selection. No defaultPur/Sale/Mrp: the first size's MRP used to
+  // go to every new size and colour (KS Footwear); the grid now takes each colour's own prices.
+  // MRP box follows the org's MRP setting, not the bill's MRP column, so a hidden column never
+  // hides a new colour's MRP.
+  const sizeGridDialog = (
+    <LazyOpen open={showSizeGrid}>
+      <SizeGridDialog
+        open={showSizeGrid}
+        onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }}
+        product={selectedProduct}
+        variants={sizeGridVariants}
+        onConfirm={handleSizeGridConfirm}
+        showStock={false}
+        validateStock={false}
+        title="Enter Size-wise Qty"
+        allowCustomSizes={true}
+        newSizePriceFields
+        allowAddColor={isColorFieldEnabled}
+        allowMultiColor={true}
+        showMrp={sizeGridReviewMode || purchaseShowMrp}
+        showSizePrices={sizeGridReviewMode}
+        reviewMode={sizeGridReviewMode}
+        isLoading={sizeGridLoading}
+        showPurPrice={sizeGridReviewMode}
+      />
+    </LazyOpen>
+  );
+  const repurchaseDialog = (
+    <LazyOpen open={showRepurchaseDialog}>
+      <RepurchaseDialog
+        open={showRepurchaseDialog}
+        onClose={() => {
+          setShowRepurchaseDialog(false);
+          setRepurchaseProduct(null);
+          setRepurchaseRows([]);
+        }}
+        product={repurchaseProduct}
+        initialRows={repurchaseRows}
+        onConfirm={handleRepurchaseConfirm}
+        confirming={repurchaseConfirming}
+      />
+    </LazyOpen>
+  );
+  // Mobile-ERP IMEI multi-scan (desktop mounts it too).
+  const imeiScanDialog = isMobileERPMode && (
+    <IMEIScanDialog
+      open={showIMEIScanDialog}
+      onClose={() => {
+        setImeiScanQueue([]);
+        setShowIMEIScanDialog(false);
+        setImeiScanItem(null);
+      }}
+      quantity={imeiScanItem?.qty || 2}
+      productName={imeiScanItem?.item ? formatProductDescription(imeiScanItem.item) : ""}
+      onConfirm={handleIMEIScanConfirm}
+      minLength={mobileERPSettings?.imei_min_length}
+      maxLength={mobileERPSettings?.imei_max_length}
+      productId={imeiScanItem?.item.product_id ?? null}
+      canFix={canFixImeiFlag}
+      onMarkNotSerialized={handleMarkNotSerialized}
+      isMarkingNotSerialized={isMarkingNotSerialized}
+      onUseAsNormalBarcode={handleUseUniversalBarcode}
+      isUsingNormalBarcode={isUsingNormalBarcode}
+    />
+  );
+
   if (isMobile) {
     const filledItems = lineItems.filter(i => i.product_id);
     const totalQty = filledItems.reduce((s, i) => s + (i.qty || 0), 0);
@@ -8858,65 +8991,15 @@ const PurchaseEntry = () => {
             </div>
           </DialogContent>
         </Dialog>
-        {photoImportOn && currentOrganization && (
-          <LazyOpen open={showPhotoImport}>
-            <PhotoPurchaseImportDialog
-              open={showPhotoImport}
-              onClose={() => setShowPhotoImport(false)}
-              organizationId={currentOrganization.id}
-              onImport={handlePhotoImport}
-            />
-          </LazyOpen>
-        )}
-        <LazyOpen open={showExcelImport}><ExcelImportDialog open={showExcelImport} onClose={() => setShowExcelImport(false)} targetFields={purchaseBillFields} onImport={handleExcelImport} title="Import Purchase Bill" sampleData={purchaseBillSampleData} sampleFileName="Purchase_Bill_Sample.xlsx" /></LazyOpen>
-        <ProductEntryDialogGate
-          open={showProductDialog}
-          onOpenChange={closeProductDialog}
-          onProductCreated={handleProductCreated}
-          hideOpeningQty
-          isDcPurchase={isDcPurchase}
-          isAutoBarcode={isAutoBarcode}
-          mobileERPMode={mobileERPSettings || undefined}
-          initialBarcode={productDialogInitialBarcode}
-          onUseExistingProduct={handleUseExistingProductFromDialog}
-          onUseExistingProductSizes={handleUseExistingProductSizesFromDialog}
-          createdInPurchase
-        />
+        {photoImportDialog}
+        {excelImportDialog("Import Purchase Bill")}
+        {productEntryDialog}
         {purchaseMrpTierDialog}
-        <LazyOpen open={showAddSupplierDialog}><AddSupplierDialog open={showAddSupplierDialog} onClose={() => setShowAddSupplierDialog(false)} onSupplierCreated={(supplier) => { refetchSuppliers(); setBillData((prev) => ({ ...prev, supplier_id: supplier.id, supplier_name: supplier.supplier_name })); setTimeout(() => { const invInput = document.querySelector<HTMLInputElement>('[data-field="supplier-invoice-no"]'); invInput?.focus(); invInput?.select(); }, 200); }} /></LazyOpen>
+        {addSupplierDialog(false)}
         {duplicatePurchaseBillDialog}
-        <LazyOpen open={showSizeGrid}><SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} reviewMode={sizeGridReviewMode} showPurPrice={sizeGridReviewMode} showSizePrices={sizeGridReviewMode} showMrp={sizeGridReviewMode || purchaseShowMrp} isLoading={sizeGridLoading} allowMultiColor={true} allowCustomSizes={true} newSizePriceFields allowAddColor={isColorFieldEnabled} showStock={false} validateStock={false} title="Enter Size-wise Qty" /></LazyOpen>
-        <LazyOpen open={showRepurchaseDialog}>
-        <RepurchaseDialog
-          open={showRepurchaseDialog}
-          onClose={() => {
-            setShowRepurchaseDialog(false);
-            setRepurchaseProduct(null);
-            setRepurchaseRows([]);
-          }}
-          product={repurchaseProduct}
-          initialRows={repurchaseRows}
-          onConfirm={handleRepurchaseConfirm}
-          confirming={repurchaseConfirming}
-        />
-        </LazyOpen>
-        {isMobileERPMode && (
-          <IMEIScanDialog
-            open={showIMEIScanDialog}
-            onClose={() => { setImeiScanQueue([]); setShowIMEIScanDialog(false); setImeiScanItem(null); }}
-            quantity={imeiScanItem?.qty || 2}
-            productName={imeiScanItem?.item ? formatProductDescription(imeiScanItem.item) : ''}
-            onConfirm={handleIMEIScanConfirm}
-            minLength={mobileERPSettings?.imei_min_length}
-            maxLength={mobileERPSettings?.imei_max_length}
-            productId={imeiScanItem?.item.product_id ?? null}
-            canFix={canFixImeiFlag}
-            onMarkNotSerialized={handleMarkNotSerialized}
-            isMarkingNotSerialized={isMarkingNotSerialized}
-            onUseAsNormalBarcode={handleUseUniversalBarcode}
-            isUsingNormalBarcode={isUsingNormalBarcode}
-          />
-        )}
+        {sizeGridDialog}
+        {repurchaseDialog}
+        {imeiScanDialog}
       </div>
     );
   }
@@ -9938,46 +10021,10 @@ const PurchaseEntry = () => {
         isBillLocked={isBillLocked}
       />
 
-        {/* Size Grid Dialog with Color Selection. No defaultPur/Sale/Mrp: the first
-            size's MRP used to go to every new size and colour (KS Footwear); the grid
-            now takes each colour's own prices. MRP box follows the org's MRP setting, not
-            the bill's MRP column, so a hidden column never hides a new colour's MRP. */}
-        <LazyOpen open={showSizeGrid}>
-        <SizeGridDialog
-          open={showSizeGrid}
-          onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }}
-          product={selectedProduct}
-          variants={sizeGridVariants}
-          onConfirm={handleSizeGridConfirm}
-          showStock={false}
-          validateStock={false}
-          title="Enter Size-wise Qty"
-          allowCustomSizes={true}
-          newSizePriceFields
-          allowAddColor={isColorFieldEnabled}
-          allowMultiColor={true}
-          showMrp={sizeGridReviewMode || purchaseShowMrp}
-          showSizePrices={sizeGridReviewMode ? true : false}
-          reviewMode={sizeGridReviewMode}
-          isLoading={sizeGridLoading}
-          showPurPrice={sizeGridReviewMode}
-        />
-        </LazyOpen>
+        {/* Size Grid Dialog with Color Selection (see sizeGridDialog) */}
+        {sizeGridDialog}
 
-        <LazyOpen open={showRepurchaseDialog}>
-        <RepurchaseDialog
-          open={showRepurchaseDialog}
-          onClose={() => {
-            setShowRepurchaseDialog(false);
-            setRepurchaseProduct(null);
-            setRepurchaseRows([]);
-          }}
-          product={repurchaseProduct}
-          initialRows={repurchaseRows}
-          onConfirm={handleRepurchaseConfirm}
-          confirming={repurchaseConfirming}
-        />
-        </LazyOpen>
+        {repurchaseDialog}
 
         {/* Roll Entry Dialog for MTR products */}
         <RollEntryDialog
@@ -10009,71 +10056,18 @@ const PurchaseEntry = () => {
         />
 
         {/* Excel Import Dialog */}
-        <LazyOpen open={showExcelImport}>
-        <ExcelImportDialog
-          open={showExcelImport}
-          onClose={() => setShowExcelImport(false)}
-          targetFields={purchaseBillFields}
-          onImport={handleExcelImport}
-          title="Import Purchase Bill from Excel"
-          sampleData={purchaseBillSampleData}
-          sampleFileName="Purchase_Bill_Sample.xlsx"
-        />
-        </LazyOpen>
+        {excelImportDialog("Import Purchase Bill from Excel")}
 
         {/* Bill Photo Import Dialog */}
-        {photoImportOn && currentOrganization && (
-          <LazyOpen open={showPhotoImport}>
-            <PhotoPurchaseImportDialog
-              open={showPhotoImport}
-              onClose={() => setShowPhotoImport(false)}
-              organizationId={currentOrganization.id}
-              onImport={handlePhotoImport}
-            />
-          </LazyOpen>
-        )}
+        {photoImportDialog}
 
         {/* Product Entry Dialog */}
-        <ProductEntryDialogGate
-          open={showProductDialog}
-          onOpenChange={closeProductDialog}
-          onProductCreated={handleProductCreated}
-          hideOpeningQty
-          isDcPurchase={isDcPurchase}
-          isAutoBarcode={isAutoBarcode}
-          mobileERPMode={mobileERPSettings || undefined}
-          initialBarcode={productDialogInitialBarcode}
-          onUseExistingProduct={handleUseExistingProductFromDialog}
-          onUseExistingProductSizes={handleUseExistingProductSizesFromDialog}
-          createdInPurchase
-        />
+        {productEntryDialog}
 
         {purchaseMrpTierDialog}
 
         {/* Add Supplier Dialog */}
-        <LazyOpen open={showAddSupplierDialog}>
-        <AddSupplierDialog
-          open={showAddSupplierDialog}
-          onClose={() => setShowAddSupplierDialog(false)}
-          onSupplierCreated={(supplier) => {
-            refetchSuppliers();
-            setBillData((prev) => ({
-              ...prev,
-              supplier_id: supplier.id,
-              supplier_name: supplier.supplier_name,
-            }));
-            toast({
-              title: "Supplier Selected",
-              description: `${supplier.supplier_name} has been selected`,
-            });
-            setTimeout(() => {
-              const invInput = document.querySelector<HTMLInputElement>('[data-field="supplier-invoice-no"]');
-              invInput?.focus();
-              invInput?.select();
-            }, 200);
-          }}
-        />
-        </LazyOpen>
+        {addSupplierDialog(true)}
 
         {/* Product Edit Panel */}
         <LazyOpen open={showEditPanel}>
@@ -10120,27 +10114,7 @@ const PurchaseEntry = () => {
       />
 
       {/* Desktop Mobile-ERP: IMEI multi-scan (was only mounted on the mobile layout before). */}
-      {isMobileERPMode && (
-        <IMEIScanDialog
-          open={showIMEIScanDialog}
-          onClose={() => {
-            setImeiScanQueue([]);
-            setShowIMEIScanDialog(false);
-            setImeiScanItem(null);
-          }}
-          quantity={imeiScanItem?.qty || 2}
-          productName={imeiScanItem?.item ? formatProductDescription(imeiScanItem.item) : ""}
-          onConfirm={handleIMEIScanConfirm}
-          minLength={mobileERPSettings?.imei_min_length}
-          maxLength={mobileERPSettings?.imei_max_length}
-          productId={imeiScanItem?.item.product_id ?? null}
-          canFix={canFixImeiFlag}
-          onMarkNotSerialized={handleMarkNotSerialized}
-          isMarkingNotSerialized={isMarkingNotSerialized}
-          onUseAsNormalBarcode={handleUseUniversalBarcode}
-          isUsingNormalBarcode={isUsingNormalBarcode}
-        />
-      )}
+      {imeiScanDialog}
     </div>
   );
 };

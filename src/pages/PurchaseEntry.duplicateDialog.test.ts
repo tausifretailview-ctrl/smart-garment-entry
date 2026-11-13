@@ -35,3 +35,27 @@ describe("PurchaseEntry duplicate-bill dialog", () => {
     expect(dialog).toContain('navigate("/purchase-entry", { state: { editBillId: billId } })');
   });
 });
+
+describe("PurchaseEntry dialogs shared by both layouts", () => {
+  const mobileStart = src.indexOf("  if (isMobile) {");
+  const desktopStart = src.indexOf("\n  return (\n", mobileStart + 1);
+  const mobile = src.slice(mobileStart, desktopStart);
+  const desktop = src.slice(desktopStart);
+
+  it("each layout mounts the one shared copy, with no hand-written second copy", () => {
+    for (const d of ["{photoImportDialog}", "{productEntryDialog}", "{sizeGridDialog}", "{repurchaseDialog}", "{imeiScanDialog}"]) {
+      expect(mobile, d).toContain(d);
+      expect(desktop, d).toContain(d);
+    }
+    for (const tag of ["<SizeGridDialog", "<RepurchaseDialog", "<IMEIScanDialog", "<ProductEntryDialogGate", "<PhotoPurchaseImportDialog", "<AddSupplierDialog", "<ExcelImportDialog"]) {
+      expect(src.split(tag).length - 1, tag).toBe(1);
+    }
+  });
+
+  it("keeps each layout's own Excel title and the desktop-only 'Supplier Selected' message", () => {
+    expect(mobile).toContain('{excelImportDialog("Import Purchase Bill")}');
+    expect(desktop).toContain('{excelImportDialog("Import Purchase Bill from Excel")}');
+    expect(mobile).toContain("{addSupplierDialog(false)}");
+    expect(desktop).toContain("{addSupplierDialog(true)}");
+  });
+});
