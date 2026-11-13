@@ -30,7 +30,7 @@ import {
   resolveBarcodeSlotMm,
 } from "@/utils/barcodeLabelLayout";
 import type { LabelData, TSPLTemplateConfig } from "@/utils/tsplGenerator";
-import { Check, Save, Trash2, Eye, Download, RefreshCw, Edit, Printer, Plus, Loader2, ChevronDown, ChevronLeft, Search, Package, History, Maximize2 } from "lucide-react";
+import { Check, Save, Trash2, Download, RefreshCw, Edit, Printer, Plus, Loader2, ChevronDown, ChevronLeft, Search, Package, History, Maximize2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type jsPDFType from "jspdf";
 /** Lazily loaded on export — keeps jsPDF/html2canvas off this page's initial chunk. */
@@ -235,6 +235,7 @@ import {
   sortItemsBySize,
 } from "@/lib/barcode/barcodeLabelConfig";
 import { BarcodeLabelListPanel } from "@/components/barcode/BarcodeLabelListPanel";
+import { BarcodePrintFooter } from "@/components/barcode/BarcodePrintFooter";
 import { builtInLabelTemplates, sheetPresetLabels, sheetPresets, type SheetType } from "@/lib/barcode/sheetPresets";
 
 const precisionPresetStorageKey = (orgId: string) => `precision_active_preset_${orgId}`;
@@ -7569,96 +7570,33 @@ export default function BarcodePrinting() {
       </Dialog>
 
       {/* Sticky print bar — always visible without scrolling */}
-      <footer className="barcode-print-footer shrink-0 border-t-2 border-emerald-500/50 bg-slate-900 text-white px-3 py-2 flex flex-wrap items-center gap-2 shadow-[0_-6px_24px_rgba(0,0,0,0.35)]">
-        <Button
-          onClick={handlePreview}
-          variant="secondary"
-          size="sm"
-          className="barcode-print-footer-btn h-9 font-semibold bg-slate-600 text-white hover:bg-slate-500 border-slate-500"
-        >
-          <Eye className="h-4 w-4 mr-1.5" />
-          Preview
-        </Button>
-        <Button
-          onClick={handlePrint}
-          size="sm"
-          className="barcode-print-footer-btn h-9 font-bold bg-emerald-600 hover:bg-emerald-500 text-white min-w-[108px] shadow-sm"
-          disabled={settingsLoading || isLoadingSettings || isPrecisionPrintRunning || labelItems.every((i) => !i.qty)}
-          title={
-            settingsLoading
-              ? "Loading print settings…"
-              : settingsLoadStale
-                ? "Print settings may be incomplete — use Retry if labels look wrong"
-                : "Print labels"
-          }
-        >
-          {settingsLoading || isPrecisionPrintRunning ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-              {isPrecisionPrintRunning ? "Printing…" : "Loading…"}
-            </>
-          ) : (
-            <>
-              <Printer className="h-4 w-4 mr-1.5" />
-              Print
-            </>
-          )}
-        </Button>
-        {settingsLoadStale ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="barcode-print-footer-btn-outline h-9 border-amber-400/70 text-amber-100 bg-amber-950/40 hover:bg-amber-900/60 hover:text-amber-50"
-            onClick={retryBarcodeSettingsLoad}
-            title="Printer presets or barcode settings did not finish loading"
-          >
-            <RefreshCw className="h-4 w-4 mr-1.5" />
-            Retry settings
-          </Button>
-        ) : null}
-        {(precisionSettings.enabled || activeBarTab === "precision" || activeBarTab === "designer") &&
-          !isPrecisionFootwearMode(precisionSettings.printMode) && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="barcode-print-footer-btn-outline h-9 border-amber-400/70 text-amber-100 bg-amber-950/40 hover:bg-amber-900/60 hover:text-amber-50"
-            onClick={handleTestPrint}
-          >
-            Test Label
-          </Button>
-        )}
-        {(isThermal1Up() || sheetType === "precision_pro_tsc" || sheetType === "custom") && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="barcode-print-footer-btn-outline h-9 border-emerald-400/80 text-emerald-100 bg-emerald-950/40 hover:bg-emerald-900/60 hover:text-emerald-50"
-            onClick={() => setIsDirectPrintDialogOpen(true)}
-          >
-            Direct Print
-          </Button>
-        )}
-        <Button
-          onClick={handleExportPDF}
-          variant="outline"
-          size="sm"
-          className="barcode-print-footer-btn-outline h-9 border-sky-400/70 text-sky-100 bg-sky-950/40 hover:bg-sky-900/60 hover:text-sky-50"
-        >
-          <Download className="h-4 w-4 mr-1.5" />
-          PDF
-        </Button>
-        {activeBarTab === "standard" && (
-          <Button
-            onClick={handleSaveAsDefault}
-            variant="outline"
-            size="sm"
-            className="barcode-print-footer-btn-outline h-9 border-violet-400/70 text-violet-100 bg-violet-950/40 hover:bg-violet-900/60 hover:text-violet-50 ml-auto"
-          >
-            <Save className="h-4 w-4 mr-1.5" />
-            {selectedLabelTemplate && isTemplateDefault(selectedLabelTemplate) ? "Default ✓" : "Save Default"}
-          </Button>
-        )}
-        {(precisionSettings.enabled || activeBarTab === "precision" || activeBarTab === "designer") && (
+      <BarcodePrintFooter
+        onPreview={handlePreview}
+        onPrint={handlePrint}
+        printDisabled={settingsLoading || isLoadingSettings || isPrecisionPrintRunning || labelItems.every((i) => !i.qty)}
+        settingsLoading={settingsLoading}
+        printing={isPrecisionPrintRunning}
+        settingsStale={settingsLoadStale}
+        onRetrySettings={retryBarcodeSettingsLoad}
+        onTestLabel={
+          (precisionSettings.enabled || activeBarTab === "precision" || activeBarTab === "designer") &&
+          !isPrecisionFootwearMode(precisionSettings.printMode)
+            ? handleTestPrint
+            : undefined
+        }
+        onDirectPrint={
+          isThermal1Up() || sheetType === "precision_pro_tsc" || sheetType === "custom"
+            ? () => setIsDirectPrintDialogOpen(true)
+            : undefined
+        }
+        onPdf={handleExportPDF}
+        saveDefault={
+          activeBarTab === "standard"
+            ? { isDefault: !!selectedLabelTemplate && isTemplateDefault(selectedLabelTemplate), onClick: handleSaveAsDefault }
+            : undefined
+        }
+        calibrate={
+          (precisionSettings.enabled || activeBarTab === "precision" || activeBarTab === "designer") && (
           <Dialog>
             <DialogTrigger asChild>
               <Button
@@ -7720,8 +7658,9 @@ export default function BarcodePrinting() {
               />
             </DialogContent>
           </Dialog>
-        )}
-      </footer>
+        )
+        }
+      />
 
       <Dialog open={isPreviewDialogOpen} onOpenChange={setIsPreviewDialogOpen}>
         <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-auto">
