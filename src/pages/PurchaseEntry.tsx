@@ -204,7 +204,13 @@ import { barcodePrintingPathWithBill } from "@/utils/barcodePurchaseBillItems";
 import { buildPurchaseBarcodeLabels, purchaseLabelCount } from "@/utils/purchaseBarcodeLabels";
 import { PurchaseSavedPrintDialog } from "@/components/purchase/PurchaseSavedPrintDialog";
 import { PurchaseTotalsFooter } from "@/components/purchase/PurchaseTotalsFooter";
-import { PurchaseMobileItemsCard, PurchaseMobileSaveBar, PurchaseMobileTotalsCard } from "@/components/purchase/PurchaseMobileParts";
+import {
+  PurchaseMobileItemsCard,
+  PurchaseMobileSaveBar,
+  PurchaseMobileSupplierCard,
+  PurchaseMobileTotalsCard,
+} from "@/components/purchase/PurchaseMobileParts";
+import { PurchaseDraftLoadingOverlay } from "@/components/purchase/PurchaseDraftLoadingOverlay";
 import {
   PurchaseBarcodeConflictDialog,
   PurchaseDuplicateBillDialog,
@@ -8772,38 +8778,22 @@ const PurchaseEntry = () => {
         />
 
         <div className="flex-1 overflow-y-auto pb-40 space-y-3 px-4 pt-3">
-          {/* Supplier section */}
-          <div className="bg-background rounded-2xl p-3.5 border border-border/40 shadow-sm space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Supplier & Bill Details</p>
-            <Select value={billData.supplier_id} onOpenChange={(open) => { if (open) setSupplierListEnabled(true); }} onValueChange={(value) => {
+          {/* Supplier section (PurchaseMobileSupplierCard) */}
+          <PurchaseMobileSupplierCard
+            supplierId={billData.supplier_id}
+            suppliers={suppliers}
+            onSupplierListOpen={() => setSupplierListEnabled(true)}
+            onSupplierChange={(value) => {
               const s = suppliers.find((s: any) => s.id === value);
               setBillData({ ...billData, supplier_id: value, supplier_name: s?.supplier_name || "" });
-            }}>
-              <SelectTrigger className="h-10 rounded-xl"><SelectValue placeholder="Select Supplier" /></SelectTrigger>
-              <SelectContent>{suppliers.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.supplier_name}</SelectItem>)}</SelectContent>
-            </Select>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label className="text-[11px]">Bill Date</Label>
-                <Input type="date" value={format(billDate, "yyyy-MM-dd")} onChange={(e) => setBillDate(new Date(e.target.value))} className="h-9 text-sm rounded-xl" />
-              </div>
-              <div>
-                <Label className="text-[11px]">Our serial</Label>
-                <Input
-                  data-field="supplier-invoice-no"
-                  value={billData.supplier_invoice_no}
-                  onChange={(e) => handleSupplierInvoiceNoChange(e.target.value)}
-                  placeholder={nextSupplierInvNo ? `Serial: ${nextSupplierInvNo}` : "Inv #"}
-                  className="h-9 text-sm rounded-xl"
-                />
-                {supplierPaperInvoiceNo && (
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    Supplier bill: {supplierPaperInvoiceNo}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
+            }}
+            billDate={format(billDate, "yyyy-MM-dd")}
+            onBillDateChange={(value) => setBillDate(new Date(value))}
+            serial={billData.supplier_invoice_no}
+            onSerialChange={handleSupplierInvoiceNoChange}
+            nextSerial={nextSupplierInvNo}
+            supplierPaperInvoiceNo={supplierPaperInvoiceNo}
+          />
 
           {/* Product search */}
           <div className="bg-background rounded-2xl p-3.5 border border-border/40 shadow-sm space-y-2">
@@ -9008,28 +8998,7 @@ const PurchaseEntry = () => {
     <div className={cn(entryPageShellClass, "bg-slate-50 purchase-entry-page purchase-bill-readable")} data-entry-form>
       {excelImportLoading && <ExcelImportLoadingOverlay progress={excelImportLoading} />}
       {/* Draft loading overlay for large bills */}
-      {draftLoading && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
-          <div className="bg-card border rounded-xl shadow-xl p-6 w-80 space-y-4">
-            <div className="flex items-center gap-3">
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
-              <div>
-                <p className="font-semibold text-sm">Loading Draft Bill...</p>
-                <p className="text-xs text-muted-foreground">Large bill with {draftLoadProgress.total} items</p>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Loading items</span>
-                <span>{draftLoadProgress.loaded} / {draftLoadProgress.total}</span>
-              </div>
-              <div className="w-full bg-muted rounded-full h-2">
-                <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${draftLoadProgress.total > 0 ? (draftLoadProgress.loaded / draftLoadProgress.total) * 100 : 0}%` }} />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {draftLoading && <PurchaseDraftLoadingOverlay loaded={draftLoadProgress.loaded} total={draftLoadProgress.total} />}
       <header className="bg-gradient-to-r from-slate-900 to-slate-800 shrink-0 flex flex-col shadow-[0_2px_12px_rgba(0,0,0,.35)] relative z-50 border-b-2 border-green-500/50">
         <div className={cn("entry-page-header-row h-[52px] flex items-center gap-2", entryPageSectionX)}>
           <div className="entry-page-header-leading flex items-center gap-2 sm:gap-3 min-w-0">
