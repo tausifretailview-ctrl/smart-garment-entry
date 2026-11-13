@@ -393,7 +393,8 @@ export default function SaleReturnDashboard() {
     (columnSettings.gross ? 1 : 0) +
     (columnSettings.gst ? 1 : 0) +
     (columnSettings.adjInvoice ? 1 : 0);
-  const tableColSpan = 11 + optionalColumnCount;
+  // expand, return no / date, customer, qty, net, status / settlement, credit note, redeemed, actions
+  const tableColSpan = 9 + optionalColumnCount;
 
   const [loading, setLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -1903,37 +1904,37 @@ export default function SaleReturnDashboard() {
                 ) : returns.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground text-base">No returns found</div>
                 ) : (
-                  <Table className="w-full min-w-0 table-fixed border-collapse text-base [&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2 [&_tbody_td]:!py-2 [&_thead_th]:text-base [&_tbody_td]:text-sm [&_tbody_td]:align-middle [&_tbody_td]:leading-snug">
+                  <Table className="w-full min-w-0 table-fixed border-collapse text-base [&_thead_th]:!px-1.5 [&_tbody_td]:!px-1.5 [&_thead_th]:!py-2 [&_tbody_td]:!py-2 [&_thead_th]:text-xs [&_thead_th]:leading-tight [&_tbody_td]:text-sm [&_tbody_td]:align-middle [&_tbody_td]:leading-snug">
+                    {/* Default columns add up to ~52rem (~990px at the app's 19px rem) so the whole row,
+                        Actions included, fits one screen without sideways scroll; wider screens share out
+                        the extra space. Date sits under the return no and Settlement under Status. */}
                     <colgroup>
-                      <col className="w-10 print:hidden" />
-                      <col className="w-[7.5rem]" />
-                      <col className="w-[5.75rem]" />
-                      <col className="w-[9rem]" />
+                      <col className="w-[1.75rem] print:hidden" />
+                      <col className="w-[6.25rem]" />
+                      <col className="w-[6.5rem]" />
                       {columnSettings.phone && <col className="w-[5.5rem]" />}
-                      {columnSettings.originalSale && <col className="w-[6.5rem]" />}
-                      <col className="w-[2.75rem]" />
+                      {columnSettings.originalSale && <col className="w-[6.25rem]" />}
+                      <col className="w-[2.5rem]" />
                       {columnSettings.gross && <col className="w-[4.25rem]" />}
                       {columnSettings.gst && <col className="w-[3.75rem]" />}
-                      <col className="w-[4.75rem]" />
-                      <col className="w-[7.5rem]" />
+                      <col className="w-[4.5rem]" />
                       <col className="w-[5.75rem]" />
-                      {columnSettings.adjInvoice && <col className="w-[8.5rem]" />}
-                      <col className="w-[8.5rem]" />
-                      <col className="w-[5.75rem]" />
-                      {irnColumn && <col className="w-[8.5rem]" />}
-                      <col className="w-[8rem]" />
+                      <col className="w-[5.25rem]" />
+                      {columnSettings.adjInvoice && <col className="w-[7rem]" />}
+                      <col className="w-[6rem]" />
+                      {irnColumn && <col className="w-[8rem]" />}
+                      <col className="w-[6.25rem] print:hidden" />
                     </colgroup>
                     <TableHeader className="!static">
                       <TableRow>
-                        <TableHead className="w-10 px-1 print:hidden" />
-                        <TableHead className="font-semibold text-left">Return No</TableHead>
-                        <TableHead className="font-semibold text-left whitespace-nowrap">Date</TableHead>
+                        <TableHead className="px-0.5 print:hidden" />
+                        <TableHead className="font-semibold text-left">Return No / Date</TableHead>
                         <TableHead className="font-semibold text-left">Customer</TableHead>
                         {columnSettings.phone && (
                           <TableHead className="font-semibold text-left whitespace-nowrap">Phone</TableHead>
                         )}
                         {columnSettings.originalSale && (
-                          <TableHead className="font-semibold text-left whitespace-nowrap">Original Sale</TableHead>
+                          <TableHead className="font-semibold text-left">Original Sale</TableHead>
                         )}
                         <TableHead className="text-center font-semibold px-1">Qty</TableHead>
                         {columnSettings.gross && (
@@ -1942,18 +1943,17 @@ export default function SaleReturnDashboard() {
                         {columnSettings.gst && (
                           <TableHead className="text-right font-semibold whitespace-nowrap">GST</TableHead>
                         )}
-                        <TableHead className="text-right font-semibold whitespace-nowrap">Net Amt</TableHead>
-                        <TableHead className="font-semibold text-left px-1">Status</TableHead>
-                        <TableHead className="font-semibold text-left whitespace-nowrap">Credit Note</TableHead>
+                        <TableHead className="text-right font-semibold">Net Amt</TableHead>
+                        <TableHead className="font-semibold text-left">Status / Settlement</TableHead>
+                        <TableHead className="font-semibold text-left">Credit Note</TableHead>
                         {columnSettings.adjInvoice && (
-                          <TableHead className="font-semibold text-left whitespace-nowrap">Redeemed bill</TableHead>
+                          <TableHead className="font-semibold text-left">Redeemed bill</TableHead>
                         )}
                         <TableHead className="text-right font-semibold whitespace-nowrap">Redeemed</TableHead>
-                        <TableHead className="font-semibold text-left whitespace-nowrap">Settlement</TableHead>
                         {irnColumn && (
                           <TableHead className="font-semibold text-left whitespace-nowrap print:hidden">E-invoice</TableHead>
                         )}
-                        <TableHead className="text-right font-semibold print:hidden px-1">Actions</TableHead>
+                        <TableHead className="text-right font-semibold print:hidden">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1964,8 +1964,8 @@ export default function SaleReturnDashboard() {
                             className="cursor-pointer hover:bg-accent/50"
                             onContextMenu={(e) => handleRowContextMenu(e, ret)}
                           >
-                            <TableCell className="print:hidden">
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleRow(ret.id)}>
+                            <TableCell className="print:hidden !px-0.5">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggleRow(ret.id)}>
                                 {expandedRows.has(ret.id) ? (
                                   <ChevronUp className="h-4 w-4" />
                                 ) : (
@@ -1980,6 +1980,9 @@ export default function SaleReturnDashboard() {
                               >
                                 {ret.return_number || "-"}
                               </span>
+                              <span className="block text-xs leading-tight text-foreground/80 tabular-nums">
+                                {format(new Date(ret.return_date), "dd/MM/yyyy")}
+                              </span>
                               {formatReturnTime(ret.created_at) && (
                                 <span className="block text-[11px] leading-tight text-muted-foreground tabular-nums">
                                   {formatReturnTime(ret.created_at)}
@@ -1987,18 +1990,15 @@ export default function SaleReturnDashboard() {
                               )}
                               {returnPlaceName(ret.id) && (
                                 <span
-                                  className="mt-0.5 inline-block rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-800 ring-1 ring-emerald-200"
+                                  className="mt-0.5 inline-block whitespace-normal rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-800 ring-1 ring-emerald-200"
                                   title={`Returned goods went into ${returnPlaceName(ret.id)}`}
                                 >
                                   Into {returnPlaceName(ret.id)}
                                 </span>
                               )}
                             </TableCell>
-                            <TableCell className="whitespace-nowrap align-middle" onClick={() => toggleRow(ret.id)}>
-                              {format(new Date(ret.return_date), "dd/MM/yyyy")}
-                            </TableCell>
                             <TableCell
-                              className="cursor-pointer text-blue-600 hover:underline align-middle max-w-[9rem]"
+                              className="cursor-pointer text-blue-600 hover:underline align-middle"
                               title={`${ret.customer_name?.toUpperCase() || ""}${ret.customer_phone ? ` · ${ret.customer_phone}` : ""}`}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -2047,6 +2047,26 @@ export default function SaleReturnDashboard() {
                               >
                                 {formatCreditStatusLabel(ret)}
                               </Badge>
+                              <div className="mt-1 flex justify-center">
+                                {ret.refund_type === 'cash_refund' && (
+                                  <Badge variant="outline" className="whitespace-normal px-1.5 text-[11px] leading-tight bg-red-50 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700">
+                                    <Banknote className="h-3 w-3 mr-1" />
+                                    Refund · {saleReturnRefundModeLabel(ret)}
+                                  </Badge>
+                                )}
+                                {ret.refund_type === 'exchange' && (
+                                  <Badge variant="outline" className="whitespace-normal px-1.5 text-[11px] leading-tight bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700">
+                                    <ArrowLeftRight className="h-3 w-3 mr-1" />
+                                    Exchange
+                                  </Badge>
+                                )}
+                                {(ret.refund_type === 'credit_note' || !ret.refund_type) && (
+                                  <Badge variant="outline" className="whitespace-normal px-1.5 text-[11px] leading-tight bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700">
+                                    <CreditCard className="h-3 w-3 mr-1" />
+                                    Credit Note
+                                  </Badge>
+                                )}
+                              </div>
                             </TableCell>
                         <TableCell>
                           {ret.credit_note_number ? (
@@ -2094,26 +2114,6 @@ export default function SaleReturnDashboard() {
                                 <RedeemBillLines bills={fallbackRedeemBills(ret)} />
                               )}
                             </TableCell>
-                        <TableCell>
-                          {ret.refund_type === 'cash_refund' && (
-                            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700">
-                              <Banknote className="h-3 w-3 mr-1" />
-                              Refund · {saleReturnRefundModeLabel(ret)}
-                            </Badge>
-                          )}
-                          {ret.refund_type === 'exchange' && (
-                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700">
-                              <ArrowLeftRight className="h-3 w-3 mr-1" />
-                              Exchange
-                            </Badge>
-                          )}
-                          {(ret.refund_type === 'credit_note' || !ret.refund_type) && (
-                            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700">
-                              <CreditCard className="h-3 w-3 mr-1" />
-                              Credit Note
-                            </Badge>
-                          )}
-                        </TableCell>
                         {irnColumn && currentOrganization?.id && (
                           <TableCell className="print:hidden" onClick={(e) => e.stopPropagation()}>
                             <SaleReturnIrnCell
@@ -2128,7 +2128,8 @@ export default function SaleReturnDashboard() {
                           </TableCell>
                         )}
                         <TableCell className="text-right print:hidden">
-                          <div className="flex justify-end gap-1">
+                          {/* Up to six 28px icons: they wrap to a second line instead of widening the table. */}
+                          <div className="flex flex-wrap justify-end gap-0.5 [&_button]:h-7 [&_button]:w-7">
                             <Button
                               variant="ghost"
                               size="icon"
@@ -2205,6 +2206,7 @@ export default function SaleReturnDashboard() {
                               variant="ghost"
                               size="icon"
                               onClick={() => handlePrintClick(ret)}
+                              title="Print"
                             >
                               <Printer className="h-4 w-4" />
                             </Button>
@@ -2216,6 +2218,7 @@ export default function SaleReturnDashboard() {
                                   setReturnToDelete(ret.id);
                                   setDeleteDialogOpen(true);
                                 }}
+                                title="Delete Return"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -2272,7 +2275,7 @@ export default function SaleReturnDashboard() {
                     <TableRow>
                       <TableCell className="print:hidden" />
                       <TableCell
-                        colSpan={3 + (columnSettings.phone ? 1 : 0) + (columnSettings.originalSale ? 1 : 0)}
+                        colSpan={2 + (columnSettings.phone ? 1 : 0) + (columnSettings.originalSale ? 1 : 0)}
                         className="font-bold text-primary py-2.5"
                       >
                         GRAND TOTAL
@@ -2294,7 +2297,7 @@ export default function SaleReturnDashboard() {
                         ₹{Math.round(totalValue).toLocaleString("en-IN")}
                       </TableCell>
                       <TableCell
-                        colSpan={5 + (columnSettings.adjInvoice ? 1 : 0) + (irnColumn ? 1 : 0)}
+                        colSpan={4 + (columnSettings.adjInvoice ? 1 : 0) + (irnColumn ? 1 : 0)}
                         className="print:[display:none]"
                       />
                     </TableRow>
