@@ -1,5 +1,5 @@
-import { memo, type Ref } from "react";
-import { AlertTriangle, Pencil, X } from "lucide-react";
+import { memo, type ReactNode, type Ref, type RefObject } from "react";
+import { AlertTriangle, ChevronDown, Pencil, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CalculatorInput } from "@/components/ui/calculator-input";
@@ -13,6 +13,11 @@ import { cn } from "@/lib/utils";
 import { computePurchaseLineSubTotal } from "@/utils/excelImportUtils";
 import { formatProductDescription } from "@/utils/purchaseProductDescription";
 import { minQtyForUom } from "@/utils/qtyInput";
+import {
+  nextInlineSearchIndex,
+  purchaseInlineSearchRowSpans,
+  purchaseTotalRowSpans,
+} from "@/utils/purchaseLinesTable";
 import { formatMobileErpSizeCell } from "@/utils/retailErpWhatsAppProductLabel";
 
 /** The Purchase Entry line fields the row shows and edits. */
@@ -300,3 +305,95 @@ export const PurchaseLinesTableHeader = memo(function PurchaseLinesTableHeader({
     </TableHeader>
   );
 });
+
+/**
+ * Last row of the lines table: the next SR NO, the inline product search box (its dropdown is
+ * passed in as `menu`, a portal) and "+ Add New Product". Arrow keys move through the results,
+ * Enter picks the highlighted one.
+ */
+export function PurchaseInlineSearchRow({
+  nextSrNo,
+  inputRef,
+  query,
+  onQueryChange,
+  resultCount,
+  selectedIndex,
+  onSelectedIndexChange,
+  onPickSelected,
+  onShowMenu,
+  onAddNew,
+  menu,
+  ...cols
+}: PurchaseLineColumns & {
+  nextSrNo: number;
+  inputRef: RefObject<HTMLInputElement>;
+  query: string;
+  onQueryChange: (value: string) => void;
+  resultCount: number;
+  selectedIndex: number;
+  onSelectedIndexChange: (index: number) => void;
+  /** Enter with results: add the highlighted product. */
+  onPickSelected: () => void;
+  /** Show or hide the dropdown. */
+  onShowMenu: (show: boolean) => void;
+  onAddNew: () => void;
+  menu: ReactNode;
+}) {
+  const spans = purchaseInlineSearchRowSpans(cols);
+  return (
+    <TableRow className="bg-accent/30 relative" style={{ zIndex: 50 }}>
+      <TableCell className="w-[40px]"></TableCell>
+      <TableCell className="w-[60px] text-center font-medium text-muted-foreground">{nextSrNo}</TableCell>
+      <TableCell colSpan={spans.search} className="relative overflow-visible" style={{ overflow: "visible" }}>
+        <div className="relative" style={{ overflow: "visible" }}>
+          <Input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
+            onFocus={() => {
+              if (query.length >= 1) onShowMenu(true);
+            }}
+            onBlur={() => {
+              // Delay hiding so a click/touch on a dropdown item still lands.
+              setTimeout(() => onShowMenu(false), 400);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault();
+                if (resultCount > 0) onSelectedIndexChange(nextInlineSearchIndex(e.key, selectedIndex, resultCount));
+              } else if (e.key === "Enter") {
+                e.preventDefault();
+                if (resultCount > 0) onPickSelected();
+              }
+            }}
+            placeholder="Search product name, brand, style..."
+            className="w-full pr-8"
+          />
+          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          {menu}
+        </div>
+      </TableCell>
+      <TableCell colSpan={spans.rest} className="text-muted-foreground text-sm">
+        <span className="hidden md:inline">Type to search or </span>
+        <button type="button" onClick={onAddNew} className="text-primary hover:underline font-medium">
+          + Add New Product
+        </button>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+/** Total row under the lines: the bill's total QTY under the QTY column. */
+export function PurchaseLinesTotalRow({ totalQty, ...cols }: PurchaseLineColumns & { totalQty: number }) {
+  const spans = purchaseTotalRowSpans(cols);
+  return (
+    <TableRow className="bg-muted/50 font-semibold">
+      <TableCell colSpan={spans.label} className="text-right font-semibold">
+        Total:
+      </TableCell>
+      <TableCell></TableCell>
+      <TableCell className="text-right font-semibold tabular-nums">{totalQty}</TableCell>
+      <TableCell colSpan={spans.rest}></TableCell>
+    </TableRow>
+  );
+}

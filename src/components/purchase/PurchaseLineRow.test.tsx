@@ -6,8 +6,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Table, TableBody } from "@/components/ui/table";
 import {
+  PurchaseInlineSearchRow,
   PurchaseLineRow,
   PurchaseLinesTableHeader,
+  PurchaseLinesTotalRow,
   type PurchaseLineRowItem,
   type PurchaseLineRowProps,
 } from "./PurchaseLineRow";
@@ -174,6 +176,80 @@ describe("PurchaseLinesTableHeader", () => {
   });
 });
 
+describe("PurchaseInlineSearchRow / PurchaseLinesTotalRow", () => {
+  const cols = { showSize: false, showMrp: true, showGst: true, showDiscPercent: false };
+  function searchRow(over: Record<string, unknown> = {}) {
+    const p = {
+      nextSrNo: 3,
+      inputRef: React.createRef<HTMLInputElement>(),
+      query: "",
+      onQueryChange: vi.fn(),
+      resultCount: 3,
+      selectedIndex: 2,
+      onSelectedIndexChange: vi.fn(),
+      onPickSelected: vi.fn(),
+      onShowMenu: vi.fn(),
+      onAddNew: vi.fn(),
+      menu: <div data-testid="menu" />,
+      ...cols,
+      ...over,
+    };
+    act(() =>
+      root.render(
+        <Table>
+          <TableBody>
+            <PurchaseInlineSearchRow {...p} />
+            <PurchaseLinesTotalRow totalQty={7} {...cols} />
+          </TableBody>
+        </Table>,
+      ),
+    );
+    return p;
+  }
+  const key = (el: Element, k: string) => act(() => el.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true })));
+
+  it("both rows span every column; QTY total sits in the QTY column (5th without SIZE)", () => {
+    searchRow();
+    const [search, total] = [...host.querySelectorAll("tr")];
+    const width = (tr: Element) => [...tr.querySelectorAll("td")].reduce((n, td) => n + ((td as HTMLTableCellElement).colSpan || 1), 0);
+    expect(width(search)).toBe(13);
+    expect(width(total)).toBe(13);
+    const tds = [...total.querySelectorAll("td")] as HTMLTableCellElement[];
+    expect(tds[0].colSpan + 1 + 1).toBe(5);
+    expect(tds[2].textContent).toBe("7");
+    expect(search.textContent).toContain("3");
+    expect(host.querySelector('[data-testid="menu"]')).not.toBeNull();
+  });
+
+  it("arrows wrap through results, Enter picks, Add New Product works", () => {
+    const p = searchRow();
+    const input = host.querySelector("input")!;
+    key(input, "ArrowDown");
+    expect(p.onSelectedIndexChange).toHaveBeenLastCalledWith(0);
+    key(input, "ArrowUp");
+    expect(p.onSelectedIndexChange).toHaveBeenLastCalledWith(1);
+    key(input, "Enter");
+    expect(p.onPickSelected).toHaveBeenCalledTimes(1);
+    act(() => (host.querySelector("button") as HTMLButtonElement).click());
+    expect(p.onAddNew).toHaveBeenCalledTimes(1);
+  });
+
+  it("no results: arrows and Enter do nothing; typing reports the text", () => {
+    const p = searchRow({ resultCount: 0 });
+    const input = host.querySelector("input")!;
+    key(input, "ArrowDown");
+    key(input, "Enter");
+    expect(p.onSelectedIndexChange).not.toHaveBeenCalled();
+    expect(p.onPickSelected).not.toHaveBeenCalled();
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    act(() => {
+      setter.call(input, "shi");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(p.onQueryChange).toHaveBeenCalled();
+  });
+});
+
 describe("PurchaseEntry lines table", () => {
   const src = readFileSync(resolve(__dirname, "../../pages/PurchaseEntry.tsx"), "utf8");
   it("rows get stable handlers so memo skips unchanged lines", () => {
@@ -187,5 +263,10 @@ describe("PurchaseEntry lines table", () => {
   it("select-all tick reads the real selection (old code read a DOM id that never existed)", () => {
     expect(src).not.toContain("document.getElementById(`check-${i}`)");
     expect(src).toContain("onToggleAll={toggleSelectAllStable}");
+  });
+  it("bottom rows come from the shared components (no fixed colSpan={4} total row)", () => {
+    expect(src).toContain("<PurchaseInlineSearchRow");
+    expect(src).toContain("<PurchaseLinesTotalRow");
+    expect(src).not.toContain('<TableCell colSpan={4} className="text-right font-semibold">Total:</TableCell>');
   });
 });
