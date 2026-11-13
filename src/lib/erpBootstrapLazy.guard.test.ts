@@ -10,8 +10,8 @@ function src(rel: string): string {
 }
 
 describe("erpBootstrap lazy split (PR 1)", () => {
-  it("owner screens are lazyWithRetry in App.tsx, not static imports", () => {
-    const app = src("src/App.tsx");
+  it("owner screens are lazyWithRetry page loaders, not static imports", () => {
+    const app = src("src/app/lazyPages.ts");
     expect(app).not.toMatch(/import\s*\{\s*OwnerSalesScreen/);
     expect(app).not.toMatch(/import\s*\{\s*OwnerPurchaseScreen/);
     expect(app).not.toMatch(/import\s*\{\s*OwnerStockScreen/);

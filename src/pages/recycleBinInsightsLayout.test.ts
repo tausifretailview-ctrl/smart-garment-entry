@@ -34,7 +34,7 @@ describe("Recycle Bin Insights chrome", () => {
   });
 
   it("loads inside the shell instead of blanking the app", () => {
-    const app = readFileSync(resolve(repoRoot, "src/App.tsx"), "utf8");
+    const app = readFileSync(resolve(repoRoot, "src/app/AppRoutes.tsx"), "utf8");
     const start = app.indexOf('path="recycle-bin"');
     const block = app.slice(start, app.indexOf('path="user-rights"', start));
     const layoutAt = block.indexOf("<Layout>");

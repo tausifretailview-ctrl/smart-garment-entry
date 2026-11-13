@@ -57,8 +57,7 @@ describe("Phase 6 silent-blank + cloud-usage guards", () => {
   });
 
   it("LazyFallback always paints a shell (never return null)", () => {
-    const app = src("src/App.tsx");
-    const fallback = app.slice(app.indexOf("const LazyFallback"), app.indexOf("// Check if this is a Field Sales"));
+    const fallback = src("src/app/LazyFallback.tsx");
     expect(fallback).toContain("AppBootSplash");
     expect(fallback).toContain("DashboardSkeleton");
     expect(fallback).not.toMatch(/return null/);
@@ -67,7 +66,7 @@ describe("Phase 6 silent-blank + cloud-usage guards", () => {
   it("Insights stays permission-gated on Outlet, not a silent tab-cache miss", () => {
     const registry = src("src/lib/tabPageRegistry.ts");
     expect(registry).toContain("`insights` is deliberately NOT registered");
-    const app = src("src/App.tsx");
+    const app = src("src/app/AppRoutes.tsx");
     expect(app).toContain('path="insights"');
     expect(app).toContain('MenuPermissionRoute permission="business_insights"');
   });
@@ -82,7 +81,7 @@ describe("Phase 6 silent-blank + cloud-usage guards", () => {
   });
 
   it("cloud-usage stays opt-in and never auto-enables in DEV", () => {
-    const app = src("src/App.tsx");
+    const app = src("src/app/appStartup.ts");
     expect(app).toContain("initCloudUsageDiagnostics");
     expect(
       /import\.meta\.env\.DEV\s*\|\|[\s\S]{0,240}initCloudUsageDiagnostics/.test(app),
