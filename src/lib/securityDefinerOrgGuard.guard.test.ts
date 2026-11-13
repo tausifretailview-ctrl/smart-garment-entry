@@ -29,7 +29,11 @@ const PUBLIC_BY_DESIGN = new Set([
 const ID_PARAM =
   /\b(p_organization_id|p_org_id|p_org|p_sale_id|p_bill_id|p_return_id|p_voucher_id|p_order_id|p_quotation_id|p_challan_id|p_product_id|p_target_product_id|p_source_product_id|p_supplier_id|p_target_supplier_id|p_source_supplier_id|p_customer_id|p_variant_id|p_advance_id|p_payment_link_id)\s+uuid\b/i;
 const MEMBERSHIP_CHECK =
-  /organization_members|user_belongs_to_org|get_user_organization_ids|has_org_role|is_org_admin|_assert_org_access|_assert_row_org_access|assert_org_member|platform_admin/i;
+  /organization_members|user_belongs_to_org|get_user_organization_ids|has_org_role|is_org_admin|_assert_org_access|_assert_row_org_access|assert_org_member|platform_admin|_caller_org_scope/i;
+/** A shop id the guard pass / re-guard check on the way in. */
+const ORG_PARAM = /\b(p_organization_id|p_org_id|p_org)\s+uuid\b(?!\s*\[)/i;
+/** A list of record ids (uuid[]): no guard pass covers these, the body has to scope rows itself. */
+const ID_ARRAY_PARAM = /\b\w+\s+uuid\s*\[\]/i;
 const FUNCTION_DEF =
   /create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?"?(\w+)"?\s*\(([\s\S]*?)\)\s*returns([\s\S]*?)(\$\w*\$)([\s\S]*?)\4([\s\S]*?);/gi;
 
@@ -70,6 +74,19 @@ describe("SECURITY DEFINER functions keep their shop check", () => {
       if (!revokedFromUsers) unguarded.push(`${name} (${def.file})`);
     }
     expect(unguarded).toEqual([]);
+  });
+
+  it("every definer function that takes a list of ids (and no shop id) limits rows to the caller's shops", () => {
+    // Any date: the guard pass only looked for single ids. 20270425120000 scoped the two
+    // that slipped through (get_sale_items_gross_batch, get_stock_at_time_batch).
+    const unscoped: string[] = [];
+    for (const [name, def] of defs) {
+      if (!/security\s+definer/i.test(def.header)) continue;
+      if (!ID_ARRAY_PARAM.test(def.args) || ORG_PARAM.test(def.args)) continue;
+      if (MEMBERSHIP_CHECK.test(def.body)) continue;
+      unscoped.push(`${name} (${def.file})`);
+    }
+    expect(unscoped).toEqual([]);
   });
 
   it("re-guard migration guards reset_stock_from_transactions by the caller's shop", () => {
