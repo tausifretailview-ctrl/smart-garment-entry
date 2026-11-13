@@ -602,6 +602,8 @@ export type ImportWithRetryOptions = {
    * reload the screen they are working on. Opening the page still recovers.
    */
   recoverStaleChunk?: boolean;
+  /** Called after each failed attempt (diagnostics). */
+  onAttemptError?: (attempt: number, error: unknown) => void;
 };
 
 export async function importWithRetry<T>(
@@ -615,6 +617,7 @@ export async function importWithRetry<T>(
       return await importWithTimeout(importFn);
     } catch (error) {
       lastError = error;
+      options?.onAttemptError?.(attempt + 1, error);
       if (!isChunkLoadError(error) || attempt >= MAX_IMPORT_RETRIES - 1) {
         break;
       }
@@ -654,7 +657,49 @@ export async function importWithRetry<T>(
  */
 export function loadRouteChunk<T>(importFn: () => Promise<T>): Promise<T> {
   const endPriorityLoad = beginUserPriorityLoad();
-  return importWithRetry(importFn).finally(endPriorityLoad);
+  const record: InFlightRouteLoad = {
+    chunk: routeChunkLabel(importFn),
+    startedAt: Date.now(),
+    failedAttempts: 0,
+    lastError: null,
+  };
+  inFlightRouteLoads.add(record);
+  return importWithRetry(importFn, {
+    onAttemptError: (attempt, error) => {
+      record.failedAttempts = attempt;
+      record.lastError = error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300);
+    },
+  }).finally(() => {
+    inFlightRouteLoads.delete(record);
+    endPriorityLoad();
+  });
+}
+
+/** A page file the user opened that has not finished loading yet (stuck-page diagnostics). */
+export type InFlightRouteLoad = {
+  /** File / module the loader imports, e.g. "WhatsAppLogs-DgPzkS0Q.js" (best effort). */
+  chunk: string;
+  startedAt: number;
+  failedAttempts: number;
+  lastError: string | null;
+};
+
+const inFlightRouteLoads = new Set<InFlightRouteLoad>();
+
+/** Page files still loading, oldest first, with how long each has waited. */
+export function getInFlightRouteLoads(now = Date.now()): Array<InFlightRouteLoad & { waitedMs: number }> {
+  return [...inFlightRouteLoads]
+    .sort((a, b) => a.startedAt - b.startedAt)
+    .map((r) => ({ ...r, waitedMs: now - r.startedAt }));
+}
+
+/** Pull the imported file name out of a loader's source ("./pages/X" in dev, "./X-hash.js" built). */
+export function routeChunkLabel(importFn: () => unknown): string {
+  const src = String(importFn);
+  const m = /import\(\s*["'`]([^"'`]+)["'`]/.exec(src);
+  if (!m) return "unknown";
+  const parts = m[1].split("/");
+  return parts[parts.length - 1] || m[1];
 }
 
 export function lazyWithRetry(
