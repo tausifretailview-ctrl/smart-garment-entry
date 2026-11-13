@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildInvoicePaymentModeParts,
+  formatInvoicePaymentModeFallback,
   invoiceCardBucketPaymentLabel,
 } from "@/utils/invoicePaymentModeDisplay";
 
@@ -70,5 +71,17 @@ describe("buildInvoicePaymentModeParts with a Mix Payment finance amount", () =>
     expect(
       buildInvoicePaymentModeParts({ cardAmount: 500, financeAmount: 900 }, fmt),
     ).toEqual(["Finance ₹500"]);
+  });
+});
+
+describe("formatInvoicePaymentModeFallback (Sales Invoice print right after save)", () => {
+  it("labels each saved payment method", () => {
+    expect(formatInvoicePaymentModeFallback("pay_later")).toBe("Pay Later");
+    expect(formatInvoicePaymentModeFallback("upi")).toBe("UPI");
+    expect(formatInvoicePaymentModeFallback("multiple")).toBe("Mix");
+    expect(formatInvoicePaymentModeFallback("bank_transfer")).toBe("Bank Transfer");
+    expect(formatInvoicePaymentModeFallback("cash")).toBe("Cash");
+    expect(formatInvoicePaymentModeFallback("card")).toBe("Card");
+    expect(formatInvoicePaymentModeFallback(null)).toBe("Cash");
   });
 });
