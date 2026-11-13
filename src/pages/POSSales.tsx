@@ -86,6 +86,13 @@ import {
   resolveGoodsQtyDialogDefaultPrice,
 } from "@/utils/posGoodsAskQtyDialog";
 import type { CartItem, PosGrossBasis } from "@/lib/posBilling";
+import {
+  posHasRefundDue,
+  posMixDialogBillAmount,
+  posPaymentKeyRoute,
+  posRefundDueAmount,
+} from "@/lib/posBilling/refundRoute";
+import { posCartItemsForStockCheck } from "@/lib/posBilling/stockCheckItems";
 import { resolvePosCustomerName, resolveWhatsAppCustomerName } from "@/lib/posBilling/buildSaleData";
 import {
   applyPosGarmentGstToItem,
@@ -4479,10 +4486,7 @@ export default function POSSales() {
   useEffect(() => {
     if (!currentSaleId) setBillAdvanceOnSale(0);
   }, [currentSaleId]);
-  const mixDialogBillAmount =
-    finalAmount < -0.005 || exchangeRefundDue > 0.005
-      ? -Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue)
-      : posTenderDue;
+  const mixDialogBillAmount = posMixDialogBillAmount(finalAmount, exchangeRefundDue, posTenderDue);
 
   useEffect(() => {
     if (exchangeRefundDue > 0.005 && advanceApplied > 0) {
@@ -5162,9 +5166,29 @@ export default function POSSales() {
     setPointsToRedeem(0);
   };
 
+  /**
+   * Checks every F1–F5 and Mix save runs just before saving (same order as before):
+   * 1. live stock — when editing, the bill's own original lines count as freed stock; a shortfall
+   *    opens the stock dialog;
+   * 2. settlement locks on the cart lines (validateCartSettlementLocks shows its own message).
+   * Returns false when the bill must not be saved.
+   */
+  const passesPreSaveCartChecks = async (): Promise<boolean> => {
+    const insufficientItems = await validateCartStock(
+      posCartItemsForStockCheck(items),
+      currentSaleId ? originalItemsForEdit : undefined,
+    );
+    posSaveMark("validate_stock");
+    if (insufficientItems.length > 0) {
+      openStockIssueDialog(buildMultipleStockIssues(insufficientItems));
+      return false;
+    }
+    return validateCartSettlementLocks(items);
+  };
+
   const handleSaveSale = async (forcePaymentMethod?: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later') => {
     // Same-bill exchange with refund due: force Mix so shop chooses cash refund vs CN.
-    if (finalAmount < -0.005 || exchangeRefundDue > 0.005) {
+    if (posHasRefundDue(finalAmount, exchangeRefundDue)) {
       handleMixPayment();
       return;
     }
@@ -5401,7 +5425,7 @@ export default function POSSales() {
     // Credit (F4) sits beside Sale Return (F5) on the keyboard and every POS layout; a mis-press
     // used to save the bill on credit at once. Ask first; the dialog calls back with creditConfirmed.
     // A refund-due exchange skips this: it falls through to Mix below, as before.
-    const refundDue = finalAmount < -0.005 || exchangeRefundDue > 0.005;
+    const refundDue = posHasRefundDue(finalAmount, exchangeRefundDue);
     if (method === 'pay_later' && opts?.creditConfirmed !== true && !refundDue) {
       if (paymentLockRef.current || isSaving) return;
       if (items.length === 0) {
@@ -5436,38 +5460,15 @@ export default function POSSales() {
 
     // Same-bill exchange: Cash pays the refund now (the net box used to show −200,
     // and clicking Cash left that ₹200 on the customer). UPI / card / credit still open Mix.
-    const cashExchangeRefund =
-      method === "cash" && (finalAmount < -0.005 || exchangeRefundDue > 0.005)
-        ? Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue)
-        : 0;
-    if ((finalAmount < -0.005 || exchangeRefundDue > 0.005) && cashExchangeRefund <= 0.005) {
+    const paymentRoute = posPaymentKeyRoute(method, finalAmount, exchangeRefundDue);
+    if (paymentRoute.kind === "mix") {
       paymentLockRef.current = false;
       handleMixPayment();
       return;
     }
+    const cashExchangeRefund = paymentRoute.cashExchangeRefund;
 
-    // Real-time stock validation before saving
-    // When editing, pass original items so their stock is considered "freed"
-    const cartItemsForValidation = items.map(item => ({
-      variantId: item.variantId,
-      quantity: item.quantity,
-      productName: item.productName,
-      size: item.size,
-    }));
-
-    const insufficientItems = await validateCartStock(
-      cartItemsForValidation,
-      currentSaleId ? originalItemsForEdit : undefined
-    );
-    posSaveMark("validate_stock");
-    
-    if (insufficientItems.length > 0) {
-      paymentLockRef.current = false;
-      openStockIssueDialog(buildMultipleStockIssues(insufficientItems));
-      return;
-    }
-
-    if (!validateCartSettlementLocks(items)) {
+    if (!(await passesPreSaveCartChecks())) {
       paymentLockRef.current = false;
       return;
     }
@@ -5650,8 +5651,9 @@ export default function POSSales() {
     }
     if (blockUnbackedSaleReturnAdjust()) return;
     // Auto-set refund if final amount is negative (same-bill exchange excess)
+    // (Threshold `< 0` kept as it was here; the amount is the shared rule.)
     if (finalAmount < 0 || exchangeRefundDue > 0.005) {
-      setRefundAmount(Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue));
+      setRefundAmount(posRefundDueAmount(finalAmount, exchangeRefundDue));
     }
     setShowMixPaymentDialog(true);
   };
@@ -5696,27 +5698,7 @@ export default function POSSales() {
       return;
     }
 
-    // Real-time stock validation before saving
-    // When editing, pass original items so their stock is considered "freed"
-    const cartItemsForValidation = items.map(item => ({
-      variantId: item.variantId,
-      quantity: item.quantity,
-      productName: item.productName,
-      size: item.size,
-    }));
-
-    const insufficientItems = await validateCartStock(
-      cartItemsForValidation,
-      currentSaleId ? originalItemsForEdit : undefined
-    );
-    posSaveMark("validate_stock");
-    
-    if (insufficientItems.length > 0) {
-      openStockIssueDialog(buildMultipleStockIssues(insufficientItems));
-      return;
-    }
-
-    if (!validateCartSettlementLocks(items)) {
+    if (!(await passesPreSaveCartChecks())) {
       return;
     }
 
