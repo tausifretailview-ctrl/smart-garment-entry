@@ -110,3 +110,38 @@ describe("PurchaseInlineSearchMenu", () => {
     expect(menuButtons()).toHaveLength(0);
   });
 });
+
+import { PurchaseToolbarSearchDropdown } from "./PurchaseSearchResults";
+
+describe("PurchaseToolbarSearchDropdown", () => {
+  const withIds = rows.map((r, i) => ({ ...r, product_id: `p${i}` }));
+  it("highlights the selected row, picks a row, and adds all variants without picking", () => {
+    const onSelect = vi.fn();
+    const onAddAllVariants = vi.fn();
+    const onHoverIndex = vi.fn();
+    act(() =>
+      root.render(
+        <PurchaseToolbarSearchDropdown
+          results={withIds}
+          selectedIndex={1}
+          onHoverIndex={onHoverIndex}
+          onSelect={onSelect}
+          onAddAllVariants={onAddAllVariants}
+        />,
+      ),
+    );
+    const rowsEls = [...host.querySelectorAll(".purchase-search-dropdown > div")] as HTMLElement[];
+    expect(rowsEls).toHaveLength(2);
+    expect(rowsEls[1].className).toContain("bg-accent");
+    expect(rowsEls[0].textContent).toContain("S-XL");
+    expect(rowsEls[0].textContent).toMatch(/MRP: .*1,?199/);
+    act(() => rowsEls[0].dispatchEvent(new MouseEvent("mouseover", { bubbles: true })));
+    expect(onHoverIndex).toHaveBeenCalledWith(0);
+    const [pick0, all0] = [...rowsEls[0].querySelectorAll("button")] as HTMLButtonElement[];
+    act(() => all0.click());
+    expect(onAddAllVariants).toHaveBeenCalledWith(withIds[0]);
+    expect(onSelect).not.toHaveBeenCalled();
+    act(() => pick0.click());
+    expect(onSelect).toHaveBeenCalledWith(withIds[0]);
+  });
+});
