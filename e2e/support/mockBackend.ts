@@ -95,6 +95,20 @@ export class MockBackend {
   async install(page: Page, baseURL: string): Promise<void> {
     const appOrigin = new URL(baseURL).origin;
     await page.route("**/*", (route) => this.handle(route, appOrigin));
+    // page.route only sees HTTP. Supabase realtime (and anything else) opens WebSockets,
+    // which would otherwise go straight to the network: close them here, and record any
+    // that are not for the fake Supabase.
+    await page.routeWebSocket(/.*/, (ws) => {
+      const host = new URL(ws.url()).host;
+      if (host !== new URL(E2E_SUPABASE_URL).host && !ws.url().startsWith(appOrigin.replace(/^http/, "ws"))) {
+        this.blocked.push(host);
+      }
+      if (ws.url().startsWith(appOrigin.replace(/^http/, "ws"))) {
+        ws.connectToServer(); // Vite's hot-reload socket on the app's own origin
+        return;
+      }
+      void ws.close();
+    });
     await page.addInitScript(
       ({ key, session, orgKey, orgId }) => {
         localStorage.setItem(key, JSON.stringify(session));
