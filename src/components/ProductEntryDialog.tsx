@@ -586,6 +586,9 @@ function ColorSuggestInput({
 
   const pick = (picked: string) => {
     const head = value.includes(",") ? value.slice(0, value.lastIndexOf(",") + 1) : "";
+    // A colour was just added: the next Enter / Tab (without arrowing again) closes the list
+    // and moves to the next field, instead of adding whatever is highlighted now.
+    navigatedRef.current = false;
     onAdd(`${head}${picked}`);
     suppressOpenRef.current = true;
     inputRef.current?.focus();

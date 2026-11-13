@@ -27,3 +27,13 @@ describe("colour box Enter / Tab", () => {
     expect(colorSuggestEnterOrTab({ ...base, value: "NAVY", key: "Enter", open: false })).toEqual({ kind: "add-typed" });
   });
 });
+
+describe("ProductEntryDialog colour box wiring", () => {
+  it("a pick clears the arrow-key flag, so the next Enter / Tab moves on instead of adding again", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const src = readFileSync(resolve(__dirname, "../components/ProductEntryDialog.tsx"), "utf8");
+    const pickFn = src.slice(src.indexOf("  const pick = (picked: string) => {"), src.indexOf("  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {"));
+    expect(pickFn).toMatch(/navigatedRef\.current = false;\s*onAdd\(/);
+  });
+});
