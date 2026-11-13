@@ -92,6 +92,7 @@ import {
   posPaymentKeyRoute,
   posRefundDueAmount,
 } from "@/lib/posBilling/refundRoute";
+import { posCartItemsForStockCheck } from "@/lib/posBilling/stockCheckItems";
 import { resolvePosCustomerName, resolveWhatsAppCustomerName } from "@/lib/posBilling/buildSaleData";
 import {
   applyPosGarmentGstToItem,
@@ -5165,6 +5166,26 @@ export default function POSSales() {
     setPointsToRedeem(0);
   };
 
+  /**
+   * Checks every F1–F5 and Mix save runs just before saving (same order as before):
+   * 1. live stock — when editing, the bill's own original lines count as freed stock; a shortfall
+   *    opens the stock dialog;
+   * 2. settlement locks on the cart lines (validateCartSettlementLocks shows its own message).
+   * Returns false when the bill must not be saved.
+   */
+  const passesPreSaveCartChecks = async (): Promise<boolean> => {
+    const insufficientItems = await validateCartStock(
+      posCartItemsForStockCheck(items),
+      currentSaleId ? originalItemsForEdit : undefined,
+    );
+    posSaveMark("validate_stock");
+    if (insufficientItems.length > 0) {
+      openStockIssueDialog(buildMultipleStockIssues(insufficientItems));
+      return false;
+    }
+    return validateCartSettlementLocks(items);
+  };
+
   const handleSaveSale = async (forcePaymentMethod?: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later') => {
     // Same-bill exchange with refund due: force Mix so shop chooses cash refund vs CN.
     if (posHasRefundDue(finalAmount, exchangeRefundDue)) {
@@ -5447,28 +5468,7 @@ export default function POSSales() {
     }
     const cashExchangeRefund = paymentRoute.cashExchangeRefund;
 
-    // Real-time stock validation before saving
-    // When editing, pass original items so their stock is considered "freed"
-    const cartItemsForValidation = items.map(item => ({
-      variantId: item.variantId,
-      quantity: item.quantity,
-      productName: item.productName,
-      size: item.size,
-    }));
-
-    const insufficientItems = await validateCartStock(
-      cartItemsForValidation,
-      currentSaleId ? originalItemsForEdit : undefined
-    );
-    posSaveMark("validate_stock");
-    
-    if (insufficientItems.length > 0) {
-      paymentLockRef.current = false;
-      openStockIssueDialog(buildMultipleStockIssues(insufficientItems));
-      return;
-    }
-
-    if (!validateCartSettlementLocks(items)) {
+    if (!(await passesPreSaveCartChecks())) {
       paymentLockRef.current = false;
       return;
     }
@@ -5698,27 +5698,7 @@ export default function POSSales() {
       return;
     }
 
-    // Real-time stock validation before saving
-    // When editing, pass original items so their stock is considered "freed"
-    const cartItemsForValidation = items.map(item => ({
-      variantId: item.variantId,
-      quantity: item.quantity,
-      productName: item.productName,
-      size: item.size,
-    }));
-
-    const insufficientItems = await validateCartStock(
-      cartItemsForValidation,
-      currentSaleId ? originalItemsForEdit : undefined
-    );
-    posSaveMark("validate_stock");
-    
-    if (insufficientItems.length > 0) {
-      openStockIssueDialog(buildMultipleStockIssues(insufficientItems));
-      return;
-    }
-
-    if (!validateCartSettlementLocks(items)) {
+    if (!(await passesPreSaveCartChecks())) {
       return;
     }
 
