@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useSearchParams, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1368,11 +1369,7 @@ const PurchaseReturnEntry = () => {
           throw new Error((rpcRes.data as any).error || 'Update failed');
         }
 
-        const { data: acctEditPr } = await supabase
-          .from("settings")
-          .select("accounting_engine_enabled")
-          .eq("organization_id", currentOrganization!.id)
-          .maybeSingle();
+        const acctEditPr = await getAccountingEngineSettingsRow(currentOrganization!.id, supabase);
         if (!isDC && isAccountingEngineEnabled(acctEditPr as { accounting_engine_enabled?: boolean } | null)) {
           try {
             await deleteJournalEntryByReference(currentOrganization!.id, "PurchaseReturn", editId, supabase);
@@ -1531,11 +1528,7 @@ const PurchaseReturnEntry = () => {
         }
 
         const prId = (returnRecord as unknown as { id: string }).id;
-        const { data: acctPr } = await supabase
-          .from("settings")
-          .select("accounting_engine_enabled")
-          .eq("organization_id", currentOrganization!.id)
-          .maybeSingle();
+        const acctPr = await getAccountingEngineSettingsRow(currentOrganization!.id, supabase);
         if (!isDC && isAccountingEngineEnabled(acctPr as { accounting_engine_enabled?: boolean } | null)) {
           try {
             await recordPurchaseReturnJournalEntry(

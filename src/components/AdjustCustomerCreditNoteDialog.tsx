@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -234,11 +235,7 @@ export function AdjustCustomerCreditNoteDialog({
       const sb = supabase as any;
       let appliedTotal = 0;
 
-      const { data: acctOut } = await supabase
-        .from("settings")
-        .select("accounting_engine_enabled")
-        .eq("organization_id", currentOrganization!.id)
-        .maybeSingle();
+      const acctOut = await getAccountingEngineSettingsRow(currentOrganization!.id, supabase);
       const glOn = isAccountingEngineEnabled(acctOut as { accounting_engine_enabled?: boolean } | null);
       const today = format(new Date(), "yyyy-MM-dd");
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -415,11 +416,7 @@ export function SettleCustomerAccountDialog({
       } = await supabase.auth.getUser();
       const voucherDate = format(new Date(), "yyyy-MM-dd");
 
-      const { data: acctRow } = await supabase
-        .from("settings")
-        .select("accounting_engine_enabled")
-        .eq("organization_id", organizationId)
-        .maybeSingle();
+      const acctRow = await getAccountingEngineSettingsRow(organizationId, supabase);
       const postLedger = isAccountingEngineEnabled(
         acctRow as { accounting_engine_enabled?: boolean | null } | null,
       );

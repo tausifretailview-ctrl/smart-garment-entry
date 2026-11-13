@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import {
   type JournalReferenceType,
   type PostJournalEntryInput,
@@ -99,12 +100,8 @@ function isMissingBankAccountColumn(err: unknown): boolean {
 /** Reads `settings.accounting_engine_enabled` for the org (on unless explicitly false). */
 export async function isAccountingEngineOnForOrg(organizationId: string, client: any = supabase): Promise<boolean> {
   if (!organizationId) return false;
-  const { data } = await client
-    .from("settings")
-    .select("accounting_engine_enabled")
-    .eq("organization_id", organizationId)
-    .maybeSingle();
-  return isAccountingEngineEnabled(data as { accounting_engine_enabled?: boolean } | null);
+  const data = await getAccountingEngineSettingsRow(organizationId, client);
+  return isAccountingEngineEnabled(data);
 }
 
 /**
@@ -997,11 +994,7 @@ export async function repostJournalForRestoredVoucher(voucherId: string, client:
   if (fetchErr) throw fetchErr;
   if (!v?.organization_id) return;
 
-  const { data: settings } = await client
-    .from("settings")
-    .select("accounting_engine_enabled")
-    .eq("organization_id", v.organization_id)
-    .maybeSingle();
+  const settings = await getAccountingEngineSettingsRow(v.organization_id, client);
 
   if (!isAccountingEngineEnabled(settings as { accounting_engine_enabled?: boolean } | null)) return;
 
@@ -1590,11 +1583,7 @@ export async function recordStudentFeeAdjustmentJournalEntry(
     return { journalEntryId: null, status: "noop" };
   }
 
-  const { data: settings } = await client
-    .from("settings")
-    .select("accounting_engine_enabled")
-    .eq("organization_id", organizationId)
-    .maybeSingle();
+  const settings = await getAccountingEngineSettingsRow(organizationId, client);
 
   if (!isAccountingEngineEnabled(settings as { accounting_engine_enabled?: boolean } | null)) {
     return { journalEntryId: null, status: "skipped" };

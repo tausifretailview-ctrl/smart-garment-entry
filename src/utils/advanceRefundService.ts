@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { format } from "date-fns";
 import { supabase as defaultClient } from "@/integrations/supabase/client";
 import {
@@ -267,11 +268,7 @@ export async function createAdvanceRefund(params: {
     throw updateErr;
   }
 
-  const { data: acctRef } = await client
-    .from("settings")
-    .select("accounting_engine_enabled")
-    .eq("organization_id", params.organizationId)
-    .maybeSingle();
+  const acctRef = await getAccountingEngineSettingsRow(params.organizationId, client);
   if (isAccountingEngineEnabled(acctRef as { accounting_engine_enabled?: boolean } | null)) {
     try {
       await recordCustomerAdvanceRefundJournalEntry(
@@ -427,11 +424,7 @@ export async function deleteAdvanceRefund(params: {
       .eq("id", refund.voucher_entry_id);
   }
 
-  const { data: acctRef } = await client
-    .from("settings")
-    .select("accounting_engine_enabled")
-    .eq("organization_id", params.organizationId)
-    .maybeSingle();
+  const acctRef = await getAccountingEngineSettingsRow(params.organizationId, client);
   if (isAccountingEngineEnabled(acctRef as { accounting_engine_enabled?: boolean } | null)) {
     await deleteJournalEntryByReference(
       params.organizationId,

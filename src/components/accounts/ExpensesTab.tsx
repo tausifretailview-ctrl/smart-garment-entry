@@ -1,4 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -347,11 +348,7 @@ export function ExpensesTab({
         .single();
       if (error) throw error;
 
-      const { data: acctSettings } = await supabase
-        .from("settings")
-        .select("accounting_engine_enabled")
-        .eq("organization_id", organizationId)
-        .maybeSingle();
+      const acctSettings = await getAccountingEngineSettingsRow(organizationId, supabase);
       const postLedger = isAccountingEngineEnabled(
         acctSettings as { accounting_engine_enabled?: boolean } | null
       );

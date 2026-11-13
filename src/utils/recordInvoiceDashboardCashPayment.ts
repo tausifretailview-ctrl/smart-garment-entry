@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { format } from "date-fns";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { recordCustomerReceiptJournalEntry } from "@/utils/accounting/journalService";
@@ -90,11 +91,7 @@ export async function recordInvoiceFullCashPayment(
       createdBy: createdBy ?? null,
     });
 
-    const { data: acctGlRow } = await client
-      .from("settings")
-      .select("accounting_engine_enabled")
-      .eq("organization_id", organizationId)
-      .maybeSingle();
+    const acctGlRow = await getAccountingEngineSettingsRow(organizationId, client);
 
     if (isAccountingEngineEnabled(acctGlRow as { accounting_engine_enabled?: boolean } | null)) {
       await recordCustomerReceiptJournalEntry(

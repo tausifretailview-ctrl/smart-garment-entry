@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -472,11 +473,7 @@ export function SupplierPaymentTab({
       }
       savingRef.current = true;
       try {
-      const { data: acctSettingsGl } = await supabase
-        .from("settings")
-        .select("accounting_engine_enabled")
-        .eq("organization_id", organizationId)
-        .maybeSingle();
+      const acctSettingsGl = await getAccountingEngineSettingsRow(organizationId, supabase);
       const postLedger = isAccountingEngineEnabled(
         acctSettingsGl as { accounting_engine_enabled?: boolean } | null
       );
