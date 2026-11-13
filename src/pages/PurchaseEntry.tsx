@@ -8607,6 +8607,25 @@ const PurchaseEntry = () => {
     </LazyOpen>
   ) : null;
 
+  // Same supplier / date / qty-or-amount as a bill saved earlier: open it, or save anyway.
+  // handleSave raises this on BOTH layouts; it used to be mounted on the phone layout only, so a
+  // desktop save was blocked with "See warning dialog…" and no dialog to act on (Nov 2026).
+  const duplicatePurchaseBillDialog = (
+    <DuplicatePurchaseBillDialog
+      open={!!duplicateWarning}
+      existingBill={duplicateWarning?.bill ?? null}
+      matchReason={duplicateWarning?.reason ?? ""}
+      canOverride={hasSpecialPermission('cancel_invoice')}
+      onClose={() => setDuplicateWarning(null)}
+      onOpenExisting={(billId) => { setDuplicateWarning(null); navigate("/purchase-entry", { state: { editBillId: billId } }); }}
+      onSaveAnyway={async () => {
+        overrideDuplicateRef.current = true;
+        setDuplicateWarning(null);
+        await handleSave();
+      }}
+    />
+  );
+
   if (isMobile) {
     const filledItems = lineItems.filter(i => i.product_id);
     const totalQty = filledItems.reduce((s, i) => s + (i.qty || 0), 0);
@@ -8865,19 +8884,7 @@ const PurchaseEntry = () => {
         />
         {purchaseMrpTierDialog}
         <LazyOpen open={showAddSupplierDialog}><AddSupplierDialog open={showAddSupplierDialog} onClose={() => setShowAddSupplierDialog(false)} onSupplierCreated={(supplier) => { refetchSuppliers(); setBillData((prev) => ({ ...prev, supplier_id: supplier.id, supplier_name: supplier.supplier_name })); setTimeout(() => { const invInput = document.querySelector<HTMLInputElement>('[data-field="supplier-invoice-no"]'); invInput?.focus(); invInput?.select(); }, 200); }} /></LazyOpen>
-        <DuplicatePurchaseBillDialog
-          open={!!duplicateWarning}
-          existingBill={duplicateWarning?.bill ?? null}
-          matchReason={duplicateWarning?.reason ?? ""}
-          canOverride={hasSpecialPermission('cancel_invoice')}
-          onClose={() => setDuplicateWarning(null)}
-          onOpenExisting={(billId) => { setDuplicateWarning(null); navigate("/purchase-entry", { state: { editBillId: billId } }); }}
-          onSaveAnyway={async () => {
-            overrideDuplicateRef.current = true;
-            setDuplicateWarning(null);
-            await handleSave();
-          }}
-        />
+        {duplicatePurchaseBillDialog}
         <LazyOpen open={showSizeGrid}><SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} reviewMode={sizeGridReviewMode} showPurPrice={sizeGridReviewMode} showSizePrices={sizeGridReviewMode} showMrp={sizeGridReviewMode || purchaseShowMrp} isLoading={sizeGridLoading} allowMultiColor={true} allowCustomSizes={true} newSizePriceFields allowAddColor={isColorFieldEnabled} showStock={false} validateStock={false} title="Enter Size-wise Qty" /></LazyOpen>
         <LazyOpen open={showRepurchaseDialog}>
         <RepurchaseDialog
@@ -10081,6 +10088,9 @@ const PurchaseEntry = () => {
           mobileErpMode={mobileERPSettings || undefined}
         />
         </LazyOpen>
+
+      {/* Possible duplicate (content / date) — open the existing bill or save anyway */}
+      {duplicatePurchaseBillDialog}
 
       {/* Unlock Confirmation Dialog */}
       <PurchaseUnlockDialog open={showUnlockConfirm} onOpenChange={setShowUnlockConfirm} onConfirm={handleUnlockBill} />
