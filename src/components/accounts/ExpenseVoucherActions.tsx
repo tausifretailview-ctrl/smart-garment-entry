@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -58,12 +59,8 @@ interface ExpenseSnapshot {
 }
 
 async function isLedgerPostingOn(organizationId: string): Promise<boolean> {
-  const { data } = await supabase
-    .from("settings")
-    .select("accounting_engine_enabled")
-    .eq("organization_id", organizationId)
-    .maybeSingle();
-  return isAccountingEngineEnabled(data as { accounting_engine_enabled?: boolean } | null);
+  const data = await getAccountingEngineSettingsRow(organizationId);
+  return isAccountingEngineEnabled(data);
 }
 
 /**

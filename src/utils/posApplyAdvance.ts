@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { postAdvanceApplicationJournalsForVouchers } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { fetchCustomerOpeningBalanceRemaining } from "@/utils/customerOpeningBalanceRemaining";
@@ -136,11 +137,7 @@ export async function applyExistingAdvanceToSale(
   await applyRecomputedSalePaymentState(params.saleId, params.organizationId, params.client);
 
   if (consumed > 0.01 && vouchers.length > 0) {
-    const { data: acctRow } = await params.client
-      .from("settings")
-      .select("accounting_engine_enabled")
-      .eq("organization_id", params.organizationId)
-      .maybeSingle();
+    const acctRow = await getAccountingEngineSettingsRow(params.organizationId, params.client);
     if (isAccountingEngineEnabled(acctRow as { accounting_engine_enabled?: boolean | null } | null)) {
       const journalDesc = params.saleNumber
         ? `Adjusted from advance balance for invoice ${params.saleNumber}`

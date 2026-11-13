@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
@@ -139,12 +140,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
   const { data: orgAccountingSettings } = useQuery({
     queryKey: ["settings-accounting-engine", currentOrganization?.id],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("settings")
-        .select("accounting_engine_enabled")
-        .eq("organization_id", currentOrganization!.id)
-        .maybeSingle();
-      return data;
+      return getAccountingEngineSettingsRow(currentOrganization!.id);
     },
     enabled: !!currentOrganization?.id && open,
     staleTime: 60_000,

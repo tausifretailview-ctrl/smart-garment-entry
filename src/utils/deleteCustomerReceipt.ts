@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteJournalEntryByReference } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
@@ -46,11 +47,7 @@ export async function deleteCustomerReceipt(
   const saleIds = collectSaleIdsForReceiptDelete(payment, touchedSales);
   const customerId = customerIdForReceiptBalanceRefresh(payment, touchedSales, saleIds);
   const cnSale = creditNoteSaleForReceiptDelete(payment, touchedSales, saleIds);
-  const { data: acctDel } = await client
-    .from("settings")
-    .select("accounting_engine_enabled")
-    .eq("organization_id", organizationId)
-    .maybeSingle();
+  const acctDel = await getAccountingEngineSettingsRow(organizationId, client);
   const engineOn = isAccountingEngineEnabled(
     acctDel as { accounting_engine_enabled?: boolean } | null
   );

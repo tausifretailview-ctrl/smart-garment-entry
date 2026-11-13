@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { logError } from "@/lib/errorLogger";
 import {
@@ -1023,11 +1024,7 @@ export default function SaleReturnEntry() {
           .select("refund_type, payment_method")
           .eq("id", editId)
           .maybeSingle();
-        const { data: acctEditSr } = await supabase
-          .from("settings")
-          .select("accounting_engine_enabled")
-          .eq("organization_id", currentOrganization!.id)
-          .maybeSingle();
+        const acctEditSr = await getAccountingEngineSettingsRow(currentOrganization!.id, supabase);
         if (isAccountingEngineEnabled(acctEditSr as { accounting_engine_enabled?: boolean } | null)) {
           try {
             await deleteJournalEntryByReference(currentOrganization!.id, "SaleReturn", editId, supabase);
@@ -1138,11 +1135,7 @@ export default function SaleReturnEntry() {
           }
           const returnData = savedReturn;
 
-          const { data: acctSrPage } = await supabase
-            .from("settings")
-            .select("accounting_engine_enabled")
-            .eq("organization_id", currentOrganization!.id)
-            .maybeSingle();
+          const acctSrPage = await getAccountingEngineSettingsRow(currentOrganization!.id, supabase);
           if (isAccountingEngineEnabled(acctSrPage as { accounting_engine_enabled?: boolean } | null)) {
             try {
               await recordSaleReturnJournalEntry(

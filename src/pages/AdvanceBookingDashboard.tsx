@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
@@ -486,11 +487,7 @@ export default function AdvanceBookingDashboard() {
         );
       }
 
-      const { data: acctDel } = await supabase
-        .from("settings")
-        .select("accounting_engine_enabled")
-        .eq("organization_id", orgId!)
-        .maybeSingle();
+      const acctDel = await getAccountingEngineSettingsRow(orgId!, supabase);
       if (
         isAccountingEngineEnabled(acctDel as { accounting_engine_enabled?: boolean } | null)
       ) {

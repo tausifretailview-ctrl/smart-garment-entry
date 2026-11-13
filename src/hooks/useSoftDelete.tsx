@@ -1,4 +1,5 @@
 import { findLiveReturnsLinkedToSale, saleDeleteBlockedByReturnMessage } from "@/utils/saleDeleteReturnGuard";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { hardDeleteDocument, isOneStepHardDeleteEntity } from "@/lib/hardDeleteDocument";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -314,11 +315,7 @@ export function useSoftDelete() {
             .eq("id", id)
             .maybeSingle();
           if (billRow?.organization_id) {
-            const { data: setB } = await supabase
-              .from("settings")
-              .select("accounting_engine_enabled")
-              .eq("organization_id", billRow.organization_id)
-              .maybeSingle();
+            const setB = await getAccountingEngineSettingsRow(billRow.organization_id, supabase);
             if (isAccountingEngineEnabled(setB as { accounting_engine_enabled?: boolean } | null)) {
               try {
                 const billYmd =
@@ -407,11 +404,7 @@ export function useSoftDelete() {
             if (restoredRefunds.length > 0) {
               restoreNote += ` Exchange refund ${restoredRefunds.map((v) => v.voucher_number).join(", ")} restored too.`;
             }
-            const { data: setS } = await supabase
-              .from("settings")
-              .select("accounting_engine_enabled")
-              .eq("organization_id", saleRow.organization_id)
-              .maybeSingle();
+            const setS = await getAccountingEngineSettingsRow(saleRow.organization_id, supabase);
             if (isAccountingEngineEnabled(setS as { accounting_engine_enabled?: boolean } | null)) {
               try {
                 const saleYmd =
@@ -449,11 +442,7 @@ export function useSoftDelete() {
               .eq("id", id)
               .maybeSingle();
             if (srRow?.organization_id) {
-              const { data: setSr } = await supabase
-                .from("settings")
-                .select("accounting_engine_enabled")
-                .eq("organization_id", srRow.organization_id)
-                .maybeSingle();
+              const setSr = await getAccountingEngineSettingsRow(srRow.organization_id, supabase);
               if (isAccountingEngineEnabled(setSr as { accounting_engine_enabled?: boolean } | null)) {
                 try {
                   await recordSaleReturnJournalEntry(
@@ -499,11 +488,7 @@ export function useSoftDelete() {
               .eq("id", id)
               .maybeSingle();
             if (prRow?.organization_id) {
-              const { data: setPr } = await supabase
-                .from("settings")
-                .select("accounting_engine_enabled")
-                .eq("organization_id", prRow.organization_id)
-                .maybeSingle();
+              const setPr = await getAccountingEngineSettingsRow(prRow.organization_id, supabase);
               if (isAccountingEngineEnabled(setPr as { accounting_engine_enabled?: boolean } | null)) {
                 try {
                   await recordPurchaseReturnJournalEntry(

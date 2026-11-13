@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { format } from "date-fns";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
@@ -68,11 +69,7 @@ export async function createManualSaleReturnCredit(
     });
     if (!cnId) throw new Error("Credit note could not be created");
 
-    const { data: acct } = await client
-      .from("settings")
-      .select("accounting_engine_enabled")
-      .eq("organization_id", params.organizationId)
-      .maybeSingle();
+    const acct = await getAccountingEngineSettingsRow(params.organizationId, client);
     if (isAccountingEngineEnabled(acct as { accounting_engine_enabled?: boolean } | null)) {
       await recordSaleReturnJournalEntry(
         id,

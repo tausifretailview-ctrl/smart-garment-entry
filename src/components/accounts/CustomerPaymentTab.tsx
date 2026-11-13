@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -749,11 +750,7 @@ export function CustomerPaymentTab({
       const amountToApply = Math.min(advanceBalance, totalOutstanding);
       if (amountToApply <= 0) throw new Error("No advance balance to apply");
       
-      const { data: acctAdv } = await supabase
-        .from("settings")
-        .select("accounting_engine_enabled")
-        .eq("organization_id", organizationId)
-        .maybeSingle();
+      const acctAdv = await getAccountingEngineSettingsRow(organizationId, supabase);
       const postLedgerAdv = isAccountingEngineEnabled(
         acctAdv as { accounting_engine_enabled?: boolean } | null
       );
@@ -883,11 +880,7 @@ export function CustomerPaymentTab({
       }
       savingRef.current = true;
       try {
-      const { data: acctSettingsGl } = await supabase
-        .from("settings")
-        .select("accounting_engine_enabled")
-        .eq("organization_id", organizationId)
-        .maybeSingle();
+      const acctSettingsGl = await getAccountingEngineSettingsRow(organizationId, supabase);
       const postLedger = isAccountingEngineEnabled(
         acctSettingsGl as { accounting_engine_enabled?: boolean } | null
       );

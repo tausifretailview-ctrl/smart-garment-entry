@@ -1,6 +1,7 @@
 /** Delete (soft) a supplier payment voucher and undo everything it settled. */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { voucherSettlementCredit } from "@/utils/paymentSettlementBreakdown";
 import { syncPurchaseBillPaymentsFromVouchersBatch } from "@/utils/purchaseBillSettlement";
 import { deleteJournalEntryByReference } from "@/utils/accounting/journalService";
@@ -91,11 +92,7 @@ export async function deleteSupplierPaymentVoucher(
   if (delErr) throw delErr;
 
   try {
-    const { data: acct } = await client
-      .from("settings")
-      .select("accounting_engine_enabled")
-      .eq("organization_id", organizationId)
-      .maybeSingle();
+    const acct = await getAccountingEngineSettingsRow(organizationId, client);
     if (isAccountingEngineEnabled(acct as { accounting_engine_enabled?: boolean } | null)) {
       await deleteJournalEntryByReference(organizationId, "SupplierPayment", voucher.id, client);
     }

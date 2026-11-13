@@ -11,6 +11,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { supabase as defaultClient } from "@/integrations/supabase/client";
 import { reverseCustomerAdvanceFifo } from "@/utils/reverseCustomerAdvanceFifo";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
@@ -210,11 +211,7 @@ export async function releaseExcessAdvanceOnSale(
 
   const split = await loadSaleReceiptSplit(client, organizationId, saleId);
 
-  const { data: acct } = await client
-    .from("settings")
-    .select("accounting_engine_enabled")
-    .eq("organization_id", organizationId)
-    .maybeSingle();
+  const acct = await getAccountingEngineSettingsRow(organizationId, client);
   const engineOn = isAccountingEngineEnabled(
     acct as { accounting_engine_enabled?: boolean } | null,
   );

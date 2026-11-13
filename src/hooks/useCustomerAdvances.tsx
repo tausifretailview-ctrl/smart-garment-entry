@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -97,11 +98,7 @@ export function useCustomerAdvances(organizationId: string | null) {
         description: data.description || null,
         status: "active",
       });
-      const { data: acctAdv } = await supabase
-        .from("settings")
-        .select("accounting_engine_enabled")
-        .eq("organization_id", organizationId!)
-        .maybeSingle();
+      const acctAdv = await getAccountingEngineSettingsRow(organizationId!, supabase);
       if (isAccountingEngineEnabled(acctAdv as { accounting_engine_enabled?: boolean } | null)) {
         try {
           await recordCustomerAdvanceReceiptJournalEntry(

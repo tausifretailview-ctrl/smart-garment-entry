@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -316,11 +317,7 @@ export const FloatingSaleReturn = ({
       throw new Error("Receipt voucher missing after credit-note adjustment.");
     }
 
-    const { data: acctPos } = await supabase
-      .from("settings")
-      .select("accounting_engine_enabled")
-      .eq("organization_id", organizationId)
-      .maybeSingle();
+    const acctPos = await getAccountingEngineSettingsRow(organizationId, supabase);
     if (isAccountingEngineEnabled(acctPos as { accounting_engine_enabled?: boolean } | null)) {
       const cnVoucherDate = new Date().toISOString().split("T")[0];
       const cnDescription = `Credit note ${cnMeta.returnNumber} applied via POS`;
@@ -1265,11 +1262,7 @@ export const FloatingSaleReturn = ({
 
       const returnDateYmd =
         (returnData as { return_date?: string }).return_date || new Date().toISOString().split("T")[0];
-      const { data: acctSaleReturn } = await supabase
-        .from("settings")
-        .select("accounting_engine_enabled")
-        .eq("organization_id", organizationId)
-        .maybeSingle();
+      const acctSaleReturn = await getAccountingEngineSettingsRow(organizationId, supabase);
       if (isAccountingEngineEnabled(acctSaleReturn as { accounting_engine_enabled?: boolean } | null)) {
         try {
           await recordSaleReturnJournalEntry(

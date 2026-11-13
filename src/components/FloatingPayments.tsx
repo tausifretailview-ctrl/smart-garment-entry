@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -390,11 +391,7 @@ function CustomerPaymentForm({
     mutationFn: async () => {
       if (!referenceId) throw new Error("Please select a customer");
       if (!amount || parseFloat(amount) <= 0) throw new Error("Enter a valid amount");
-      const { data: acctSettingsGl } = await supabase
-        .from("settings")
-        .select("accounting_engine_enabled")
-        .eq("organization_id", organizationId)
-        .maybeSingle();
+      const acctSettingsGl = await getAccountingEngineSettingsRow(organizationId, supabase);
       const postLedger = isAccountingEngineEnabled(
         acctSettingsGl as { accounting_engine_enabled?: boolean } | null
       );
@@ -1214,11 +1211,7 @@ function ExpenseForm({ organizationId }: { organizationId: string }) {
         }
       }
 
-      const { data: acctSettings } = await supabase
-        .from("settings")
-        .select("accounting_engine_enabled")
-        .eq("organization_id", organizationId)
-        .maybeSingle();
+      const acctSettings = await getAccountingEngineSettingsRow(organizationId, supabase);
       const postLedger = isAccountingEngineEnabled(
         acctSettings as { accounting_engine_enabled?: boolean } | null
       );
