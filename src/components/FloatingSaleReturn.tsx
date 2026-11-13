@@ -61,6 +61,7 @@ import {
   gateSaleReturnAgainstHistory,
 } from "@/utils/saleReturnBarcodeLookup";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
+import { posFocusMovedToOtherField } from "@/utils/posBarcodeRefocus";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -426,7 +427,13 @@ export const FloatingSaleReturn = ({
   useEffect(() => {
     if (open && organizationId && soldVariantIdRows) {
       void loadSoldProducts(soldVariantIdRows);
-      setTimeout(() => barcodeInputRef.current?.focus(), 200);
+      // The sold-items list can take seconds on a big shop. By then the cashier may be typing
+      // in the customer search or the bill no box: pulling the cursor back to the scan box
+      // closed the customer list mid-search. Refocus only when they are not in another field.
+      setTimeout(() => {
+        if (posFocusMovedToOtherField(document.activeElement, barcodeInputRef.current)) return;
+        barcodeInputRef.current?.focus();
+      }, 200);
     }
     if (!open) {
       setReturnItems([]);
