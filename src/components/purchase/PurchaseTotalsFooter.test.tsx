@@ -107,6 +107,11 @@ describe("PurchaseTotalsFooter", () => {
     expect(button("Print Barcodes")).toBeUndefined();
   });
 
+  it("has no Cancel button (removed: it had no action)", () => {
+    act(() => root.render(<PurchaseTotalsFooter {...props()} />));
+    expect(button("Cancel")).toBeUndefined();
+  });
+
   it("hidden while the Edit Product panel is open", () => {
     act(() => root.render(<PurchaseTotalsFooter {...props({ hidden: true })} />));
     expect(host.querySelector("footer")!.className).toContain("hidden");

@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Check, Loader2, Printer, X } from "lucide-react";
+import { Check, Loader2, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -33,7 +33,8 @@ export type PurchaseTotalsFooterProps = {
 
 /**
  * Purchase Entry footer: totals bar (Gross, Bill Disc % / ₹, Charges, Net Payable), the
- * Gross − Disc = Taxable + GST (+ Charges) = Net line, and Print Barcodes / Cancel / Save.
+ * Gross − Disc = Taxable + GST (+ Charges) = Net line, and Print Barcodes / Save. (The old
+ * Cancel button had no action and was removed at the owner's request, Nov 2026.)
  * Moved out of PurchaseEntry.tsx unchanged (Plan Phase 4, S4).
  */
 export const PurchaseTotalsFooter = memo(function PurchaseTotalsFooter({
@@ -146,15 +147,6 @@ export const PurchaseTotalsFooter = memo(function PurchaseTotalsFooter({
               {selectedForPrintCount > 0 && ` (${selectedForPrintCount})`}
             </Button>
           )}
-          {/* No action wired (as before this move). */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9 px-3 text-[13px] font-bold text-red-300 hover:bg-red-900/50 hover:text-red-200 gap-1.5"
-          >
-            <X className="h-3.5 w-3.5" />
-            Cancel
-          </Button>
           <Button
             type="button"
             size="sm"
