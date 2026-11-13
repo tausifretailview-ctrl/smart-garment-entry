@@ -87,6 +87,29 @@ describe("buildCreditNoteWhatsAppMessage", () => {
   });
 });
 
+describe("buildCreditNoteWhatsAppMessage from the dashboard", () => {
+  const base = {
+    shopName: "Demo Shop",
+    customerName: "Ravi",
+    returnNumber: "SR/26-27/12",
+    amount: 1000,
+    returnDate: "2026-11-13",
+    itemCount: 1,
+  };
+  it("shows the balance left when part of the credit was used", () => {
+    const msg = buildCreditNoteWhatsAppMessage({ ...base, creditNoteNumber: "CN/26-27/7", balanceAmount: 400 });
+    expect(msg).toContain("Credit Amount: ₹1,000.00\nBalance Available: ₹400.00\n");
+  });
+  it("no balance line when nothing was used", () => {
+    expect(buildCreditNoteWhatsAppMessage({ ...base, creditNoteNumber: "CN1", balanceAmount: 1000 })).not.toContain("Balance Available");
+  });
+  it("pending return without a credit_notes row: no CN line, return number still there", () => {
+    const msg = buildCreditNoteWhatsAppMessage({ ...base, creditNoteNumber: null });
+    expect(msg).not.toContain("Credit Note No");
+    expect(msg).toContain("Return No: SR/26-27/12");
+  });
+});
+
 describe("sendCreditNoteWhatsApp", () => {
   it("sends a text message to the customer's phone", async () => {
     const { client, invoke, eqs } = fakeClient({ data: { phone: "98765 43210" }, error: null });
@@ -126,5 +149,17 @@ describe("POS Sale Return window", () => {
     expect(src).toContain("savedCreditNoteId = creditNote.id;");
     expect(src).toMatch(/sendCnWhatsApp &&\s*canSendCnWhatsApp/);
     expect(src).toContain("void sendCreditNoteWhatsApp(supabase,");
+  });
+});
+
+describe("Sale Return dashboard", () => {
+  const src = readFileSync(resolve(__dirname, "../pages/SaleReturnDashboard.tsx"), "utf8");
+  it("offers Send CN on WhatsApp on rows with credit left (table, mobile card, right-click menu)", () => {
+    expect(src).toContain("const waCnReady = canSendCreditNoteWhatsApp(waSettings);");
+    expect(src).toMatch(/const canWhatsAppCn = \(ret: SaleReturn\) =>\s*waCnReady &&\s*!!ret\.customer_id/);
+    expect(src).toContain("getAvailableCN(ret) > 0;");
+    expect(src.match(/canWhatsAppCn\(ret\)/g)?.length).toBe(3);
+    expect(src).toContain('label: "Send CN on WhatsApp"');
+    expect(src).toContain("balanceAmount: getAvailableCN(ret),");
   });
 });
