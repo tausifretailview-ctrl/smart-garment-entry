@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -33,7 +32,6 @@ import {
 import type { LabelData, TSPLTemplateConfig } from "@/utils/tsplGenerator";
 import { Check, Save, Trash2, Eye, Download, RefreshCw, Edit, Printer, Plus, Loader2, ChevronDown, ChevronLeft, Search, Package, History, Maximize2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Badge } from "@/components/ui/badge";
 import type jsPDFType from "jspdf";
 /** Lazily loaded on export — keeps jsPDF/html2canvas off this page's initial chunk. */
 let jsPdfPromise: Promise<typeof jsPDFType> | null = null;
@@ -236,6 +234,7 @@ import {
   resolvePresetLabelConfig,
   sortItemsBySize,
 } from "@/lib/barcode/barcodeLabelConfig";
+import { BarcodeLabelListPanel } from "@/components/barcode/BarcodeLabelListPanel";
 import { builtInLabelTemplates, sheetPresetLabels, sheetPresets, type SheetType } from "@/lib/barcode/sheetPresets";
 
 const precisionPresetStorageKey = (orgId: string) => `precision_active_preset_${orgId}`;
@@ -6109,105 +6108,28 @@ export default function BarcodePrinting() {
 
       {/* Results Table */}
       {labelItems.length > 0 && (
-        <div className={cn(
-          "barcode-products-panel border rounded-md overflow-hidden flex flex-col",
-          standardListFillsPage
-            ? "flex-1 min-h-0"
-            : activeBarTab === "designer"
-              ? "shrink-0 max-h-[32vh]"
-              : activeBarTab === "precision"
-                ? "shrink-0 max-h-[42vh]"
-                : showCustomizeFields
-                  ? "shrink-0 max-h-[30vh]"
-                  : "shrink-0 max-h-[28vh]",
-        )}>
-          <div className="bg-slate-900 text-white px-3 py-2 border-b flex items-center justify-between gap-2">
-            <p className="text-sm font-semibold tabular-nums">
-              Products: <span className="font-bold">{labelItems.length}</span>
-              <span className="mx-1.5 opacity-40">|</span>
-              Labels: <span className="font-bold text-emerald-300">{totalLabelQty}</span>
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 shrink-0 gap-1.5 border-white/25 bg-white/10 text-xs font-semibold text-white hover:bg-destructive hover:text-white hover:border-destructive"
-              onClick={handleClearAll}
-              title="Remove all products from the print list"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Clear All
-            </Button>
-          </div>
-          <div className="overflow-auto flex-1 min-h-0">
-          <Table className="barcode-products-table">
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead>Product Description</TableHead>
-                <TableHead className="w-[70px]">Size</TableHead>
-                {showMrpColumn && <TableHead className="w-[80px]">MRP</TableHead>}
-                <TableHead className="w-[80px]">Sale</TableHead>
-                <TableHead className="w-[110px]">Barcode</TableHead>
-                <TableHead className="w-[90px]">Sup Code</TableHead>
-                <TableHead className="w-[80px]">Qty</TableHead>
-                <TableHead className="w-[48px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {labelItems.map((item) => {
-                const descParts = [item.product_name];
-                if (item.category && item.category.trim() && item.category.trim() !== '-') descParts.push(item.category);
-                if (item.style && item.style.trim() && item.style.trim() !== '-') descParts.push(item.style);
-                if (item.color && item.color.trim() && item.color.trim() !== '-') descParts.push(item.color);
-                if (item.brand && item.brand.trim() && item.brand.trim() !== '-') descParts.push(item.brand);
-                const fullDesc = descParts.join('-');
-                return (
-                <TableRow key={item.sku_id}>
-                  <TableCell className="barcode-products-desc font-semibold max-w-[320px] truncate" title={fullDesc}>{fullDesc}</TableCell>
-                  <TableCell className="font-medium">{item.size}</TableCell>
-                  {showMrpColumn && <TableCell className="font-mono tabular-nums">₹{item.mrp || 0}</TableCell>}
-                  <TableCell className="font-mono tabular-nums">₹{item.sale_price}</TableCell>
-                  <TableCell className="font-mono">
-                    <span>{item.barcode || "(auto-gen)"}</span>
-                    {item.barcode && (() => {
-                      const count = labelItems.filter(li => li.barcode === item.barcode).length;
-                      return count > 1 ? (
-                        <Badge className="ml-1 text-[10px] px-1 py-0 bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-400">
-                          DUP
-                        </Badge>
-                      ) : null;
-                    })()}
-                  </TableCell>
-                  <TableCell className="font-medium">{item.supplier_code || "-"}</TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={item.qty}
-                      onChange={(e) => handleQtyChange(item.sku_id, parseInt(e.target.value) || 0)}
-                      className="w-16 h-9 text-base font-mono tabular-nums"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setLabelItems(prev => prev.filter(i => i.sku_id !== item.sku_id));
-                        toast.success("Product removed");
-                      }}
-                      className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-          </div>
-        </div>
+        <BarcodeLabelListPanel
+          items={labelItems}
+          totalLabelQty={totalLabelQty}
+          showMrpColumn={showMrpColumn}
+          className={
+            standardListFillsPage
+              ? "flex-1 min-h-0"
+              : activeBarTab === "designer"
+                ? "shrink-0 max-h-[32vh]"
+                : activeBarTab === "precision"
+                  ? "shrink-0 max-h-[42vh]"
+                  : showCustomizeFields
+                    ? "shrink-0 max-h-[30vh]"
+                    : "shrink-0 max-h-[28vh]"
+          }
+          onClearAll={handleClearAll}
+          onQtyChange={handleQtyChange}
+          onRemove={(skuId) => {
+            setLabelItems((prev) => prev.filter((i) => i.sku_id !== skuId));
+            toast.success("Product removed");
+          }}
+        />
       )}
 
       {/* Printing Mode Tabs */}
