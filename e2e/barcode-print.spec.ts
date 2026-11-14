@@ -92,3 +92,35 @@ test("Barcode printing: search a product, 3 labels, Print → label sheet PDF", 
   expect(text.filter((t) => t.includes("COTTON SHIRT"))).toHaveLength(3);
   expect(text.filter((t) => t.includes("999"))).toHaveLength(3);
 });
+
+/**
+ * The PDF button (Export PDF) saves the label sheet as a file. The export lives in
+ * src/lib/barcode/exportLabelsPdf.ts; this proves it still produces a real PDF.
+ */
+test("Barcode printing: PDF button downloads the label sheet", async ({ page, backend }) => {
+  backend.addRows("products", [product]).addRows("product_variants", [variant]);
+
+  await page.goto(`/${E2E_ORG_SLUG}/barcode-printing`);
+  const search = page.getByRole("combobox").filter({ hasText: /Search product, brand, size, or barcode/ });
+  await expect(search).toBeVisible({ timeout: 60_000 });
+  await search.click();
+  await page.getByPlaceholder("Type to search...").fill("100001");
+  await page.getByRole("option").filter({ hasText: "COTTON SHIRT" }).first().click();
+
+  const qty = page.locator("tr", { hasText: "100001" }).locator("input");
+  await qty.fill("2");
+  await qty.press("Tab");
+  await expect(page.getByText(/Labels:\s*2/)).toBeVisible();
+
+  const downloading = page.waitForEvent("download", { timeout: 60_000 });
+  await page.locator("footer.barcode-print-footer").getByRole("button", { name: "PDF", exact: true }).click();
+  const download = await downloading;
+  expect(download.suggestedFilename()).toMatch(/^barcode-labels-.*\.pdf$/);
+
+  const stream = await download.createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(chunk as Buffer);
+  const pdf = Buffer.concat(chunks);
+  expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+  expect(pdf.length).toBeGreaterThan(2_000);
+});
