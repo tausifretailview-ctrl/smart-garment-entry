@@ -107,7 +107,7 @@ import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { waitForPrintReady } from "@/utils/printReady";
 import { deleteJournalEntryByReference, postSaleJournalInBackground } from "@/utils/accounting/journalService";
-import { buildSaleNumberRequest, generateOrgSaleNumber, minSequenceFromSeriesStart, saleFormatToLikePattern, autoCorrectFY } from "@/utils/saleNumber";
+import { buildSaleNumberRequest, generateOrgSaleNumber, fetchNextSaleNumberPreview } from "@/utils/saleNumber";
 import type { Tables } from "@/integrations/supabase/types";
 import {
   ATOMIC_SALE_ID_PLACEHOLDER,
@@ -1166,102 +1166,9 @@ export default function SalesInvoice() {
       if (settingsData === undefined && !settingsFetched) return;
       
       try {
-        const settings = settingsData?.sale_settings as any;
-        if (settings?.invoice_numbering_format || settings?.invoice_series_start) {
-          const rawFormat = settings.invoice_numbering_format || settings.invoice_series_start;
-          const rawSeriesStart = settings.invoice_series_start;
-          const format = autoCorrectFY(rawFormat);
-          const seriesStart = rawSeriesStart ? autoCorrectFY(rawSeriesStart) : rawSeriesStart;
-          const hasPlaceholders = format.includes('{');
-          
-          if (hasPlaceholders) {
-            let safeFormat = format;
-            if (!/\{#+\}/.test(safeFormat)) {
-              safeFormat = /\d+$/.test(safeFormat) ? safeFormat.replace(/\d+$/, "{###}") : `${safeFormat}{###}`;
-            }
-            const likePattern = saleFormatToLikePattern(safeFormat);
-            const minSequence = minSequenceFromSeriesStart(seriesStart);
-
-            const { data: lastSales } = await supabase
-              .from('sales')
-              .select('sale_number')
-              .eq('organization_id', currentOrganization.id)
-              .is('deleted_at', null)
-              .like('sale_number', likePattern)
-              .order('created_at', { ascending: false })
-              .limit(50);
-
-            let sequence = minSequence;
-            if (lastSales && lastSales.length > 0) {
-              let maxSeq = 0;
-              for (const s of lastSales) {
-                const matches = s.sale_number.match(/(\d+)$/);
-                if (matches) maxSeq = Math.max(maxSeq, parseInt(matches[1], 10));
-              }
-              sequence = Math.max(maxSeq + 1, minSequence);
-            }
-
-            const basePattern = safeFormat.replace(/\{#+\}/, "");
-            const padLen = (safeFormat.match(/\{(#+)\}/)?.[1]?.length ?? 0);
-            const seqStr = padLen > 0 ? String(sequence).padStart(padLen, "0") : String(sequence);
-            setNextInvoicePreview(`${basePattern}${seqStr}`);
-          } else {
-            // Literal format — compute next sequence respecting series start
-            let safeFormat = /\d+$/.test(format) ? format.replace(/\d+$/, "{###}") : `${format}{###}`;
-            const likePattern = saleFormatToLikePattern(safeFormat);
-            const minSequence = minSequenceFromSeriesStart(seriesStart);
-
-            const { data: lastSales } = await supabase
-              .from('sales')
-              .select('sale_number')
-              .eq('organization_id', currentOrganization.id)
-              .is('deleted_at', null)
-              .like('sale_number', likePattern)
-              .order('created_at', { ascending: false })
-              .limit(50);
-            
-            let sequence = minSequence;
-            if (lastSales && lastSales.length > 0) {
-              let maxSeq = 0;
-              for (const s of lastSales) {
-                const matches = s.sale_number.match(/(\d+)$/);
-                if (matches) maxSeq = Math.max(maxSeq, parseInt(matches[1], 10));
-              }
-              sequence = Math.max(maxSeq + 1, minSequence);
-            }
-
-            const basePattern = safeFormat.replace(/\{#+\}/, "");
-            const padLen = (safeFormat.match(/\{(#+)\}/)?.[1]?.length ?? 0);
-            const seqStr = padLen > 0 ? String(sequence).padStart(padLen, "0") : String(sequence);
-            setNextInvoicePreview(`${basePattern}${seqStr}`);
-          }
-        } else {
-          // Preview next INV number without incrementing the sequence
-          const ist = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-          const month = ist.getMonth() + 1; // 1-based
-          const year = ist.getFullYear();
-          const fyStart = month >= 4 ? year : year - 1;
-          const fyEnd = fyStart + 1;
-          const series = `INV/${String(fyStart).slice(2)}-${String(fyEnd).slice(2)}`;
-          
-          // Preview = MAX(active sale seq) + 1 — matches generate_sale_number_atomic (no counter increment)
-          const { data: lastSales } = await supabase
-            .from('sales')
-            .select('sale_number')
-            .eq('organization_id', currentOrganization.id)
-            .is('deleted_at', null)
-            .like('sale_number', `${series}/%`)
-            .order('created_at', { ascending: false })
-            .limit(50);
-
-          let maxSeq = 0;
-          for (const s of lastSales || []) {
-            const matches = s.sale_number.match(/(\d+)$/);
-            if (matches) maxSeq = Math.max(maxSeq, parseInt(matches[1], 10));
-          }
-          const nextNum = maxSeq + 1;
-          setNextInvoicePreview(`${series}/${nextNum}`);
-        }
+        setNextInvoicePreview(
+          await fetchNextSaleNumberPreview(currentOrganization.id, settingsData?.sale_settings as any),
+        );
       } catch (error) {
         console.error('Error previewing next invoice:', error);
         setNextInvoicePreview('INV/??-??/?');
