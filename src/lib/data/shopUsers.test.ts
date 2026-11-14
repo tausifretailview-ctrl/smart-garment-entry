@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const be = vi.hoisted(() => ({ memberReads: 0, edgeCalls: 0, edgeFails: false }));
+const be = vi.hoisted(() => ({ memberReads: 0, edgeCalls: 0, edgeFails: false, edgeForbidden: false }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: () => ({
@@ -20,6 +20,8 @@ vi.mock("@/integrations/supabase/client", () => ({
       invoke: async () => {
         be.edgeCalls += 1;
         if (be.edgeFails) return { data: null, error: { message: "edge down" } };
+        // Shape of supabase-js FunctionsHttpError for a 403 answer.
+        if (be.edgeForbidden) return { data: null, error: { message: "non-2xx", context: { status: 403 } } };
         return {
           data: {
             users: [
@@ -35,7 +37,14 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
-import { getShopMembers, getShopUsers, refreshShopUsersCache } from "@/lib/data/shopUsers";
+import {
+  getShopMembers,
+  getShopUsers,
+  refreshShopUsersCache,
+  shopMembersQueryKey,
+  shopUsersQueryKey,
+} from "@/lib/data/shopUsers";
+import { isVolatileOrSensitiveKey } from "@/lib/queryPersister";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -45,6 +54,20 @@ describe("shop users data module", () => {
     be.memberReads = 0;
     be.edgeCalls = 0;
     be.edgeFails = false;
+    be.edgeForbidden = false;
+  });
+
+  it("a cashier (403 from get-users) gets an empty list that is remembered", async () => {
+    const qc = new QueryClient();
+    be.edgeForbidden = true;
+    expect(await getShopUsers(qc, "org-1", "token")).toEqual([]);
+    expect(await getShopUsers(qc, "org-1", "token")).toEqual([]);
+    expect(be.edgeCalls).toBe(1); // not called again on every dashboard open
+  });
+
+  it("logins and emails are never written to the on-disk cache", () => {
+    expect(isVolatileOrSensitiveKey(shopUsersQueryKey("org-1"))).toBe(true);
+    expect(isVolatileOrSensitiveKey(shopMembersQueryKey("org-1"))).toBe(true);
   });
 
   it("joins members with emails, drops other shops' users, and is read once", async () => {

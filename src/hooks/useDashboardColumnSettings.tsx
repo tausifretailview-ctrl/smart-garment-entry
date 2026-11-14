@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { isStatementTimeout } from "@/utils/statementTimeout";
-import { refreshOrgSettingsCache } from "@/hooks/useSettings";
 
 type DashboardType =
   | "pos_dashboard"
@@ -103,7 +102,6 @@ export function useDashboardColumnSettings(
         .update({ dashboard_settings: updatedSettings })
         .eq("organization_id", orgId);
       if (writeError) throw writeError;
-      void refreshOrgSettingsCache(queryClient, orgId);
 
       return { orgId, newSettings, updatedSettings };
     },

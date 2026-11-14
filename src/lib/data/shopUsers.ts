@@ -40,8 +40,8 @@ export function getShopMembers(queryClient: QueryClient, orgId: string): Promise
 
 /**
  * Members joined with their login emails from `get-users`. Users the edge function does not
- * return (e.g. the caller may not list users) are left out, as each screen did before.
- * Throws when the edge function fails, so a failure is not cached.
+ * return are left out, as each screen did before. A caller who may not list users (403)
+ * gets an empty list, cached like any other answer. Any other failure throws and is not cached.
  */
 async function fetchShopUsers(queryClient: QueryClient, orgId: string, accessToken: string): Promise<ShopUser[]> {
   const members = await getShopMembers(queryClient, orgId);
@@ -49,12 +49,22 @@ async function fetchShopUsers(queryClient: QueryClient, orgId: string, accessTok
   const { data, error } = await supabase.functions.invoke("get-users", {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (error) throw error;
+  if (error) {
+    // Cashiers / salesmen may not list users (the function answers 403). That is an answer,
+    // not a failure: remember "no names" so each dashboard open does not call it again.
+    if (isNotAllowedToListUsers(error)) return [];
+    throw error;
+  }
   const roleById = new Map(members.map((m) => [m.user_id, m.role]));
   const users = ((data as { users?: Array<{ id: string; email?: string | null }> } | null)?.users || []);
   return users
     .filter((u) => roleById.has(u.id))
     .map((u) => ({ id: u.id, email: u.email || "", role: roleById.get(u.id) ?? null }));
+}
+
+function isNotAllowedToListUsers(error: unknown): boolean {
+  const status = (error as { context?: { status?: number } } | null)?.context?.status;
+  return status === 401 || status === 403;
 }
 
 export function getShopUsers(queryClient: QueryClient, orgId: string, accessToken: string): Promise<ShopUser[]> {
@@ -88,6 +98,7 @@ export function useShopUsers() {
     queryKey: shopUsersQueryKey(orgId),
     queryFn: () => fetchShopUsers(queryClient, orgId!, token!),
     enabled: !!orgId && !!token,
+    retry: false, // a slow edge function: do not double the wait on a failure
     staleTime: STALE_SETTINGS,
     refetchOnWindowFocus: false,
   });

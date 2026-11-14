@@ -5,7 +5,7 @@ vi.mock("@/lib/errorLogger", () => ({ logError: vi.fn(() => Promise.resolve()) }
 
 import { toast } from "sonner";
 import { logError } from "@/lib/errorLogger";
-import { reportIfFails } from "./reportIfFails";
+import { claimFailureLog, reportIfFails, resetFailureLogClaims } from "./reportIfFails";
 
 afterEach(() => vi.clearAllMocks());
 const flush = () => new Promise((r) => setTimeout(r, 0));
@@ -43,5 +43,24 @@ describe("reportIfFails", () => {
     await flush();
     process.off("unhandledRejection", onRej);
     expect(seen).toEqual([]);
+  });
+});
+
+describe("failure log rate limit", () => {
+  afterEach(() => resetFailureLogClaims());
+
+  it("logs the same failure once a minute, different failures separately", () => {
+    resetFailureLogClaims();
+    expect(claimFailureLog("save the bill", "timeout", 0)).toBe(true);
+    expect(claimFailureLog("save the bill", "timeout", 30_000)).toBe(false);
+    expect(claimFailureLog("save the bill", "denied", 30_000)).toBe(true);
+    expect(claimFailureLog("save the bill", "timeout", 61_000)).toBe(true);
+  });
+
+  it("stops at 30 log rows per page load", () => {
+    resetFailureLogClaims();
+    let written = 0;
+    for (let i = 0; i < 50; i += 1) if (claimFailureLog("print", `error ${i}`, i)) written += 1;
+    expect(written).toBe(30);
   });
 });
