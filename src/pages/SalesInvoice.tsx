@@ -198,6 +198,7 @@ import {
 } from "@/utils/salesInvoiceDiscountRestore";
 import { useSizeGroups } from "@/lib/data/sizeGroups";
 import { useActiveStaff } from "@/lib/data/employees";
+import { fetchInvoiceWhatsAppSettings } from "@/lib/data/invoiceWhatsAppSettings";
 
 interface LineItem {
   id: string;
@@ -3963,11 +3964,7 @@ Thank you for choosing us!`;
         if (selectedCustomer?.phone && currentOrganization?.id) {
           (async () => {
             try {
-              const { data: whatsappSettings } = await supabase
-                .from("whatsapp_api_settings")
-                .select("*")
-                .eq("organization_id", currentOrganization.id)
-                .maybeSingle();
+              const whatsappSettings = await fetchInvoiceWhatsAppSettings(currentOrganization.id);
 
               if (!whatsappSettings?.is_active || !whatsappSettings?.auto_send_invoice) return;
 

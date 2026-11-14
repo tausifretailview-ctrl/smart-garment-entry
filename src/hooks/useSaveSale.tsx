@@ -87,6 +87,7 @@ import {
 import { saleItemSalesmanInsertField } from "@/utils/posLineSalesman";
 import { linkOrCreateCustomerFromSaleParty } from "@/utils/salePartyCustomerMaster";
 import { salePrintFirmPatch, type PrintFirm } from "@/utils/secondFirm";
+import { INVOICE_WHATSAPP_COLUMNS } from "@/lib/data/invoiceWhatsAppSettings";
 
 interface CartItem {
   id: string;
@@ -1659,7 +1660,7 @@ export const useSaveSale = () => {
           // Check WhatsApp settings
           const { data: whatsappSettings } = await supabase
             .from('whatsapp_api_settings')
-            .select('is_active, auto_send_invoice, send_provider, invoice_template_name, auto_send_invoice_link, invoice_link_message, social_links, send_invoice_pdf, invoice_pdf_template, use_document_header_template, invoice_document_template_name, pdf_min_amount')
+            .select(INVOICE_WHATSAPP_COLUMNS)
             .eq('organization_id', currentOrganization.id)
             .maybeSingle();
 
