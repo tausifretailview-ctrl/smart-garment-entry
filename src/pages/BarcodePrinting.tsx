@@ -236,6 +236,8 @@ import {
   fetchPrinterPresets,
   isSettingsLandingMode,
   markPrinterPresetDefault,
+  fetchFootwearDesignSetting,
+  saveFootwearDesignSetting,
   savePrecisionLabelConfigToSettings,
   syncDefaultLabelDesignToSettings,
 } from "@/lib/data/printerPresets";
@@ -615,15 +617,10 @@ export default function BarcodePrinting() {
     if (!orgId) return;
     let cancelled = false;
     void (async () => {
-      const { data } = await supabase
-        .from("barcode_label_settings")
-        .select("setting_data")
-        .eq("organization_id", orgId)
-        .eq("setting_type", "footwear_design")
-        .eq("setting_name", "default")
-        .maybeSingle();
-      if (cancelled || !data?.setting_data) return;
-      const resolved = resolveFootwearFormDesign(data.setting_data as any);
+      // A failed read keeps the design saved on this device (as before, but no longer unhandled).
+      const saved = await fetchFootwearDesignSetting(orgId).catch(() => null);
+      if (cancelled || !saved) return;
+      const resolved = resolveFootwearFormDesign(saved as any);
       setFootwearDesign(resolved);
       saveFootwearDesignToStorage(orgId, resolved);
     })();
@@ -643,18 +640,7 @@ export default function BarcodePrinting() {
       const resolved = resolveFootwearFormDesign(design);
       setSavingFootwearDesign(true);
       try {
-        const { error } = await supabase
-          .from("barcode_label_settings")
-          .upsert(
-            {
-              organization_id: orgId,
-              setting_type: "footwear_design",
-              setting_name: "default",
-              setting_data: resolved as any,
-            } as any,
-            { onConflict: "organization_id,setting_type,setting_name" },
-          );
-        if (error) throw error;
+        await saveFootwearDesignSetting(orgId, resolved);
         setFootwearDesign(resolved);
         saveFootwearDesignToStorage(orgId, resolved);
         toast.success("Footwear label design saved");

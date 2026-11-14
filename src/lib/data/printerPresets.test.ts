@@ -13,7 +13,7 @@ const db = vi.hoisted(() => ({
 vi.mock("@/integrations/supabase/client", () => {
   const make = () => {
     const b: Record<string, unknown> = {};
-    for (const op of ["select", "update", "delete", "eq", "in", "order"]) {
+    for (const op of ["select", "update", "upsert", "delete", "eq", "in", "order"]) {
       b[op] = (...args: unknown[]) => {
         db.calls.push({ op, args });
         return b;
@@ -34,6 +34,8 @@ import {
   clearDefaultPrinterPresetsForMode,
   deletePrinterPreset,
   fetchPrinterPresets,
+  fetchFootwearDesignSetting,
+  saveFootwearDesignSetting,
   savePrecisionLabelConfigToSettings,
   setDefaultPrinterPreset,
   syncDefaultLabelDesignToSettings,
@@ -119,6 +121,19 @@ describe("printer presets data module", () => {
     });
     db.results.push({ data: null, error: { message: "denied" } });
     await expect(savePrecisionLabelConfigToSettings("org-1", {})).rejects.toMatchObject({ message: "denied" });
+  });
+
+  it("reads and saves the footwear design as one row per shop", async () => {
+    db.results.push({ data: { setting_data: { rows: 3 } }, error: null });
+    expect(await fetchFootwearDesignSetting("org-1")).toEqual({ rows: 3 });
+    expect(db.calls).toContainEqual({ op: "eq", args: ["setting_type", "footwear_design"] });
+    expect(db.calls).toContainEqual({ op: "eq", args: ["setting_name", "default"] });
+
+    db.results.push({ data: null, error: null });
+    expect(await fetchFootwearDesignSetting("org-1")).toBeNull();
+
+    db.results.push({ data: null, error: { message: "denied" } });
+    await expect(saveFootwearDesignSetting("org-1", { rows: 3 })).rejects.toMatchObject({ message: "denied" });
   });
 
   it("Barcode Printing reads settings from the shared copy, not its own query", () => {
