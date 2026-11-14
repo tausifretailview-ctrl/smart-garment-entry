@@ -77,6 +77,7 @@ import {
 import { DocGodownInline } from "@/components/godowns/DocGodownBar";
 import { useDocGodown } from "@/hooks/useDocGodown";
 import { fetchVariantGodownQty } from "@/utils/godownTransfer";
+import { useActiveStaff } from "@/lib/data/employees";
 
 interface LineItem {
   id: string;
@@ -253,21 +254,7 @@ export default function DeliveryChallanEntry() {
   }, [settings, entryModeInitialized]);
 
   // Fetch employees
-  const { data: employeesData } = useQuery({
-    queryKey: ["employees", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      const { data, error } = await supabase
-        .from("employees")
-        .select("id, employee_name, status")
-        .eq("organization_id", currentOrganization.id)
-        .eq("status", "active")
-        .order("employee_name");
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!currentOrganization?.id,
-  });
+  const { data: employeesData } = useActiveStaff();
 
   // Fetch pending sale orders
   const { data: pendingSaleOrders } = useQuery({

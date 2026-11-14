@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { formatDateDMY } from "@/lib/dateDisplay";
+import { staffMasterQueryKey } from "@/lib/data/employees";
 
 interface Employee {
   id: string;
@@ -163,7 +164,7 @@ const EmployeeMaster = () => {
   });
 
   const { data: employees = [], isLoading } = useQuery({
-    queryKey: ["employees", currentOrganization?.id],
+    queryKey: staffMasterQueryKey(currentOrganization?.id),
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       const allEmployees: Employee[] = [];
@@ -172,7 +173,7 @@ const EmployeeMaster = () => {
       let hasMore = true;
       while (hasMore) {
         const { data, error } = await supabase
-          .from("employees").select("*").eq("organization_id", currentOrganization.id)
+          .from("employees").select("*").eq("organization_id", currentOrganization.id).is("deleted_at", null)
           .order("created_at", { ascending: false }).range(offset, offset + PAGE_SIZE - 1);
         if (error) throw error;
         if (data && data.length > 0) { allEmployees.push(...(data as Employee[])); offset += PAGE_SIZE; hasMore = data.length === PAGE_SIZE; }

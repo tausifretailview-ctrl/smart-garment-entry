@@ -64,7 +64,7 @@ export function useAccountsVoucherData(
 
   const needsEmployees = loadAllParties || activeTab === "employee-salary";
   const { data: employees } = useQuery({
-    queryKey: ["employees", organizationId],
+    queryKey: ["employees", "vouchers", organizationId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")

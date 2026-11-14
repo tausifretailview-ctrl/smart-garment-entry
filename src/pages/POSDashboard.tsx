@@ -229,6 +229,7 @@ import {
   type PurchaseCodeDiscount,
 } from "@/utils/purchaseCodeEncoder";
 import { formatDateDMY } from "@/lib/dateDisplay";
+import { useActiveStaff } from "@/lib/data/employees";
 
 interface SaleItem {
   id: string;
@@ -457,23 +458,11 @@ const POSDashboard = () => {
     staleTime: 300000,
   });
 
-  const { data: salesmanOptions = [] } = useQuery({
-    queryKey: ["pos-dashboard-salesmen", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [] as string[];
-      const { data, error } = await supabase
-        .from("employees")
-        .select("employee_name")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .eq("status", "active")
-        .order("employee_name");
-      if (error) throw error;
-      return normalizePosSalesmanFilter((data ?? []).map((row) => row.employee_name ?? ""));
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 300000,
-  });
+  const { data: activeStaff } = useActiveStaff();
+  const salesmanOptions = useMemo(
+    () => normalizePosSalesmanFilter((activeStaff ?? []).map((row) => row.employee_name ?? "")),
+    [activeStaff],
+  );
 
   const salesmanChoices = useMemo(
     () => normalizePosSalesmanFilter([...salesmanOptions, ...salesmanFilter]),

@@ -331,6 +331,7 @@ import {
 } from "@/components/CustomerPhoneLookupInput";
 import { phonesMatchExactly } from "@/utils/posCustomerPhoneMatch";
 import { searchSaleOrderVariants } from "@/utils/saleOrderProductSearch";
+import { useActiveStaff } from "@/lib/data/employees";
 
 interface PendingPriceSelection {
   product: any;
@@ -2632,23 +2633,7 @@ export default function POSSales() {
   }, [showHoldPanel, refetchHeldBills]);
 
   // Fetch employees for salesman dropdown
-  const { data: employees } = useQuery({
-    queryKey: ['pos-employees', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      const { data, error } = await supabase
-        .from('employees')
-        .select('id, employee_name, designation, commission_percent')
-        .eq('organization_id', currentOrganization.id)
-        .is('deleted_at', null)
-        .eq('status', 'active')
-        .order('employee_name');
-      
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!currentOrganization?.id,
-  });
+  const { data: employees } = useActiveStaff();
 
   // Fetch commission rules for salesman commission calculation
   const { data: commissionRules = [] } = useQuery({
