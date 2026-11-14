@@ -25,7 +25,7 @@ describe("GST Analysis full view", () => {
   it("has the Sale, Purchase and Final GST Payable tabs and is reachable from the menus", () => {
     const page = read("src/pages/GSTAnalysis.tsx");
     for (const label of ["Sale GST", "Purchase GST (ITC)", "Final GST Payable"]) expect(page).toContain(label);
-    expect(read("src/App.tsx")).toContain('path="gst-analysis"');
+    expect(read("src/app/AppRoutes.tsx")).toContain('path="gst-analysis"');
     expect(read("src/components/AppSidebar.tsx")).toContain('to="/gst-analysis"');
     expect(read("src/pages/ReportsHub.tsx")).toContain('path: "/gst-analysis"');
   });

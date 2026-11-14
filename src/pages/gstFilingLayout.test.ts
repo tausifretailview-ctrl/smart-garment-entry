@@ -23,7 +23,7 @@ describe("GST Filing full view", () => {
   });
 
   it("is reachable from the menus and opens a period on GST Reports", () => {
-    expect(read("src/App.tsx")).toContain('path="gst-filing"');
+    expect(read("src/app/AppRoutes.tsx")).toContain('path="gst-filing"');
     expect(read("src/components/AppSidebar.tsx")).toContain('to="/gst-filing"');
     expect(read("src/pages/ReportsHub.tsx")).toContain('path: "/gst-filing"');
     expect(read("src/pages/GSTReadiness.tsx")).toContain('"/gst-filing"');

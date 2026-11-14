@@ -26,7 +26,7 @@ describe("GST Readiness full view", () => {
     for (const label of ["Filing preferences", "Regular (monthly)", "QRMP (quarterly)", "Composition", "Turnover under ₹5 crore"]) {
       expect(page).toContain(label);
     }
-    expect(read("src/App.tsx")).toContain('path="gst-readiness"');
+    expect(read("src/app/AppRoutes.tsx")).toContain('path="gst-readiness"');
     expect(read("src/components/AppSidebar.tsx")).toContain('to="/gst-readiness"');
     expect(read("src/pages/ReportsHub.tsx")).toContain('path: "/gst-readiness"');
     expect(read("src/pages/GSTReports.tsx")).toContain('"/gst-readiness"');

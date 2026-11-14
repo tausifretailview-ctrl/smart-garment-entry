@@ -45,7 +45,7 @@ describe("Stock Transfer dashboard + entry", () => {
     const search = read("src/utils/stockTransferSearch.ts");
     expect(search).toContain("buildProductTextOrFilter");
     expect(search).toContain("scoreProductSearchMatch");
-    const app = read("src/App.tsx");
+    const app = read("src/app/AppRoutes.tsx");
     const start = app.indexOf('path="stock-transfer-entry"');
     expect(app.slice(start, start + 400)).toContain("<FullScreenLayout>");
   });
@@ -58,7 +58,7 @@ describe("Stock Transfer dashboard + entry", () => {
     expect(POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS).toContain("stock-transfer");
     expect(resolveTabLoadShell("stock-transfer")).toBe("dashboard");
     expect(tabLoadMessage("stock-transfer", "dashboard")).toBe("Opening Stock Transfer…");
-    const app = read("src/App.tsx");
+    const app = read("src/app/AppRoutes.tsx");
     const start = app.indexOf('path="stock-transfer"');
     const block = app.slice(start, app.indexOf('path="stock-transfer-entry"', start));
     expect(block).toContain('allowedRoles={["admin", "manager"]}');

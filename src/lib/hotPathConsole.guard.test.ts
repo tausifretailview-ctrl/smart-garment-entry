@@ -63,8 +63,8 @@ describe("hot-path console guard", () => {
     );
   });
 
-  it("App.tsx does not auto-enable cloud-usage diagnostics in DEV", () => {
-    const src = readFileSync(join(root, "src/App.tsx"), "utf8");
+  it("app start-up does not auto-enable cloud-usage diagnostics in DEV", () => {
+    const src = readFileSync(join(root, "src/app/appStartup.ts"), "utf8");
     expect(src).toContain("initCloudUsageDiagnostics");
     expect(
       /import\.meta\.env\.DEV\s*\|\|[\s\S]{0,240}initCloudUsageDiagnostics/.test(src),

@@ -115,13 +115,13 @@ for (const rel of PROBE_FILES) {
   });
 }
 
-const appSrc = await readFile(path.join(ROOT, "src/App.tsx"), "utf8");
+const appSrc = await readFile(path.join(ROOT, "src/app/appStartup.ts"), "utf8");
 if (
   /import\.meta\.env\.DEV\s*\|\|[\s\S]{0,240}initCloudUsageDiagnostics/.test(appSrc) ||
   /initCloudUsageDiagnostics[\s\S]{0,240}import\.meta\.env\.DEV/.test(appSrc)
 ) {
   fail(
-    "src/App.tsx",
+    "src/app/appStartup.ts",
     1,
     "import.meta.env.DEV || … initCloudUsageDiagnostics()",
     "cloud-usage fetch wrapper must stay flag-only — do not auto-enable in DEV",
