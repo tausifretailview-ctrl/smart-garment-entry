@@ -166,7 +166,7 @@ import {
   type OpenSettlementScanInfo,
 } from "@/utils/stockSettlementScans";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { useProductFieldSettings } from "@/hooks/useSettings";
+import { getOrgSettingsRow, useProductFieldSettings } from "@/hooks/useSettings";
 import { entryPageShellClass } from "@/lib/entryPageLayout";
 import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey } from "@/types/labelTypes";
 import { PrecisionThermalPrint } from "@/components/precision-barcode/PrecisionThermalPrint";
@@ -236,6 +236,9 @@ import {
   fetchPrinterPresets,
   isSettingsLandingMode,
   markPrinterPresetDefault,
+  fetchFootwearDesignSetting,
+  saveFootwearDesignSetting,
+  savePrecisionLabelConfigToSettings,
   syncDefaultLabelDesignToSettings,
 } from "@/lib/data/printerPresets";
 
@@ -614,15 +617,10 @@ export default function BarcodePrinting() {
     if (!orgId) return;
     let cancelled = false;
     void (async () => {
-      const { data } = await supabase
-        .from("barcode_label_settings")
-        .select("setting_data")
-        .eq("organization_id", orgId)
-        .eq("setting_type", "footwear_design")
-        .eq("setting_name", "default")
-        .maybeSingle();
-      if (cancelled || !data?.setting_data) return;
-      const resolved = resolveFootwearFormDesign(data.setting_data as any);
+      // A failed read keeps the design saved on this device (as before, but no longer unhandled).
+      const saved = await fetchFootwearDesignSetting(orgId).catch(() => null);
+      if (cancelled || !saved) return;
+      const resolved = resolveFootwearFormDesign(saved as any);
       setFootwearDesign(resolved);
       saveFootwearDesignToStorage(orgId, resolved);
     })();
@@ -642,18 +640,7 @@ export default function BarcodePrinting() {
       const resolved = resolveFootwearFormDesign(design);
       setSavingFootwearDesign(true);
       try {
-        const { error } = await supabase
-          .from("barcode_label_settings")
-          .upsert(
-            {
-              organization_id: orgId,
-              setting_type: "footwear_design",
-              setting_name: "default",
-              setting_data: resolved as any,
-            } as any,
-            { onConflict: "organization_id,setting_type,setting_name" },
-          );
-        if (error) throw error;
+        await saveFootwearDesignSetting(orgId, resolved);
         setFootwearDesign(resolved);
         saveFootwearDesignToStorage(orgId, resolved);
         toast.success("Footwear label design saved");
@@ -819,26 +806,7 @@ export default function BarcodePrinting() {
   }, []);
 
   const savePrecisionConfigToSettings = useCallback(async (configToSave: LabelDesignConfig, orgId: string) => {
-    const { data: existing, error: fetchError } = await supabase
-      .from("settings")
-      .select("bill_barcode_settings")
-      .eq("organization_id", orgId)
-      .maybeSingle();
-
-    if (fetchError) throw fetchError;
-
-    const currentBbs = (existing?.bill_barcode_settings as any) || {};
-    const { error: updateError } = await supabase
-      .from("settings")
-      .update({
-        bill_barcode_settings: {
-          ...currentBbs,
-          precision_label_config: configToSave,
-        } as any,
-      })
-      .eq("organization_id", orgId);
-
-    if (updateError) throw updateError;
+    await savePrecisionLabelConfigToSettings(orgId, configToSave);
     void refreshOrgSettingsCache(queryClient, orgId);
   }, [queryClient]);
 
@@ -1383,13 +1351,8 @@ export default function BarcodePrinting() {
       if (!currentOrganization?.id) return;
       
       try {
-        const { data, error } = await supabase
-          .from("settings")
-          .select("business_name, purchase_settings, product_settings, bill_barcode_settings")
-          .eq("organization_id", currentOrganization.id)
-          .maybeSingle();
-
-        if (error) throw error;
+        // The shop's shared settings copy (src/hooks/useSettings.ts): no extra read when fresh.
+        const data = await getOrgSettingsRow(queryClient, currentOrganization.id);
         
         if (data?.business_name) {
           setBusinessName(data.business_name);

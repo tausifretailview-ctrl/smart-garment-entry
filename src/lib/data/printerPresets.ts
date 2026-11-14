@@ -160,3 +160,49 @@ export async function syncDefaultLabelDesignToSettings(
   if (writeError) throw writeError;
   return true;
 }
+
+/**
+ * Save the Label Designer's precision design into Settings → Bill & Barcode, keeping every
+ * other barcode setting (read fresh just before writing). Throws on a failed read or write.
+ */
+export async function savePrecisionLabelConfigToSettings(orgId: string, config: unknown): Promise<void> {
+  const { data: existing, error: fetchError } = await supabase
+    .from("settings")
+    .select("bill_barcode_settings")
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  if (fetchError) throw fetchError;
+
+  const currentBbs = (existing?.bill_barcode_settings as Record<string, unknown> | null) || {};
+  const { error: updateError } = await supabase
+    .from("settings")
+    .update({ bill_barcode_settings: { ...currentBbs, precision_label_config: config } as never })
+    .eq("organization_id", orgId);
+  if (updateError) throw updateError;
+}
+
+const FOOTWEAR_DESIGN_KEY = { setting_type: "footwear_design", setting_name: "default" } as const;
+
+/** The shop's saved footwear label design (raw), or null when none is saved. Throws on a failed read. */
+export async function fetchFootwearDesignSetting(orgId: string): Promise<unknown | null> {
+  const { data, error } = await supabase
+    .from("barcode_label_settings")
+    .select("setting_data")
+    .eq("organization_id", orgId)
+    .eq("setting_type", FOOTWEAR_DESIGN_KEY.setting_type)
+    .eq("setting_name", FOOTWEAR_DESIGN_KEY.setting_name)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.setting_data ?? null;
+}
+
+/** Save the shop's footwear label design (one row per shop). Throws on a failed write. */
+export async function saveFootwearDesignSetting(orgId: string, design: unknown): Promise<void> {
+  const { error } = await supabase
+    .from("barcode_label_settings")
+    .upsert(
+      { organization_id: orgId, ...FOOTWEAR_DESIGN_KEY, setting_data: design as never } as never,
+      { onConflict: "organization_id,setting_type,setting_name" },
+    );
+  if (error) throw error;
+}

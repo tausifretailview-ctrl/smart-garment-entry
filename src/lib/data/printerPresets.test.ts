@@ -13,7 +13,7 @@ const db = vi.hoisted(() => ({
 vi.mock("@/integrations/supabase/client", () => {
   const make = () => {
     const b: Record<string, unknown> = {};
-    for (const op of ["select", "update", "delete", "eq", "in", "order"]) {
+    for (const op of ["select", "update", "upsert", "delete", "eq", "in", "order"]) {
       b[op] = (...args: unknown[]) => {
         db.calls.push({ op, args });
         return b;
@@ -34,6 +34,9 @@ import {
   clearDefaultPrinterPresetsForMode,
   deletePrinterPreset,
   fetchPrinterPresets,
+  fetchFootwearDesignSetting,
+  saveFootwearDesignSetting,
+  savePrecisionLabelConfigToSettings,
   setDefaultPrinterPreset,
   syncDefaultLabelDesignToSettings,
 } from "@/lib/data/printerPresets";
@@ -106,6 +109,37 @@ describe("printer presets data module", () => {
 
     db.results.push({ data: null, error: null }); // shop without a settings row
     expect(await syncDefaultLabelDesignToSettings("org-1", "p1", "thermal")).toBe(false);
+  });
+
+  it("saves the precision design into Settings, keeping other barcode settings", async () => {
+    db.results.push({ data: { bill_barcode_settings: { logo_url: "x.png", default_thermal_landing: "thermal" } }, error: null });
+    db.results.push({ data: null, error: null });
+    await savePrecisionLabelConfigToSettings("org-1", { fieldOrder: ["barcode"] });
+    expect(db.calls).toContainEqual({
+      op: "update",
+      args: [{ bill_barcode_settings: { logo_url: "x.png", default_thermal_landing: "thermal", precision_label_config: { fieldOrder: ["barcode"] } } }],
+    });
+    db.results.push({ data: null, error: { message: "denied" } });
+    await expect(savePrecisionLabelConfigToSettings("org-1", {})).rejects.toMatchObject({ message: "denied" });
+  });
+
+  it("reads and saves the footwear design as one row per shop", async () => {
+    db.results.push({ data: { setting_data: { rows: 3 } }, error: null });
+    expect(await fetchFootwearDesignSetting("org-1")).toEqual({ rows: 3 });
+    expect(db.calls).toContainEqual({ op: "eq", args: ["setting_type", "footwear_design"] });
+    expect(db.calls).toContainEqual({ op: "eq", args: ["setting_name", "default"] });
+
+    db.results.push({ data: null, error: null });
+    expect(await fetchFootwearDesignSetting("org-1")).toBeNull();
+
+    db.results.push({ data: null, error: { message: "denied" } });
+    await expect(saveFootwearDesignSetting("org-1", { rows: 3 })).rejects.toMatchObject({ message: "denied" });
+  });
+
+  it("Barcode Printing reads settings from the shared copy, not its own query", () => {
+    const page = readFileSync(join(root, "src/pages/BarcodePrinting.tsx"), "utf8");
+    expect(page).not.toMatch(/\.from\(\s*["']settings["']\s*\)/);
+    expect(page).toContain("getOrgSettingsRow(queryClient, currentOrganization.id)");
   });
 
   it("Barcode Printing and Settings no longer query printer_presets themselves", () => {

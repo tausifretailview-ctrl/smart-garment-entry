@@ -65,7 +65,7 @@ describe("shared settings row", () => {
  * `.from("settings")` query. The count may only go down. Writes, read-before-write paths,
  * logged-out pages (portal / field-sales login) and the accounting flag module keep theirs.
  */
-const SETTINGS_TABLE_REFS_BASELINE = 42;
+const SETTINGS_TABLE_REFS_BASELINE = 41;
 
 describe("direct settings table queries (ratchet)", () => {
   it(`stay at or below ${SETTINGS_TABLE_REFS_BASELINE}`, () => {
