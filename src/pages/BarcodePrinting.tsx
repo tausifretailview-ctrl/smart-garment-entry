@@ -230,7 +230,6 @@ import { escapeHtml } from "@/utils/escapeHtml";
 import { formatDateDMY } from "@/lib/dateDisplay";
 import {
   ensureCompleteFieldOrder,
-  mapPrinterPresetFromRow,
   resolvePresetLabelConfig,
   sortItemsBySize,
 } from "@/lib/barcode/barcodeLabelConfig";
@@ -239,6 +238,13 @@ import { BarcodePrintFooter } from "@/components/barcode/BarcodePrintFooter";
 import { builtInLabelTemplates, sheetPresetLabels, sheetPresets, type SheetType } from "@/lib/barcode/sheetPresets";
 import { refreshOrgSettingsCache } from "@/hooks/useSettings";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  clearDefaultPrinterPresetsForMode,
+  deletePrinterPreset,
+  fetchPrinterPresetByName,
+  fetchPrinterPresets,
+  markPrinterPresetDefault,
+} from "@/lib/data/printerPresets";
 
 const precisionPresetStorageKey = (orgId: string) => `precision_active_preset_${orgId}`;
 
@@ -1520,13 +1526,8 @@ export default function BarcodePrinting() {
     const fetchDbPresets = async () => {
       if (!currentOrganization?.id) return;
       try {
-        const { data } = await supabase
-          .from("printer_presets")
-          .select("*")
-          .eq("organization_id", currentOrganization.id)
-          .order("name");
-        if (data) {
-          const mapped = data.map((p: any) => mapPrinterPresetFromRow(p));
+        const mapped = await fetchPrinterPresets(currentOrganization.id).catch(() => null);
+        if (mapped) {
           setDbPresets(mapped);
 
           // Auto-load: localStorage → settings default design → is_default for landing mode
@@ -1684,63 +1685,20 @@ export default function BarcodePrinting() {
 
   const refreshDbPresetsFromServer = useCallback(async () => {
     if (!currentOrganization?.id) return;
-    const { data, error } = await supabase
-      .from("printer_presets")
-      .select("*")
-      .eq("organization_id", currentOrganization.id)
-      .order("name");
-    if (error) throw error;
-    if (data) {
-      const mapped = data.map((p: Record<string, unknown>) => mapPrinterPresetFromRow(p));
-      setDbPresets(mapped);
-    }
+    setDbPresets(await fetchPrinterPresets(currentOrganization.id));
   }, [currentOrganization?.id]);
 
   const clearDefaultPresetsForMode = useCallback(
     async (printMode: PrecisionPrintMode): Promise<boolean> => {
       if (!currentOrganization?.id) return false;
-
-      const { data: rows, error: fetchError } = await supabase
-        .from("printer_presets")
-        .select("id, name, print_mode, thermal_cols, a4_cols, a4_rows")
-        .eq("organization_id", currentOrganization.id)
-        .eq("is_default", true);
-
-      if (fetchError) {
-        console.error("Failed to list default presets:", fetchError);
-        toast.error(fetchError.message || "Failed to set default");
+      try {
+        await clearDefaultPrinterPresetsForMode(currentOrganization.id, printMode);
+        return true;
+      } catch (err) {
+        console.error("Failed to clear default presets:", err);
+        toast.error((err as { message?: string })?.message || "Failed to set default");
         return false;
       }
-
-      const idsToClear = (rows ?? [])
-        .filter((row) =>
-          presetMatchesPrintMode(
-            {
-              name: String(row.name ?? ""),
-              printMode: row.print_mode as PrecisionPrintMode | undefined,
-              thermalCols: row.thermal_cols != null ? Number(row.thermal_cols) : undefined,
-              a4Cols: row.a4_cols != null ? Number(row.a4_cols) : undefined,
-              a4Rows: row.a4_rows != null ? Number(row.a4_rows) : undefined,
-            },
-            printMode,
-          ),
-        )
-        .map((row) => String(row.id));
-
-      if (idsToClear.length === 0) return true;
-
-      const { error: clearError } = await supabase
-        .from("printer_presets")
-        .update({ is_default: false })
-        .eq("organization_id", currentOrganization.id)
-        .in("id", idsToClear);
-
-      if (clearError) {
-        console.error("Failed to clear default presets:", clearError);
-        toast.error(clearError.message || "Failed to set default");
-        return false;
-      }
-      return true;
     },
     [currentOrganization?.id],
   );
@@ -1964,18 +1922,13 @@ export default function BarcodePrinting() {
     const cleared = await clearDefaultPresetsForMode(printMode);
     if (!cleared) return;
 
-    const { data, error } = await supabase
-      .from("printer_presets")
-      .update({
-        is_default: true,
-        print_mode: printMode,
-        thermal_cols:
-          printMode === "thermal3up" ? 3 : printMode === "thermal2up" ? 2 : 1,
-      })
-      .eq("id", presetId)
-      .eq("organization_id", currentOrganization.id)
-      .select("id")
-      .maybeSingle();
+    let error: { message?: string } | null = null;
+    let data = false;
+    try {
+      data = await markPrinterPresetDefault(currentOrganization.id, presetId, printMode);
+    } catch (err) {
+      error = err as { message?: string };
+    }
 
     if (error || !data) {
       console.error("Failed to set default preset:", error);
@@ -2092,14 +2045,8 @@ export default function BarcodePrinting() {
       return;
     }
     toast.success(`"${templateName}" set as default for ${getPrecisionPrintModeDisplayName(mode)}`);
-    const { data } = await supabase
-      .from("printer_presets")
-      .select("*")
-      .eq("organization_id", currentOrganization.id)
-      .order("name");
-    if (data) {
-      setDbPresets(data.map((p: any) => mapPrinterPresetFromRow(p)));
-    }
+    const refreshed = await fetchPrinterPresets(currentOrganization.id).catch(() => null);
+    if (refreshed) setDbPresets(refreshed);
   };
 
   /** Load a precision preset/template and keep Label Designer + Standard tabs in sync. */
@@ -2376,14 +2323,9 @@ export default function BarcodePrinting() {
     await refreshDbPresetsFromServer();
     const activeName = activePrecisionTemplateName?.replace(/^preset:/, "");
     if (!activeName || !currentOrganization?.id) return;
-    const { data } = await supabase
-      .from("printer_presets")
-      .select("*")
-      .eq("organization_id", currentOrganization.id)
-      .eq("name", activeName)
-      .maybeSingle();
-    if (!data) return;
-    handlePrecisionPresetLoad(mapPrinterPresetFromRow(data as Record<string, unknown>));
+    const preset = await fetchPrinterPresetByName(currentOrganization.id, activeName).catch(() => null);
+    if (!preset) return;
+    handlePrecisionPresetLoad(preset);
   }, [
     activePrecisionTemplateName,
     currentOrganization?.id,
@@ -5273,14 +5215,8 @@ export default function BarcodePrinting() {
       } else {
         toast.success(`Calibration saved as "${presetName}"`);
         // Refresh presets
-        const { data } = await supabase
-          .from("printer_presets")
-          .select("*")
-          .eq("organization_id", currentOrganization.id)
-          .order("name");
-        if (data) {
-          setDbPresets(data.map((p: any) => mapPrinterPresetFromRow(p)));
-        }
+        const refreshed = await fetchPrinterPresets(currentOrganization.id).catch(() => null);
+        if (refreshed) setDbPresets(refreshed);
       }
     }
 
@@ -7273,8 +7209,13 @@ export default function BarcodePrinting() {
               presets={dbPresets}
               onSavePreset={upsertAndActivatePrinterPreset}
               onDeletePreset={async (presetId) => {
-                const { error } = await supabase.from("printer_presets").delete().eq("id", presetId);
-                if (error) { toast.error("Failed to delete preset"); return; }
+                if (!currentOrganization?.id) return;
+                try {
+                  await deletePrinterPreset(currentOrganization.id, presetId);
+                } catch {
+                  toast.error("Failed to delete preset");
+                  return;
+                }
                 toast.success("Preset deleted");
                 setDbPresets((prev) => prev.filter((p) => p.id !== presetId));
               }}
@@ -7642,8 +7583,10 @@ export default function BarcodePrinting() {
                 presets={dbPresets}
                 onSavePreset={upsertAndActivatePrinterPreset}
                 onDeletePreset={async (presetId) => {
-                  const { error } = await supabase.from("printer_presets").delete().eq("id", presetId);
-                  if (error) {
+                  if (!currentOrganization?.id) return;
+                  try {
+                    await deletePrinterPreset(currentOrganization.id, presetId);
+                  } catch {
                     toast.error("Failed to delete preset");
                     return;
                   }
