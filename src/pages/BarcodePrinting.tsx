@@ -1,7 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 
 import { useLocation, useSearchParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -27,12 +26,8 @@ import { Check, Save, Trash2, Download, RefreshCw, Edit, Printer, Plus, Loader2,
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   encodePurchasePriceForLabel,
-  normalizePurchaseBillDate,
   resolveLabelPurchaseBillDate,
   resolvePurchaseCodeAlphabet,
-  resolvePurchaseCodeGstPer,
-  resolvePurchaseCodeDiscount,
-  type PurchaseCodeDiscount,
   resolvePurchaseCodeIncludeDate,
 } from "@/utils/purchaseCodeEncoder";
 import { generateA4LabelPdf } from '@/utils/a4LabelPdf';
@@ -219,8 +214,12 @@ import {
   fetchBillLineQuantities,
   findPurchaseBillIdByNumber,
   loadLabelItemsFromBill,
+  fetchLiveLabelVariants,
+  fetchPurchaseBillDate,
+  fetchRecentPurchaseBills,
   quantityOnBill,
   type BillLineQuantities,
+  type LiveLabelVariant,
 } from "@/lib/barcode/loadLabelItemsFromBill";
 import { buildLabelHtml, hasAbsolutePositioning } from "@/lib/barcode/labelHtml";
 import { searchLabelProducts, type LabelProductSearchResult } from "@/lib/barcode/searchLabelProducts";
@@ -2264,20 +2263,7 @@ export default function BarcodePrinting() {
 
     const fetchRecentBills = async () => {
       try {
-        const { data, error } = await supabase
-          .from("purchase_bills")
-          .select("id, software_bill_no, supplier_name, bill_date")
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .order("bill_date", { ascending: false })
-          .order("created_at", { ascending: false })
-          .limit(20);
-
-        if (error) throw error;
-
-        if (data) {
-          setRecentBills(data);
-        }
+        setRecentBills(await fetchRecentPurchaseBills(currentOrganization.id));
       } catch (error) {
         console.error("Failed to fetch recent bills:", error);
       }
@@ -2413,109 +2399,25 @@ export default function BarcodePrinting() {
         ),
       ];
 
-      const liveBySku = new Map<
-        string,
-        {
-          barcode: string;
-          size: string;
-          color: string;
-          sale_price: number;
-          mrp: number;
-          pur_price: number;
-          gst_per: number;
-          pur_disc: PurchaseCodeDiscount;
-          product_name?: string;
-          brand?: string;
-          category?: string;
-          style?: string;
-          uom?: string;
-        }
-      >();
-
-      if (skuIds.length > 0 && currentOrganization?.id) {
-        const { data: liveRows, error: liveErr } = await supabase
-          .from("product_variants")
-          .select(
-            `
-            id,
-            barcode,
-            size,
-            color,
-            sale_price,
-            mrp,
-            pur_price,
-            products (
-              product_name,
-              brand,
-              category,
-              style,
-              color,
-              uom,
-              purchase_gst_percent,
-              gst_per,
-              purchase_discount_type,
-              purchase_discount_value
-            )
-          `,
-          )
-          .in("id", skuIds)
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null);
-
-        if (liveErr) {
-          console.warn("[BarcodePrinting] live variant hydrate failed — using bill snapshot", liveErr);
-        } else {
-          for (const row of liveRows ?? []) {
-            const p = row.products as {
-              product_name?: string;
-              brand?: string;
-              category?: string;
-              style?: string;
-              color?: string;
-              uom?: string;
-              purchase_gst_percent?: number | null;
-              gst_per?: number | null;
-              purchase_discount_type?: string | null;
-              purchase_discount_value?: number | null;
-            } | null;
-            liveBySku.set(row.id, {
-              barcode: row.barcode || "",
-              size: row.size || "",
-              color: row.color || p?.color || "",
-              sale_price: Number(row.sale_price) || 0,
-              mrp: Number(row.mrp) || 0,
-              pur_price: Number(row.pur_price) || 0,
-              gst_per: resolvePurchaseCodeGstPer(p, 0),
-              pur_disc: resolvePurchaseCodeDiscount(p),
-              product_name: p?.product_name,
-              brand: p?.brand,
-              category: p?.category,
-              style: p?.style,
-              uom: p?.uom,
-            });
-          }
-        }
-      }
-
-      if (!hydrateStillWanted()) return;
-
-      // Saved invoice date wins. Print Barcodes after save used to stamp today
-      // because the form resets, so September printed as the current month.
-      let savedInvoiceDate: string | undefined;
-      if (pending.billId && currentOrganization?.id) {
-        const { data: billDateRow, error: billDateErr } = await supabase
-          .from("purchase_bills")
-          .select("bill_date")
-          .eq("id", pending.billId)
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .maybeSingle();
-        if (billDateErr) {
-          console.warn("[BarcodePrinting] purchase invoice date lookup failed", billDateErr);
-        } else {
-          savedInvoiceDate = normalizePurchaseBillDate(billDateRow?.bill_date);
-        }
-      }
+      // Live product details and the saved invoice date are independent: read them together.
+      // A failed read falls back to the bill snapshot / today, as before.
+      const orgIdForHydrate = currentOrganization?.id;
+      const [liveBySku, savedInvoiceDate] = await Promise.all([
+        orgIdForHydrate && skuIds.length > 0
+          ? fetchLiveLabelVariants(orgIdForHydrate, skuIds).catch((liveErr) => {
+              console.warn("[BarcodePrinting] live variant hydrate failed — using bill snapshot", liveErr);
+              return new Map<string, LiveLabelVariant>();
+            })
+          : Promise.resolve(new Map<string, LiveLabelVariant>()),
+        // Saved invoice date wins. Print Barcodes after save used to stamp today
+        // because the form resets, so September printed as the current month.
+        orgIdForHydrate && pending.billId
+          ? fetchPurchaseBillDate(orgIdForHydrate, pending.billId).catch((billDateErr) => {
+              console.warn("[BarcodePrinting] purchase invoice date lookup failed", billDateErr);
+              return undefined;
+            })
+          : Promise.resolve(undefined),
+      ]);
 
       if (!hydrateStillWanted()) return;
 

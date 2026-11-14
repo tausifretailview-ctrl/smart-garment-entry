@@ -227,3 +227,119 @@ export async function loadLabelItemsFromBill(
   if (loadedItems.length === 0) return { status: "no_details", bill };
   return { status: "ok", bill, items: loadedItems };
 }
+
+/** Current product details for labels, by variant id (what "Print Barcodes" after a purchase save shows). */
+export interface LiveLabelVariant {
+  barcode: string;
+  size: string;
+  color: string;
+  sale_price: number;
+  mrp: number;
+  pur_price: number;
+  gst_per: number;
+  pur_disc: ReturnType<typeof resolvePurchaseCodeDiscount>;
+  product_name?: string;
+  brand?: string;
+  category?: string;
+  style?: string;
+  uom?: string;
+}
+
+/** Live variant + product details for these variants (this shop, not deleted). Throws on a failed read. */
+export async function fetchLiveLabelVariants(orgId: string, skuIds: string[]): Promise<Map<string, LiveLabelVariant>> {
+  const liveBySku = new Map<string, LiveLabelVariant>();
+  if (skuIds.length === 0) return liveBySku;
+  const { data: liveRows, error } = await supabase
+    .from("product_variants")
+    .select(
+      `
+      id,
+      barcode,
+      size,
+      color,
+      sale_price,
+      mrp,
+      pur_price,
+      products (
+        product_name,
+        brand,
+        category,
+        style,
+        color,
+        uom,
+        purchase_gst_percent,
+        gst_per,
+        purchase_discount_type,
+        purchase_discount_value
+      )
+    `,
+    )
+    .in("id", skuIds)
+    .eq("organization_id", orgId)
+    .is("deleted_at", null);
+  if (error) throw error;
+  for (const row of liveRows ?? []) {
+    const p = row.products as {
+      product_name?: string;
+      brand?: string;
+      category?: string;
+      style?: string;
+      color?: string;
+      uom?: string;
+      purchase_gst_percent?: number | null;
+      gst_per?: number | null;
+      purchase_discount_type?: string | null;
+      purchase_discount_value?: number | null;
+    } | null;
+    liveBySku.set(row.id, {
+      barcode: row.barcode || "",
+      size: row.size || "",
+      color: row.color || p?.color || "",
+      sale_price: Number(row.sale_price) || 0,
+      mrp: Number(row.mrp) || 0,
+      pur_price: Number(row.pur_price) || 0,
+      gst_per: resolvePurchaseCodeGstPer(p, 0),
+      pur_disc: resolvePurchaseCodeDiscount(p),
+      product_name: p?.product_name,
+      brand: p?.brand,
+      category: p?.category,
+      style: p?.style,
+      uom: p?.uom,
+    });
+  }
+  return liveBySku;
+}
+
+/** The saved invoice date of a bill in this shop (not deleted), normalised; undefined when none. Throws on a failed read. */
+export async function fetchPurchaseBillDate(orgId: string, billId: string): Promise<string | undefined> {
+  const { data, error } = await supabase
+    .from("purchase_bills")
+    .select("bill_date")
+    .eq("id", billId)
+    .eq("organization_id", orgId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (error) throw error;
+  return normalizePurchaseBillDate(data?.bill_date);
+}
+
+export interface RecentPurchaseBill {
+  id: string;
+  software_bill_no: string;
+  supplier_name: string;
+  bill_date: string;
+}
+
+/** The shop's 20 latest purchase bills (not deleted), for the "recent bills" picker. Throws on a failed read. */
+export async function fetchRecentPurchaseBills(orgId: string): Promise<RecentPurchaseBill[]> {
+  const { data, error } = await supabase
+    .from("purchase_bills")
+    .select("id, software_bill_no, supplier_name, bill_date")
+    .eq("organization_id", orgId)
+    .is("deleted_at", null)
+    .order("bill_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (error) throw error;
+  return (data || []) as RecentPurchaseBill[];
+}

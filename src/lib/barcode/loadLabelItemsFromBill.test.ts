@@ -29,6 +29,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   fetchBillLineQuantities,
+  fetchLiveLabelVariants,
+  fetchPurchaseBillDate,
+  fetchRecentPurchaseBills,
   findPurchaseBillIdByNumber,
   loadLabelItemsFromBill,
   quantityOnBill,
@@ -116,5 +119,45 @@ describe("bill quantities for labels", () => {
     const fn = page.slice(page.indexOf("const billQuantitiesCacheRef"), page.indexOf("const handleLoadByBill"));
     expect(fn).toContain("billQuantitiesCacheRef.current.get(key)");
     expect(fn).not.toMatch(/\.from\(/);
+  });
+});
+
+describe("bill and product reads for Barcode Printing", () => {
+  beforeEach(() => {
+    db.calls = [];
+    db.tables = {
+      product_variants: [
+        { id: "v1", barcode: "100001", size: "M", color: null, sale_price: "999", mrp: "1299", pur_price: "500",
+          products: { product_name: "COTTON SHIRT", brand: "ACME", category: "SHIRTS", style: null, color: "BLUE", uom: "NOS" } },
+      ],
+      purchase_bills: [{ id: "b1", software_bill_no: "PB/1", supplier_name: "S", bill_date: "2026-09-12" }],
+    };
+  });
+
+  it("live variant details: this shop, not deleted, numbers parsed, colour falls back to the product", async () => {
+    const live = await fetchLiveLabelVariants("org-1", ["v1"]);
+    expect(live.get("v1")).toMatchObject({ barcode: "100001", color: "BLUE", sale_price: 999, mrp: 1299, pur_price: 500, product_name: "COTTON SHIRT" });
+    expect(db.calls).toContainEqual({ table: "product_variants", op: "eq", args: ["organization_id", "org-1"] });
+    expect(db.calls).toContainEqual({ table: "product_variants", op: "is", args: ["deleted_at", null] });
+    db.calls = [];
+    expect((await fetchLiveLabelVariants("org-1", [])).size).toBe(0);
+    expect(db.calls).toEqual([]); // no read for an empty list
+  });
+
+  it("bill date and recent bills are read inside the shop, skipping the recycle bin", async () => {
+    expect(await fetchPurchaseBillDate("org-1", "b1")).toBeTruthy();
+    expect(await fetchRecentPurchaseBills("org-1")).toHaveLength(1);
+    const bills = db.calls.filter((c) => c.table === "purchase_bills");
+    expect(bills.filter((c) => c.op === "eq" && c.args[0] === "organization_id")).toHaveLength(2);
+    expect(bills.filter((c) => c.op === "is" && c.args[0] === "deleted_at")).toHaveLength(2);
+    expect(bills).toContainEqual({ table: "purchase_bills", op: "limit", args: [20] });
+  });
+
+  it("Barcode Printing has no direct database queries; live details and bill date are read together", () => {
+    const root = join(dirname(fileURLToPath(import.meta.url)), "../../..");
+    const page = readFileSync(join(root, "src/pages/BarcodePrinting.tsx"), "utf8");
+    expect(page).not.toMatch(/\.from\(\s*["'][a-z_]+["']\s*\)/);
+    expect(page).not.toContain("@/integrations/supabase/client");
+    expect(page).toMatch(/Promise\.all\(\[\s*orgIdForHydrate && skuIds\.length > 0\s*\?\s*fetchLiveLabelVariants/);
   });
 });
