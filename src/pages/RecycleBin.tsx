@@ -35,6 +35,7 @@ import {
   formatRecycleBinDeletedBy,
   isRepairTaggedDeletion,
 } from "@/utils/recycleBinDeletionReason";
+import { refreshStaffCache } from "@/lib/data/employees";
 
 /** Client-side gate for permanent delete (admin convenience password). */
 export const RECYCLE_BIN_PERMANENT_DELETE_PASSWORD = "admin@123";
@@ -391,6 +392,8 @@ export default function RecycleBin() {
   const invalidateDeletedQueries = () => {
     queryClient.invalidateQueries({ queryKey: ["deleted-records"] });
     queryClient.invalidateQueries({ queryKey: ["deleted-counts"] });
+    // A restored or purged employee must appear in / leave the salesman lists.
+    void refreshStaffCache(queryClient);
   };
 
   const allFilteredSelected =

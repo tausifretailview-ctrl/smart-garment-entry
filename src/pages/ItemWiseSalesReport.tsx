@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, type ReactNode } from "react";
 
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
@@ -40,6 +40,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { SearchableSelectOption } from "@/components/ui/searchable-select";
 import { parseItemWiseUserFilter } from "@/utils/itemWiseSalesUserFilter";
 import { buildSupplierWiseSales, fetchSaleItemSuppliers } from "@/utils/saleItemSupplier";
+import { getShopUsers } from "@/lib/data/shopUsers";
 
 type PeriodType = "daily" | "monthly" | "quarterly" | "yearly" | "all" | "custom";
 type ItemWiseTab = "itemwise" | "customerwise" | "brandwise" | "saledetails" | "supplierwise";
@@ -155,6 +156,7 @@ export default function ItemWiseSalesReport() {
   const { currentOrganization } = useOrganization();
   const { hideDc, onlyDc } = useDcVisibility();
   const { user, session } = useAuth();
+  const queryClient = useQueryClient();
   const { orgNavigate } = useOrgNavigation();
   const productFieldSettings = useProductFieldSettings();
   const fieldLabels = {
@@ -397,20 +399,10 @@ export default function ItemWiseSalesReport() {
 
       let loginOptions: SearchableSelectOption[] = [];
       try {
-        const { data: members } = await supabase
-          .from("organization_members")
-          .select("user_id, role")
-          .eq("organization_id", currentOrganization.id);
-        if (members?.length && session?.access_token) {
-          const { data: result } = await supabase.functions.invoke("get-users", {
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          });
-          const allUsers = (result?.users || []) as Array<{ id: string; email?: string }>;
-          const roleByUserId = new Map(
-            members.map((m: { user_id: string; role: string }) => [m.user_id, m.role]),
-          );
-          loginOptions = allUsers
-            .filter((u) => roleByUserId.has(u.id))
+        if (session?.access_token) {
+          const shopUsers = await getShopUsers(queryClient, currentOrganization.id, session.access_token);
+          const roleByUserId = new Map(shopUsers.map((u) => [u.id, u.role]));
+          loginOptions = shopUsers
             .map((u) => {
               const email = (u.email || "").trim();
               const name = email.includes("@") ? email.split("@")[0] : email || u.id.slice(0, 8);

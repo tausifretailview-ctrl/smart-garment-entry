@@ -203,6 +203,7 @@ import {
   paymentMethodNeedsReceivingBank,
   validateReceivingBankForSave,
 } from "@/utils/organizationBankAccounts";
+import { useShopMembers, useShopUsers } from "@/lib/data/shopUsers";
 
 const safeErrorString = (val: any): string => {
   if (!val) return '';
@@ -301,49 +302,11 @@ export default function SalesInvoiceDashboard() {
   const [shopFilter, setShopFilter] = useState<string>("all");
   const [userFilter, setUserFilter] = useState<string>("__pending__");
 
-  // Org members (one quick table read). Enough to pick the default billing-user
-  // filter, so the invoice list does not wait on the slower get-users call.
-  const fetchOrgMembers = useCallback(async () => {
-    if (!currentOrganization?.id) return [] as Array<{ user_id: string; role: string | null }>;
-    const { data: members } = await supabase
-      .from("organization_members")
-      .select("user_id, role")
-      .eq("organization_id", currentOrganization.id);
-    return (members || []) as Array<{ user_id: string; role: string | null }>;
-  }, [currentOrganization?.id]);
-  const { data: orgMembers, isFetched: orgMembersFetched } = useQuery({
-    queryKey: ["org-members-filter", currentOrganization?.id],
-    queryFn: fetchOrgMembers,
-    enabled: !!currentOrganization?.id,
-    staleTime: STALE_SETTINGS,
-    refetchOnWindowFocus: false,
-  });
-
-  // Fetch org users (emails) for billing user filter labels
-  const { data: orgUsers = [] } = useQuery({
-    queryKey: ["org-users-filter", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      const members = await queryClient.fetchQuery({
-        queryKey: ["org-members-filter", currentOrganization.id],
-        queryFn: fetchOrgMembers,
-        staleTime: STALE_SETTINGS,
-      });
-      if (!members?.length) return [];
-      if (!session?.access_token) return [];
-      const { data: result } = await supabase.functions.invoke("get-users", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      const allUsers = result?.users || [];
-      const memberIds = new Set(members.map((m: any) => m.user_id));
-      return allUsers
-        .filter((u: any) => memberIds.has(u.id))
-        .map((u: any) => ({ id: u.id, email: u.email }));
-    },
-    enabled: !!currentOrganization?.id && !!session?.access_token,
-    staleTime: STALE_SETTINGS,
-    refetchOnWindowFocus: false,
-  });
+  // Org members (one quick table read) pick the default billing-user filter, so the invoice
+  // list does not wait on the slower get-users call; emails label the filter. Both lists are
+  // shared with the other screens (src/lib/data/shopUsers.ts).
+  const { data: orgMembers, isFetched: orgMembersFetched } = useShopMembers();
+  const { data: orgUsers = [] } = useShopUsers();
 
   // Creator-scoped Modify/Delete (multi-user invoice protection)
   const { canModify: canModifyEntry } = useEntryOwnership();

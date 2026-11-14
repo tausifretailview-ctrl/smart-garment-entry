@@ -89,12 +89,11 @@ describe("accumulateAuthUserPages", () => {
   });
 });
 
+// The shop-user filters (POS / Sales dashboards, Item-wise report, Employee Master, Activity
+// Log) reach get-users through the shared module src/lib/data/shopUsers.ts.
 const GET_USERS_FRONTEND_CONSUMERS = [
-  "src/pages/POSDashboard.tsx",
-  "src/pages/EmployeeMaster.tsx",
+  "src/lib/data/shopUsers.ts",
   "src/pages/UserRights.tsx",
-  "src/pages/SalesInvoiceDashboard.tsx",
-  "src/pages/ItemWiseSalesReport.tsx",
   "src/pages/PlatformAdmin.tsx",
   "src/pages/OrganizationManagement.tsx",
   "src/components/UserManagement.tsx",

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { invalidateQuotationViewsAfterSave } from "@/utils/quotationViews";
 import { useSettings } from "@/hooks/useSettings";
 import { supabase } from "@/integrations/supabase/client";
@@ -56,6 +56,7 @@ import { resolveSaleBillFormat, toInvoiceWrapperFormat, type PosBillFormat } fro
 import { Switch } from "@/components/ui/switch";
 import { useIndustrialMode } from "@/hooks/useIndustrialMode";
 import { fromIsoDay, quotationDisplayNumber, toIsoDay } from "@/utils/industrialMode";
+import { useActiveStaff } from "@/lib/data/employees";
 
 interface LineItem {
   id: string;
@@ -335,21 +336,7 @@ export default function QuotationEntry() {
     }
   }, [settings, entryModeInitialized, saleSettings?.defaultEntryMode]);
 
-  const { data: employeesData } = useQuery({
-    queryKey: ["employees", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      const { data, error } = await supabase
-        .from("employees")
-        .select("id, employee_name, status")
-        .eq("organization_id", currentOrganization.id)
-        .eq("status", "active")
-        .order("employee_name");
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!currentOrganization?.id,
-  });
+  const { data: employeesData } = useActiveStaff();
 
   useEffect(() => {
     const quotationData = location.state?.quotationData;

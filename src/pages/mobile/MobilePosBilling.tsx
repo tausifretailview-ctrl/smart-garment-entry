@@ -75,6 +75,7 @@ import { ShellHeader, ShellButton, SearchBar, SectionHead } from "@/components/m
 import { PosFastPicks, type FastPick } from "@/components/mobile/premium/PosFastPicks";
 import { PosKeypad, type KeypadMode } from "@/components/mobile/premium/PosKeypad";
 import { PosPayRow } from "@/components/mobile/premium/PosPayRow";
+import { useActiveStaff } from "@/lib/data/employees";
 
 /** Display-only — no arithmetic on money. */
 function formatInr(amount: number): string {
@@ -314,23 +315,7 @@ export default function MobilePosBilling() {
   });
 
   // Same list as the desktop POS salesman dropdown — loaded only when the options sheet opens.
-  const { data: employees = [] } = useQuery({
-    queryKey: ["pos-employees", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      const { data, error } = await supabase
-        .from("employees")
-        .select("id, employee_name, designation, commission_percent")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .eq("status", "active")
-        .order("employee_name");
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!currentOrganization?.id && (optionsOpen || !!selectedSalesman),
-    staleTime: 300000,
-  });
+  const { data: employees = [] } = useActiveStaff({ enabled: optionsOpen || !!selectedSalesman });
 
   const { data: customerOptions = [], isFetching: customersLoading } = useQuery({
     queryKey: ["mobile-pos-customers", currentOrganization?.id, debouncedCustomerSearch],

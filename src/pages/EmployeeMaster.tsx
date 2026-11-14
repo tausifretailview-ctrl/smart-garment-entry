@@ -39,6 +39,8 @@ import { cn } from "@/lib/utils";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { formatDateDMY } from "@/lib/dateDisplay";
+import { staffMasterQueryKey } from "@/lib/data/employees";
+import { useShopUsers } from "@/lib/data/shopUsers";
 
 interface Employee {
   id: string;
@@ -133,37 +135,14 @@ const EmployeeMaster = () => {
   };
 
   // Fetch organization users for dropdown
-  const { data: orgUsers = [], isLoading: isLoadingUsers } = useQuery({
-    queryKey: ["org-users", currentOrganization?.id],
-    queryFn: async (): Promise<OrgUser[]> => {
-      if (!currentOrganization?.id) return [];
-      try {
-        const { data: members, error: membersError } = await supabase
-          .from("organization_members")
-          .select("user_id, role")
-          .eq("organization_id", currentOrganization.id);
-        if (membersError) { console.error("Error fetching members:", membersError); return []; }
-        if (!members || members.length === 0) return [];
-        const { data: session } = await supabase.auth.getSession();
-        if (!session?.session?.access_token) return [];
-        const response = await supabase.functions.invoke("get-users", {
-          headers: { Authorization: `Bearer ${session.session.access_token}` },
-        });
-        if (response.error) { console.error("Error fetching users:", response.error); return []; }
-        const allUsers = response.data?.users || [];
-        const memberUserIds = members.map(m => m.user_id);
-        return allUsers
-          .filter((u: any) => memberUserIds.includes(u.id))
-          .map((u: any) => ({ id: u.id, email: u.email, role: members.find(m => m.user_id === u.id)?.role || 'user' }));
-      } catch (error) { console.error("Error in orgUsers query:", error); return []; }
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
+  const { data: shopUsers, isLoading: isLoadingUsers } = useShopUsers();
+  const orgUsers = useMemo<OrgUser[]>(
+    () => (shopUsers ?? []).map((u) => ({ id: u.id, email: u.email, role: u.role || "user" })),
+    [shopUsers],
+  );
 
   const { data: employees = [], isLoading } = useQuery({
-    queryKey: ["employees", currentOrganization?.id],
+    queryKey: staffMasterQueryKey(currentOrganization?.id),
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       const allEmployees: Employee[] = [];
@@ -172,7 +151,7 @@ const EmployeeMaster = () => {
       let hasMore = true;
       while (hasMore) {
         const { data, error } = await supabase
-          .from("employees").select("*").eq("organization_id", currentOrganization.id)
+          .from("employees").select("*").eq("organization_id", currentOrganization.id).is("deleted_at", null)
           .order("created_at", { ascending: false }).range(offset, offset + PAGE_SIZE - 1);
         if (error) throw error;
         if (data && data.length > 0) { allEmployees.push(...(data as Employee[])); offset += PAGE_SIZE; hasMore = data.length === PAGE_SIZE; }

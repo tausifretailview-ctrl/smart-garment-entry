@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { refreshStaffCache } from "@/lib/data/employees";
 
 interface Teacher {
   id: string;
@@ -82,6 +83,7 @@ const TeacherMaster = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teachers"] });
+      void refreshStaffCache(queryClient); // teachers are staff rows too
       toast.success("Teacher added successfully");
       closeDialog();
     },
@@ -100,6 +102,7 @@ const TeacherMaster = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teachers"] });
+      void refreshStaffCache(queryClient); // teachers are staff rows too
       toast.success("Teacher updated successfully");
       closeDialog();
     },
@@ -118,6 +121,7 @@ const TeacherMaster = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teachers"] });
+      void refreshStaffCache(queryClient); // teachers are staff rows too
       toast.success("Teacher removed successfully");
     },
     onError: (error: any) => {

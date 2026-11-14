@@ -85,6 +85,7 @@ import {
   type SaleOrderProductSearchGroup,
   type SaleOrderVariantSearchResult,
 } from "@/utils/saleOrderProductSearch";
+import { useActiveStaff } from "@/lib/data/employees";
 
 interface LineItem {
   id: string;
@@ -390,22 +391,7 @@ export default function SaleOrderEntry() {
   }, [settings, entryModeInitialized]);
 
   // Fetch employees for Salesman dropdown
-  const { data: employeesData } = useQuery({
-    queryKey: ['employees', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      const { data, error } = await supabase
-        .from('employees')
-        .select('id, employee_name, status')
-        .eq('organization_id', currentOrganization.id)
-        .eq('status', 'active')
-        .order('employee_name');
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 5 * 60 * 1000,
-  });
+  const { data: employeesData } = useActiveStaff();
 
   // Load from quotation or edit
   useEffect(() => {

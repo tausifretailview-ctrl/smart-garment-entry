@@ -26,6 +26,7 @@ import { fetchOrganizationLoginHistory, formatOrgLoginAt } from "@/utils/orgLogi
 import { DC_USER_ORG_ROLE, DC_USER_ROLE_OPTION } from "@/constants/dcUserPermissionsPreset";
 import { applyDcUserPreset, clearDcUserFlag, fetchDcOnlyModeReady, fetchDcUserIds } from "@/utils/dcUserRole";
 import { formatDateDMY } from "@/lib/dateDisplay";
+import { refreshShopUsersCache } from "@/lib/data/shopUsers";
 
 type OrgRole = "admin" | "manager" | "user";
 /** Role picker value: an org role, or "dc_user" (manager + DC User rights). */
@@ -319,6 +320,7 @@ export default function OrganizationManagement() {
           await applyDcUserPreset(supabase, currentOrganization.id, userId);
         } catch {
           void queryClient.invalidateQueries({ queryKey: ["organization-members"] });
+          void refreshShopUsersCache(queryClient);
           throw new Error(
             'User was created as Manager, but DC User rights were not saved. Pick "DC User" in their Role box to try again.',
           );
@@ -328,6 +330,7 @@ export default function OrganizationManagement() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["organization-members"] });
+      void refreshShopUsersCache(queryClient);
       if (variables.role === DC_USER_ROLE_OPTION) refreshDcUsers();
       setIsCreateUserOpen(false);
       setNewUserEmail("");
@@ -379,6 +382,7 @@ export default function OrganizationManagement() {
           await applyDcUserPreset(supabase, currentOrganization.id, userId);
         } catch {
           void queryClient.invalidateQueries({ queryKey: ["organization-members"] });
+          void refreshShopUsersCache(queryClient);
           throw new Error(
             'User was added as Manager, but DC User rights were not saved. Pick "DC User" in their Role box to try again.',
           );
@@ -388,6 +392,7 @@ export default function OrganizationManagement() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["organization-members"] });
+      void refreshShopUsersCache(queryClient);
       if (variables.role === DC_USER_ROLE_OPTION) refreshDcUsers();
       setIsAddExistingUserOpen(false);
       setExistingUserEmail("");
@@ -417,6 +422,7 @@ export default function OrganizationManagement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organization-members"] });
+      void refreshShopUsersCache(queryClient);
       toast.success("User removed from organization");
     },
     onError: (error: Error) => {
@@ -458,6 +464,7 @@ export default function OrganizationManagement() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["organization-members"] });
+      void refreshShopUsersCache(queryClient);
       refreshDcUsers();
       toast.success(
         variables.role === DC_USER_ROLE_OPTION

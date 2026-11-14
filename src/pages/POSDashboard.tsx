@@ -229,6 +229,8 @@ import {
   type PurchaseCodeDiscount,
 } from "@/utils/purchaseCodeEncoder";
 import { formatDateDMY } from "@/lib/dateDisplay";
+import { useActiveStaff } from "@/lib/data/employees";
+import { useShopUsers } from "@/lib/data/shopUsers";
 
 interface SaleItem {
   id: string;
@@ -434,46 +436,13 @@ const POSDashboard = () => {
   const [settleCustomerId, setSettleCustomerId] = useState<string | null>(null);
   const [settleCustomerName, setSettleCustomerName] = useState("");
 
-  const { data: orgUsers = [], isFetched: orgUsersFetched } = useQuery({
-    queryKey: ["org-users-filter", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      const { data: members } = await supabase
-        .from("organization_members")
-        .select("user_id, role")
-        .eq("organization_id", currentOrganization.id);
-      if (!members?.length) return [];
-      if (!session?.access_token) return [];
-      const { data: result } = await supabase.functions.invoke("get-users", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      const allUsers = result?.users || [];
-      const memberIds = new Set(members.map((m: any) => m.user_id));
-      return allUsers
-        .filter((u: any) => memberIds.has(u.id))
-        .map((u: any) => ({ id: u.id, email: u.email }));
-    },
-    enabled: !!currentOrganization?.id && !!session?.access_token,
-    staleTime: 300000,
-  });
+  const { data: orgUsers = [], isFetched: orgUsersFetched } = useShopUsers();
 
-  const { data: salesmanOptions = [] } = useQuery({
-    queryKey: ["pos-dashboard-salesmen", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [] as string[];
-      const { data, error } = await supabase
-        .from("employees")
-        .select("employee_name")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .eq("status", "active")
-        .order("employee_name");
-      if (error) throw error;
-      return normalizePosSalesmanFilter((data ?? []).map((row) => row.employee_name ?? ""));
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 300000,
-  });
+  const { data: activeStaff } = useActiveStaff();
+  const salesmanOptions = useMemo(
+    () => normalizePosSalesmanFilter((activeStaff ?? []).map((row) => row.employee_name ?? "")),
+    [activeStaff],
+  );
 
   const salesmanChoices = useMemo(
     () => normalizePosSalesmanFilter([...salesmanOptions, ...salesmanFilter]),
