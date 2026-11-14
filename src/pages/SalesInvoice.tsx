@@ -199,6 +199,7 @@ import {
 import { useSizeGroups } from "@/lib/data/sizeGroups";
 import { useActiveStaff } from "@/lib/data/employees";
 import { fetchInvoiceWhatsAppSettings } from "@/lib/data/invoiceWhatsAppSettings";
+import { fetchCustomerInvoiceDetails } from "@/lib/data/customerInvoiceDetails";
 
 interface LineItem {
   id: string;
@@ -1195,17 +1196,9 @@ export default function SalesInvoice() {
       
       // Set customer if available
       if (invoiceData.customer_id) {
-        let customerMeta: any = null;
-        try {
-          const { data: customerRow } = await supabase
-            .from('customers')
-            .select('gst_number, transport_details, address, phone, email, customer_name, points_balance')
-            .eq('id', invoiceData.customer_id)
-            .maybeSingle();
-          customerMeta = customerRow || null;
-        } catch {
-          customerMeta = null;
-        }
+        const customerMeta = currentOrganization?.id
+          ? await fetchCustomerInvoiceDetails(currentOrganization.id, invoiceData.customer_id)
+          : null;
         const customer = {
           id: invoiceData.customer_id,
           customer_name: customerMeta?.customer_name || invoiceData.customer_name,
@@ -1301,17 +1294,7 @@ export default function SalesInvoice() {
         setDueDate(new Date());
         setSelectedCustomerId(q.customer_id || "");
         if (q.customer_id) {
-          let meta: { gst_number?: string | null; transport_details?: string | null } | null = null;
-          try {
-            const { data } = await supabase
-              .from("customers")
-              .select("gst_number, transport_details")
-              .eq("id", q.customer_id)
-              .maybeSingle();
-            meta = data || null;
-          } catch {
-            meta = null;
-          }
+          const meta = await fetchCustomerInvoiceDetails(currentOrganization.id, q.customer_id);
           if (cancelled) return;
           setSelectedCustomer({
             id: q.customer_id,
@@ -2545,13 +2528,9 @@ export default function SalesInvoice() {
       // Customer and product lookups are independent: run them together.
       const productIds = [...new Set((invoiceData.sale_items || []).map((it: any) => it.product_id).filter(Boolean))];
       const [customerRes, productsRes] = await Promise.all([
-        invoiceData.customer_id
-          ? supabase
-              .from('customers')
-              .select('gst_number, transport_details, address, phone, email, customer_name, points_balance')
-              .eq('id', invoiceData.customer_id)
-              .maybeSingle()
-          : Promise.resolve({ data: null }),
+        invoiceData.customer_id && currentOrganization?.id
+          ? fetchCustomerInvoiceDetails(currentOrganization.id, invoiceData.customer_id)
+          : Promise.resolve(null),
         // Product UOM + brand for MTR multiplier and brand-wise discounts on edit
         productIds.length > 0
           ? supabase
@@ -2560,7 +2539,7 @@ export default function SalesInvoice() {
               .in('id', productIds as string[])
           : Promise.resolve({ data: null }),
       ]);
-      const customerMeta: any = customerRes.data || null;
+      const customerMeta = customerRes;
 
       const productUomMap = new Map<string, string>();
       const productBrandMap = new Map<string, string>();
