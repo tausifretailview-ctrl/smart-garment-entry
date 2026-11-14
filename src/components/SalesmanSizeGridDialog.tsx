@@ -6,8 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, X } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { compareSizes } from "@/utils/sizeSort";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { getSizeGroupsByIds } from "@/lib/data/sizeGroups";
 
 interface Variant {
   id: string;
@@ -71,6 +73,8 @@ export function SalesmanSizeGridDialog({
   const [newQty, setNewQty] = useState("");
   const [newRate, setNewRate] = useState("");
   const [sizeOrder, setSizeOrder] = useState<string[]>([]);
+  const { currentOrganization } = useOrganization();
+  const queryClient = useQueryClient();
   const firstInputRef = useRef<HTMLInputElement>(null);
   const customSizeInputRef = useRef<HTMLInputElement>(null);
 
@@ -78,11 +82,9 @@ export function SalesmanSizeGridDialog({
   useEffect(() => {
     const fetchSizeOrder = async () => {
       if (product?.size_group_id) {
-        const { data } = await supabase
-          .from("size_groups")
-          .select("sizes")
-          .eq("id", product.size_group_id)
-          .single();
+        const data = currentOrganization?.id
+          ? (await getSizeGroupsByIds(queryClient, currentOrganization.id, [product.size_group_id])).get(product.size_group_id)
+          : undefined;
         
         if (data?.sizes) {
           const sizes = Array.isArray(data.sizes) 

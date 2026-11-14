@@ -22,6 +22,8 @@ import {
   friendlySizeGroupError,
   normalizeSizeGroupName,
 } from "@/lib/sizeGroupActions";
+import { readSizeGroups, refreshSizeGroupsCache } from "@/lib/data/sizeGroups";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface SizeGroup {
   id: string;
@@ -32,6 +34,7 @@ interface SizeGroup {
 export function SizeGroupManagement() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+  const queryClient = useQueryClient();
   const [sizeGroups, setSizeGroups] = useState<SizeGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -47,11 +50,7 @@ export function SizeGroupManagement() {
     if (!currentOrganization?.id) return;
     
     try {
-      const { data, error } = await supabase
-        .from("size_groups")
-        .select("*")
-        .eq("organization_id", currentOrganization.id)
-        .order("group_name");
+      const { data, error } = await readSizeGroups(queryClient, currentOrganization.id);
 
       if (error) throw error;
       
@@ -75,6 +74,7 @@ export function SizeGroupManagement() {
           .single();
           
         if (!insertError && newGroup) {
+          void refreshSizeGroupsCache(queryClient, currentOrganization.id);
           typedData.push({
             id: newGroup.id,
             group_name: newGroup.group_name,
@@ -141,6 +141,7 @@ export function SizeGroupManagement() {
         console.error("Database error details:", error);
         throw error;
       }
+      await refreshSizeGroupsCache(queryClient, currentOrganization.id);
 
       toast({
         title: "Success",
@@ -206,6 +207,7 @@ export function SizeGroupManagement() {
       );
 
       if (error) throw error;
+      await refreshSizeGroupsCache(queryClient, currentOrganization?.id);
 
       toast({
         title: "Success",

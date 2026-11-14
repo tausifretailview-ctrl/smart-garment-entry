@@ -72,6 +72,7 @@ import {
   normalizeInvoicePhone,
   pickInvoiceCustomerAddress,
 } from '@/utils/invoiceCustomerAddressFallback';
+import { useSizeGroups } from "@/lib/data/sizeGroups";
 
 interface InvoiceItem {
   sr: number;
@@ -274,21 +275,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       enabled: !!orgId,
     });
 
-    const { data: orgSizeGroups = [] } = useQuery({
-      queryKey: ['invoice-size-groups', orgId],
-      queryFn: async () => {
-        if (!orgId) return [];
-        const { data, error } = await supabase
-          .from('size_groups')
-          .select('id, group_name, sizes')
-          .eq('organization_id', orgId);
-        if (error) throw error;
-        return data || [];
-      },
-      staleTime: STALE_SETTINGS,
-      refetchOnWindowFocus: false,
-      enabled: !!orgId,
-    });
+    const { data: orgSizeGroups = [] } = useSizeGroups(orgId || undefined);
 
     useEffect(() => {
       const source = useParentOrgSettings ? props.orgSettings : fetchedOrgSettings;

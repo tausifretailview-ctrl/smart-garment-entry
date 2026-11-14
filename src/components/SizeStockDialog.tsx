@@ -1,5 +1,4 @@
 import { useState, useCallback, useRef, useEffect, useMemo, type KeyboardEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -10,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { sizeMatrixKey, sortSizes } from "@/utils/sizeSort";
+import { useSizeGroups } from "@/lib/data/sizeGroups";
 
 interface SizeStockDialogProps {
   open: boolean;
@@ -74,25 +74,8 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const resultsListRef = useRef<HTMLDivElement>(null);
 
-  // Size groups (reference data) — standalone cached query, shared via React Query with
-  // SalesInvoice / DeliveryChallanEntry (identical ['size-groups', orgId] key → warm cache).
-  const { data: sizeGroupsData } = useQuery({
-    queryKey: ['size-groups', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      const { data, error } = await supabase
-        .from('size_groups')
-        .select('id, group_name, sizes')
-        .eq('organization_id', currentOrganization.id)
-        .order('group_name');
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
+  // Size groups: the shop's shared cached list (src/lib/data/sizeGroups.ts).
+  const { data: sizeGroupsData } = useSizeGroups();
 
   const sizeGroupNameById = useMemo(() => {
     const map = new Map<string, string>();

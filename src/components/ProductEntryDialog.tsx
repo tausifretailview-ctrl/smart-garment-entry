@@ -112,6 +112,7 @@ import {
 import { expandRowsIntoPieces, isPerPieceBarcodeEnabled, isPerPieceMeasuredUom } from "@/utils/purchasePerPieceBarcode";
 import { colorSuggestEnterOrTab } from "@/utils/colorSuggestKeys";
 import { getOrgSettingsRow } from "@/hooks/useSettings";
+import { readSizeGroups, refreshSizeGroupsCache } from "@/lib/data/sizeGroups";
 
 type ProductType = 'goods' | 'service' | 'combo';
 
@@ -2055,11 +2056,7 @@ export const ProductEntryDialog = ({
 
     setLoadingSizeGroups(true);
     try {
-      const { data, error } = await supabase
-        .from("size_groups")
-        .select("*")
-        .eq("organization_id", currentOrganization.id)
-        .order("group_name");
+      const { data, error } = await readSizeGroups(queryClient, currentOrganization.id);
 
       if (error) {
         setSizeGroupsError(error.message || "Unknown error");
@@ -2109,6 +2106,7 @@ export const ProductEntryDialog = ({
         .single();
 
       if (error) throw error;
+      await refreshSizeGroupsCache(queryClient, currentOrganization.id);
 
       const newGroup: SizeGroup = {
         id: data.id,

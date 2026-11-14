@@ -82,6 +82,7 @@ import {
   normalizeSizeGroupName,
 } from "@/lib/sizeGroupActions";
 import { getOrgSettingsRow, refreshOrgSettingsCache } from "@/hooks/useSettings";
+import { readSizeGroups, refreshSizeGroupsCache } from "@/lib/data/sizeGroups";
 
 type ProductType = 'goods' | 'service' | 'combo';
 
@@ -554,11 +555,7 @@ const ProductEntry = () => {
   const fetchSizeGroups = async () => {
     if (!currentOrganization) return;
     
-    const { data, error } = await supabase
-      .from("size_groups")
-      .select("*")
-      .eq("organization_id", currentOrganization.id)
-      .order("group_name");
+    const { data, error } = await readSizeGroups(queryClient, currentOrganization.id);
 
     if (error) {
       toast({
@@ -622,6 +619,7 @@ const ProductEntry = () => {
         .single();
 
       if (error) throw error;
+      await refreshSizeGroupsCache(queryClient, currentOrganization.id);
 
       toast({
         title: "Success",
@@ -698,6 +696,7 @@ const ProductEntry = () => {
         .eq("id", editingSizeGroup.id);
 
       if (error) throw error;
+      await refreshSizeGroupsCache(queryClient, currentOrganization.id);
 
       toast({
         title: "Success",
