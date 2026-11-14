@@ -107,3 +107,56 @@ export async function deletePrinterPreset(orgId: string, presetId: string): Prom
     .eq("organization_id", orgId);
   if (error) throw error;
 }
+
+/** Print modes that Settings → Bill & Barcode can open on by default. */
+export function isSettingsLandingMode(printMode: PrecisionPrintMode): boolean {
+  return printMode === "thermal" || printMode === "thermal2up" || printMode === "thermal3up" || printMode === "footwear";
+}
+
+/**
+ * Mirror a default preset into Settings → Bill & Barcode (landing tab, print mode and design),
+ * keeping every other barcode setting. Returns false when the shop has no settings row.
+ * Throws on a failed read or write — the write used to be unchecked, so a failure looked
+ * like success.
+ */
+export async function syncDefaultLabelDesignToSettings(
+  orgId: string,
+  presetId: string,
+  printMode: PrecisionPrintMode,
+): Promise<boolean> {
+  const { data: settingsRow, error: readError } = await supabase
+    .from("settings")
+    .select("id, bill_barcode_settings")
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  if (readError) throw readError;
+  if (!settingsRow?.id) return false;
+
+  const prevBbs =
+    settingsRow.bill_barcode_settings && typeof settingsRow.bill_barcode_settings === "object"
+      ? (settingsRow.bill_barcode_settings as Record<string, unknown>)
+      : {};
+  const tabForMode =
+    printMode === "footwear"
+      ? "precision_footwear"
+      : printMode === "thermal3up"
+        ? "precision_3up"
+        : printMode === "thermal2up"
+          ? "precision_2up"
+          : "precision_1up";
+  const { error: writeError } = await supabase
+    .from("settings")
+    .update({
+      bill_barcode_settings: {
+        ...prevBbs,
+        barcode_default_print_tab: tabForMode,
+        default_thermal_landing: printMode,
+        default_precision_preset_id: presetId,
+        precision_print_mode: printMode,
+      },
+    })
+    .eq("id", settingsRow.id)
+    .eq("organization_id", orgId);
+  if (writeError) throw writeError;
+  return true;
+}
