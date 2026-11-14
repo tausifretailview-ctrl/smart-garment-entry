@@ -40,6 +40,7 @@ import {
   type ActivityTone,
 } from "@/utils/activityLog";
 import { UserScreenTimeReport } from "@/components/audit/UserScreenTimeReport";
+import { useShopUsers } from "@/lib/data/shopUsers";
 
 const PAGE_SIZE = 200;
 /** Rows read for the edit / delete / cancel tiles. */
@@ -108,29 +109,15 @@ export default function AuditLog() {
   );
 
   // Operator names: org members' emails (same source as the invoice dashboard's user filter).
-  const { data: operators = [] } = useQuery({
-    queryKey: ["activity-log-operators", orgId],
-    queryFn: async () => {
-      if (!orgId || !session?.access_token) return [] as Array<{ id: string; email: string }>;
-      const { data: members } = await supabase
-        .from("organization_members")
-        .select("user_id")
-        .eq("organization_id", orgId);
-      const memberIds = new Set((members || []).map((m: { user_id: string }) => m.user_id));
-      if (memberIds.size === 0) return [];
-      const { data: result } = await supabase.functions.invoke("get-users", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      const allUsers: Array<{ id: string; email: string }> = result?.users || [];
-      return allUsers
-        .filter((u) => memberIds.has(u.id) && u.email)
+  const { data: shopUsers } = useShopUsers();
+  const operators = useMemo(
+    () =>
+      (shopUsers ?? [])
+        .filter((u) => u.email)
         .map((u) => ({ id: u.id, email: u.email }))
-        .sort((a, b) => a.email.localeCompare(b.email));
-    },
-    enabled: !!orgId && !!session?.access_token,
-    staleTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
+        .sort((a, b) => a.email.localeCompare(b.email)),
+    [shopUsers],
+  );
 
   const fetchPage = useCallback(
     async (offset: number) => {
