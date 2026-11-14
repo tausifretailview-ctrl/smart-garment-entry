@@ -24,7 +24,15 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 vi.mock("@/utils/pricingSaleDiscPercentLookup", () => ({ fetchSaleDiscPercentBySkuId: async () => new Map([["v1", 5]]) }));
 
-import { loadLabelItemsFromBill } from "@/lib/barcode/loadLabelItemsFromBill";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  fetchBillLineQuantities,
+  findPurchaseBillIdByNumber,
+  loadLabelItemsFromBill,
+  quantityOnBill,
+} from "@/lib/barcode/loadLabelItemsFromBill";
 
 const code = { alphabet: "ABCDEFGHIK", includeGst: false, includeDate: false, extraPercentEnabled: false, extraPercent: 0 };
 
@@ -72,5 +80,41 @@ describe("loadLabelItemsFromBill", () => {
     db.tables.purchase_bills = [{ id: "b2", supplier_invoice_no: null, software_bill_no: "PB/2", bill_date: null, supplier_id: null }];
     db.tables.purchase_items = [];
     expect((await loadLabelItemsFromBill("org-1", "PB/2", code)).status).toBe("no_items");
+  });
+});
+
+describe("bill quantities for labels", () => {
+  beforeEach(() => {
+    db.calls = [];
+    db.tables = {
+      purchase_bills: [{ id: "b1" }],
+      purchase_items: [
+        { sku_id: "v1", barcode: "100001", qty: 4 },
+        { sku_id: null, barcode: "200002", qty: 7 },
+      ],
+    };
+  });
+
+  it("finds the newest bill in this shop, skipping the recycle bin", async () => {
+    expect(await findPurchaseBillIdByNumber("org-1", "PB/1")).toBe("b1");
+    const bill = db.calls.filter((c) => c.table === "purchase_bills");
+    expect(bill).toContainEqual({ table: "purchase_bills", op: "eq", args: ["organization_id", "org-1"] });
+    expect(bill).toContainEqual({ table: "purchase_bills", op: "is", args: ["deleted_at", null] });
+    expect(bill).toContainEqual({ table: "purchase_bills", op: "order", args: ["bill_date", { ascending: false }] });
+  });
+
+  it("matches a label by variant first, then by barcode; 0 when not on the bill", async () => {
+    const q = await fetchBillLineQuantities("b1");
+    expect(quantityOnBill(q, { sku_id: "v1", barcode: "zzz" })).toBe(4);
+    expect(quantityOnBill(q, { sku_id: "v9", barcode: "200002" })).toBe(7);
+    expect(quantityOnBill(q, { sku_id: "v9", barcode: "999" })).toBe(0);
+  });
+
+  it("Barcode Printing reads a bill's quantities once per bill number, not per product added", () => {
+    const root = join(dirname(fileURLToPath(import.meta.url)), "../../..");
+    const page = readFileSync(join(root, "src/pages/BarcodePrinting.tsx"), "utf8");
+    const fn = page.slice(page.indexOf("const billQuantitiesCacheRef"), page.indexOf("const handleLoadByBill"));
+    expect(fn).toContain("billQuantitiesCacheRef.current.get(key)");
+    expect(fn).not.toMatch(/\.from\(/);
   });
 });

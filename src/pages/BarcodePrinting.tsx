@@ -215,7 +215,13 @@ import {
 } from "@/lib/barcode/barcodeLabelConfig";
 import { exportLabelsPdf } from "@/lib/barcode/exportLabelsPdf";
 import { renderLabelSheet } from "@/lib/barcode/renderLabelSheet";
-import { loadLabelItemsFromBill } from "@/lib/barcode/loadLabelItemsFromBill";
+import {
+  fetchBillLineQuantities,
+  findPurchaseBillIdByNumber,
+  loadLabelItemsFromBill,
+  quantityOnBill,
+  type BillLineQuantities,
+} from "@/lib/barcode/loadLabelItemsFromBill";
 import { buildLabelHtml, hasAbsolutePositioning } from "@/lib/barcode/labelHtml";
 import { searchLabelProducts, type LabelProductSearchResult } from "@/lib/barcode/searchLabelProducts";
 import { BarcodeLabelListPanel } from "@/components/barcode/BarcodeLabelListPanel";
@@ -2859,76 +2865,38 @@ export default function BarcodePrinting() {
         return;
       }
 
-      const { data: purchaseData } = await supabase
-        .from("purchase_items")
-        .select("barcode, qty, sku_id")
-        .eq("bill_id", targetBillId);
-
-      if (purchaseData) {
-        const quantityMap = new Map<string, number>();
-        const skuQuantityMap = new Map<string, number>();
-        
-        purchaseData.forEach((item: any) => {
-          if (item.barcode) {
-            quantityMap.set(item.barcode, item.qty);
-          }
-          if (item.sku_id) {
-            skuQuantityMap.set(item.sku_id, item.qty);
-          }
-        });
-
-        setLabelItems((prev) =>
-          prev.map((item) => {
-            // Try to match by sku_id first, then by barcode
-            const qty = skuQuantityMap.get(item.sku_id) || quantityMap.get(item.barcode) || 0;
-            return { ...item, qty };
-          })
-        );
-      }
+      const quantities = await fetchBillLineQuantities(targetBillId);
+      setLabelItems((prev) => prev.map((item) => ({ ...item, qty: quantityOnBill(quantities, item) })));
     } catch (error) {
       console.error("Failed to fill last purchase quantities:", error);
       toast.error("Could not load quantities from last purchase");
     }
   };
 
+  // Bill quantities for "load quantities from bill" while adding products: one bill search and
+  // one read of its lines per bill number, not two queries for every product added.
+  const billQuantitiesCacheRef = useRef(new Map<string, Promise<BillLineQuantities | null>>());
   const loadQuantitiesForItem = async (item: LabelItem) => {
-    if (!billNumber.trim()) return;
+    if (!billNumber.trim() || !currentOrganization?.id) return;
+    const orgId = currentOrganization.id;
+    const key = `${orgId}|${billNumber.trim()}`;
+
+    let pending = billQuantitiesCacheRef.current.get(key);
+    if (!pending) {
+      pending = findPurchaseBillIdByNumber(orgId, billNumber.trim()).then((billId) =>
+        billId ? fetchBillLineQuantities(billId) : null,
+      );
+      billQuantitiesCacheRef.current.set(key, pending);
+      // A failed read is not kept, so the next product tries again.
+      pending.catch(() => billQuantitiesCacheRef.current.delete(key));
+    }
 
     try {
-      // Search by software_bill_no or supplier_invoice_no
-      let billQuery = supabase
-        .from("purchase_bills")
-        .select("id")
-        .or(`supplier_invoice_no.ilike.%${billNumber}%,software_bill_no.ilike.%${billNumber}%`)
-        .is("deleted_at", null)
-        .limit(1);
-      if (currentOrganization?.id) {
-        billQuery = billQuery.eq("organization_id", currentOrganization.id);
-      }
-      const { data: billData, error: billError } = await billQuery.maybeSingle();
-
-      if (billError || !billData) {
-        console.error("Bill not found:", billError);
-        return;
-      }
-
-      const { data: itemData, error: itemError } = await supabase
-        .from("purchase_items")
-        .select("qty, sku_id, barcode")
-        .eq("bill_id", billData.id)
-        .or(`sku_id.eq.${item.sku_id},barcode.eq.${item.barcode}`)
-        .limit(1)
-        .maybeSingle();
-
-      if (itemError) {
-        console.error("Failed to load item data:", itemError);
-        return;
-      }
-
-      if (itemData) {
-        setLabelItems(prev =>
-          prev.map(i => i.sku_id === item.sku_id ? { ...i, qty: itemData.qty } : i)
-        );
+      const quantities = await pending;
+      if (!quantities) return; // bill not found
+      const qty = quantityOnBill(quantities, item);
+      if (qty) {
+        setLabelItems((prev) => prev.map((i) => (i.sku_id === item.sku_id ? { ...i, qty } : i)));
       }
     } catch (error) {
       console.error("Failed to load quantity for item:", error);
