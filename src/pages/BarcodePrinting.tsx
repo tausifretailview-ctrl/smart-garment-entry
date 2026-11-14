@@ -215,6 +215,7 @@ import {
 } from "@/lib/barcode/barcodeLabelConfig";
 import { exportLabelsPdf } from "@/lib/barcode/exportLabelsPdf";
 import { renderLabelSheet } from "@/lib/barcode/renderLabelSheet";
+import { loadLabelItemsFromBill } from "@/lib/barcode/loadLabelItemsFromBill";
 import { buildLabelHtml, hasAbsolutePositioning } from "@/lib/barcode/labelHtml";
 import { searchLabelProducts, type LabelProductSearchResult } from "@/lib/barcode/searchLabelProducts";
 import { BarcodeLabelListPanel } from "@/components/barcode/BarcodeLabelListPanel";
@@ -2939,186 +2940,38 @@ export default function BarcodePrinting() {
       toast.error("Please enter a bill number or ID");
       return;
     }
+    if (!currentOrganization?.id) return;
 
     try {
-      // First try to find by software_bill_no or supplier_invoice_no
-      const { data: billData, error: billError } = await supabase
-        .from("purchase_bills")
-        .select("id, supplier_invoice_no, software_bill_no, bill_date")
-        .or(`supplier_invoice_no.ilike.%${billNumber}%,software_bill_no.ilike.%${billNumber}%`)
-        .limit(1)
-        .maybeSingle();
-
-      if (billError) {
-        console.error("Error searching bill:", billError);
-        toast.error("Error searching for bill");
-        return;
-      }
-
-      if (!billData) {
+      const result = await loadLabelItemsFromBill(currentOrganization.id, billNumber, {
+        alphabet: purchaseCodeAlphabet,
+        includeGst: purchaseCodeIncludeGst,
+        includeDate: purchaseCodeIncludeDate,
+        extraPercentEnabled: purchaseCodeExtraPercentEnabled,
+        extraPercent: purchaseCodeExtraPercent,
+      });
+      if (result.status === "bill_not_found") {
         toast.error("Bill not found");
         return;
       }
 
-      clearBarcodePrintSelection(billData.id);
+      clearBarcodePrintSelection(result.bill.id);
       appliedPurchaseNavKeyRef.current = null;
 
-      const { data: itemsData, error: itemsError } = await supabase
-        .from("purchase_items")
-        .select(`
-          qty,
-          sku_id,
-          barcode,
-          sale_price,
-          pur_price,
-          mrp,
-          size,
-          gst_per
-        `)
-        .eq("bill_id", billData.id);
-
-      if (itemsError) throw itemsError;
-
-      if (!itemsData || itemsData.length === 0) {
-        toast.error("No items found in this bill");
-        return;
-      }
-
-      // Get unique SKU IDs to fetch product details
-      const skuIds = itemsData.map(item => item.sku_id).filter(Boolean);
-      
-      if (skuIds.length === 0) {
-        toast.error("No valid products found in this bill");
-        return;
-      }
-
-      // Fetch supplier code from the bill
-      const { data: billDetailData } = await supabase
-        .from("purchase_bills")
-        .select("supplier_id")
-        .eq("id", billData.id)
-        .maybeSingle();
-
-      let supplierCode = '';
-      if (billDetailData?.supplier_id) {
-        const { data: supplierData } = await supabase
-          .from("suppliers")
-          .select("supplier_code")
-          .eq("id", billDetailData.supplier_id)
-          .maybeSingle();
-        
-        supplierCode = supplierData?.supplier_code || '';
-      }
-
-      // Fetch product details including variants
-      const { data: variantsData, error: variantsError } = await supabase
-        .from("product_variants")
-        .select(`
-          id,
-          size,
-          barcode,
-          color,
-          sale_price,
-          mrp,
-          pur_price,
-          product_id,
-          products (
-            product_name,
-            brand,
-            color,
-            style,
-            uom,
-            purchase_gst_percent,
-            gst_per,
-            purchase_discount_type,
-            purchase_discount_value
-          )
-        `)
-        .in("id", skuIds);
-
-      if (variantsError) throw variantsError;
-
-      // Create a map of variant details
-      const variantMap = new Map();
-      (variantsData || []).forEach((variant: any) => {
-        variantMap.set(variant.id, {
-          product_name: variant.products?.product_name || "",
-          brand: variant.products?.brand || "",
-          category: variant.products?.category || "",
-          color: (variant.color || variant.products?.color || "").trim(),
-          style: variant.products?.style || "",
-          size: variant.size,
-          barcode: variant.barcode,
-          sale_price: variant.sale_price,
-          mrp: variant.mrp,
-          pur_price: Number(variant.pur_price) || 0,
-          product: variant.products,
-          uom: variant.products?.uom || "NOS",
-        });
-      });
-
-      // Build label items from purchase items
-      const loadedItems: LabelItem[] = itemsData
-        .filter(item => item.sku_id && variantMap.has(item.sku_id))
-        .map(item => {
-          const variantInfo = variantMap.get(item.sku_id);
-          // Current variant cost and product GST — the same inputs POS and the
-          // after-save print use — so a reprint from an old bill matches the POS code.
-          const purPrice = variantInfo.pur_price || item.pur_price || 0;
-          const gstPer = resolvePurchaseCodeGstPer(variantInfo.product, (item as any).gst_per);
-          const purDisc = resolvePurchaseCodeDiscount(variantInfo.product);
-          return {
-            sku_id: item.sku_id,
-            product_name: variantInfo.product_name,
-            brand: variantInfo.brand,
-            category: variantInfo.category,
-            color: variantInfo.color,
-            style: variantInfo.style,
-            size: item.size || variantInfo.size,
-            sale_price: item.sale_price || variantInfo.sale_price,
-            mrp: item.mrp || variantInfo.mrp || 0,
-            pur_price: purPrice,
-            gst_per: gstPer,
-            pur_disc: purDisc,
-            purchase_code: encodePurchasePriceForLabel(purPrice, purchaseCodeAlphabet, {
-              gstPer,
-              purchaseDiscount: purDisc,
-              includeGst: purchaseCodeIncludeGst,
-              extraPercentEnabled: purchaseCodeExtraPercentEnabled,
-              extraPercent: purchaseCodeExtraPercent,
-              billDate: normalizePurchaseBillDate(billData.bill_date),
-              includeDate: purchaseCodeIncludeDate,
-            }),
-            bill_date: normalizePurchaseBillDate(billData.bill_date),
-            barcode: item.barcode || variantInfo.barcode,
-            bill_number: billData.software_bill_no || '',
-            supplier_invoice_no: billData.supplier_invoice_no || '',
-            qty: item.qty,
-            uom: variantInfo.uom || 'NOS',
-            supplier_code: supplierCode,
-            sale_disc_percent: null,
-          };
-        });
-
-      const discBySku = await fetchSaleDiscPercentBySkuId(
-        currentOrganization.id,
-        loadedItems.map((i) => i.sku_id).filter((id): id is string => Boolean(id)),
-      );
-      for (const row of loadedItems) {
-        if (row.sku_id && discBySku.has(row.sku_id)) {
-          row.sale_disc_percent = discBySku.get(row.sku_id);
-        }
-      }
-
-      if (loadedItems.length === 0) {
-        toast.error("Could not load product details for items in this bill");
+      if (result.status !== "ok") {
+        toast.error(
+          result.status === "no_items"
+            ? "No items found in this bill"
+            : result.status === "no_products"
+              ? "No valid products found in this bill"
+              : "Could not load product details for items in this bill",
+        );
         return;
       }
 
       // Apply size sorting based on user preference
-      const sortedItems = sortItemsBySize(loadedItems, sizeSortOrder);
-      setLabelItems(sortedItems);
-      toast.success(`Loaded ${loadedItems.length} items from bill ${billData.supplier_invoice_no || billData.id}`);
+      setLabelItems(sortItemsBySize(result.items, sizeSortOrder));
+      toast.success(`Loaded ${result.items.length} items from bill ${result.bill.supplier_invoice_no || result.bill.id}`);
     } catch (error: any) {
       console.error(error);
       toast.error("Failed to load bill data");
