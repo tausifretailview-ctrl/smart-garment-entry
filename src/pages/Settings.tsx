@@ -114,6 +114,7 @@ import { CompanyProfileBankAccounts } from "@/components/settings/CompanyProfile
 import { fssaiWarning } from "@/utils/fssai";
 import { refreshOrgSettingsCache } from "@/hooks/useSettings";
 import { readSizeGroups } from "@/lib/data/sizeGroups";
+import { fetchPrinterPresets, setDefaultPrinterPreset } from "@/lib/data/printerPresets";
 
 const loadDesktopPrintPanel = () =>
   import("@/components/DesktopPrintSettings").then((m) => ({ default: m.DesktopPrintSettings }));
@@ -736,22 +737,8 @@ export default function Settings() {
   const fetchDbPresets = async () => {
     if (!currentOrganization?.id) return;
     try {
-      const { data } = await supabase
-        .from("printer_presets")
-        .select("*")
-        .eq("organization_id", currentOrganization.id)
-        .order("name");
-      if (data) {
-        setSettingsDbPresets(data.map((p: any) => ({
-          id: p.id, name: p.name,
-          xOffset: Number(p.x_offset), yOffset: Number(p.y_offset),
-          vGap: Number(p.v_gap), width: Number(p.label_width), height: Number(p.label_height),
-          a4Cols: p.a4_cols, a4Rows: p.a4_rows,
-          printMode: (p.print_mode as CalibrationPreset["printMode"]) || undefined,
-          thermalCols: Number(p.thermal_cols) || 1,
-          labelConfig: p.label_config, isDefault: p.is_default,
-        })));
-      }
+      const presets = await fetchPrinterPresets(currentOrganization.id);
+      setSettingsDbPresets(presets.map((p) => ({ ...p, thermalCols: p.thermalCols || 1 })));
     } catch (error) {
       console.error("Failed to fetch printer presets:", error);
     }
@@ -1057,28 +1044,18 @@ export default function Settings() {
           landing === "thermal3up" ||
           landing === "footwear")
       ) {
-        const thermalCols =
-          landing === "thermal3up" ? 3 : landing === "thermal2up" ? 2 : 1;
-        const matchingIds = settingsDbPresets
-          .filter((p) => inferPrecisionPrintMode(p) === landing)
-          .map((p) => p.id)
-          .filter((id): id is string => !!id);
-        if (matchingIds.length > 0) {
-          await supabase
-            .from("printer_presets")
-            .update({ is_default: false })
-            .eq("organization_id", currentOrganization.id)
-            .in("id", matchingIds);
+        // Same switch as Barcode Printing: clear this mode's default, then mark the chosen
+        // preset. These writes used to be unchecked, so a failure still said "saved".
+        try {
+          await setDefaultPrinterPreset(currentOrganization.id, presetId, landing);
+        } catch (presetErr) {
+          console.error("Failed to set default label design:", presetErr);
+          toast({
+            title: "Default label design not updated",
+            description: (presetErr as { message?: string })?.message || "Please try again.",
+            variant: "destructive",
+          });
         }
-        await supabase
-          .from("printer_presets")
-          .update({
-            is_default: true,
-            print_mode: landing,
-            thermal_cols: thermalCols,
-          })
-          .eq("id", presetId)
-          .eq("organization_id", currentOrganization.id);
         await fetchDbPresets();
       }
 
