@@ -38,6 +38,45 @@ export type LoadLabelItemsFromBillResult =
   | { status: "no_items" | "no_products" | "no_details"; bill: LoadedBill }
   | { status: "ok"; bill: LoadedBill; items: LabelItem[] };
 
+/** Quantity of each line of a purchase bill, by variant id and by barcode. */
+export interface BillLineQuantities {
+  bySku: Map<string, number>;
+  byBarcode: Map<string, number>;
+}
+
+/** One read of a bill's lines. Throws on a failed read. */
+export async function fetchBillLineQuantities(billId: string): Promise<BillLineQuantities> {
+  const { data, error } = await supabase.from("purchase_items").select("barcode, qty, sku_id").eq("bill_id", billId);
+  if (error) throw error;
+  const bySku = new Map<string, number>();
+  const byBarcode = new Map<string, number>();
+  for (const row of data || []) {
+    if (row.barcode) byBarcode.set(row.barcode, row.qty);
+    if (row.sku_id) bySku.set(row.sku_id, row.qty);
+  }
+  return { bySku, byBarcode };
+}
+
+/** A label's quantity on that bill: by variant first, then by barcode; 0 when not on it. */
+export function quantityOnBill(q: BillLineQuantities, item: Pick<LabelItem, "sku_id" | "barcode">): number {
+  return (item.sku_id && q.bySku.get(item.sku_id)) || (item.barcode && q.byBarcode.get(item.barcode)) || 0;
+}
+
+/** The newest bill in this shop (not in the recycle bin) whose number contains the text. */
+export async function findPurchaseBillIdByNumber(orgId: string, billNumber: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("purchase_bills")
+    .select("id")
+    .eq("organization_id", orgId)
+    .is("deleted_at", null)
+    .or(`supplier_invoice_no.ilike.%${billNumber}%,software_bill_no.ilike.%${billNumber}%`)
+    .order("bill_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.id ?? null;
+}
+
 /** Throws on a failed read. */
 export async function loadLabelItemsFromBill(
   orgId: string,
