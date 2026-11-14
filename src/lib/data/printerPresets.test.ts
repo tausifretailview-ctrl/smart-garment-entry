@@ -35,6 +35,7 @@ import {
   deletePrinterPreset,
   fetchPrinterPresets,
   setDefaultPrinterPreset,
+  syncDefaultLabelDesignToSettings,
 } from "@/lib/data/printerPresets";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -82,6 +83,29 @@ describe("printer presets data module", () => {
   it("delete is scoped to the shop", async () => {
     await deletePrinterPreset("org-1", "p1");
     expect(db.calls).toContainEqual({ op: "eq", args: ["organization_id", "org-1"] });
+  });
+
+  it("mirrors a default into Settings keeping other barcode settings, and throws on a failed write", async () => {
+    db.results.push({ data: { id: "set-1", bill_barcode_settings: { logo_url: "x.png" } }, error: null });
+    db.results.push({ data: null, error: null });
+    expect(await syncDefaultLabelDesignToSettings("org-1", "p1", "thermal2up")).toBe(true);
+    expect(db.calls).toContainEqual({
+      op: "update",
+      args: [{ bill_barcode_settings: {
+        logo_url: "x.png",
+        barcode_default_print_tab: "precision_2up",
+        default_thermal_landing: "thermal2up",
+        default_precision_preset_id: "p1",
+        precision_print_mode: "thermal2up",
+      } }],
+    });
+
+    db.results.push({ data: { id: "set-1", bill_barcode_settings: {} }, error: null });
+    db.results.push({ data: null, error: { message: "denied" } });
+    await expect(syncDefaultLabelDesignToSettings("org-1", "p1", "thermal")).rejects.toMatchObject({ message: "denied" });
+
+    db.results.push({ data: null, error: null }); // shop without a settings row
+    expect(await syncDefaultLabelDesignToSettings("org-1", "p1", "thermal")).toBe(false);
   });
 
   it("Barcode Printing and Settings no longer query printer_presets themselves", () => {

@@ -234,7 +234,9 @@ import {
   deletePrinterPreset,
   fetchPrinterPresetByName,
   fetchPrinterPresets,
+  isSettingsLandingMode,
   markPrinterPresetDefault,
+  syncDefaultLabelDesignToSettings,
 } from "@/lib/data/printerPresets";
 
 const precisionPresetStorageKey = (orgId: string) => `precision_active_preset_${orgId}`;
@@ -1919,49 +1921,14 @@ export default function BarcodePrinting() {
     );
 
     // Mirror into Settings → Bill & Barcode so landing + design stay in sync
-    if (
-      printMode === "thermal" ||
-      printMode === "thermal2up" ||
-      printMode === "thermal3up" ||
-      printMode === "footwear"
-    ) {
+    if (isSettingsLandingMode(printMode)) {
       try {
-        const { data: settingsRow } = await supabase
-          .from("settings")
-          .select("id, bill_barcode_settings")
-          .eq("organization_id", currentOrganization.id)
-          .maybeSingle();
-        if (settingsRow?.id) {
-          const prevBbs =
-            settingsRow.bill_barcode_settings &&
-            typeof settingsRow.bill_barcode_settings === "object"
-              ? (settingsRow.bill_barcode_settings as Record<string, unknown>)
-              : {};
-          const tabForMode =
-            printMode === "footwear"
-              ? "precision_footwear"
-              : printMode === "thermal3up"
-                ? "precision_3up"
-                : printMode === "thermal2up"
-                  ? "precision_2up"
-                  : "precision_1up";
-          await supabase
-            .from("settings")
-            .update({
-              bill_barcode_settings: {
-                ...prevBbs,
-                barcode_default_print_tab: tabForMode,
-                default_thermal_landing: printMode,
-                default_precision_preset_id: presetId,
-                precision_print_mode: printMode,
-              },
-            })
-            .eq("id", settingsRow.id)
-            .eq("organization_id", currentOrganization.id);
+        if (await syncDefaultLabelDesignToSettings(currentOrganization.id, presetId, printMode)) {
           void refreshOrgSettingsCache(queryClient, currentOrganization.id);
         }
       } catch (syncErr) {
         console.warn("Failed to sync default label design to settings:", syncErr);
+        toast.warning("Default set here, but Settings → Bill & Barcode could not be updated");
       }
     }
 
