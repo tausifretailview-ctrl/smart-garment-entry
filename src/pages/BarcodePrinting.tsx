@@ -166,7 +166,7 @@ import {
   type OpenSettlementScanInfo,
 } from "@/utils/stockSettlementScans";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { useProductFieldSettings } from "@/hooks/useSettings";
+import { getOrgSettingsRow, useProductFieldSettings } from "@/hooks/useSettings";
 import { entryPageShellClass } from "@/lib/entryPageLayout";
 import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey } from "@/types/labelTypes";
 import { PrecisionThermalPrint } from "@/components/precision-barcode/PrecisionThermalPrint";
@@ -236,6 +236,7 @@ import {
   fetchPrinterPresets,
   isSettingsLandingMode,
   markPrinterPresetDefault,
+  savePrecisionLabelConfigToSettings,
   syncDefaultLabelDesignToSettings,
 } from "@/lib/data/printerPresets";
 
@@ -819,26 +820,7 @@ export default function BarcodePrinting() {
   }, []);
 
   const savePrecisionConfigToSettings = useCallback(async (configToSave: LabelDesignConfig, orgId: string) => {
-    const { data: existing, error: fetchError } = await supabase
-      .from("settings")
-      .select("bill_barcode_settings")
-      .eq("organization_id", orgId)
-      .maybeSingle();
-
-    if (fetchError) throw fetchError;
-
-    const currentBbs = (existing?.bill_barcode_settings as any) || {};
-    const { error: updateError } = await supabase
-      .from("settings")
-      .update({
-        bill_barcode_settings: {
-          ...currentBbs,
-          precision_label_config: configToSave,
-        } as any,
-      })
-      .eq("organization_id", orgId);
-
-    if (updateError) throw updateError;
+    await savePrecisionLabelConfigToSettings(orgId, configToSave);
     void refreshOrgSettingsCache(queryClient, orgId);
   }, [queryClient]);
 
@@ -1383,13 +1365,8 @@ export default function BarcodePrinting() {
       if (!currentOrganization?.id) return;
       
       try {
-        const { data, error } = await supabase
-          .from("settings")
-          .select("business_name, purchase_settings, product_settings, bill_barcode_settings")
-          .eq("organization_id", currentOrganization.id)
-          .maybeSingle();
-
-        if (error) throw error;
+        // The shop's shared settings copy (src/hooks/useSettings.ts): no extra read when fresh.
+        const data = await getOrgSettingsRow(queryClient, currentOrganization.id);
         
         if (data?.business_name) {
           setBusinessName(data.business_name);

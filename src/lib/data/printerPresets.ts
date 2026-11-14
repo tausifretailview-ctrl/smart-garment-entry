@@ -160,3 +160,23 @@ export async function syncDefaultLabelDesignToSettings(
   if (writeError) throw writeError;
   return true;
 }
+
+/**
+ * Save the Label Designer's precision design into Settings → Bill & Barcode, keeping every
+ * other barcode setting (read fresh just before writing). Throws on a failed read or write.
+ */
+export async function savePrecisionLabelConfigToSettings(orgId: string, config: unknown): Promise<void> {
+  const { data: existing, error: fetchError } = await supabase
+    .from("settings")
+    .select("bill_barcode_settings")
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  if (fetchError) throw fetchError;
+
+  const currentBbs = (existing?.bill_barcode_settings as Record<string, unknown> | null) || {};
+  const { error: updateError } = await supabase
+    .from("settings")
+    .update({ bill_barcode_settings: { ...currentBbs, precision_label_config: config } as never })
+    .eq("organization_id", orgId);
+  if (updateError) throw updateError;
+}

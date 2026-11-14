@@ -34,6 +34,7 @@ import {
   clearDefaultPrinterPresetsForMode,
   deletePrinterPreset,
   fetchPrinterPresets,
+  savePrecisionLabelConfigToSettings,
   setDefaultPrinterPreset,
   syncDefaultLabelDesignToSettings,
 } from "@/lib/data/printerPresets";
@@ -106,6 +107,24 @@ describe("printer presets data module", () => {
 
     db.results.push({ data: null, error: null }); // shop without a settings row
     expect(await syncDefaultLabelDesignToSettings("org-1", "p1", "thermal")).toBe(false);
+  });
+
+  it("saves the precision design into Settings, keeping other barcode settings", async () => {
+    db.results.push({ data: { bill_barcode_settings: { logo_url: "x.png", default_thermal_landing: "thermal" } }, error: null });
+    db.results.push({ data: null, error: null });
+    await savePrecisionLabelConfigToSettings("org-1", { fieldOrder: ["barcode"] });
+    expect(db.calls).toContainEqual({
+      op: "update",
+      args: [{ bill_barcode_settings: { logo_url: "x.png", default_thermal_landing: "thermal", precision_label_config: { fieldOrder: ["barcode"] } } }],
+    });
+    db.results.push({ data: null, error: { message: "denied" } });
+    await expect(savePrecisionLabelConfigToSettings("org-1", {})).rejects.toMatchObject({ message: "denied" });
+  });
+
+  it("Barcode Printing reads settings from the shared copy, not its own query", () => {
+    const page = readFileSync(join(root, "src/pages/BarcodePrinting.tsx"), "utf8");
+    expect(page).not.toMatch(/\.from\(\s*["']settings["']\s*\)/);
+    expect(page).toContain("getOrgSettingsRow(queryClient, currentOrganization.id)");
   });
 
   it("Barcode Printing and Settings no longer query printer_presets themselves", () => {
