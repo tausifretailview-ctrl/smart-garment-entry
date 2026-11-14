@@ -12,6 +12,7 @@ import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
+import { useSettings } from "@/hooks/useSettings";
 
 interface OrderItem {
   id: string;
@@ -38,11 +39,6 @@ interface Order {
   notes: string | null;
 }
 
-interface Settings {
-  business_name: string | null;
-  address: string | null;
-}
-
 const SalesmanOrderView = () => {
   const { orderId } = useParams();
   const { navigate } = useOrgNavigation();
@@ -52,7 +48,7 @@ const SalesmanOrderView = () => {
 
   const [order, setOrder] = useState<Order | null>(null);
   const [items, setItems] = useState<OrderItem[]>([]);
-  const [settings, setSettings] = useState<Settings | null>(null);
+  const { data: settings } = useSettings();
   const [loading, setLoading] = useState(true);
 
   const handlePrint = useReactToPrint({
@@ -63,18 +59,8 @@ const SalesmanOrderView = () => {
   useEffect(() => {
     if (currentOrganization?.id && orderId) {
       fetchOrderDetails();
-      fetchSettings();
     }
   }, [currentOrganization?.id, orderId]);
-
-  const fetchSettings = async () => {
-    const { data } = await supabase
-      .from("settings")
-      .select("business_name, address")
-      .eq("organization_id", currentOrganization!.id)
-      .single();
-    if (data) setSettings(data);
-  };
 
   const fetchOrderDetails = async () => {
     try {

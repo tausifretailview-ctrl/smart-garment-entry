@@ -1,8 +1,7 @@
 import { forwardRef } from "react";
 import { format } from "date-fns";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useBillBarcodeSettings } from "@/hooks/useSettings";
 
 export interface YearWiseBalanceLine {
   year_name: string;
@@ -49,20 +48,7 @@ export const SchoolFeeReceipt = forwardRef<HTMLDivElement, SchoolFeeReceiptProps
       return `${parent} ${surname}`.toUpperCase();
     })();
 
-    const { data: logoUrl } = useQuery({
-      queryKey: ["org-logo", currentOrganization?.id],
-      queryFn: async () => {
-        if (!currentOrganization?.id) return null;
-        const { data } = await supabase
-          .from("settings")
-          .select("bill_barcode_settings")
-          .eq("organization_id", currentOrganization.id)
-          .single();
-        return (data?.bill_barcode_settings as any)?.logo_url || null;
-      },
-      enabled: !!currentOrganization?.id,
-      staleTime: 60000,
-    });
+    const logoUrl = (useBillBarcodeSettings().logo_url as string | undefined) || null;
 
     return (
       <>

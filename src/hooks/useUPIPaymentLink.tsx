@@ -1,7 +1,5 @@
 import { useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useOrganization } from "@/contexts/OrganizationContext";
+import { useSettings } from "@/hooks/useSettings";
 import { resolveCompanyUpiId } from "@/utils/companyUpi";
 
 interface UPILinkParams {
@@ -16,25 +14,8 @@ interface UPILinkParams {
  * Uses the merchant's UPI ID from settings
  */
 export const useUPIPaymentLink = () => {
-  const { currentOrganization } = useOrganization();
-
   // Fetch settings to get UPI ID and business name
-  const { data: settings } = useQuery({
-    queryKey: ["settings-upi", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return null;
-
-      const { data, error } = await supabase
-        .from("settings")
-        .select("business_name, bill_barcode_settings")
-        .eq("organization_id", currentOrganization.id)
-        .maybeSingle();
-
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!currentOrganization?.id,
-  });
+  const { data: settings } = useSettings();
 
   const upiId = resolveCompanyUpiId(settings?.bill_barcode_settings as any);
   const businessName = settings?.business_name || "Merchant";

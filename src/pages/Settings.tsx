@@ -112,6 +112,8 @@ function preloadWhatsAppTab() {
 }
 import { CompanyProfileBankAccounts } from "@/components/settings/CompanyProfileBankAccounts";
 import { fssaiWarning } from "@/utils/fssai";
+import { refreshOrgSettingsCache } from "@/hooks/useSettings";
+import { readSizeGroups } from "@/lib/data/sizeGroups";
 
 const loadDesktopPrintPanel = () =>
   import("@/components/DesktopPrintSettings").then((m) => ({ default: m.DesktopPrintSettings }));
@@ -932,11 +934,7 @@ export default function Settings() {
   const fetchSizeGroups = async () => {
     if (!currentOrganization?.id) return;
     try {
-      const { data, error } = await supabase
-        .from("size_groups")
-        .select("id, group_name")
-        .eq("organization_id", currentOrganization.id)
-        .order("group_name");
+      const { data, error } = await readSizeGroups(queryClient, currentOrganization.id);
       
       if (error) throw error;
       setSizeGroups(data || []);
@@ -1230,6 +1228,7 @@ export default function Settings() {
         .eq('organization_id', currentOrganization?.id);
 
       if (error) throw error;
+      void refreshOrgSettingsCache(queryClient, currentOrganization?.id);
 
       setBarcodeTemplates(updatedTemplates);
       setSettings(prev => ({
@@ -1274,6 +1273,7 @@ export default function Settings() {
         .eq('organization_id', currentOrganization?.id);
 
       if (error) throw error;
+      void refreshOrgSettingsCache(queryClient, currentOrganization?.id);
 
       setBarcodeTemplates(updatedTemplates);
       setSettings(prev => ({

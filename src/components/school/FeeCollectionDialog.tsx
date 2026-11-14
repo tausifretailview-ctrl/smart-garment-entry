@@ -28,6 +28,7 @@ import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { computeEffectivePendingDue, resolveLiability } from "@/lib/schoolFeeLiability";
 import { recordSchoolFeeReceiptJournalEntry } from "@/utils/accounting/journalService";
+import { useBillBarcodeSettings } from "@/hooks/useSettings";
 
 const OPENING_CARRY_HEAD_ID = "__opening_carry__";
 
@@ -123,19 +124,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
   const [manualFeeAmount, setManualFeeAmount] = useState<number>(0);
 
   // Fetch organization logo URL for WhatsApp messages
-  const { data: orgLogoSettings } = useQuery({
-    queryKey: ["org-logo-url", currentOrganization?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("settings")
-        .select("bill_barcode_settings")
-        .eq("organization_id", currentOrganization!.id)
-        .maybeSingle();
-      return data;
-    },
-    enabled: !!currentOrganization?.id,
-  });
-  const logoUrl = (orgLogoSettings?.bill_barcode_settings as any)?.logo_url || "";
+  const logoUrl = (useBillBarcodeSettings().logo_url as string | undefined) || "";
 
   const { data: orgAccountingSettings } = useQuery({
     queryKey: ["settings-accounting-engine", currentOrganization?.id],

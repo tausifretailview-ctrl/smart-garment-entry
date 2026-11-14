@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { refreshOrgSettingsCache } from "@/hooks/useSettings";
 
 /** Org admin: lock journals dated before the chosen date (admins can still post). */
 export function AccountingPeriodLockCard() {
@@ -51,6 +52,7 @@ export function AccountingPeriodLockCard() {
     onSuccess: () => {
       toast.success("Books closed date saved");
       queryClient.invalidateQueries({ queryKey: ["settings-books-closed"] });
+      void refreshOrgSettingsCache(queryClient, currentOrganization?.id);
     },
     onError: (err: Error) => toast.error(err.message || "Could not save"),
   });

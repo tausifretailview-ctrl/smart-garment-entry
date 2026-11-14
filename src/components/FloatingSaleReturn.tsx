@@ -31,7 +31,7 @@ import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleRe
 import { ensureCreditNoteHeadroom } from "@/utils/saleReturnCnBalance";
 import { resolveSaleReturnUnitPrice } from "@/utils/saleReturnPricing";
 import { resolveCustomerLastSaleReturnPrice } from "@/utils/saleReturnCustomerPrice";
-import { useSettings } from "@/hooks/useSettings";
+import { useOrgSettingsRow, useSettings } from "@/hooks/useSettings";
 import { isAtomicBillSaveEnabled } from "@/lib/saveSaleAtomic";
 import { ATOMIC_RETURN_ID_PLACEHOLDER, saveReturnWithItemsAtomic } from "@/lib/saveReturnAtomic";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
@@ -347,19 +347,13 @@ export const FloatingSaleReturn = ({
 
   // Fetch sale return price setting
   // Re-read each time the window opens so a Settings change applies without reloading POS.
+  const { data: shopSettings, isSuccess: shopSettingsLoaded } = useOrgSettingsRow(organizationId || undefined);
   useEffect(() => {
-    if (organizationId && open) {
-      supabase
-        .from("settings")
-        .select("sale_settings")
-        .eq("organization_id", organizationId)
-        .maybeSingle()
-        .then(({ data }) => {
-          const saleSettings = (data as any)?.sale_settings;
-          setUseOriginalPrice(!!saleSettings?.sale_return_use_original_price);
-        });
+    if (organizationId && open && shopSettingsLoaded) {
+      const saleSettings = (shopSettings as any)?.sale_settings;
+      setUseOriginalPrice(!!saleSettings?.sale_return_use_original_price);
     }
-  }, [organizationId, open]);
+  }, [organizationId, open, shopSettingsLoaded, shopSettings]);
 
   // Inline customer search — only relevant when no customer was passed from POS
   useEffect(() => {

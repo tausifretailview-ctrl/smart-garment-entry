@@ -83,6 +83,7 @@ import {
 } from "@/utils/productStockDisplay";
 import { colorChipStyle, distinctColorLabels } from "@/utils/formatColorName";
 import { columnHasVisibleValue } from "@/utils/productDashboardColumns";
+import { useSizeGroups } from "@/lib/data/sizeGroups";
 
 interface ProductVariant {
   variant_id: string;
@@ -705,21 +706,7 @@ const ProductDashboard = () => {
     maxPrice,
   ]);
 
-  const { data: sizeGroups = [] } = useQuery({
-    queryKey: ["product-size-groups", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      const { data, error } = await supabase
-        .from("size_groups")
-        .select("id, group_name")
-        .eq("organization_id", currentOrganization.id)
-        .order("group_name");
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: STALE_REFERENCE,
-  });
+  const { data: sizeGroups = [] } = useSizeGroups();
 
   const PRODUCT_FILTER_OPTIONS_STALE_MS = 5 * 60 * 1000;
 

@@ -196,6 +196,7 @@ import {
   saleItemDiscountPercentForPersist,
   saleLineFingerprint,
 } from "@/utils/salesInvoiceDiscountRestore";
+import { useSizeGroups } from "@/lib/data/sizeGroups";
 
 interface LineItem {
   id: string;
@@ -1078,23 +1079,7 @@ export default function SalesInvoice() {
 
   // Size groups (reference data) — standalone cached query, reused by product search.
   // Replaces the old mount-time products+variants+size_groups catalog embed.
-  const { data: sizeGroupsData } = useQuery({
-    queryKey: ['size-groups', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      const { data, error } = await supabase
-        .from('size_groups')
-        .select('id, group_name, sizes')
-        .eq('organization_id', currentOrganization.id)
-        .order('group_name');
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
+  const { data: sizeGroupsData } = useSizeGroups();
 
   const sizeGroupSizesById = useMemo(() => {
     const map = new Map<string, string[]>();

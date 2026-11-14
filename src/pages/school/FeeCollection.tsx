@@ -30,6 +30,7 @@ import {
   sumYearWisePending,
   type YearFeeBalanceRow,
 } from "@/lib/schoolFeeYearBalances";
+import { useBillBarcodeSettings } from "@/hooks/useSettings";
 
 /** Pending across all sessions for reminders (current + prior years). */
 async function getStudentPendingForReminder(
@@ -149,19 +150,7 @@ const FeeCollection = () => {
   });
 
   // Fetch organization logo URL for WhatsApp messages
-  const { data: orgSettings } = useQuery({
-    queryKey: ["org-logo-url", currentOrganization?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("settings")
-        .select("bill_barcode_settings")
-        .eq("organization_id", currentOrganization!.id)
-        .maybeSingle();
-      return data;
-    },
-    enabled: !!currentOrganization?.id,
-  });
-  const logoUrl = (orgSettings?.bill_barcode_settings as any)?.logo_url || "";
+  const logoUrl = (useBillBarcodeSettings().logo_url as string | undefined) || "";
 
   // Fees Collected tab state
   const [collectedPeriod, setCollectedPeriod] = useState("today");

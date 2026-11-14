@@ -98,7 +98,6 @@ export function SizeGroupDeleteDialog({
       });
       // Other screens cache the size group list (Sales, Purchase, Product Dashboard)
       queryClient.invalidateQueries({ queryKey: ["size-groups"] });
-      queryClient.invalidateQueries({ queryKey: ["product-size-groups"] });
       onDeleted(group.id, inUse ? targetId : null);
       onClose();
     } catch (err) {

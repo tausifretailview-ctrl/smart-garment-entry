@@ -18,7 +18,7 @@ import { syncPurchaseItemBarcodesForSku } from "@/utils/alignPurchaseLineBarcode
 import type { TablesUpdate } from "@/integrations/supabase/types";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
-import { useProductFieldSettings, type ProductFieldKey } from "@/hooks/useSettings";
+import { useProductFieldSettings, useSettings, type ProductFieldKey } from "@/hooks/useSettings";
 import { UOM_OPTIONS } from "@/constants/uom";
 import {
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp, X, RotateCcw,
@@ -138,6 +138,7 @@ const ProductEditPanel = ({
   const [soldUnits, setSoldUnits] = useState(0);
   /** Gate for Purchase→Markup→MRP→Sale chain (purchase_settings.show_mrp). */
   const [showMrp, setShowMrp] = useState(false);
+  const { data: shopSettings, isSuccess: shopSettingsLoaded } = useSettings();
   /** Ephemeral Sale Disc % for MRP→Sale pricing only — never persisted to sale_discount_*. */
   const [pricingDiscPercent, setPricingDiscPercent] = useState("");
   /** Last margin chip % so Purchase Price edits can recompute when showMrp. */
@@ -173,22 +174,13 @@ const ProductEditPanel = ({
 
   // Load purchase_settings.show_mrp for pricing chain (same || false convention as Product Entry)
   useEffect(() => {
-    if (!open || !currentOrganization?.id) return;
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase
-        .from("settings")
-        .select("purchase_settings")
-        .eq("organization_id", currentOrganization.id)
-        .maybeSingle();
-      if (cancelled) return;
-      const ps = (data?.purchase_settings && typeof data.purchase_settings === "object")
-        ? (data.purchase_settings as { show_mrp?: boolean })
-        : null;
-      setShowMrp(ps?.show_mrp || false);
-    })();
-    return () => { cancelled = true; };
-  }, [open, currentOrganization?.id]);
+    if (!open || !shopSettingsLoaded) return;
+    const purchaseSettings = shopSettings?.purchase_settings;
+    const ps = (purchaseSettings && typeof purchaseSettings === "object")
+      ? (purchaseSettings as { show_mrp?: boolean })
+      : null;
+    setShowMrp(ps?.show_mrp || false);
+  }, [open, shopSettingsLoaded, shopSettings]);
 
   const loadProductData = async (productId: string, skuId?: string) => {
     setLoading(true);

@@ -5,6 +5,7 @@ import { isDecimalUOM, getUOMLabel } from "@/constants/uom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getSizeGroupsByIds } from "@/lib/data/sizeGroups";
 import { supabase } from "@/integrations/supabase/client";
 import { insertProductsPreferringPurchaseFlag } from "@/utils/productCreatedInPurchaseColumn";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -2958,10 +2959,9 @@ const PurchaseEntry = () => {
       // Fetch size groups for these products
       let sizeGroupsMap: Record<string, { group_name: string; sizes: string[] }> = {};
       if (sizeGroupIds.length > 0) {
-        const { data: sizeGroups } = await supabase
-          .from("size_groups")
-          .select("id, group_name, sizes")
-          .in("id", sizeGroupIds);
+        const sizeGroups = currentOrganization?.id
+          ? [...(await getSizeGroupsByIds(queryClient, currentOrganization.id, sizeGroupIds)).values()]
+          : [];
         
         if (sizeGroups) {
           sizeGroups.forEach((sg: any) => {
@@ -3029,10 +3029,9 @@ const PurchaseEntry = () => {
       )];
       
       if (additionalSizeGroupIds.length > 0) {
-        const { data: additionalSizeGroups } = await supabase
-          .from("size_groups")
-          .select("id, group_name, sizes")
-          .in("id", additionalSizeGroupIds);
+        const additionalSizeGroups = currentOrganization?.id
+          ? [...(await getSizeGroupsByIds(queryClient, currentOrganization.id, additionalSizeGroupIds)).values()]
+          : [];
         
         if (additionalSizeGroups) {
           additionalSizeGroups.forEach((sg: any) => {
@@ -3880,10 +3879,9 @@ const PurchaseEntry = () => {
       // Fetch size groups for these products
       let sizeGroupsMap: Record<string, { group_name: string; sizes: string[] }> = {};
       if (sizeGroupIds.length > 0) {
-        const { data: sizeGroups } = await supabase
-          .from("size_groups")
-          .select("id, group_name, sizes")
-          .in("id", sizeGroupIds);
+        const sizeGroups = currentOrganization?.id
+          ? [...(await getSizeGroupsByIds(queryClient, currentOrganization.id, sizeGroupIds)).values()]
+          : [];
         
         if (currentController.signal.aborted) return;
         
@@ -3957,10 +3955,9 @@ const PurchaseEntry = () => {
       )];
       
       if (additionalSizeGroupIds.length > 0) {
-        const { data: additionalSizeGroups } = await supabase
-          .from("size_groups")
-          .select("id, group_name, sizes")
-          .in("id", additionalSizeGroupIds);
+        const additionalSizeGroups = currentOrganization?.id
+          ? [...(await getSizeGroupsByIds(queryClient, currentOrganization.id, additionalSizeGroupIds)).values()]
+          : [];
         
         if (currentController.signal.aborted) return;
         
@@ -4200,11 +4197,9 @@ const PurchaseEntry = () => {
       (gridProductData.uom || "NOS") !== "MTR" &&
       !productRequiresImei({ requires_imei: gridProductData.requires_imei }, mobileERPSettings)
     ) {
-      const { data: sizeGroup } = await supabase
-        .from("size_groups")
-        .select("sizes")
-        .eq("id", gridProductData.size_group_id)
-        .maybeSingle();
+      const sizeGroup = currentOrganization?.id
+        ? (await getSizeGroupsByIds(queryClient, currentOrganization.id, [gridProductData.size_group_id])).get(gridProductData.size_group_id)
+        : undefined;
       groupSizePlaceholders = missingGroupSizePlaceholders({
         variants: tierData.map((v: any) => ({
           id: v.id,
@@ -4385,11 +4380,9 @@ const PurchaseEntry = () => {
     const product = data[0].products as any;
     let sizeGroupName = "";
     if (product?.size_group_id) {
-      const { data: sizeGroup } = await supabase
-        .from("size_groups")
-        .select("group_name")
-        .eq("id", product.size_group_id)
-        .maybeSingle();
+      const sizeGroup = currentOrganization?.id
+        ? (await getSizeGroupsByIds(queryClient, currentOrganization.id, [product.size_group_id])).get(product.size_group_id)
+        : undefined;
       sizeGroupName = sizeGroup?.group_name || "";
     }
 

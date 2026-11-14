@@ -150,19 +150,11 @@ export default function SaleReturnEntry() {
 
   // Fetch sale return price setting
   useEffect(() => {
-    if (!currentOrganization?.id) return;
-    supabase
-      .from("settings")
-      .select("sale_settings")
-      .eq("organization_id", currentOrganization.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        const saleSettings = data?.sale_settings as any;
-        if (saleSettings?.sale_return_use_original_price) {
-          setUseOriginalPriceForReturn(true);
-        }
-      });
-  }, [currentOrganization?.id]);
+    const saleSettings = settingsData?.sale_settings as any;
+    if (saleSettings?.sale_return_use_original_price) {
+      setUseOriginalPriceForReturn(true);
+    }
+  }, [settingsData]);
 
   // Store original item IDs for edit mode (to delete them on resave)
   const [originalItemIds, setOriginalItemIds] = useState<string[]>([]);
