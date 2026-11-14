@@ -134,3 +134,69 @@ export async function generateOrgEstimateNumber(organizationId: string): Promise
   if (error) throw error;
   return data as string;
 }
+
+/**
+ * How to preview the next invoice number for these sale settings: the LIKE pattern that finds
+ * the series' existing numbers, the lowest allowed sequence, and how to print a sequence.
+ * Shared by every numbering style (custom format with {###}, literal format, default
+ * INV/YY-YY/N), which Sales Invoice used to compute in three near-identical copies.
+ */
+export function planSaleNumberPreview(
+  saleSettings: { invoice_numbering_format?: string | null; invoice_series_start?: string | null } | null | undefined,
+  now: Date = new Date(),
+): { likePattern: string; minSequence: number; render: (sequence: number) => string } {
+  const rawFormat = saleSettings?.invoice_numbering_format || saleSettings?.invoice_series_start;
+  if (rawFormat) {
+    const rawSeriesStart = saleSettings?.invoice_series_start;
+    const format = autoCorrectFY(rawFormat);
+    const seriesStart = rawSeriesStart ? autoCorrectFY(rawSeriesStart) : rawSeriesStart;
+    let safeFormat = format;
+    if (!/\{#+\}/.test(safeFormat)) {
+      safeFormat = /\d+$/.test(safeFormat) ? safeFormat.replace(/\d+$/, "{###}") : `${safeFormat}{###}`;
+    }
+    const basePattern = safeFormat.replace(/\{#+\}/, "");
+    const padLen = safeFormat.match(/\{(#+)\}/)?.[1]?.length ?? 0;
+    return {
+      likePattern: saleFormatToLikePattern(safeFormat),
+      minSequence: minSequenceFromSeriesStart(seriesStart),
+      render: (sequence) => `${basePattern}${padLen > 0 ? String(sequence).padStart(padLen, "0") : String(sequence)}`,
+    };
+  }
+  // Default INV/YY-YY/N series for the current Indian financial year (April–March).
+  const ist = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+  const fyStart = ist.getMonth() + 1 >= 4 ? ist.getFullYear() : ist.getFullYear() - 1;
+  const series = `INV/${String(fyStart).slice(2)}-${String(fyStart + 1).slice(2)}`;
+  return { likePattern: `${series}/%`, minSequence: 1, render: (sequence) => `${series}/${sequence}` };
+}
+
+/** Highest trailing number among these sale numbers, + 1, never below minSequence. */
+export function nextSequenceFrom(saleNumbers: readonly string[], minSequence: number): number {
+  let maxSeq = 0;
+  for (const n of saleNumbers) {
+    const m = n.match(/(\d+)$/);
+    if (m) maxSeq = Math.max(maxSeq, parseInt(m[1], 10));
+  }
+  return Math.max(maxSeq + 1, minSequence);
+}
+
+/**
+ * The next invoice number this shop will get, without taking it (matches
+ * generate_sale_number_atomic: highest active number in the series + 1). Throws on a failed read.
+ */
+export async function fetchNextSaleNumberPreview(
+  orgId: string,
+  saleSettings: Parameters<typeof planSaleNumberPreview>[0],
+  now: Date = new Date(),
+): Promise<string> {
+  const plan = planSaleNumberPreview(saleSettings, now);
+  const { data, error } = await supabase
+    .from("sales")
+    .select("sale_number")
+    .eq("organization_id", orgId)
+    .is("deleted_at", null)
+    .like("sale_number", plan.likePattern)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) throw error;
+  return plan.render(nextSequenceFrom((data || []).map((s) => s.sale_number), plan.minSequence));
+}
