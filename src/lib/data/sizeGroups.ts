@@ -52,9 +52,13 @@ export function refreshSizeGroupsCache(queryClient: QueryClient, orgId: string |
   return queryClient.invalidateQueries({ queryKey: sizeGroupsQueryKey(orgId) });
 }
 
+/** A list read this recently is trusted when an id is missing from it. */
+export const MISSING_ID_REREAD_AFTER_MS = 30_000;
+
 /**
  * The groups with these ids, by id. Served from the cached list; if any id is not in it
- * (made in another tab or by another user since), the list is re-read once.
+ * (made in another tab or by another user since) and the list is older than 30 s, it is
+ * re-read once.
  */
 export async function getSizeGroupsByIds(
   queryClient: QueryClient,
@@ -65,7 +69,10 @@ export async function getSizeGroupsByIds(
   const byId = (rows: SizeGroupRow[]) => new Map(rows.map((g) => [g.id, g]));
   if (wanted.length === 0) return new Map();
   let map = byId(await getSizeGroups(queryClient, orgId));
-  if (wanted.some((id) => !map.has(id))) {
+  // Re-read only if the list is not fresh: a product that points at a deleted group would
+  // otherwise re-read the whole list on every product search.
+  const listAge = Date.now() - (queryClient.getQueryState(sizeGroupsQueryKey(orgId))?.dataUpdatedAt ?? 0);
+  if (wanted.some((id) => !map.has(id)) && listAge > MISSING_ID_REREAD_AFTER_MS) {
     await refreshSizeGroupsCache(queryClient, orgId);
     map = byId(await getSizeGroups(queryClient, orgId));
   }

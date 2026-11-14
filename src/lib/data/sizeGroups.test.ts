@@ -25,7 +25,13 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
-import { getSizeGroups, getSizeGroupsByIds, readSizeGroups, refreshSizeGroupsCache } from "@/lib/data/sizeGroups";
+import {
+  MISSING_ID_REREAD_AFTER_MS,
+  getSizeGroups,
+  getSizeGroupsByIds,
+  readSizeGroups,
+  refreshSizeGroupsCache,
+} from "@/lib/data/sizeGroups";
 
 const g = (id: string, name: string) => ({ id, group_name: name, sizes: ["S", "M"], organization_id: "org-1" });
 
@@ -46,13 +52,25 @@ describe("size groups data module", () => {
     expect(db.reads).toBe(1);
   });
 
-  it("an id missing from the cached list re-reads once (group made elsewhere)", async () => {
+  it("an id missing from an older cached list re-reads once (group made elsewhere)", async () => {
     const qc = new QueryClient();
     await getSizeGroups(qc, "org-1");
     db.rows.push(g("sg-3", "NEW"));
+    const later = Date.now() + MISSING_ID_REREAD_AFTER_MS + 1_000;
+    const now = vi.spyOn(Date, "now").mockReturnValue(later);
     const byId = await getSizeGroupsByIds(qc, "org-1", ["sg-1", "sg-3"]);
+    now.mockRestore();
     expect(byId.get("sg-3")?.group_name).toBe("NEW");
     expect(db.reads).toBe(2);
+  });
+
+  it("a product pointing at a deleted group does not re-read the list on every search", async () => {
+    const qc = new QueryClient();
+    for (let search = 0; search < 5; search += 1) {
+      const byId = await getSizeGroupsByIds(qc, "org-1", ["sg-1", "sg-deleted"]);
+      expect([...byId.keys()]).toEqual(["sg-1"]);
+    }
+    expect(db.reads).toBe(1);
   });
 
   it("a save refreshes the list", async () => {

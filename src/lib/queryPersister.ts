@@ -52,6 +52,9 @@ const VOLATILE_PREFIXES = [
   "customer-invoices",
   "customer-invoice-voucher-splits",
   "employees",
+  // The shop's logins and emails (src/lib/data/shopUsers.ts) — never written to disk.
+  "shop-users",
+  "shop-members",
   "expense-vouchers",
   "supplier-ledger",
   "suppliers",
