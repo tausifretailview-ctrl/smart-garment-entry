@@ -43,6 +43,8 @@ import {
 } from "@/utils/tallyExportUtils";
 import { DEBIT_NOTE_SALE_TYPE, debitNoteSaleLines } from "@/utils/debitNote";
 import { fetchDebitNoteDetailsByIds } from "@/utils/debitNoteData";
+import { getOrgSettingsRow } from "@/hooks/useSettings";
+import { useQueryClient } from "@tanstack/react-query";
 
 type PeriodType = "this-month" | "last-month" | "this-quarter" | "last-quarter" | "this-fy" | "custom";
 type ExportType = "masters" | "transactions" | "complete";
@@ -50,6 +52,7 @@ type ExportType = "masters" | "transactions" | "complete";
 const TallyExport = () => {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+  const queryClient = useQueryClient();
   const { getOrgPath } = useOrgNavigation();
   const [isExporting, setIsExporting] = useState(false);
   const [periodType, setPeriodType] = useState<PeriodType>("this-month");
@@ -250,11 +253,7 @@ const TallyExport = () => {
     setIsExporting(true);
     try {
       // Fetch settings for GST number
-      const { data: settings } = await supabase
-        .from("settings")
-        .select("gst_number, business_name")
-        .eq("organization_id", currentOrganization.id)
-        .single();
+      const settings = await getOrgSettingsRow(queryClient, currentOrganization.id).catch(() => null);
       
       const orgGstin = settings?.gst_number || '';
       const businessName = settings?.business_name || currentOrganization.name;

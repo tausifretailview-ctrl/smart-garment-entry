@@ -34,12 +34,15 @@ import { isAllDcDocument, withoutDcLines } from "@/utils/gstDcExclusion";
 import { isHeldOrCancelledSale } from "@/utils/posHoldBill";
 import { InsightsKpiCard } from "@/components/business-insights/insightsLayout";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
+import { getOrgSettingsRow } from "@/hooks/useSettings";
+import { useQueryClient } from "@tanstack/react-query";
 
 type PeriodType = "custom" | "this-month" | "last-month" | "this-quarter" | "last-quarter" | "this-fy" | "last-fy";
 
 const GSTSalePurchaseRegister = () => {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+  const queryClient = useQueryClient();
   const { orgNavigate } = useOrgNavigation();
   const today = new Date();
 
@@ -153,11 +156,7 @@ const GSTSalePurchaseRegister = () => {
 
     try {
       // Fetch settings for business info
-      const { data: settings } = await supabase
-        .from("settings")
-        .select("business_name, gst_number")
-        .eq("organization_id", currentOrganization.id)
-        .maybeSingle();
+      const settings = await getOrgSettingsRow(queryClient, currentOrganization.id).catch(() => null);
 
       const businessName = settings?.business_name || currentOrganization.name || "Business";
       const businessGSTIN = settings?.gst_number || "";

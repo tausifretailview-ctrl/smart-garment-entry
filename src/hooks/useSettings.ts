@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { STALE_SETTINGS } from '@/lib/queryStaleTimes';
@@ -35,10 +35,34 @@ export async function fetchOrgSettingsRow(orgId: string | undefined) {
   return data;
 }
 
+/**
+ * Call after any write to the settings row so every screen reading the shared cache
+ * (useSettings and friends) sees the saved values at once instead of after STALE_SETTINGS.
+ */
+export function refreshOrgSettingsCache(queryClient: QueryClient, orgId: string | undefined) {
+  if (!orgId) return Promise.resolve();
+  return queryClient.invalidateQueries({ queryKey: orgSettingsQueryKey(orgId) });
+}
+
+/**
+ * The settings row for code outside render (save / export / open handlers): served from the
+ * shared cache when fresh, else read once and cached for every other screen. Throws on a failed read.
+ */
+export function getOrgSettingsRow(queryClient: QueryClient, orgId: string) {
+  return queryClient.fetchQuery({
+    queryKey: orgSettingsQueryKey(orgId),
+    queryFn: () => fetchOrgSettingsRow(orgId),
+    staleTime: STALE_SETTINGS,
+  });
+}
+
 export function useSettings() {
   const { currentOrganization } = useOrganization();
-  const orgId = currentOrganization?.id;
+  return useOrgSettingsRow(currentOrganization?.id);
+}
 
+/** Same cache entry as useSettings, for screens handed the shop id as a prop. */
+export function useOrgSettingsRow(orgId: string | undefined) {
   return useQuery({
     queryKey: orgSettingsQueryKey(orgId),
     queryFn: () => fetchOrgSettingsRow(orgId),

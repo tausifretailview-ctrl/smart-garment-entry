@@ -1,4 +1,6 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSettings } from "@/hooks/useSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { format } from "date-fns";
@@ -77,36 +79,31 @@ export const useWhatsAppTemplates = () => {
   });
 
   // Fetch social links from settings
-  const { data: settings } = useQuery({
-    queryKey: ["settings-social-links", currentOrganization?.id],
+  // Shop settings come from the shared settings cache; only the WhatsApp row is read here.
+  const { data: shopSettings, isSuccess: shopSettingsLoaded } = useSettings();
+  const { data: waSocialLinks, isSuccess: waLoaded } = useQuery({
+    queryKey: ["whatsapp-social-links", currentOrganization?.id],
     queryFn: async () => {
-      if (!currentOrganization?.id) return null;
-
-      const [{ data, error }, { data: wa }] = await Promise.all([
-        supabase
-          .from("settings")
-          .select("bill_barcode_settings")
-          .eq("organization_id", currentOrganization.id)
-          .maybeSingle(),
-        supabase
-          .from("whatsapp_api_settings")
-          .select("social_links")
-          .eq("organization_id", currentOrganization.id)
-          .maybeSingle(),
-      ]);
-
-      if (error) throw error;
-      const links = mergeShopSocialLinks(wa?.social_links, data?.bill_barcode_settings);
-      return {
-        instagram_link: links.instagram,
-        website_link: links.website,
-        google_review_link: links.google_review,
-        facebook_link: links.facebook,
-        whatsapp_group_link: links.whatsapp_group,
-      } as SocialLinks;
+      const { data } = await supabase
+        .from("whatsapp_api_settings")
+        .select("social_links")
+        .eq("organization_id", currentOrganization!.id)
+        .maybeSingle();
+      return data?.social_links ?? null;
     },
     enabled: !!currentOrganization?.id,
   });
+  const settings = useMemo((): SocialLinks | null => {
+    if (!shopSettingsLoaded || !waLoaded) return null;
+    const links = mergeShopSocialLinks(waSocialLinks, shopSettings?.bill_barcode_settings);
+    return {
+      instagram_link: links.instagram,
+      website_link: links.website,
+      google_review_link: links.google_review,
+      facebook_link: links.facebook,
+      whatsapp_group_link: links.whatsapp_group,
+    };
+  }, [shopSettingsLoaded, waLoaded, waSocialLinks, shopSettings]);
 
   const getTemplate = (templateType: string) => {
     return templates?.find((t) => t.template_type === templateType);

@@ -237,6 +237,8 @@ import {
 import { BarcodeLabelListPanel } from "@/components/barcode/BarcodeLabelListPanel";
 import { BarcodePrintFooter } from "@/components/barcode/BarcodePrintFooter";
 import { builtInLabelTemplates, sheetPresetLabels, sheetPresets, type SheetType } from "@/lib/barcode/sheetPresets";
+import { refreshOrgSettingsCache } from "@/hooks/useSettings";
+import { useQueryClient } from "@tanstack/react-query";
 
 const precisionPresetStorageKey = (orgId: string) => `precision_active_preset_${orgId}`;
 
@@ -322,6 +324,7 @@ export default function BarcodePrinting() {
   }, [location.state]);
   const { orgNavigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const productFieldSettings = useProductFieldSettings();
   const [searchQuery, setSearchQuery] = useState("");
@@ -864,7 +867,8 @@ export default function BarcodePrinting() {
       .eq("organization_id", orgId);
 
     if (updateError) throw updateError;
-  }, []);
+    void refreshOrgSettingsCache(queryClient, orgId);
+  }, [queryClient]);
 
   // Auto-save precision label config changes to active template/preset (debounced)
   const autoSavePrecisionConfig = useCallback(async (
@@ -2037,6 +2041,7 @@ export default function BarcodePrinting() {
             })
             .eq("id", settingsRow.id)
             .eq("organization_id", currentOrganization.id);
+          void refreshOrgSettingsCache(queryClient, currentOrganization.id);
         }
       } catch (syncErr) {
         console.warn("Failed to sync default label design to settings:", syncErr);

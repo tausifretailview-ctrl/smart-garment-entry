@@ -81,6 +81,7 @@ import {
   friendlySizeGroupError,
   normalizeSizeGroupName,
 } from "@/lib/sizeGroupActions";
+import { getOrgSettingsRow, refreshOrgSettingsCache } from "@/hooks/useSettings";
 
 type ProductType = 'goods' | 'service' | 'combo';
 
@@ -426,11 +427,7 @@ const ProductEntry = () => {
   const fetchFieldSettings = async () => {
     if (!currentOrganization) return;
     
-    const { data, error } = await supabase
-      .from("settings")
-      .select("product_settings")
-      .eq("organization_id", currentOrganization.id)
-      .single();
+    const data = await getOrgSettingsRow(queryClient, currentOrganization.id).catch(() => null);
 
     if (data && typeof data.product_settings === 'object' && data.product_settings !== null) {
       const settings = data.product_settings as any;
@@ -443,11 +440,7 @@ const ProductEntry = () => {
   const fetchDefaultSizeGroup = async () => {
     if (!currentOrganization) return;
     
-    const { data, error } = await supabase
-      .from("settings")
-      .select("product_settings, purchase_settings")
-      .eq("organization_id", currentOrganization.id)
-      .single();
+    const data = await getOrgSettingsRow(queryClient, currentOrganization.id).catch(() => null);
 
     if (data) {
       // Apply default size group
@@ -538,12 +531,15 @@ const ProductEntry = () => {
         product_entry_discount_enabled: enabled,
       };
 
-      await supabase
+      const { error: saveError } = await supabase
         .from("settings")
         .upsert({
           organization_id: currentOrganization.id,
           purchase_settings: updatedPurchaseSettings,
         }, { onConflict: "organization_id" });
+      // It used to say "Discounts Enabled" even when the save failed.
+      if (saveError) throw saveError;
+      void refreshOrgSettingsCache(queryClient, currentOrganization.id);
 
       setShowDiscountFields(enabled);
       toast({ title: enabled ? "Discounts Enabled" : "Discounts Disabled", description: enabled ? "Purchase & Sale discount fields are now visible" : "Discount fields have been hidden" });

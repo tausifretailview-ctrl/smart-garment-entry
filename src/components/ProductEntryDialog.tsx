@@ -111,6 +111,7 @@ import {
 } from "@/utils/productEntryUnsavedDraft";
 import { expandRowsIntoPieces, isPerPieceBarcodeEnabled, isPerPieceMeasuredUom } from "@/utils/purchasePerPieceBarcode";
 import { colorSuggestEnterOrTab } from "@/utils/colorSuggestKeys";
+import { getOrgSettingsRow } from "@/hooks/useSettings";
 
 type ProductType = 'goods' | 'service' | 'combo';
 
@@ -1959,11 +1960,13 @@ export const ProductEntryDialog = ({
     mrpSettingOffRef.current = false;
 
     try {
-      const { data, error } = await supabase
-        .from("settings")
-        .select("product_settings, purchase_settings")
-        .eq("organization_id", currentOrganization.id)
-        .maybeSingle();
+      let data: Awaited<ReturnType<typeof getOrgSettingsRow>> = null;
+      let error: { message?: string } | null = null;
+      try {
+        data = await getOrgSettingsRow(queryClient, currentOrganization.id);
+      } catch (e) {
+        error = e as { message?: string };
+      }
 
       if (error) {
         console.error("Default size group / product settings fetch failed:", error);

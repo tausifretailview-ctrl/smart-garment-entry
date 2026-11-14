@@ -86,6 +86,7 @@ import { cn } from "@/lib/utils";
 import type { WebsiteEnquiry, WebsiteEnquiryStatus, WebsiteProduct, WebsiteSettings } from "@/lib/websiteTypes";
 import { coerceActiveUpiId, patchCompanyUpi, resolveCompanyUpiId } from "@/utils/companyUpi";
 import { formatDateTimeDMY } from "@/lib/dateDisplay";
+import { refreshOrgSettingsCache } from "@/hooks/useSettings";
 
 type CatalogProduct = {
   id: string;
@@ -390,6 +391,7 @@ function StoreProfile({
   settings: WebsiteSettings | null;
   onChanged: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [whatsapp, setWhatsapp] = useState(settings?.whatsapp_number || "");
   const [instagram, setInstagram] = useState(settings?.instagram_url || "");
   const [facebook, setFacebook] = useState(settings?.facebook_url || "");
@@ -472,6 +474,7 @@ function StoreProfile({
         })
         .eq("organization_id", orgId);
       if (billErr) throw billErr;
+      void refreshOrgSettingsCache(queryClient, orgId);
     },
     onSuccess: () => {
       toast.success("Store profile saved");

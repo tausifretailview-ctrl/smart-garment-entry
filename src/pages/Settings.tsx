@@ -112,6 +112,7 @@ function preloadWhatsAppTab() {
 }
 import { CompanyProfileBankAccounts } from "@/components/settings/CompanyProfileBankAccounts";
 import { fssaiWarning } from "@/utils/fssai";
+import { refreshOrgSettingsCache } from "@/hooks/useSettings";
 
 const loadDesktopPrintPanel = () =>
   import("@/components/DesktopPrintSettings").then((m) => ({ default: m.DesktopPrintSettings }));
@@ -1230,6 +1231,7 @@ export default function Settings() {
         .eq('organization_id', currentOrganization?.id);
 
       if (error) throw error;
+      void refreshOrgSettingsCache(queryClient, currentOrganization?.id);
 
       setBarcodeTemplates(updatedTemplates);
       setSettings(prev => ({
@@ -1274,6 +1276,7 @@ export default function Settings() {
         .eq('organization_id', currentOrganization?.id);
 
       if (error) throw error;
+      void refreshOrgSettingsCache(queryClient, currentOrganization?.id);
 
       setBarcodeTemplates(updatedTemplates);
       setSettings(prev => ({
