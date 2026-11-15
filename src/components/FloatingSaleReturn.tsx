@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { logError } from "@/lib/errorLogger";
+import { bestEffortWrite, rollbackStep } from "@/lib/rollbackStep";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -1070,15 +1072,19 @@ export const FloatingSaleReturn = ({
       const isPartial = redeemAmount < cn.creditAmount;
       setSaving(true);
       try {
+        // Reduce / close the return BEFORE spending it. Checked: if this write failed, the
+        // credit would be applied while the return still showed the full amount (spendable twice).
         if (isPartial) {
           // Keep SR pending, reduce its net_amount by what's being redeemed now
-          await supabase.from("sale_returns").update({
+          const { error: srReduceErr } = await supabase.from("sale_returns").update({
             net_amount: cn.creditAmount - redeemAmount,
           } as any).eq("id", cn.id);
+          if (srReduceErr) throw srReduceErr;
         } else {
-          await supabase.from("sale_returns").update({
+          const { error: srCloseErr } = await supabase.from("sale_returns").update({
             credit_status: "adjusted",
           }).eq("id", cn.id);
+          if (srCloseErr) throw srCloseErr;
         }
 
         const targetSaleId = billSaleId || posCurrentSaleId || null;
@@ -1269,13 +1275,13 @@ export const FloatingSaleReturn = ({
             supabase,
             paymentMethodForReturn
           );
-          await supabase
-            .from("sale_returns")
-            .update({ journal_status: "posted", journal_error: null })
-            .eq("id", returnData.id);
+          await bestEffortWrite(
+            "floating-sale-return:journal-posted",
+            () => supabase.from("sale_returns").update({ journal_status: "posted", journal_error: null }).eq("id", returnData.id),
+            { organizationId, recordId: returnData.id },
+          );
         } catch (glErr) {
-          await supabase.from("sale_return_items").delete().eq("return_id", returnData.id);
-          await supabase.from("sale_returns").delete().eq("id", returnData.id);
+          // The outer catch removes the return (journal, lines, header) and shows the error.
           throw glErr;
         }
       }
@@ -1292,7 +1298,7 @@ export const FloatingSaleReturn = ({
             p_date: refundDateYmd,
           });
           if (rfNumErr) throw rfNumErr;
-          await supabase.from("voucher_entries").insert({
+          const { error: refundVoucherErr } = await supabase.from("voucher_entries").insert({
             organization_id: organizationId,
             voucher_number: String(rfNumber || `RF/${refundDateYmd}`),
             voucher_type: "payment",
@@ -1303,7 +1309,16 @@ export const FloatingSaleReturn = ({
             total_amount: grossAmount,
             payment_method: directRefundPaymentMethod,
           });
-        } catch (vErr) { console.error("Refund voucher failed:", vErr); }
+          if (refundVoucherErr) throw refundVoucherErr;
+        } catch (vErr) {
+          console.error("Refund voucher failed:", vErr);
+          void logError({ operation: "floating-sale-return:refund-voucher", organizationId, additionalContext: { return_id: returnData.id } }, vErr);
+          toast({
+            title: "Refund not in ledger",
+            description: `Return ${returnNumber} was saved, but the cash refund entry could not be recorded. Add it in Accounts → Payments.`,
+            variant: "destructive",
+          });
+        }
       }
 
       // For credit_note: create a real credit_notes record but keep sale_return
@@ -1332,7 +1347,7 @@ export const FloatingSaleReturn = ({
 
           if (creditNote) {
             savedCreditNoteId = creditNote.id;
-            await supabase
+            const { error: linkCnErr } = await supabase
               .from('sale_returns')
               .update({
                 credit_status: 'pending',
@@ -1340,6 +1355,7 @@ export const FloatingSaleReturn = ({
                 linked_sale_id: null,
               } as any)
               .eq('id', returnData.id);
+            if (linkCnErr) throw linkCnErr;
           }
 
           // Auto-apply this CN against the original bill's outstanding balance
@@ -1378,13 +1394,18 @@ export const FloatingSaleReturn = ({
                     console.warn('Auto-apply CN to original sale applied ₹0; leaving return pending');
                   } else {
                   const fullyConsumed = appliedNum >= grossAmount - 0.01;
-                  await supabase
-                    .from('sale_returns')
-                    .update({
-                      credit_status: fullyConsumed ? 'adjusted' : 'adjusted_outstanding',
-                      linked_sale_id: billSaleId,
-                    } as any)
-                    .eq('id', returnData.id);
+                  await bestEffortWrite(
+                    "floating-sale-return:auto-apply-status",
+                    () =>
+                      supabase
+                        .from('sale_returns')
+                        .update({
+                          credit_status: fullyConsumed ? 'adjusted' : 'adjusted_outstanding',
+                          linked_sale_id: billSaleId,
+                        } as any)
+                        .eq('id', returnData.id),
+                    { organizationId, recordId: returnData.id },
+                  );
 
                   // Defensive: ensure the sale flips to completed when fully settled.
                   // (The RPC sets payment_status, but downstream voucher triggers can
@@ -1393,10 +1414,11 @@ export const FloatingSaleReturn = ({
                   const netAmt = Number((saleRow as any).net_amount || 0);
                   const sra = Number((saleRow as any).sale_return_adjust || 0);
                   if (newPaid + sra >= netAmt - 1) {
-                    await supabase
-                      .from('sales')
-                      .update({ payment_status: 'completed' } as any)
-                      .eq('id', billSaleId);
+                    await bestEffortWrite(
+                      "floating-sale-return:sale-completed",
+                      () => supabase.from('sales').update({ payment_status: 'completed' } as any).eq('id', billSaleId),
+                      { organizationId, recordId: billSaleId },
+                    );
                   }
                   }
                 }
@@ -1407,6 +1429,12 @@ export const FloatingSaleReturn = ({
           }
         } catch (cnErr) {
           console.error('Credit note creation failed:', cnErr);
+          void logError({ operation: "floating-sale-return:credit-note", organizationId, additionalContext: { return_id: returnData.id } }, cnErr);
+          toast({
+            title: "Credit note problem",
+            description: `Return ${returnNumber} was saved, but its credit note could not be set up fully. Check Sale Returns before using this credit.`,
+            variant: "destructive",
+          });
         }
       }
 
@@ -1417,18 +1445,21 @@ export const FloatingSaleReturn = ({
           if (cn) {
             const redeemAmount = Math.max(0, Math.min(appliedCreditAmount || cn.creditAmount, cn.creditAmount));
             const isPartial = redeemAmount < cn.creditAmount;
+            // Checked before spending, as in the apply-only path above.
             if (isPartial) {
-              await supabase.from("sale_returns").update({
+              const { error: srReduceErr } = await supabase.from("sale_returns").update({
                 net_amount: cn.creditAmount - redeemAmount,
               } as any).eq("id", cn.id);
+              if (srReduceErr) throw srReduceErr;
             } else {
-              await supabase
+              const { error: srCloseErr } = await supabase
                 .from("sale_returns")
                 .update({
                   credit_status: "adjusted",
                   linked_sale_id: null,
                 })
                 .eq("id", cn.id);
+              if (srCloseErr) throw srCloseErr;
             }
 
             const targetSaleId = billSaleId || posCurrentSaleId || null;
@@ -1444,6 +1475,12 @@ export const FloatingSaleReturn = ({
           }
         } catch (cnErr) {
           console.error("Credit note apply failed:", cnErr);
+          void logError({ operation: "floating-sale-return:apply-credit-note", organizationId, additionalContext: { credit_note_return_id: appliedCreditNoteId } }, cnErr);
+          toast({
+            title: "Credit note not applied",
+            description: "The return was saved, but the selected credit note could not be applied to this bill. Check its balance in Sale Returns before using it again.",
+            variant: "destructive",
+          });
         }
       }
 
@@ -1529,9 +1566,10 @@ export const FloatingSaleReturn = ({
       if (createdReturnId) {
         try {
           await deleteJournalEntryByReference(organizationId, "SaleReturn", createdReturnId, supabase);
-          await supabase.from("sale_return_items").delete().eq("return_id", createdReturnId);
-          await supabase.from("sale_returns").delete().eq("id", createdReturnId);
-          console.log("Cleaned up orphan sale return:", createdReturnId);
+          const returnId = createdReturnId;
+          const ctx = { organizationId, recordId: returnId };
+          await rollbackStep("floating-sale-return:lines", () => supabase.from("sale_return_items").delete().eq("return_id", returnId), ctx);
+          await rollbackStep("floating-sale-return:header", () => supabase.from("sale_returns").delete().eq("id", returnId), ctx);
         } catch (cleanupErr) {
           console.error("Cleanup failed:", cleanupErr);
         }

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { isHeldOrCancelledSale } from "@/utils/posHoldBill";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 import {
   deleteJournalEntryByReference,
   recordCustomerAdvanceReceiptJournalEntry,
@@ -116,6 +117,14 @@ function journalErrorMessage(e: unknown, maxLen = 2000): string {
 
 const PAGE_SIZE = 500;
 
+type JournalStatusTable = "sales" | "purchase_bills" | "sale_returns" | "purchase_returns";
+
+/** Mark a document's journal as posted. Throws on a failed write, so the row counts as an error, not OK. */
+async function markBackfillPosted(client: SupabaseClient<Database>, table: JournalStatusTable, id: string): Promise<void> {
+  const { error } = await client.from(table).update({ journal_status: "posted", journal_error: null }).eq("id", id);
+  if (error) throw error;
+}
+
 /**
  * POS used to post one advance-application journal for the whole amount, keyed to the last of
  * the FIFO vouchers, so the other vouchers of that split have no journal of their own. Posting
@@ -227,10 +236,11 @@ async function repostSalesSettledByBackfilledVouchers(
         result.ok++;
       } catch (e) {
         console.error("[historical backfill] sale re-post after receipt", id, e);
-        await client
-          .from("sales")
-          .update({ journal_status: "failed", journal_error: journalErrorMessage(e) })
-          .eq("id", id);
+        await bestEffortWrite(
+          "historical-backfill:sales-failed",
+          () => client.from("sales").update({ journal_status: "failed", journal_error: journalErrorMessage(e) }).eq("id", id),
+          { organizationId, recordId: id },
+        );
         result.err++;
       }
     }
@@ -295,17 +305,21 @@ export async function runHistoricalAccountingBackfill(
   );
 
   // —— Sales ——
-  let saleOffset = 0;
+  let saleAfterId: string | null = null;
   for (;;) {
-    const { data: salesRows, error: saleErr } = await client
+    let saleQuery = client
       .from("sales")
       .select("id, net_amount, paid_amount, payment_method, payment_status, sale_number, is_cancelled, sale_date")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .eq("is_cancelled", false)
-      .eq("journal_status", "pending")
+      .eq("journal_status", "pending");
+    // Keyset paging: rows posted (or failed) in this run leave the "pending" filter, so an
+    // offset would skip as many unposted rows as were just handled.
+    if (saleAfterId) saleQuery = saleQuery.gt("id", saleAfterId);
+    const { data: salesRows, error: saleErr } = await saleQuery
       .order("id", { ascending: true })
-      .range(saleOffset, saleOffset + PAGE_SIZE - 1);
+      .limit(PAGE_SIZE);
 
     if (saleErr) throw saleErr;
     if (!salesRows?.length) break;
@@ -317,10 +331,7 @@ export async function runHistoricalAccountingBackfill(
       try {
         const net = Number(row.net_amount ?? 0);
         if (net <= 0) {
-          await client
-            .from("sales")
-            .update({ journal_status: "posted", journal_error: null })
-            .eq("id", id);
+          await markBackfillPosted(client, "sales", id);
           summary.sales.ok++;
           continue;
         }
@@ -330,7 +341,7 @@ export async function runHistoricalAccountingBackfill(
           client,
           row.sale_date != null ? String(row.sale_date).slice(0, 10) : undefined
         );
-        await client.from("sales").update({ journal_status: "posted", journal_error: null }).eq("id", id);
+        await markBackfillPosted(client, "sales", id);
         summary.sales.ok++;
       } catch (e) {
         console.error("[historical backfill] sale", id, e);
@@ -339,21 +350,25 @@ export async function runHistoricalAccountingBackfill(
     }
 
     if (salesRows.length < PAGE_SIZE) break;
-    saleOffset += PAGE_SIZE;
+    saleAfterId = String(salesRows[salesRows.length - 1].id);
   }
 
   // —— Purchases ——
-  let purchaseOffset = 0;
+  let purchaseAfterId: string | null = null;
   for (;;) {
-    const { data: purchaseRows, error: purchaseErr } = await client
+    let purchaseQuery = client
       .from("purchase_bills")
       .select("id, net_amount, paid_amount, bill_date")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .eq("is_cancelled", false)
-      .eq("journal_status", "pending")
+      .eq("journal_status", "pending");
+    // Keyset paging: rows posted (or failed) in this run leave the "pending" filter, so an
+    // offset would skip as many unposted rows as were just handled.
+    if (purchaseAfterId) purchaseQuery = purchaseQuery.gt("id", purchaseAfterId);
+    const { data: purchaseRows, error: purchaseErr } = await purchaseQuery
       .order("id", { ascending: true })
-      .range(purchaseOffset, purchaseOffset + PAGE_SIZE - 1);
+      .limit(PAGE_SIZE);
 
     if (purchaseErr) throw purchaseErr;
     if (!purchaseRows?.length) break;
@@ -363,10 +378,7 @@ export async function runHistoricalAccountingBackfill(
       try {
         const net = Number(row.net_amount ?? 0);
         if (net <= 0) {
-          await client
-            .from("purchase_bills")
-            .update({ journal_status: "posted", journal_error: null })
-            .eq("id", id);
+          await markBackfillPosted(client, "purchase_bills", id);
           summary.purchases.ok++;
           continue;
         }
@@ -379,10 +391,7 @@ export async function runHistoricalAccountingBackfill(
           client,
           row.bill_date != null ? String(row.bill_date).slice(0, 10) : undefined
         );
-        await client
-          .from("purchase_bills")
-          .update({ journal_status: "posted", journal_error: null })
-          .eq("id", id);
+        await markBackfillPosted(client, "purchase_bills", id);
         summary.purchases.ok++;
       } catch (e) {
         console.error("[historical backfill] purchase", id, e);
@@ -391,20 +400,24 @@ export async function runHistoricalAccountingBackfill(
     }
 
     if (purchaseRows.length < PAGE_SIZE) break;
-    purchaseOffset += PAGE_SIZE;
+    purchaseAfterId = String(purchaseRows[purchaseRows.length - 1].id);
   }
 
   // —— Sale returns ——
-  let saleReturnOffset = 0;
+  let saleReturnAfterId: string | null = null;
   for (;;) {
-    const { data: srRows, error: srErr } = await client
+    let saleReturnQuery = client
       .from("sale_returns")
       .select("id, net_amount, refund_type, return_date, payment_method")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
-      .eq("journal_status", "pending")
+      .eq("journal_status", "pending");
+    // Keyset paging: rows posted (or failed) in this run leave the "pending" filter, so an
+    // offset would skip as many unposted rows as were just handled.
+    if (saleReturnAfterId) saleReturnQuery = saleReturnQuery.gt("id", saleReturnAfterId);
+    const { data: srRows, error: srErr } = await saleReturnQuery
       .order("id", { ascending: true })
-      .range(saleReturnOffset, saleReturnOffset + PAGE_SIZE - 1);
+      .limit(PAGE_SIZE);
 
     if (srErr) throw srErr;
     if (!srRows?.length) break;
@@ -417,10 +430,7 @@ export async function runHistoricalAccountingBackfill(
         // Exchange returns go through the builder too: it journals those created after the
         // return-credit cutover and skips older ones (their bill's S/R adjust carried them).
         if (net <= 0) {
-          await client
-            .from("sale_returns")
-            .update({ journal_status: "posted", journal_error: null })
-            .eq("id", id);
+          await markBackfillPosted(client, "sale_returns", id);
           summary.saleReturns.ok++;
           continue;
         }
@@ -436,33 +446,38 @@ export async function runHistoricalAccountingBackfill(
           client,
           (row as { payment_method?: string | null }).payment_method ?? null
         );
-        await client.from("sale_returns").update({ journal_status: "posted", journal_error: null }).eq("id", id);
+        await markBackfillPosted(client, "sale_returns", id);
         summary.saleReturns.ok++;
       } catch (e) {
         console.error("[historical backfill] sale_return", id, e);
-        await client
-          .from("sale_returns")
-          .update({ journal_status: "failed", journal_error: journalErrorMessage(e) })
-          .eq("id", id);
+        await bestEffortWrite(
+          "historical-backfill:sale-returns-failed",
+          () => client.from("sale_returns").update({ journal_status: "failed", journal_error: journalErrorMessage(e) }).eq("id", id),
+          { organizationId, recordId: id },
+        );
         summary.saleReturns.err++;
       }
     }
 
     if (srRows.length < PAGE_SIZE) break;
-    saleReturnOffset += PAGE_SIZE;
+    saleReturnAfterId = String(srRows[srRows.length - 1].id);
   }
 
   // —— Purchase returns ——
-  let purchaseReturnOffset = 0;
+  let purchaseReturnAfterId: string | null = null;
   for (;;) {
-    const { data: prRows, error: prErr } = await client
+    let purchaseReturnQuery = client
       .from("purchase_returns")
       .select("id, net_amount, return_date, payment_method")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
-      .eq("journal_status", "pending")
+      .eq("journal_status", "pending");
+    // Keyset paging: rows posted (or failed) in this run leave the "pending" filter, so an
+    // offset would skip as many unposted rows as were just handled.
+    if (purchaseReturnAfterId) purchaseReturnQuery = purchaseReturnQuery.gt("id", purchaseReturnAfterId);
+    const { data: prRows, error: prErr } = await purchaseReturnQuery
       .order("id", { ascending: true })
-      .range(purchaseReturnOffset, purchaseReturnOffset + PAGE_SIZE - 1);
+      .limit(PAGE_SIZE);
 
     if (prErr) throw prErr;
     if (!prRows?.length) break;
@@ -472,10 +487,7 @@ export async function runHistoricalAccountingBackfill(
       try {
         const net = Number(row.net_amount ?? 0);
         if (net <= 0) {
-          await client
-            .from("purchase_returns")
-            .update({ journal_status: "posted", journal_error: null })
-            .eq("id", id);
+          await markBackfillPosted(client, "purchase_returns", id);
           summary.purchaseReturns.ok++;
           continue;
         }
@@ -490,20 +502,21 @@ export async function runHistoricalAccountingBackfill(
           client,
           (row as { payment_method?: string | null }).payment_method ?? null
         );
-        await client.from("purchase_returns").update({ journal_status: "posted", journal_error: null }).eq("id", id);
+        await markBackfillPosted(client, "purchase_returns", id);
         summary.purchaseReturns.ok++;
       } catch (e) {
         console.error("[historical backfill] purchase_return", id, e);
-        await client
-          .from("purchase_returns")
-          .update({ journal_status: "failed", journal_error: journalErrorMessage(e) })
-          .eq("id", id);
+        await bestEffortWrite(
+          "historical-backfill:purchase-returns-failed",
+          () => client.from("purchase_returns").update({ journal_status: "failed", journal_error: journalErrorMessage(e) }).eq("id", id),
+          { organizationId, recordId: id },
+        );
         summary.purchaseReturns.err++;
       }
     }
 
     if (prRows.length < PAGE_SIZE) break;
-    purchaseReturnOffset += PAGE_SIZE;
+    purchaseReturnAfterId = String(prRows[prRows.length - 1].id);
   }
 
   // —— Vouchers (expense, salary, customer receipt, supplier payment, advance/CN) ——

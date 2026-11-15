@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { logError } from "@/lib/errorLogger";
+import { bestEffortWrite, rollbackStep } from "@/lib/rollbackStep";
 import {
   deleteJournalEntryByReference,
   recordSaleReturnJournalEntry,
@@ -1020,10 +1021,11 @@ export default function SaleReturnEntry() {
         if (isAccountingEngineEnabled(acctEditSr as { accounting_engine_enabled?: boolean } | null)) {
           try {
             await deleteJournalEntryByReference(currentOrganization!.id, "SaleReturn", editId, supabase);
-            await supabase
-              .from("sale_returns")
-              .update({ journal_status: "pending", journal_error: null })
-              .eq("id", editId);
+            await bestEffortWrite(
+              "sale-return-edit:journal-pending",
+              () => supabase.from("sale_returns").update({ journal_status: "pending", journal_error: null }).eq("id", editId),
+              { organizationId: currentOrganization!.id, recordId: editId },
+            );
             await recordSaleReturnJournalEntry(
               editId,
               currentOrganization!.id,
@@ -1034,16 +1036,22 @@ export default function SaleReturnEntry() {
               supabase,
               srRefundMeta?.payment_method ?? null
             );
-            await supabase
-              .from("sale_returns")
-              .update({ journal_status: "posted", journal_error: null })
-              .eq("id", editId);
+            await bestEffortWrite(
+              "sale-return-edit:journal-posted",
+              () => supabase.from("sale_returns").update({ journal_status: "posted", journal_error: null }).eq("id", editId),
+              { organizationId: currentOrganization!.id, recordId: editId },
+            );
           } catch (glErr) {
             const errMsg = glErr instanceof Error ? glErr.message : String(glErr);
-            await supabase
-              .from("sale_returns")
-              .update({ journal_status: "failed", journal_error: errMsg.slice(0, 2000) })
-              .eq("id", editId);
+            await bestEffortWrite(
+              "sale-return-edit:journal-failed",
+              () =>
+                supabase
+                  .from("sale_returns")
+                  .update({ journal_status: "failed", journal_error: errMsg.slice(0, 2000) })
+                  .eq("id", editId),
+              { organizationId: currentOrganization!.id, recordId: editId },
+            );
             console.error("Sale return edit journal:", glErr);
             toast({
               title: "Ledger warning",
@@ -1140,24 +1148,25 @@ export default function SaleReturnEntry() {
                 supabase,
                 null
               );
-              await supabase
-                .from("sale_returns")
-                .update({ journal_status: "posted", journal_error: null })
-                .eq("id", returnData.id);
+              await bestEffortWrite(
+                "sale-return:journal-posted",
+                () => supabase.from("sale_returns").update({ journal_status: "posted", journal_error: null }).eq("id", returnData.id),
+                { organizationId: currentOrganization!.id, recordId: returnData.id },
+              );
             } catch (glErr) {
-              await supabase
-                .from("sale_returns")
-                .update({
-                  journal_status: "failed",
-                  journal_error: glErr instanceof Error ? glErr.message.slice(0, 2000) : String(glErr).slice(0, 2000),
-                })
-                .eq("id", returnData.id);
-              const rollbackAt = new Date().toISOString();
-              await supabase.from("sale_return_items").delete().eq("return_id", returnData.id);
-              await supabase.from("sale_returns").update({
-                deleted_at: rollbackAt,
-                notes: "auto-rollback: items insert failed during save",
-              }).eq("id", returnData.id);
+              await bestEffortWrite(
+                "sale-return:journal-failed",
+                () =>
+                  supabase
+                    .from("sale_returns")
+                    .update({
+                      journal_status: "failed",
+                      journal_error: glErr instanceof Error ? glErr.message.slice(0, 2000) : String(glErr).slice(0, 2000),
+                    })
+                    .eq("id", returnData.id),
+                { organizationId: currentOrganization!.id, recordId: returnData.id },
+              );
+              // The outer catch removes the return (lines + soft delete) and rethrows.
               throw glErr;
             }
           }
@@ -1177,11 +1186,22 @@ export default function SaleReturnEntry() {
                 supabase
               );
               const rollbackAt = new Date().toISOString();
-              await supabase.from("sale_return_items").delete().eq("return_id", createdReturnId);
-              await supabase.from("sale_returns").update({
-                deleted_at: rollbackAt,
-                notes: "auto-rollback: items insert failed during save",
-              }).eq("id", createdReturnId);
+              const ctx = { organizationId: currentOrganization!.id, recordId: createdReturnId };
+              const returnId = createdReturnId;
+              await rollbackStep(
+                "sale-return:lines",
+                () => supabase.from("sale_return_items").delete().eq("return_id", returnId),
+                ctx,
+              );
+              await rollbackStep(
+                "sale-return:header",
+                () =>
+                  supabase
+                    .from("sale_returns")
+                    .update({ deleted_at: rollbackAt, notes: "auto-rollback: items insert failed during save" })
+                    .eq("id", returnId),
+                ctx,
+              );
             } catch (cleanupErr) {
               console.error("Cleanup failed:", cleanupErr);
             }
