@@ -54,6 +54,7 @@ import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { useProductProtection } from "@/hooks/useProductProtection";
 import { ProductRelationDialog, type ProductStockOnHandRow } from "@/components/ProductRelationDialog";
 import { softDeleteOrphanedProducts } from "@/utils/fetchAllRows";
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 import { collectProductsWithBlockingStock } from "@/utils/productDashboardDeleteGuard";
 import { invalidateProductDashboardQueries } from "@/utils/invalidateDashboardQueries";
 import { isMissingQueryFnError } from "@/utils/refetchQueriesWithFn";
@@ -929,13 +930,19 @@ const ProductDashboard = () => {
     queryFn: async () => {
       const orgId = currentOrganization?.id;
       if (!orgId || pageProductIds.length === 0) return EMPTY_COLOR_LABELS;
-      const { data, error } = await supabase
-        .from("product_variants")
-        .select("product_id, color")
-        .eq("organization_id", orgId)
-        .in("product_id", pageProductIds)
-        .is("deleted_at", null);
-      if (error) throw error;
+      // Up to 100 products a page; their sizes can pass the 1,000-row reply cap, which
+      // silently left some products with no colour. Batched + paged.
+      const data = await fetchInIdBatches<{ product_id: string | null; color: string | null }>(
+        pageProductIds,
+        (batch) =>
+          supabase
+            .from("product_variants")
+            .select("product_id, color")
+            .eq("organization_id", orgId)
+            .in("product_id", batch)
+            .is("deleted_at", null)
+            .order("id"),
+      );
       const grouped: Record<string, string[]> = {};
       for (const variant of data || []) {
         const id = String(variant.product_id || "");
