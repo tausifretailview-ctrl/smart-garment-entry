@@ -9,6 +9,7 @@ import { downloadJsPdf } from "@/utils/mobileDocumentDelivery";
 import { useQueryClient, useMutation, useQuery, keepPreviousData } from "@tanstack/react-query";
 import { STALE_DASHBOARD_TAB_RETURN, STALE_FREQUENT, STALE_REFERENCE } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 import { postCustomerRefundVoucherJournal } from "@/utils/accounting/journalService";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { useOrgLedgerReferenceFetcher } from "@/hooks/useOrgLedgerReferenceData";
@@ -587,13 +588,15 @@ export function CustomerLedger({
 
   // Fetch all customers with their transaction summary using pagination
   const { data: customers, isLoading, isFetching: isCustomersFetching } = useQuery({
+    // The business list (party balances) does not depend on the date window or academic year;
+    // keying it on them re-read every customer and balance whenever the dates changed.
     queryKey: [
       "customer-ledger",
       organizationId,
       isSchool,
-      selectedAcademicYearId,
-      startDate ? format(startDate, "yyyy-MM-dd") : null,
-      endDate ? format(endDate, "yyyy-MM-dd") : null,
+      isSchool ? selectedAcademicYearId : null,
+      isSchool && startDate ? format(startDate, "yyyy-MM-dd") : null,
+      isSchool && endDate ? format(endDate, "yyyy-MM-dd") : null,
       serverListSearch ?? "",
     ],
     queryFn: async () => {
@@ -1390,6 +1393,7 @@ export function CustomerLedger({
       let openingBalanceQuery = supabase
         .from("voucher_entries")
         .select("*")
+        .eq("organization_id", organizationId)
         .eq("reference_type", "customer")
         .eq("reference_id", selectedCustomer.id)
         .in("voucher_type", ["receipt", "payment"])
@@ -1407,6 +1411,7 @@ export function CustomerLedger({
           supabase
             .from("sales")
             .select("id, sale_number, net_amount, paid_amount, cash_amount, card_amount, upi_amount, sale_date, payment_method, payment_status, sale_return_adjust")
+            .eq("organization_id", organizationId)
             .eq("customer_id", selectedCustomer.id)
             .is("deleted_at", null)
             .neq("payment_status", "hold")
@@ -1420,23 +1425,25 @@ export function CustomerLedger({
       const saleIds = customerSales?.map(s => s.id) || [];
       const saleMap = new Map(customerSales?.map(s => [s.id, s]) || []);
 
-      let vouchersQuery = supabase
-        .from("voucher_entries")
-        .select("*")
-        .in("voucher_type", ["receipt", "payment"])
-        .is("deleted_at", null)
-        .in("reference_id", saleIds.length > 0 ? saleIds : ['00000000-0000-0000-0000-000000000000']);
-
-      if (startDate) {
-        vouchersQuery = vouchersQuery.gte("voucher_date", format(startDate, 'yyyy-MM-dd'));
-      }
-      if (endDate) {
-        vouchersQuery = vouchersQuery.lte("voucher_date", format(endDate, 'yyyy-MM-dd'));
-      }
-
-      const { data: vouchersData, error: vouchersError } = await vouchersQuery.order("voucher_date", { ascending: false });
-
-      if (vouchersError) throw vouchersError;
+      // In batches of 200 bill ids (one request with every bill id failed for big customers).
+      const vouchersData = (
+        await fetchInIdBatches<any>(saleIds, (ids) => {
+          let vouchersQuery = supabase
+            .from("voucher_entries")
+            .select("*")
+            .eq("organization_id", organizationId)
+            .in("voucher_type", ["receipt", "payment"])
+            .is("deleted_at", null)
+            .in("reference_id", ids);
+          if (startDate) {
+            vouchersQuery = vouchersQuery.gte("voucher_date", format(startDate, 'yyyy-MM-dd'));
+          }
+          if (endDate) {
+            vouchersQuery = vouchersQuery.lte("voucher_date", format(endDate, 'yyyy-MM-dd'));
+          }
+          return vouchersQuery;
+        })
+      ).sort((a: any, b: any) => String(b.voucher_date || "").localeCompare(String(a.voucher_date || "")));
 
       // Cash/card/UPI receipt totals only (exclude advance/CN memos) for residual at-sale.
       const voucherCashBySaleId: Record<string, number> = {};
@@ -2260,24 +2267,27 @@ export function CustomerLedger({
       const saleNumById = new Map<string, string>(
         (salesRows || []).map((s: { id: string; sale_number: string | null }) => [s.id, String(s.sale_number || "").trim() || "—"]),
       );
-      const sentinel = ["00000000-0000-0000-0000-000000000000"];
-      const refIds = [...saleIds, custId];
-      let vq = supabase
-        .from("voucher_entries")
-        .select("id, voucher_date, voucher_number, reference_id, reference_type, total_amount, description, payment_method, created_at")
-        .eq("organization_id", organizationId)
-        .eq("voucher_type", "receipt")
-        // Phase 1.2: include mis-tagged customer rows pointing at this customer's sales,
-        // plus customer-scoped opening-balance advance applications (reference_id = customer id).
-        .in("reference_type", ["sale", "customer"])
-        // Payment method is filtered client-side: legacy imports tagged advance
-        // applications as `cash`, and they must still appear in the applied table.
-        .is("deleted_at", null)
-        .in("reference_id", refIds.length > 0 ? refIds : sentinel);
-      if (startDate) vq = vq.gte("voucher_date", format(startDate, "yyyy-MM-dd"));
-      if (endDate) vq = vq.lte("voucher_date", format(endDate, "yyyy-MM-dd"));
-      const { data: vouchers, error: vErr } = await vq.order("voucher_date", { ascending: true });
-      if (vErr) throw vErr;
+      // In batches of 200 ids: all of a long-standing customer's bill ids in one request made the
+      // URL too long for the server, and this table failed to load.
+      const vouchers = (
+        await fetchInIdBatches<any>([...saleIds, custId], (ids) => {
+          let vq = supabase
+            .from("voucher_entries")
+            .select("id, voucher_date, voucher_number, reference_id, reference_type, total_amount, description, payment_method, created_at")
+            .eq("organization_id", organizationId)
+            .eq("voucher_type", "receipt")
+            // Phase 1.2: include mis-tagged customer rows pointing at this customer's sales,
+            // plus customer-scoped opening-balance advance applications (reference_id = customer id).
+            .in("reference_type", ["sale", "customer"])
+            // Payment method is filtered client-side: legacy imports tagged advance
+            // applications as `cash`, and they must still appear in the applied table.
+            .is("deleted_at", null)
+            .in("reference_id", ids);
+          if (startDate) vq = vq.gte("voucher_date", format(startDate, "yyyy-MM-dd"));
+          if (endDate) vq = vq.lte("voucher_date", format(endDate, "yyyy-MM-dd"));
+          return vq;
+        })
+      ).sort((a: any, b: any) => String(a.voucher_date || "").localeCompare(String(b.voucher_date || "")));
       const mapRow = (v: any): LedgerAllocationRow => {
         const refId = String(v.reference_id || "");
         const refType = String(v.reference_type || "").toLowerCase();
