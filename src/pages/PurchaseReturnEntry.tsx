@@ -183,7 +183,7 @@ async function fetchPurchaseReturnProductsByIds(
   if (!organizationId || productIds.length === 0) return [];
 
   const allRows: PurchaseReturnProductLookup[] = [];
-  const batchSize = 500;
+  const batchSize = 200; // UUIDs in the URL: 500 (~20 KB) is over the gateway limit
   for (let i = 0; i < productIds.length; i += batchSize) {
     const batchIds = productIds.slice(i, i + batchSize);
     const { data, error } = await supabase

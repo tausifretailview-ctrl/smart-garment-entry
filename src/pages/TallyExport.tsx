@@ -15,6 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { 
   Download, 
@@ -327,10 +328,11 @@ const TallyExport = () => {
           
           // Fetch customer GSTINs
           const customerIds = [...new Set(sales.map((s: any) => s.customer_id).filter(Boolean))];
-          const { data: customers } = customerIds.length > 0 ? await supabase
-            .from("customers")
-            .select("id, gst_number")
-            .in("id", customerIds) : { data: [] };
+          // In batches of 200, every row: a period's thousands of customers in one request failed,
+          // and a missing GSTIN exports a B2B sale as B2C.
+          const customers = await fetchInIdBatches<{ id: string; gst_number: string | null }>(customerIds as string[], (ids) =>
+            supabase.from("customers").select("id, gst_number").in("id", ids).order("id"),
+          );
           
           const customerGstinMap = new Map<string, string>(customers?.map(c => [c.id, c.gst_number || ''] as [string, string]) || []);
           
@@ -379,10 +381,9 @@ const TallyExport = () => {
           
           // Fetch supplier GSTINs
           const supplierIds = [...new Set(purchases.map((p: any) => p.supplier_id).filter(Boolean))];
-          const { data: suppliers } = supplierIds.length > 0 ? await supabase
-            .from("suppliers")
-            .select("id, gst_number")
-            .in("id", supplierIds) : { data: [] };
+          const suppliers = await fetchInIdBatches<{ id: string; gst_number: string | null }>(supplierIds as string[], (ids) =>
+            supabase.from("suppliers").select("id, gst_number").in("id", ids).order("id"),
+          );
           
           const supplierGstinMap = new Map<string, string>(suppliers?.map(s => [s.id, s.gst_number || ''] as [string, string]) || []);
           

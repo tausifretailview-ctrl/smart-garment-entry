@@ -833,7 +833,7 @@ export async function calculateStockValueAtDate(
   // F1 (Batch C1): Split the LATERAL sales/sale_returns joins into (a) parent-id lookup
   // scoped by organization_id + date, then (b) chunked `.in(sale_id, ids)` on the child
   // table. Postgres no longer re-evaluates the parent join per child row.
-  const IN_CHUNK = 500;
+  const IN_CHUNK = 200; // UUIDs in the URL: 500 (~20 KB) is over the gateway limit
 
   const { data: saleIdRows } = await supabase
     .from("sales")

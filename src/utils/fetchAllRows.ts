@@ -792,7 +792,7 @@ export async function fetchOrgProductsByIds(
   if (productIds.length === 0) return [];
 
   const allRows: any[] = [];
-  const batchSize = 500;
+  const batchSize = 200; // UUIDs in the URL: 500 (~20 KB) is over the gateway limit
 
   for (let i = 0; i < productIds.length; i += batchSize) {
     const batchIds = productIds.slice(i, i + batchSize);
@@ -945,7 +945,7 @@ export async function fetchAllSaleItems(saleIds: string[]) {
  * Fetch all purchase items for given variant IDs using range pagination.
  */
 export async function fetchAllPurchaseItems(variantIds: string[]) {
-  const batchSize = 500;
+  const batchSize = 200; // UUIDs in the URL: 500 (~20 KB) is over the gateway limit
 
   async function fetchBatch(batchIds: string[]) {
     const rows: any[] = [];
@@ -1000,7 +1000,7 @@ export async function fetchVariantsByIds(
   if (variantIds.length === 0) return [];
 
   const allRows: any[] = [];
-  const batchSize = 500;
+  const batchSize = 200; // UUIDs in the URL: 500 (~20 KB) is over the gateway limit
 
   for (let i = 0; i < variantIds.length; i += batchSize) {
     const batchIds = variantIds.slice(i, i + batchSize);
@@ -1030,7 +1030,7 @@ export async function fetchProductsByIds(
   if (productIds.length === 0) return [];
   
   const allRows: any[] = [];
-  const batchSize = 500;
+  const batchSize = 200; // UUIDs in the URL: 500 (~20 KB) is over the gateway limit
 
   for (let i = 0; i < productIds.length; i += batchSize) {
     const batchIds = productIds.slice(i, i + batchSize);
@@ -1104,7 +1104,7 @@ export async function fetchPurchaseReturnItemsByIds(
   if (returnIds.length === 0) return [];
   
   const allRows: any[] = [];
-  const batchSize = 500;
+  const batchSize = 200; // UUIDs in the URL: 500 (~20 KB) is over the gateway limit
 
   for (let i = 0; i < returnIds.length; i += batchSize) {
     const batchIds = returnIds.slice(i, i + batchSize);

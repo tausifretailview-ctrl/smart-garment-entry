@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -458,18 +459,21 @@ const PriceHistoryReport = () => {
       const sales = salesResult.data || [];
       const salesMap = new Map(sales.map(s => [s.id, s]));
       const saleIds = sales.map(s => s.id);
-      const { data: saleItems } = saleIds.length > 0
-        ? await supabase
+      // In batches of 200 bill ids, every line (one request with a period's bills failed, and
+      // lines past 1,000 were dropped). Newest first, as before.
+      const orgSaleItems = (
+        await fetchInIdBatches<any>(saleIds, (ids) =>
+          supabase
             .from("sale_items")
             .select(`
               id, barcode, product_name, size, quantity,
               unit_price, mrp, gst_percent, discount_percent, line_total,
-              sale_id
+              sale_id, created_at
             `)
-            .in("sale_id", saleIds)
-            .order("created_at", { ascending: false })
-        : { data: [] };
-      const orgSaleItems = saleItems || [];
+            .in("sale_id", ids)
+            .order("id"),
+        )
+      ).sort((a: any, b: any) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
 
       const mergedSalesData: SalesHistoryItem[] = orgSaleItems.map(item => {
         const sale = salesMap.get(item.sale_id);
