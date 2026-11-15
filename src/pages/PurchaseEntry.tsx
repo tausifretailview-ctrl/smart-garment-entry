@@ -33,6 +33,7 @@ import {
   type PurchaseProductMatch,
   type PurchaseVariantRow,
 } from "@/lib/data/purchaseVariantLookups";
+import { syncPurchaseLineBrands, updatePurchaseLines, updatePurchaseLinesEach } from "@/lib/data/purchaseLineWrites";
 import { insertProductsPreferringPurchaseFlag } from "@/utils/productCreatedInPurchaseColumn";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1597,40 +1598,24 @@ const PurchaseEntry = () => {
       const rows = lineItems.filter((item) => persistedIds.includes(item.temp_id));
       let errorMessage = "";
       if (persistedIds.length > 0 && !priceTouched) {
-        const { error } = await supabase
-          .from("purchase_items")
-          .update(dbPatch)
-          .in("id", persistedIds)
-          .eq("bill_id", billId)
-          .is("deleted_at", null);
-        if (error) errorMessage = error.message;
+        errorMessage = await updatePurchaseLines(billId, persistedIds, dbPatch);
       } else if (persistedIds.length > 0) {
-        for (const item of rows) {
-          const merged = { ...item, ...updates };
-          const sub = computePurchaseLineSubTotal(merged);
-          const { error } = await supabase
-            .from("purchase_items")
-            .update({
-              ...dbPatch,
-              line_total: roundMoney(sub * (1 - (item.discount_percent || 0) / 100)),
-            })
-            .eq("id", item.temp_id)
-            .eq("bill_id", billId)
-            .is("deleted_at", null);
-          if (error) {
-            errorMessage = error.message;
-            break;
-          }
-        }
+        // Each line keeps its own total; written a few at a time (was one after another).
+        errorMessage = await updatePurchaseLinesEach(
+          billId,
+          rows.map((item) => {
+            const sub = computePurchaseLineSubTotal({ ...item, ...updates });
+            return {
+              id: item.temp_id,
+              patch: { ...dbPatch, line_total: roundMoney(sub * (1 - (item.discount_percent || 0) / 100)) },
+            };
+          }),
+        );
       }
       if (!errorMessage && siblingBrandIds.length > 0 && "brand" in dbPatch) {
-        const { error } = await supabase
-          .from("purchase_items")
-          .update({ brand: typeof dbPatch.brand === "string" ? dbPatch.brand : null })
-          .in("id", siblingBrandIds)
-          .eq("bill_id", billId)
-          .is("deleted_at", null);
-        if (error) errorMessage = error.message;
+        errorMessage = await updatePurchaseLines(billId, siblingBrandIds, {
+          brand: typeof dbPatch.brand === "string" ? dbPatch.brand : null,
+        });
       }
       if (errorMessage) {
         console.error("Purchase line product edit sync failed:", errorMessage);
@@ -2669,23 +2654,9 @@ const PurchaseEntry = () => {
           ids.push(row.id);
           brandIds.set(row.brand, ids);
         }
-        void (async () => {
-          for (const [brand, ids] of brandIds) {
-            for (let i = 0; i < ids.length; i += 200) {
-              const chunk = ids.slice(i, i + 200);
-              const { error } = await supabase
-                .from("purchase_items")
-                .update({ brand })
-                .in("id", chunk)
-                .eq("bill_id", billId)
-                .is("deleted_at", null);
-              if (error) {
-                console.error("Purchase line brand sync failed:", error.message);
-                return;
-              }
-            }
-          }
-        })();
+        void syncPurchaseLineBrands(billId, brandIds).then((err) => {
+          if (err) console.error("Purchase line brand sync failed:", err);
+        });
       }
       editSaveInsertedTempIdsRef.current = new Set();
       confirmedSavedLineRemovalsRef.current = new Set();
