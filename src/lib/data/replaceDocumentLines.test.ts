@@ -63,7 +63,7 @@ describe("replaceDocumentLines", () => {
  * Writes whose error is never checked (a failed save looks like success). The count may only
  * go down: fix one, then lower the baseline. Run `node scripts/count-unchecked-writes.mjs` to list them.
  */
-const UNCHECKED_WRITES_BASELINE = 136;
+const UNCHECKED_WRITES_BASELINE = 112;
 
 describe("unchecked database writes (ratchet)", () => {
   it(`stay at or below ${UNCHECKED_WRITES_BASELINE}`, () => {

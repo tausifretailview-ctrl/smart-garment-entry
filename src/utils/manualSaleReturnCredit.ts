@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { recordSaleReturnJournalEntry } from "@/utils/accounting/journalService";
+import { bestEffortWrite, rollbackStep } from "@/lib/rollbackStep";
 
 /** Amount the typed S/R needs on top of the customer's saved return credit (0 = covered). */
 export function manualSrShortfall(requested: number, availableCredit: number): number {
@@ -81,13 +82,24 @@ export async function createManualSaleReturnCredit(
         client,
         null,
       );
-      await client.from("sale_returns").update({ journal_status: "posted", journal_error: null }).eq("id", id);
+      await bestEffortWrite(
+        "manual-sale-return:mark-journal-posted",
+        () => client.from("sale_returns").update({ journal_status: "posted", journal_error: null }).eq("id", id),
+        { organizationId: params.organizationId, recordId: id },
+      );
     }
   } catch (err) {
     // Nothing half-made: remove the new credit note and return (no items were added).
     // Return first: it points at the credit note.
-    await client.from("sale_returns").delete().eq("id", id);
-    if (cnId) await client.from("credit_notes").delete().eq("id", cnId);
+    const ctx = { organizationId: params.organizationId, recordId: id };
+    await rollbackStep("manual-sale-return:delete-return", () => client.from("sale_returns").delete().eq("id", id), ctx);
+    if (cnId) {
+      const creditNoteId = cnId;
+      await rollbackStep("manual-sale-return:delete-credit-note", () => client.from("credit_notes").delete().eq("id", creditNoteId), {
+        ...ctx,
+        recordId: creditNoteId,
+      });
+    }
     throw err;
   }
 

@@ -119,6 +119,7 @@ import {
 import { customerReceiptReversedAmount } from "@/utils/customerReceiptDeletePlan";
 import { fetchItemsGrossBySaleId } from "@/utils/fetchItemsGrossBySaleId";
 import { deleteCustomerReceipt } from "@/utils/deleteCustomerReceipt";
+import { rollbackStep } from "@/lib/rollbackStep";
 // Sentinel ID used to represent the customer's remaining Opening Balance
 // as a selectable row inside the invoice picker.
 const OPENING_BALANCE_ID = "__opening_balance__";
@@ -230,8 +231,14 @@ async function rollbackCustomerReceiptVouchers(
   client: typeof supabase
 ) {
   for (const v of [...created].reverse()) {
-    await deleteJournalEntryByReference(organizationId, "CustomerReceipt", v.id, client);
-    await client.from("voucher_entries").delete().eq("id", v.id);
+    await rollbackStep("customer-receipt:delete-journal", () => deleteJournalEntryByReference(organizationId, "CustomerReceipt", v.id, client), {
+      organizationId,
+      recordId: v.id,
+    });
+    await rollbackStep("customer-receipt:delete-voucher", () => client.from("voucher_entries").delete().eq("id", v.id), {
+      organizationId,
+      recordId: v.id,
+    });
   }
 }
 
@@ -836,14 +843,21 @@ export function CustomerPaymentTab({
         }
       } catch (advErr) {
         for (const vid of [...createdAdvanceVoucherIds].reverse()) {
-          await deleteJournalEntryByReference(organizationId, "CustomerAdvanceApplication", vid, supabase);
-          await supabase.from("voucher_entries").delete().eq("id", vid);
+          await rollbackStep("advance-apply:delete-journal", () => deleteJournalEntryByReference(organizationId, "CustomerAdvanceApplication", vid, supabase), {
+            organizationId,
+            recordId: vid,
+          });
+          await rollbackStep("advance-apply:delete-voucher", () => supabase.from("voucher_entries").delete().eq("id", vid), {
+            organizationId,
+            recordId: vid,
+          });
         }
         for (const s of saleRevertAdv) {
-          await supabase
-            .from("sales")
-            .update({ paid_amount: s.prevPaid, payment_status: s.prevStatus })
-            .eq("id", s.id);
+          await rollbackStep(
+            "advance-apply:restore-invoice",
+            () => supabase.from("sales").update({ paid_amount: s.prevPaid, payment_status: s.prevStatus }).eq("id", s.id),
+            { organizationId, recordId: s.id },
+          );
         }
         throw advErr;
       }

@@ -17,6 +17,7 @@ import {
 } from "@/utils/saleReturnCnBalance";
 import { fetchCustomerOpeningBalanceRemaining } from "@/utils/customerOpeningBalanceRemaining";
 import { toReceiptGuardError } from "@/utils/receiptIdempotency";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 
 /**
  * DB is authoritative for payment_status on persisted sales:
@@ -874,24 +875,37 @@ export async function applyCreditNoteFifoToSale(
       amount: useFromSR,
     });
 
-    const { data: cnRow } = await supabase
+    // Mirror the credit note's live remaining onto the return. The credit is already applied
+    // (the database checks the credit note itself), so a failure here is logged, not thrown.
+    // A failed read used to count as 0 remaining and marked the return fully adjusted.
+    const { data: cnRow, error: cnReadErr } = await supabase
       .from("credit_notes")
       .select("credit_amount, used_amount")
       .eq("id", creditNoteId)
       .maybeSingle();
-    const cnRemaining = Math.max(
-      0,
-      Number(cnRow?.credit_amount || 0) - Number(cnRow?.used_amount || 0),
-    );
-    await supabase
-      .from("sale_returns")
-      .update({
-        credit_available_balance: cnRemaining,
-        credit_status: cnRemaining <= 0.01 ? "adjusted" : "partially_adjusted",
-        linked_sale_id: params.saleId,
-      })
-      .eq("id", sr.id)
-      .eq("organization_id", params.organizationId);
+    let cnRemaining = Math.max(0, Number(sr.available || 0) - useFromSR);
+    if (cnReadErr || !cnRow) {
+      await bestEffortWrite("cn-apply:read-credit-note", async () => ({ error: cnReadErr ?? new Error("credit note not found") }), {
+        organizationId: params.organizationId,
+        recordId: creditNoteId,
+      });
+    } else {
+      cnRemaining = Math.max(0, Number(cnRow.credit_amount || 0) - Number(cnRow.used_amount || 0));
+      await bestEffortWrite(
+        "cn-apply:sync-sale-return",
+        () =>
+          supabase
+            .from("sale_returns")
+            .update({
+              credit_available_balance: cnRemaining,
+              credit_status: cnRemaining <= 0.01 ? "adjusted" : "partially_adjusted",
+              linked_sale_id: params.saleId,
+            })
+            .eq("id", sr.id)
+            .eq("organization_id", params.organizationId),
+        { organizationId: params.organizationId, recordId: sr.id },
+      );
+    }
 
     sr.available = cnRemaining;
     remaining -= useFromSR;

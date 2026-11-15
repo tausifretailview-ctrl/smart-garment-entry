@@ -6,6 +6,7 @@ import { recordCustomerReceiptJournalEntry } from "@/utils/accounting/journalSer
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import { createReceiptVoucher } from "@/utils/saleSettlement";
 import { newReceiptSubmissionId, receiptRequestId } from "@/utils/receiptIdempotency";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 
 export type BulkCashPaymentInvoice = {
   id: string;
@@ -108,14 +109,17 @@ export async function recordInvoiceFullCashPayment(
 
     const recomputed = await applyRecomputedSalePaymentState(invoice.id, organizationId, client);
 
-    await client
-      .from("sales")
-      .update({
-        payment_date: payYmd,
-        payment_method: "cash",
-      })
-      .eq("id", invoice.id)
-      .eq("organization_id", organizationId);
+    // The payment is already recorded; only the shown method / date can fail here.
+    await bestEffortWrite(
+      "invoice-cash-payment:set-method",
+      () =>
+        client
+          .from("sales")
+          .update({ payment_date: payYmd, payment_method: "cash" })
+          .eq("id", invoice.id)
+          .eq("organization_id", organizationId),
+      { organizationId, recordId: invoice.id },
+    );
 
     const paidAmount = recomputed.skipped
       ? Number(invoice.paid_amount || 0) + outstanding

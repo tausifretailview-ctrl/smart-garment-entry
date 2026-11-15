@@ -603,15 +603,16 @@ export const useSaveSale = () => {
 
   const markCreditNoteFullyUsedForSrAdjust = async (cnId: string) => {
     if (!currentOrganization?.id) return;
-    const { data: note } = await supabase
+    const { data: note, error: noteErr } = await supabase
       .from("credit_notes")
       .select("credit_amount, used_amount")
       .eq("id", cnId)
       .eq("organization_id", currentOrganization.id)
       .maybeSingle();
+    if (noteErr) throw noteErr;
     if (!note) return;
     const ca = Number((note as { credit_amount?: number }).credit_amount) || 0;
-    await supabase
+    const { error: usedErr } = await supabase
       .from("credit_notes")
       .update({
         used_amount: ca,
@@ -619,25 +620,27 @@ export const useSaveSale = () => {
       } as never)
       .eq("id", cnId)
       .eq("organization_id", currentOrganization.id);
+    if (usedErr) throw usedErr;
   };
 
   /** After POS S/R adjust, shrink CN face value to remaining credit (return − absorbed on bill). */
   const setLinkedCreditNoteAmount = async (cnId: string, newCreditAmount: number) => {
     if (!currentOrganization?.id || newCreditAmount < 0) return;
     const rounded = roundMoney(newCreditAmount);
-    const { data: note } = await supabase
+    const { data: note, error: noteErr } = await supabase
       .from("credit_notes")
       .select("used_amount")
       .eq("id", cnId)
       .eq("organization_id", currentOrganization.id)
       .maybeSingle();
+    if (noteErr) throw noteErr;
     const ua = Number((note as { used_amount?: number } | null)?.used_amount) || 0;
     const creditAmount = Math.max(rounded, ua);
     if (creditAmount <= 0.01) {
       await markCreditNoteFullyUsedForSrAdjust(cnId);
       return;
     }
-    await supabase
+    const { error: amountErr } = await supabase
       .from("credit_notes")
       .update({
         credit_amount: creditAmount,
@@ -645,6 +648,7 @@ export const useSaveSale = () => {
       } as never)
       .eq("id", cnId)
       .eq("organization_id", currentOrganization.id);
+    if (amountErr) throw amountErr;
   };
 
   const consumeSaleReturnAdjustments = async (params: {
@@ -725,7 +729,10 @@ export const useSaveSale = () => {
           credit_available_balance: 0,
         };
         if (ensuredCnId) updateRow.credit_note_id = ensuredCnId;
-        await supabase.from('sale_returns').update(updateRow as never).eq('id', sr.id);
+        // Checked: an ignored failure left the return with its full credit while this bill had
+        // already used it, so the same credit could be spent twice. The caller shows the error.
+        const { error: consumeErr } = await supabase.from('sale_returns').update(updateRow as never).eq('id', sr.id);
+        if (consumeErr) throw consumeErr;
         if (ensuredCnId) {
           await markCreditNoteFullyUsedForSrAdjust(ensuredCnId);
         }
@@ -739,7 +746,7 @@ export const useSaveSale = () => {
       if (sr.credit_status === 'partially_adjusted') {
         const consumeAmt = roundMoney(remaining);
         const newAvail = roundMoney(srAmt - consumeAmt);
-        await supabase
+        const { error: partialErr } = await supabase
           .from('sale_returns')
           .update({
             credit_available_balance: newAvail,
@@ -748,6 +755,7 @@ export const useSaveSale = () => {
             ...(ensuredCnId ? { credit_note_id: ensuredCnId } : {}),
           })
           .eq('id', sr.id);
+        if (partialErr) throw partialErr;
         if (ensuredCnId) {
           if (newAvail <= 0.01) {
             await markCreditNoteFullyUsedForSrAdjust(ensuredCnId);
@@ -762,7 +770,7 @@ export const useSaveSale = () => {
       // One return row stays partly used. Do not split a leftover sale_return.
       const consumeAmt = roundMoney(remaining);
       const newAvail = roundMoney(srAmt - consumeAmt);
-      await supabase
+      const { error: leftoverErr } = await supabase
         .from('sale_returns')
         .update({
           credit_available_balance: newAvail,
@@ -771,6 +779,7 @@ export const useSaveSale = () => {
           ...(ensuredCnId ? { credit_note_id: ensuredCnId } : {}),
         })
         .eq('id', sr.id);
+      if (leftoverErr) throw leftoverErr;
       if (ensuredCnId && newAvail <= 0.01) {
         await markCreditNoteFullyUsedForSrAdjust(ensuredCnId);
       }

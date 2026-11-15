@@ -111,6 +111,7 @@ import {
   refetchOnMountIfInvalidated,
 } from "@/utils/supplierPaymentViews";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
+import { rollbackStep } from "@/lib/rollbackStep";
 
 /** Purchase bills table — hidden by default; enable via Columns menu. */
 const PURCHASE_BILLS_DEFAULT_COLUMN_VISIBILITY: Record<string, boolean> = {
@@ -1555,8 +1556,14 @@ const PurchaseBillDashboard = () => {
             supabase,
           );
         } catch (glErr) {
-          await deleteJournalEntryByReference(currentOrganization.id, "SupplierPayment", voucherRow.id, supabase);
-          await supabase.from("voucher_entries").delete().eq("id", voucherRow.id);
+          await rollbackStep("supplier-payment:delete-journal", () => deleteJournalEntryByReference(currentOrganization.id, "SupplierPayment", voucherRow.id, supabase), {
+            organizationId: currentOrganization.id,
+            recordId: voucherRow.id,
+          });
+          await rollbackStep("supplier-payment:delete-voucher", () => supabase.from("voucher_entries").delete().eq("id", voucherRow.id), {
+            organizationId: currentOrganization.id,
+            recordId: voucherRow.id,
+          });
           throw glErr;
         }
       }
@@ -1573,8 +1580,15 @@ const PurchaseBillDashboard = () => {
 
       if (updateError) {
         if (voucherRow?.id) {
-          await deleteJournalEntryByReference(currentOrganization.id, "SupplierPayment", voucherRow.id, supabase);
-          await supabase.from("voucher_entries").delete().eq("id", voucherRow.id);
+          const voucherId = voucherRow.id;
+          await rollbackStep("supplier-payment:delete-journal", () => deleteJournalEntryByReference(currentOrganization.id, "SupplierPayment", voucherId, supabase), {
+            organizationId: currentOrganization.id,
+            recordId: voucherId,
+          });
+          await rollbackStep("supplier-payment:delete-voucher", () => supabase.from("voucher_entries").delete().eq("id", voucherId), {
+            organizationId: currentOrganization.id,
+            recordId: voucherId,
+          });
         }
         throw updateError;
       }
