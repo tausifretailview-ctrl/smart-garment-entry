@@ -22,6 +22,7 @@ import {
   validateReceivingBankForSave,
   type OrganizationBankAccount,
 } from "@/utils/organizationBankAccounts";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 
 export function useAccountsPaymentDialogs(settings: any) {
   const { currentOrganization } = useOrganization();
@@ -160,11 +161,17 @@ export function useAccountsPaymentDialogs(settings: any) {
           );
           const split = splitMap.get(invoice.id) ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
           const rec = reconcileSaleInvoiceWithSplit(invoice, split);
-          await supabase
-            .from("sales")
-            .update({ paid_amount: rec.paid_amount, payment_status: rec.payment_status })
-            .eq("id", editingPayment.reference_id)
-            .eq("organization_id", currentOrganization.id);
+          // The payment edit is saved; refreshing the invoice's paid figure must not fail silently.
+          await bestEffortWrite(
+            "edit-payment:refresh-invoice",
+            () =>
+              supabase
+                .from("sales")
+                .update({ paid_amount: rec.paid_amount, payment_status: rec.payment_status })
+                .eq("id", editingPayment.reference_id)
+                .eq("organization_id", currentOrganization.id),
+            { organizationId: currentOrganization.id, recordId: editingPayment.reference_id },
+          );
         }
       }
       return { oldAmount, newAmount };

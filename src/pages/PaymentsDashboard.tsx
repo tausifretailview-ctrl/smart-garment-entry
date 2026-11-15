@@ -96,6 +96,7 @@ import {
   accountsHistoryTableWrapClass,
   accountsHistoryThClass,
 } from "@/components/accounts/accountsHistoryUi";
+import { bestEffortWrite, rollbackStep } from "@/lib/rollbackStep";
 
 interface Invoice extends PaymentsDashboardInvoice {}
 
@@ -590,8 +591,14 @@ export default function PaymentsDashboard() {
             supabase,
           );
         } catch (glErr) {
-          await deleteJournalEntryByReference(orgId, "CustomerReceipt", receiptRow.id, supabase);
-          await supabase.from('voucher_entries').delete().eq('id', receiptRow.id);
+          await rollbackStep("payments:delete-journal", () => deleteJournalEntryByReference(orgId, "CustomerReceipt", receiptRow.id, supabase), {
+            organizationId: orgId,
+            recordId: receiptRow.id,
+          });
+          await rollbackStep("payments:delete-receipt", () => supabase.from('voucher_entries').delete().eq('id', receiptRow.id), {
+            organizationId: orgId,
+            recordId: receiptRow.id,
+          });
           throw glErr;
         }
       }
@@ -608,14 +615,19 @@ export default function PaymentsDashboard() {
         if (!recomputed.skipped) {
           newPaidAmount = recomputed.paidAmount;
           if (recomputed.paymentStatus === 'completed') {
-            await supabase
-              .from('sales')
-              .update({
-                payment_date: format(paymentDate, 'yyyy-MM-dd'),
-                payment_method: paymentMethod,
-              })
-              .eq('id', selectedInvoice.id)
-              .eq('organization_id', currentOrganization!.id);
+            await bestEffortWrite(
+              "payments:set-method",
+              () =>
+                supabase
+                  .from('sales')
+                  .update({
+                    payment_date: format(paymentDate, 'yyyy-MM-dd'),
+                    payment_method: paymentMethod,
+                  })
+                  .eq('id', selectedInvoice.id)
+                  .eq('organization_id', currentOrganization!.id),
+              { organizationId: currentOrganization!.id, recordId: selectedInvoice.id },
+            );
           }
         }
       } catch (recomputeError) {

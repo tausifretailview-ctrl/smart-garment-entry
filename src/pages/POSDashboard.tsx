@@ -231,6 +231,7 @@ import {
 import { formatDateDMY } from "@/lib/dateDisplay";
 import { useActiveStaff } from "@/lib/data/employees";
 import { useShopUsers } from "@/lib/data/shopUsers";
+import { bestEffortWrite, rollbackStep } from "@/lib/rollbackStep";
 
 interface SaleItem {
   id: string;
@@ -2754,7 +2755,10 @@ const POSDashboard = () => {
             rollbackId,
             supabase
           );
-          await supabase.from("voucher_entries").delete().eq("id", rollbackId);
+          await rollbackStep("pos-payment:delete-voucher", () => supabase.from("voucher_entries").delete().eq("id", rollbackId), {
+            organizationId: currentOrganization.id,
+            recordId: rollbackId,
+          });
         }
         try {
           await syncSalePaymentFromVouchers(
@@ -3077,7 +3081,11 @@ const POSDashboard = () => {
         const errorMsg = safeErrorString(result.error) || "Cancellation failed";
         // If PeriOne says "not active" or already cancelled, sync local status
         if (errorMsg.toLowerCase().includes('not active') || errorMsg.toLowerCase().includes('already cancelled')) {
-          await supabase.from('sales').update({ einvoice_status: 'cancelled' }).eq('id', sale.id);
+          await bestEffortWrite(
+            "einvoice:mark-cancelled",
+            () => supabase.from('sales').update({ einvoice_status: 'cancelled' }).eq('id', sale.id),
+            { organizationId: currentOrganization?.id, recordId: sale.id },
+          );
           toast({ title: "IRN Already Cancelled", description: "This IRN was already cancelled. Status has been updated.", variant: "destructive" });
           refreshPosDashboard();
         } else {

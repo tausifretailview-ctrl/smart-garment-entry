@@ -83,3 +83,27 @@ describe("customer advance writes", () => {
     }
   });
 });
+
+describe("receipt paths", () => {
+  it("deleting a receipt checks the removal of its lines", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("src/utils/deleteCustomerReceipt.ts", "utf8");
+    expect(src).toContain('const { error: itemsErr } = await client.from("voucher_items").delete()');
+    expect(src).toContain("if (itemsErr) throw itemsErr;");
+  });
+
+  it("receipt / supplier-payment clean-ups go through rollbackStep", async () => {
+    const { readFileSync } = await import("node:fs");
+    for (const f of [
+      "src/components/accounts/CustomerPaymentTab.tsx",
+      "src/pages/PaymentsDashboard.tsx",
+      "src/pages/PurchaseBillDashboard.tsx",
+      "src/pages/POSDashboard.tsx",
+      "src/components/accounts/ReassignPaymentDialog.tsx",
+    ]) {
+      const src = readFileSync(f, "utf8");
+      expect(src, f).toContain("rollbackStep(");
+      expect(src, f).not.toMatch(/^\s*await (supabase|client)\.from\(["']voucher_entries["']\)\.delete\(\)/m);
+    }
+  });
+});

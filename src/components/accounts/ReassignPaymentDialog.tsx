@@ -19,6 +19,7 @@ import {
   isAccountingEngineOnForOrg,
   repostJournalForRestoredVoucher,
 } from "@/utils/accounting/journalService";
+import { rollbackStep } from "@/lib/rollbackStep";
 
 interface ReassignPaymentDialogProps {
   open: boolean;
@@ -182,7 +183,10 @@ export function ReassignPaymentDialog({
       } catch (err) {
         for (const v of [...created].reverse()) {
           await deleteJournalEntryByReference(organizationId, "CustomerReceipt", v.id).catch(() => {});
-          await supabase.from("voucher_entries").delete().eq("id", v.id);
+          await rollbackStep("reassign-payment:delete-voucher", () => supabase.from("voucher_entries").delete().eq("id", v.id), {
+            organizationId,
+            recordId: v.id,
+          });
           await deleteLedgerEntries({
             organizationId,
             voucherNo: v.voucher_number,

@@ -94,7 +94,10 @@ export async function deleteCustomerReceipt(
       sale_return_adjust: newSr,
     };
   }
-  await client.from("voucher_items").delete().eq("voucher_id", voucherId);
+  // Checked: an ignored failure here left the receipt's lines behind (or stopped the delete
+  // below with a confusing error).
+  const { error: itemsErr } = await client.from("voucher_items").delete().eq("voucher_id", voucherId);
+  if (itemsErr) throw itemsErr;
   const { data: removed, error } = await client
     .from("voucher_entries")
     .delete()
