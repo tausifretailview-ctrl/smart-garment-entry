@@ -81,7 +81,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
   });
 
   const { data: vouchersData, refetch: refetchVouchers } = useQuery({
-    queryKey: ["daily-tally-vouchers", orgId, dateStr],
+    queryKey: ["daily-tally-vouchers", orgId, dateStr, "floating"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("voucher_entries")
@@ -111,7 +111,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
   });
 
   const { data: refundsData, refetch: refetchRefunds } = useQuery({
-    queryKey: ["daily-tally-refunds", orgId, dateStr],
+    queryKey: ["daily-tally-refunds", orgId, dateStr, "floating"],
     queryFn: async () => {
       try {
         const { data, error } = await supabase
@@ -144,7 +144,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
   });
 
   const { data: snapshot, refetch: refetchSnapshot } = useQuery({
-    queryKey: ["daily-tally-snapshot", orgId, dateStr],
+    queryKey: ["daily-tally-snapshot", orgId, dateStr, "floating"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("daily_tally_snapshot")
@@ -165,7 +165,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
   }, [selectedDate]);
 
   const { data: yesterdaySnapshot } = useQuery({
-    queryKey: ["daily-tally-snapshot", orgId, yesterdayStr],
+    queryKey: ["daily-tally-snapshot", orgId, yesterdayStr, "floating"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("daily_tally_snapshot")

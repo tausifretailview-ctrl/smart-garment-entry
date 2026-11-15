@@ -82,7 +82,7 @@ export const StudentExcelImportDialog = ({
 
   // Fetch classes for matching
   const { data: classes = [] } = useQuery({
-    queryKey: ["school-classes", currentOrganization?.id],
+    queryKey: ["school-classes", currentOrganization?.id, "import"],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       const { data, error } = await supabase
@@ -98,7 +98,7 @@ export const StudentExcelImportDialog = ({
 
   // Fetch current academic year
   const { data: currentAcademicYear } = useQuery({
-    queryKey: ["current-academic-year", currentOrganization?.id],
+    queryKey: ["current-academic-year", currentOrganization?.id, "id-only"],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
       const { data, error } = await supabase
