@@ -2774,86 +2774,92 @@ export default function POSSales() {
     setPointsToRedeem(0);
   }, [customerId, setPointsToRedeem]);
 
-  // Fetch credit balance and pending sale return credit notes when customer changes
+  // Fetch credit balance and pending sale return credit notes when customer changes.
+  // The three reads run together, and an answer for a customer who is no longer selected is
+  // dropped: switching customer quickly could otherwise show (and let the cashier apply) the
+  // previous customer's credit on this bill.
   useEffect(() => {
+    let cancelled = false;
     const fetchCreditBalance = async () => {
-      if (customerId) {
-        const balance = await getAvailableCreditBalance(customerId);
-        setAvailableCreditBalance(balance);
-        // Fetch pending sale return credit notes for this customer
-        if (currentOrganization?.id) {
-          // Same pool billing consumes from (useSaveSale.consumeSaleReturnAdjustments):
-          // pending / partially adjusted CNs plus exchange returns whose bill was never
-          // saved (credit_status "adjusted", no linked sale). Using a narrower query here
-          // hid redeemable credit that the customer badge and balance already show.
-          try {
-            const { returns: cnPool } = await getAvailableCN(
-              supabase,
-              customerId,
-              currentOrganization.id,
-              { includeUnlinkedAdjusted: true },
-            );
-            setPendingSaleReturnCredits(
-              [...cnPool]
-                .sort((x, y) => String(y.return_date || "").localeCompare(String(x.return_date || "")))
-                .map((r) => ({
-                  id: r.id,
-                  return_number: r.return_number || "",
-                  net_amount: r.available,
-                  credit_note_id: null,
-                })),
-            );
-          } catch (err) {
-            console.error("Failed to load sale return credits:", err);
-            setPendingSaleReturnCredits([]);
-          }
-
-          // Customer-wise CN redeem trace: recently adjusted sale returns with invoice linkage.
-          const { data: adjustedReturns } = await supabase
-            .from("sale_returns")
-            .select("id, return_number, net_amount, linked_sale_id")
-            .eq("organization_id", currentOrganization.id)
-            .eq("customer_id", customerId)
-            .is("deleted_at", null)
-            .eq("refund_type", "credit_note")
-            .eq("credit_status", "adjusted")
-            .not("linked_sale_id", "is", null)
-            .order("updated_at", { ascending: false })
-            .limit(8);
-
-          const adjustedRows = adjustedReturns || [];
-          const linkedSaleIds = adjustedRows
-            .map((r: any) => r.linked_sale_id)
-            .filter((id: any) => !!id);
-
-          if (linkedSaleIds.length > 0) {
-            const { data: linkedSales } = await supabase
-              .from("sales")
-              .select("id, sale_number")
-              .in("id", linkedSaleIds as any);
-
-            const saleNumberMap = new Map<string, string>(
-              (linkedSales || []).map((sale: any) => [String(sale.id), String(sale.sale_number || "")])
-            );
-
-            setRecentAdjustedSaleReturnCredits(
-              adjustedRows.map((row: any) => ({
-                ...row,
-                linked_sale_number: row.linked_sale_id ? saleNumberMap.get(String(row.linked_sale_id)) || "" : "",
-              }))
-            );
-          } else {
-            setRecentAdjustedSaleReturnCredits([]);
-          }
-        }
-      } else {
+      if (!customerId) {
         setAvailableCreditBalance(0);
         setCreditApplied(0);
         setPendingSaleReturnCredits([]);
         setRecentAdjustedSaleReturnCredits([]);
+        return;
       }
+      const orgId = currentOrganization?.id;
+      const [balance, cnResult, adjustedResult] = await Promise.all([
+        getAvailableCreditBalance(customerId),
+        // Same pool billing consumes from (useSaveSale.consumeSaleReturnAdjustments):
+        // pending / partially adjusted CNs plus exchange returns whose bill was never
+        // saved (credit_status "adjusted", no linked sale). Using a narrower query here
+        // hid redeemable credit that the customer badge and balance already show.
+        orgId
+          ? getAvailableCN(supabase, customerId, orgId, { includeUnlinkedAdjusted: true }).then(
+              (r) => ({ ok: true as const, returns: r.returns }),
+              (err) => {
+                console.error("Failed to load sale return credits:", err);
+                return { ok: false as const, returns: [] as Awaited<ReturnType<typeof getAvailableCN>>["returns"] };
+              },
+            )
+          : Promise.resolve(null),
+        // Customer-wise CN redeem trace: recently adjusted sale returns with invoice linkage.
+        orgId
+          ? supabase
+              .from("sale_returns")
+              .select("id, return_number, net_amount, linked_sale_id")
+              .eq("organization_id", orgId)
+              .eq("customer_id", customerId)
+              .is("deleted_at", null)
+              .eq("refund_type", "credit_note")
+              .eq("credit_status", "adjusted")
+              .not("linked_sale_id", "is", null)
+              .order("updated_at", { ascending: false })
+              .limit(8)
+          : Promise.resolve(null),
+      ]);
+      if (cancelled) return;
+      setAvailableCreditBalance(balance);
+      if (!orgId) return;
+
+      setPendingSaleReturnCredits(
+        [...(cnResult?.returns ?? [])]
+          .sort((x, y) => String(y.return_date || "").localeCompare(String(x.return_date || "")))
+          .map((r) => ({
+            id: r.id,
+            return_number: r.return_number || "",
+            net_amount: r.available,
+            credit_note_id: null,
+          })),
+      );
+
+      const adjustedRows = adjustedResult?.data || [];
+      const linkedSaleIds = adjustedRows.map((r: any) => r.linked_sale_id).filter((id: any) => !!id);
+      if (linkedSaleIds.length === 0) {
+        setRecentAdjustedSaleReturnCredits([]);
+        return;
+      }
+      const { data: linkedSales } = await supabase
+        .from("sales")
+        .select("id, sale_number")
+        .eq("organization_id", orgId)
+        .in("id", linkedSaleIds as any);
+      if (cancelled) return;
+      const saleNumberMap = new Map<string, string>(
+        (linkedSales || []).map((sale: any) => [String(sale.id), String(sale.sale_number || "")]),
+      );
+      setRecentAdjustedSaleReturnCredits(
+        adjustedRows.map((row: any) => ({
+          ...row,
+          linked_sale_number: row.linked_sale_id ? saleNumberMap.get(String(row.linked_sale_id)) || "" : "",
+        })),
+      );
     };
-    fetchCreditBalance();
+    reportIfFails(fetchCreditBalance(), "load the customer's credit", { silent: true });
+    return () => {
+      cancelled = true;
+    };
   }, [customerId]);
 
   useEffect(() => {
