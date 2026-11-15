@@ -37,3 +37,41 @@ describe("fetchInIdBatches", () => {
     });
   });
 });
+
+/**
+ * `.in(column, someIds)` reads whose id list is not batched (URL too long for a big shop,
+ * rows past 1,000 dropped). The count may only go down: move a read onto fetchInIdBatches /
+ * fetchAllRows, then lower the baseline. `node scripts/count-unbatched-id-lists.mjs` lists them.
+ */
+const UNBATCHED_ID_LISTS_BASELINE = 100;
+
+describe("unbatched id-list reads (ratchet)", () => {
+  it(`stay at or below ${UNBATCHED_ID_LISTS_BASELINE}`, async () => {
+    const { dirname, join } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    // @ts-expect-error -- plain .mjs helper shared with the CLI
+    const { findUnbatchedIdLists } = await import("../../../scripts/count-unbatched-id-lists.mjs");
+    const src = join(dirname(fileURLToPath(import.meta.url)), "../..");
+    const hits: string[] = findUnbatchedIdLists(src);
+    expect(hits.length, hits.join("\n")).toBeLessThanOrEqual(UNBATCHED_ID_LISTS_BASELINE);
+  });
+
+  it("the scanner sees a new unbatched read and skips batched ones", async () => {
+    const { mkdtempSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    // @ts-expect-error -- plain .mjs helper shared with the CLI
+    const { findUnbatchedIdLists } = await import("../../../scripts/count-unbatched-id-lists.mjs");
+    const dir = mkdtempSync(join(tmpdir(), "ub-"));
+    writeFileSync(
+      join(dir, "sample.ts"),
+      [
+        'const { data } = await supabase.from("sales").select("id").in("id", saleIds);',
+        "",
+        "const rows = await fetchInIdBatches(billIds, (ids) =>",
+        '  supabase.from("purchase_items").select("id").in("bill_id", ids));',
+      ].join("\n"),
+    );
+    expect(findUnbatchedIdLists(dir).map((h: string) => h.replace(/^.*sample\.ts:/, ""))).toEqual(["1 .in(id, saleIds)"]);
+  });
+});

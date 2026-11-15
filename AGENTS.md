@@ -29,6 +29,7 @@ EzzyERP — one Vite + React + TypeScript web app (multi-tenant retail POS / bil
 
 - `npm test` runs the full Vitest suite. Unit tests pass offline; the 9 integration/seed tests are **skipped** unless a separate **staging** Supabase is configured via `.env.test` (`SUPABASE_TEST_URL`, `SUPABASE_TEST_SERVICE_ROLE_KEY`) — never point test config at production.
 - `npm run test:money` runs pure money-path logic (settlement, balance, drift) — fast, no DB.
+- Reads by a growing id list (a customer's bills, a school's students, a period's customers) go through `fetchInIdBatches` / `fetchAllRows` (`src/lib/data/fetchInIdBatches.ts`): the gateway rejects URLs past ~200 UUIDs and the server returns at most 1,000 rows, silently. A ratchet test (`scripts/count-unbatched-id-lists.mjs`) fails if unbatched `.in(col, someIds)` reads increase.
 
 ### Auth / gotcha for end-to-end UI testing
 - There is **no self-service signup**. Access requires an admin-provisioned account. Routes: `/auth` = Platform Admin login; `/:orgSlug` = organization login; `/organization-setup` = org entry / create-org (create-org requires an already-authenticated user).
