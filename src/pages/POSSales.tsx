@@ -76,6 +76,7 @@ import {
   posFastBillingMetaLabel,
 } from "@/utils/posFastBillingMode";
 import { useSettings } from "@/hooks/useSettings";
+import { STALE_SETTINGS } from "@/lib/queryStaleTimes";
 import { usePosBilling } from "@/hooks/usePosBilling";
 import { useCategoryTierPricingRules } from "@/hooks/useCategoryTierPricingRules";
 import { isCategoryTierAutoCalculateEnabled, isCategoryTierPricingEnabled } from "@/lib/posBilling/categoryTierPricing";
@@ -2601,14 +2602,22 @@ export default function POSSales() {
 
   const isHoldLikeBill = (sale: any) => isHoldLikePosSale(sale);
 
-  // Held bills query (all-time, not just today)
+  const [showHoldPanel, setShowHoldPanel] = useState(false);
+  const [holdSearchQuery, setHoldSearchQuery] = useState('');
+
+  // Held bills query (all-time, not just today). On open only the count is shown, so the list
+  // is read without each bill's saved cart (held_cart_data / notes can be large); the hold panel
+  // reads the full rows for its item counts. Resuming a bill loads it again either way.
   const { data: heldBills = [], refetch: refetchHeldBills } = useQuery({
-    queryKey: ['held-bills', currentOrganization?.id],
+    queryKey: ['held-bills', currentOrganization?.id, showHoldPanel ? 'full' : 'light'],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
+      const columns = showHoldPanel
+        ? 'id, sale_number, sale_date, net_amount, customer_name, customer_phone, notes, held_cart_data, created_at, payment_status, payment_method'
+        : 'id, sale_number, sale_date, net_amount, customer_name, customer_phone, created_at, payment_status, payment_method';
       const { data, error } = await (supabase as any)
         .from('sales')
-        .select('id, sale_number, sale_date, net_amount, customer_name, customer_phone, notes, held_cart_data, created_at, payment_status, payment_method')
+        .select(columns)
         .eq('organization_id', currentOrganization.id)
         .eq('sale_type', 'pos')
         .is('deleted_at', null)
@@ -2622,9 +2631,6 @@ export default function POSSales() {
     staleTime: 5 * 60 * 1000,   // Cache 5 minutes
     refetchInterval: false,       // No auto-poll — refetch on hold/resume action only
   });
-
-  const [showHoldPanel, setShowHoldPanel] = useState(false);
-  const [holdSearchQuery, setHoldSearchQuery] = useState('');
 
   useEffect(() => {
     if (showHoldPanel) {
@@ -2652,6 +2658,9 @@ export default function POSSales() {
       return data || [];
     },
     enabled: !!currentOrganization?.id,
+    // Settings-like data: read once per shop, not on every open of POS.
+    staleTime: STALE_SETTINGS,
+    refetchOnWindowFocus: false,
   });
 
 
@@ -3098,9 +3107,10 @@ export default function POSSales() {
           variantOrParts.push(`mrp.eq.${escToken}`);
         }
 
+        // Capped like the other lookups: a short size / colour word ("m") could match thousands.
         const variantQ = baseFilters(
           supabase.from('product_variants').select(POS_VARIANT_ID_LOOKUP_SELECT),
-        ).or(variantOrParts.join(','));
+        ).or(variantOrParts.join(',')).limit(500);
 
         const productQ = supabase
           .from('products')
