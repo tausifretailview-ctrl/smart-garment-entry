@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 import { asDcView, filterVariantsForDcView, variantInDcView, type DcViewFlags } from "@/utils/dcView";
 import {
   buildProductTextOrFilter,
@@ -168,30 +169,60 @@ export async function fetchCatalogRowsForProductIds(
   const hideDc = view.hideDc === true && !view.onlyDc;
   const onlyDc = view.onlyDc === true;
 
-  const { data: products, error: productsErr } = await supabase
-    .from("products")
-    .select(
-      "id, product_name, product_type, category, brand, style, color, image_url, hsn_code, gst_per, default_pur_price, default_sale_price, status, user_cancelled_at, size_group_id",
-    )
-    .eq("organization_id", organizationId)
-    .in("id", productIds)
-    .is("deleted_at", null);
-
-  if (productsErr) {
-    console.warn("[productDashboardBarcodeSearch] products fetch failed", productsErr.message);
+  // Batched (200 ids per request) and paged past the 1,000-row reply cap: a search can add up
+  // to ~300 products, whose sizes easily pass 1,000 rows and would silently drop stock.
+  type ProductRowDb = {
+    id: string;
+    product_name: string | null;
+    product_type: string | null;
+    category: string | null;
+    brand: string | null;
+    style: string | null;
+    color: string | null;
+    image_url: string | null;
+    hsn_code: string | null;
+    gst_per: number | null;
+    default_pur_price: number | null;
+    default_sale_price: number | null;
+    status: string | null;
+    user_cancelled_at: string | null;
+    size_group_id: string | null;
+  };
+  let products: ProductRowDb[];
+  try {
+    products = await fetchInIdBatches<ProductRowDb>(productIds, (batch) =>
+      supabase
+        .from("products")
+        .select(
+          "id, product_name, product_type, category, brand, style, color, image_url, hsn_code, gst_per, default_pur_price, default_sale_price, status, user_cancelled_at, size_group_id",
+        )
+        .eq("organization_id", organizationId)
+        .in("id", batch)
+        .is("deleted_at", null)
+        .order("id"),
+    );
+  } catch (productsErr) {
+    console.warn("[productDashboardBarcodeSearch] products fetch failed", (productsErr as Error)?.message);
     return [];
   }
-  if (!products?.length) return [];
+  if (!products.length) return [];
 
-  const { data: variants, error: variantsErr } = await supabase
-    .from("product_variants")
-    .select("product_id, stock_qty, is_dc_product")
-    .eq("organization_id", organizationId)
-    .in("product_id", productIds)
-    .is("deleted_at", null);
-
-  if (variantsErr) {
-    console.warn("[productDashboardBarcodeSearch] variants fetch failed", variantsErr.message);
+  type VariantRowDb = { product_id: string; stock_qty: number | null; is_dc_product: boolean | null };
+  let variants: VariantRowDb[] = [];
+  let variantsErr: unknown = null;
+  try {
+    variants = await fetchInIdBatches<VariantRowDb>(productIds, (batch) =>
+      supabase
+        .from("product_variants")
+        .select("product_id, stock_qty, is_dc_product")
+        .eq("organization_id", organizationId)
+        .in("product_id", batch)
+        .is("deleted_at", null)
+        .order("id"),
+    );
+  } catch (error) {
+    variantsErr = error;
+    console.warn("[productDashboardBarcodeSearch] variants fetch failed", (error as Error)?.message);
     // DC User: without the barcodes we cannot tell which products are DC.
     if (onlyDc) return [];
   }
@@ -207,10 +238,11 @@ export async function fetchCatalogRowsForProductIds(
   // DC User: only products with a DC barcode.
   const hasDc = new Set((variants ?? []).filter((v) => v.is_dc_product === true).map((v) => v.product_id));
 
+  const productTypeById = new Map(products.map((p) => [p.id, p.product_type ?? undefined]));
   const stockByProduct = new Map<string, { total_stock: number; variant_count: number }>();
   (variants ?? []).filter((v) => variantInDcView(v, view)).forEach((v) => {
     const prev = stockByProduct.get(v.product_id) ?? { total_stock: 0, variant_count: 0 };
-    const productType = products.find((p) => p.id === v.product_id)?.product_type;
+    const productType = productTypeById.get(v.product_id);
     stockByProduct.set(v.product_id, {
       total_stock:
         prev.total_stock +
