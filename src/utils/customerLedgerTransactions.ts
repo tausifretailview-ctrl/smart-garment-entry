@@ -25,6 +25,7 @@ import { isCnRefundPaymentVoucher } from "@/utils/cnRefundVoucher";
 import { isAdvanceRefundPaymentVoucher } from "@/utils/advanceRefundVoucher";
 import { fetchAdvanceRefundsForAdvances } from "@/utils/advanceRefundService";
 import { ledgerTimingNow, recordLedgerLoad } from "@/lib/ledgerLoadTiming";
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 
 export interface CustomerLedgerTransaction {
   id: string;
@@ -340,14 +341,18 @@ export async function fetchCustomerLedgerTransactionsWithClient(
           { includeAdvanceNumber: true },
         )
       : Promise.resolve([] as any[]),
-    priorSaleIds.length > 0
-      ? supabase
-          .from('voucher_entries')
-          .select('reference_id, total_amount, payment_method, description')
-          .in('reference_id', priorSaleIds)
-          .eq('voucher_type', 'receipt')
-          .is('deleted_at', null)
-      : noRows,
+    // Every earlier bill's receipts, in batches of 200 ids and past the 1,000-row cap (one
+    // request with all of a long-standing customer's bills was too long and failed).
+    fetchInIdBatches<any>(priorSaleIds, (ids) =>
+      supabase
+        .from('voucher_entries')
+        .select('id, reference_id, total_amount, payment_method, description')
+        .eq('organization_id', organizationId)
+        .in('reference_id', ids)
+        .eq('voucher_type', 'receipt')
+        .is('deleted_at', null)
+        .order('id'),
+    ).then((data) => ({ data, error: null })),
   ]);
 
   const wave2DoneAt = ledgerTimingNow();
