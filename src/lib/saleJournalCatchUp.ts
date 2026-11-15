@@ -18,6 +18,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isHeldOrCancelledSale } from "@/utils/posHoldBill";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 
 export const JOURNAL_CATCH_UP_MIN_AGE_MS = 2 * 60 * 1000;
 export const JOURNAL_CATCH_UP_WINDOW_MS = 48 * 60 * 60 * 1000;
@@ -83,20 +84,30 @@ export async function runSaleJournalCatchUp(
   for (const row of rows) {
     try {
       await postSaleJournal(row.id, organizationId, row.sale_date ? String(row.sale_date).slice(0, 10) : undefined);
-      await client
-        .from("sales")
-        .update({ journal_status: "posted", journal_error: null })
-        .eq("id", row.id)
-        .eq("organization_id", organizationId);
+      await bestEffortWrite(
+        "journal-catch-up:sales-posted",
+        () =>
+          client
+            .from("sales")
+            .update({ journal_status: "posted", journal_error: null })
+            .eq("id", row.id)
+            .eq("organization_id", organizationId),
+        { organizationId, recordId: row.id },
+      );
       result.posted += 1;
     } catch (err) {
       result.failed += 1;
       const message = err instanceof Error ? err.message : String(err || "Failed to post journal");
-      await client
-        .from("sales")
-        .update({ journal_status: "failed", journal_error: message.slice(0, 2000) })
-        .eq("id", row.id)
-        .eq("organization_id", organizationId);
+      await bestEffortWrite(
+        "journal-catch-up:sales-failed",
+        () =>
+          client
+            .from("sales")
+            .update({ journal_status: "failed", journal_error: message.slice(0, 2000) })
+            .eq("id", row.id)
+            .eq("organization_id", organizationId),
+        { organizationId, recordId: row.id },
+      );
     }
   }
   return result;
@@ -164,20 +175,30 @@ export async function runPurchaseJournalCatchUp(
         Number(row.paid_amount ?? 0),
         row.bill_date ? String(row.bill_date).slice(0, 10) : undefined,
       );
-      await client
-        .from("purchase_bills")
-        .update({ journal_status: "posted", journal_error: null })
-        .eq("id", row.id)
-        .eq("organization_id", organizationId);
+      await bestEffortWrite(
+        "journal-catch-up:purchase-bills-posted",
+        () =>
+          client
+            .from("purchase_bills")
+            .update({ journal_status: "posted", journal_error: null })
+            .eq("id", row.id)
+            .eq("organization_id", organizationId),
+        { organizationId, recordId: row.id },
+      );
       result.posted += 1;
     } catch (err) {
       result.failed += 1;
       const message = err instanceof Error ? err.message : String(err || "Failed to post journal");
-      await client
-        .from("purchase_bills")
-        .update({ journal_status: "failed", journal_error: message.slice(0, 2000) })
-        .eq("id", row.id)
-        .eq("organization_id", organizationId);
+      await bestEffortWrite(
+        "journal-catch-up:purchase-bills-failed",
+        () =>
+          client
+            .from("purchase_bills")
+            .update({ journal_status: "failed", journal_error: message.slice(0, 2000) })
+            .eq("id", row.id)
+            .eq("organization_id", organizationId),
+        { organizationId, recordId: row.id },
+      );
     }
   }
   return result;

@@ -11,6 +11,7 @@ import { filedPeriodForDate, filedPeriodLockMessage, resolveGstFilings } from "@
 import { resolveGstFilingPrefs } from "@/utils/gstReadiness";
 import { useProductProtection } from "@/hooks/useProductProtection";
 import { logError } from "@/lib/errorLogger";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 import { deleteLedgerEntries, ensureCustomerLedgerAfterSaleRestore } from "@/lib/customerLedger";
 import { invalidateMoneyViewsAfterMutation } from "@/utils/moneyViewFreshnessInvalidation";
 import {
@@ -455,16 +456,26 @@ export function useSoftDelete() {
                     supabase,
                     srRow.payment_method ?? null
                   );
-                  await supabase
-                    .from("sale_returns")
-                    .update({ journal_status: "posted", journal_error: null })
-                    .eq("id", id);
+                  await bestEffortWrite(
+                    "restore:sale-returns-journal-posted",
+                    () =>
+                      supabase
+                        .from("sale_returns")
+                        .update({ journal_status: "posted", journal_error: null })
+                        .eq("id", id),
+                    { organizationId: srRow.organization_id, recordId: id },
+                  );
                 } catch (glErr) {
                   const errMsg = glErr instanceof Error ? glErr.message : String(glErr);
-                  await supabase
-                    .from("sale_returns")
-                    .update({ journal_status: "failed", journal_error: errMsg.slice(0, 2000) })
-                    .eq("id", id);
+                  await bestEffortWrite(
+                    "restore:sale-returns-journal-failed",
+                    () =>
+                      supabase
+                        .from("sale_returns")
+                        .update({ journal_status: "failed", journal_error: errMsg.slice(0, 2000) })
+                        .eq("id", id),
+                    { organizationId: srRow.organization_id, recordId: id },
+                  );
                   console.error("Repost SaleReturn journal after restore:", glErr);
                   toast({
                     title: "Ledger warning",
@@ -500,16 +511,26 @@ export function useSoftDelete() {
                     supabase,
                     prRow.payment_method ?? null
                   );
-                  await supabase
-                    .from("purchase_returns")
-                    .update({ journal_status: "posted", journal_error: null })
-                    .eq("id", id);
+                  await bestEffortWrite(
+                    "restore:purchase-returns-journal-posted",
+                    () =>
+                      supabase
+                        .from("purchase_returns")
+                        .update({ journal_status: "posted", journal_error: null })
+                        .eq("id", id),
+                    { organizationId: prRow.organization_id, recordId: id },
+                  );
                 } catch (glErr) {
                   const errMsg = glErr instanceof Error ? glErr.message : String(glErr);
-                  await supabase
-                    .from("purchase_returns")
-                    .update({ journal_status: "failed", journal_error: errMsg.slice(0, 2000) })
-                    .eq("id", id);
+                  await bestEffortWrite(
+                    "restore:purchase-returns-journal-failed",
+                    () =>
+                      supabase
+                        .from("purchase_returns")
+                        .update({ journal_status: "failed", journal_error: errMsg.slice(0, 2000) })
+                        .eq("id", id),
+                    { organizationId: prRow.organization_id, recordId: id },
+                  );
                   console.error("Repost PurchaseReturn journal after restore:", glErr);
                   toast({
                     title: "Ledger warning",
@@ -663,23 +684,41 @@ export function useSoftDelete() {
             .delete()
             .eq("sale_id", id);
           if (commissionDelErr) throw commissionDelErr;
-          await supabase.from("sale_items").delete().eq("sale_id", id);
+          {
+            const { error: childDelErr } = await supabase.from("sale_items").delete().eq("sale_id", id);
+            if (childDelErr) throw childDelErr;
+          }
           break;
         }
         case "sale_returns":
-          await supabase.from("sale_return_items").delete().eq("return_id", id);
+          {
+            const { error: childDelErr } = await supabase.from("sale_return_items").delete().eq("return_id", id);
+            if (childDelErr) throw childDelErr;
+          }
           break;
         case "purchase_returns":
-          await supabase.from("purchase_return_items").delete().eq("return_id", id);
+          {
+            const { error: childDelErr } = await supabase.from("purchase_return_items").delete().eq("return_id", id);
+            if (childDelErr) throw childDelErr;
+          }
           break;
         case "sale_orders":
-          await supabase.from("sale_order_items").delete().eq("order_id", id);
+          {
+            const { error: childDelErr } = await supabase.from("sale_order_items").delete().eq("order_id", id);
+            if (childDelErr) throw childDelErr;
+          }
           break;
         case "quotations":
-          await supabase.from("quotation_items").delete().eq("quotation_id", id);
+          {
+            const { error: childDelErr } = await supabase.from("quotation_items").delete().eq("quotation_id", id);
+            if (childDelErr) throw childDelErr;
+          }
           break;
         case "voucher_entries":
-          await supabase.from("voucher_items").delete().eq("voucher_id", id);
+          {
+            const { error: childDelErr } = await supabase.from("voucher_items").delete().eq("voucher_id", id);
+            if (childDelErr) throw childDelErr;
+          }
           break;
         case "products": {
           const { error: variantError } = await supabase

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { decidePosSaveAutoRollback } from "@/utils/posSaleDeleteGuard";
+import { rollbackStep } from "@/lib/rollbackStep";
 
 export const EMPTY_HEADER_ROLLBACK_REASON =
   "auto-rollback: sale_items insert failed during save";
@@ -11,15 +12,22 @@ export const EMPTY_HEADER_ROLLBACK_TOAST = {
     "The bill could not be saved because line items did not save. Nothing was kept — please re-enter the sale.",
 } as const;
 
-/** Soft-cancel an empty sale header — same fields as useSaveSale auto-rollback elsewhere. */
+/**
+ * Soft-cancel an empty sale header — same fields as useSaveSale auto-rollback elsewhere.
+ * Throws when the header could not be cancelled, so callers do not tell the user "nothing
+ * was kept" while the bill is still live. A failed delete of stray lines is logged
+ * (Admin Health, rollback:empty-header-lines) and the header is still cancelled.
+ */
 export async function softCancelEmptySaleHeader(
   client: SupabaseClient<Database>,
   saleId: string,
   userId: string | null | undefined,
 ): Promise<void> {
   const rollbackAt = new Date().toISOString();
-  await client.from("sale_items").delete().eq("sale_id", saleId);
-  await client
+  await rollbackStep("empty-header-lines", () => client.from("sale_items").delete().eq("sale_id", saleId), {
+    recordId: saleId,
+  });
+  const { error } = await client
     .from("sales")
     .update({
       deleted_at: rollbackAt,
@@ -31,6 +39,7 @@ export async function softCancelEmptySaleHeader(
       payment_status: "cancelled",
     })
     .eq("id", saleId);
+  if (error) throw error;
 }
 
 export type EmptyHeaderRollbackEvaluation = {
