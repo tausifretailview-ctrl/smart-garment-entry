@@ -78,6 +78,7 @@ import { DocGodownInline } from "@/components/godowns/DocGodownBar";
 import { useDocGodown } from "@/hooks/useDocGodown";
 import { fetchVariantGodownQty } from "@/utils/godownTransfer";
 import { useActiveStaff } from "@/lib/data/employees";
+import { replaceDocumentLines } from "@/lib/data/replaceDocumentLines";
 
 interface LineItem {
   id: string;
@@ -815,8 +816,6 @@ export default function DeliveryChallanEntry() {
     setIsSaving(true);
     try {
       if (editingChallanId) {
-        await supabase.from("delivery_challan_items").delete().eq("challan_id", editingChallanId);
-
         const challanItemsData = billableItems.map((item) => ({
           challan_id: editingChallanId,
           product_id: item.productId,
@@ -832,9 +831,16 @@ export default function DeliveryChallanEntry() {
           line_total: item.lineTotal,
           hsn_code: item.hsnCode || null,
         }));
-        await supabase.from("delivery_challan_items").insert(challanItemsData);
+        // Checked replace: an unchecked failed insert used to leave the challan with no lines while
+        // saying "Challan Updated" (pending challan lines count in stock).
+        await replaceDocumentLines({
+          table: "delivery_challan_items",
+          parentColumn: "challan_id",
+          parentId: editingChallanId,
+          rows: challanItemsData,
+        });
 
-        await supabase
+        const { error: headerErr } = await supabase
           .from("delivery_challans")
           .update({
             challan_date: challanDate.toISOString(),
@@ -855,6 +861,7 @@ export default function DeliveryChallanEntry() {
             updated_at: new Date().toISOString(),
           })
           .eq("id", editingChallanId);
+        if (headerErr) throw headerErr;
 
         await challanGodown.syncAfterSave(editingChallanId, true);
         toast({ title: "Challan Updated", description: "Delivery challan has been updated" });
@@ -871,9 +878,11 @@ export default function DeliveryChallanEntry() {
           });
         }
       } else {
-        const { data: challanNumber } = await supabase.rpc("generate_challan_number", {
+        const { data: challanNumber, error: numberErr } = await supabase.rpc("generate_challan_number", {
           p_organization_id: currentOrganization?.id,
         });
+        // Without this check a failed number call saved a challan with no number.
+        if (numberErr || !challanNumber) throw numberErr || new Error("Could not get a challan number");
 
         const { data: challanData, error: challanError } = await supabase
           .from("delivery_challans")

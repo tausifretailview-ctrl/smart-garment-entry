@@ -52,6 +52,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { DraftResumeDialog } from "@/components/DraftResumeDialog";
+import { replaceDocumentLines } from "@/lib/data/replaceDocumentLines";
 
 interface LineItem {
   id: string;
@@ -537,9 +538,6 @@ export default function PurchaseOrderEntry() {
           .eq('id', editingOrderId);
         if (error) throw error;
         orderId = editingOrderId;
-
-        // Delete old items and insert new ones
-        await supabase.from('purchase_order_items').delete().eq('order_id', editingOrderId);
       } else {
         const { data, error } = await supabase
           .from('purchase_orders')
@@ -567,8 +565,13 @@ export default function PurchaseOrderEntry() {
         line_total: item.lineTotal,
       }));
 
-      const { error: itemsError } = await supabase.from('purchase_order_items').insert(itemsToInsert);
-      if (itemsError) throw itemsError;
+      if (editingOrderId) {
+        // Checked replace: a failed delete used to double the lines, a failed insert to empty them.
+        await replaceDocumentLines({ table: 'purchase_order_items', parentColumn: 'order_id', parentId: editingOrderId, rows: itemsToInsert });
+      } else {
+        const { error: itemsError } = await supabase.from('purchase_order_items').insert(itemsToInsert);
+        if (itemsError) throw itemsError;
+      }
 
       skipDraftSaveOnUnmountRef.current = true;
       reportIfFails(deleteDraft(), "clear the draft", { silent: true });
