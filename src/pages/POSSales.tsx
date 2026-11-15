@@ -2188,7 +2188,7 @@ export default function POSSales() {
     // F7 - Hold Bill
     else if (e.key === 'F7') {
       e.preventDefault();
-      if (items.length === 0 || isHeldSale) {
+      if (items.length === 0) {
         setShowHoldPanel(prev => !prev);
       } else {
         reportIfFails(handleHoldBill(), "hold the bill");
@@ -6819,7 +6819,9 @@ export default function POSSales() {
 
   // Resume a held bill (auto-saves current cart first if needed)
   const handleResumeHeldBill = async (bill: any) => {
-    if (items.length > 0 && !isHeldSale) {
+    // The open cart is saved first: a new cart as a new held bill, a resumed held bill in place
+    // (it used to be skipped, so items added after resuming were lost).
+    if (items.length > 0) {
       if (posBillHasExchangeRefundDue(finalAmount, exchangeRefundDue)) {
         toast.error("Refund due — use Mix Payment", {
           description:
@@ -6828,22 +6830,16 @@ export default function POSSales() {
         return;
       }
       const holdData = {
-        customerId: customerId || null,
-        customerName: customerName || 'Walk in Customer',
-        customerPhone: customerPhone || null,
-        items,
-        grossAmount: totals.mrp,
-        discountAmount: totals.discount,
-        flatDiscountPercent,
-        flatDiscountAmount,
-        saleReturnAdjust,
-        roundOff,
-        netAmount: finalAmount,
-        notes: saleNotes || null,
-        taxType,
+        ...buildSaleData({
+          customerId,
+          customerName: customerName || "Walk in Customer",
+          customerPhone,
+          notes: saleNotes || null,
+        }),
         printFirm: posPrintFirm,
       };
-      await holdSale(holdData);
+      const held = await holdSale(holdData, isHeldSale && currentSaleId ? currentSaleId : null);
+      if (!held) return; // not saved: keep the cart on screen instead of replacing it
     }
     setShowHoldPanel(false);
     setHoldSearchQuery('');
@@ -6894,7 +6890,9 @@ export default function POSSales() {
       printFirm: posPrintFirm,
     };
 
-    const result = await holdSale(saleData);
+    // A resumed held bill is held again in place (its added items were lost before: Hold only
+    // opened the panel, which still showed the old cart).
+    const result = await holdSale(saleData, isHeldSale && currentSaleId ? currentSaleId : null);
     
     if (result) {
       // Clear cart after holding
@@ -7728,7 +7726,7 @@ export default function POSSales() {
         onSaleReturn={() => setShowFloatingSaleReturn(true)}
         onMix={handleMixPayment}
         onHold={() => {
-          if (items.length === 0 || isHeldSale) {
+          if (items.length === 0) {
             setShowHoldPanel(true);
           } else {
             reportIfFails(handleHoldBill(), "hold the bill");

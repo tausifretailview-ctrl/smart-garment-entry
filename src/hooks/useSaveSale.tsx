@@ -2559,7 +2559,13 @@ export const useSaveSale = () => {
   };
 
   // Hold a sale (save without affecting stock - items stored in notes as JSON)
-  const holdSale = async (saleData: SaleData) => {
+  /**
+   * Put the cart on hold. With `existingHeldSaleId` (a held bill that was resumed and changed),
+   * that same held bill is updated — same Hold number, new cart and totals — instead of a second
+   * held bill being created and the changes lost. Falls back to a new held bill when that one is
+   * no longer on hold (completed or deleted meanwhile).
+   */
+  const holdSale = async (saleData: SaleData, existingHeldSaleId?: string | null) => {
     // Synchronous lock check - prevents duplicate saves from rapid clicks/keyboard
     if (savingLockRef.current) {
       return null;
@@ -2694,6 +2700,30 @@ export const useSaveSale = () => {
 
       let sale: any = null;
       let lastError: any = null;
+
+      if (existingHeldSaleId) {
+        const { sale_number: _keepNumber, created_by: _keepCreator, organization_id: _org, ...patch } =
+          buildSaleInsertPayload("");
+        const { data: updated, error: updateError } = await supabase
+          .from('sales')
+          .update(patch as any)
+          .eq('id', existingHeldSaleId)
+          .eq('organization_id', currentOrganization.id)
+          .is('deleted_at', null)
+          // Still parked: status hold, or a Hold/ number not yet paid (same rule as the held list).
+          .or('payment_status.eq.hold,and(sale_number.like.Hold/%,payment_method.eq.pay_later)')
+          .select()
+          .maybeSingle();
+        if (updateError) throw updateError;
+        if (updated) {
+          toast({
+            title: "Bill on Hold",
+            description: `Bill ${updated.sale_number} has been updated and kept on hold`,
+          });
+          return updated;
+        }
+        // No longer a held bill (completed / deleted meanwhile): hold the cart as a new bill.
+      }
 
       const { data: holdNumber, error: holdNoError } = await supabase
         .rpc('generate_hold_number_atomic' as any, {
