@@ -52,7 +52,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { DraftResumeDialog } from "@/components/DraftResumeDialog";
-import { replaceDocumentLines } from "@/lib/data/replaceDocumentLines";
+import { saveDocumentWithLines } from "@/lib/data/replaceDocumentLines";
 
 interface LineItem {
   id: string;
@@ -532,11 +532,7 @@ export default function PurchaseOrderEntry() {
       let orderId: string;
 
       if (editingOrderId) {
-        const { error } = await supabase
-          .from('purchase_orders')
-          .update(orderData)
-          .eq('id', editingOrderId);
-        if (error) throw error;
+        // Header and lines are saved together below (saveDocumentWithLines).
         orderId = editingOrderId;
       } else {
         const { data, error } = await supabase
@@ -566,8 +562,14 @@ export default function PurchaseOrderEntry() {
       }));
 
       if (editingOrderId) {
-        // Checked replace: a failed delete used to double the lines, a failed insert to empty them.
-        await replaceDocumentLines({ table: 'purchase_order_items', parentColumn: 'order_id', parentId: editingOrderId, rows: itemsToInsert });
+        // Header + lines in one transaction (checked steps until the SQL is applied).
+        await saveDocumentWithLines({
+          kind: 'purchase_order',
+          organizationId: currentOrganization!.id,
+          documentId: editingOrderId,
+          header: orderData,
+          rows: itemsToInsert,
+        });
       } else {
         const { error: itemsError } = await supabase.from('purchase_order_items').insert(itemsToInsert);
         if (itemsError) throw itemsError;

@@ -79,7 +79,7 @@ import { DocGodownInline } from "@/components/godowns/DocGodownBar";
 import { useDocGodown } from "@/hooks/useDocGodown";
 import { fetchVariantGodownQty } from "@/utils/godownTransfer";
 import { useActiveStaff } from "@/lib/data/employees";
-import { replaceDocumentLines } from "@/lib/data/replaceDocumentLines";
+import { saveDocumentWithLines } from "@/lib/data/replaceDocumentLines";
 
 interface LineItem {
   id: string;
@@ -832,18 +832,14 @@ export default function DeliveryChallanEntry() {
           line_total: item.lineTotal,
           hsn_code: item.hsnCode || null,
         }));
-        // Checked replace: an unchecked failed insert used to leave the challan with no lines while
-        // saying "Challan Updated" (pending challan lines count in stock).
-        await replaceDocumentLines({
-          table: "delivery_challan_items",
-          parentColumn: "challan_id",
-          parentId: editingChallanId,
+        // Header + lines in one transaction (checked steps until the SQL is applied). Pending
+        // challan lines count in stock, so the lines and totals must never disagree.
+        await saveDocumentWithLines({
+          kind: "delivery_challan",
+          organizationId: currentOrganization!.id,
+          documentId: editingChallanId,
           rows: challanItemsData,
-        });
-
-        const { error: headerErr } = await supabase
-          .from("delivery_challans")
-          .update({
+          header: {
             challan_date: challanDate.toISOString(),
             customer_id: selectedCustomerId,
             customer_name: selectedCustomer.customer_name,
@@ -860,9 +856,8 @@ export default function DeliveryChallanEntry() {
             shipping_address: shippingAddress || null,
             notes: notes || null,
             updated_at: new Date().toISOString(),
-          })
-          .eq("id", editingChallanId);
-        if (headerErr) throw headerErr;
+          },
+        });
 
         await challanGodown.syncAfterSave(editingChallanId, true);
         toast({ title: "Challan Updated", description: "Delivery challan has been updated" });

@@ -57,7 +57,7 @@ import { Switch } from "@/components/ui/switch";
 import { useIndustrialMode } from "@/hooks/useIndustrialMode";
 import { fromIsoDay, quotationDisplayNumber, toIsoDay } from "@/utils/industrialMode";
 import { useActiveStaff } from "@/lib/data/employees";
-import { replaceDocumentLines } from "@/lib/data/replaceDocumentLines";
+import { saveDocumentWithLines } from "@/lib/data/replaceDocumentLines";
 
 interface LineItem {
   id: string;
@@ -877,12 +877,7 @@ export default function QuotationEntry() {
       let quotationId = editingQuotationId;
 
       if (editingQuotationId) {
-        const { error } = await supabase
-          .from("quotations")
-          .update(quotationData)
-          .eq("id", editingQuotationId)
-          .eq("organization_id", currentOrganization!.id);
-        if (error) throw error;
+        // Header and lines are saved together below (saveDocumentWithLines).
       } else {
         const { data, error } = await supabase
           .from("quotations")
@@ -913,8 +908,14 @@ export default function QuotationEntry() {
       }));
 
       if (editingQuotationId) {
-        // Checked replace: a failed delete used to double the lines, a failed insert to empty them.
-        await replaceDocumentLines({ table: "quotation_items", parentColumn: "quotation_id", parentId: editingQuotationId, rows: quotationItems });
+        // Header + lines in one transaction (checked steps until the SQL is applied).
+        await saveDocumentWithLines({
+          kind: "quotation",
+          organizationId: currentOrganization!.id,
+          documentId: editingQuotationId,
+          header: quotationData,
+          rows: quotationItems,
+        });
       } else {
         const { error: itemsError } = await supabase.from("quotation_items").insert(quotationItems);
         if (itemsError) throw itemsError;
