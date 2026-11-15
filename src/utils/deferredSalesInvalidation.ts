@@ -25,6 +25,12 @@ function runSalesInvalidation(queryClient: QueryClient, opts: PendingSalesInvali
   queryClient.invalidateQueries({ queryKey: ["todays-sales"] });
   queryClient.invalidateQueries({ queryKey: ["today-sales"] });
   queryClient.invalidateQueries({ queryKey: ["pos-products"] });
+  // Sales Invoice header: "last invoice" strip and the Last / Previous / Next list. Neither was
+  // refreshed after a save, so the strip kept showing the previous bill.
+  void queryClient.invalidateQueries({ queryKey: opts.organizationId ? ["last-invoice", opts.organizationId] : ["last-invoice"] });
+  void queryClient.invalidateQueries({
+    queryKey: opts.organizationId ? ["all-sale-invoice-ids", opts.organizationId] : ["all-sale-invoice-ids"],
+  });
   // Sale Return pickers: get_sold_variant_ids RPC (staleTime 5 min).
   // Set = all historically sold items (not "still sellable"); sale returns do not
   // shrink it, so return-save paths need not invalidate this key.

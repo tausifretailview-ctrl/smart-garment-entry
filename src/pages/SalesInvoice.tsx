@@ -1138,25 +1138,35 @@ export default function SalesInvoice() {
     enabled: !!currentOrganization?.id,
   });
 
-  // Fetch all invoice IDs for navigation (like POS)
+  // Invoice IDs for Last / Previous / Next / search-by-number (like POS). Loaded the first
+  // time one of those is used, not on every open of the screen (up to 500 rows).
+  const [navListRequested, setNavListRequested] = useState(false);
+  const invoiceIdsQueryKey = ['all-sale-invoice-ids', currentOrganization?.id] as const;
+  const fetchInvoiceIds = useCallback(async () => {
+    if (!currentOrganization?.id) return [] as { id: string; sale_number: string }[];
+    const { data, error } = await supabase
+      .from('sales')
+      .select('id, sale_number')
+      .eq('organization_id', currentOrganization.id)
+      .eq('sale_type', 'invoice')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) throw error;
+    return data || [];
+  }, [currentOrganization?.id]);
   const { data: allInvoiceIds } = useQuery({
-    queryKey: ['all-sale-invoice-ids', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      const { data, error } = await supabase
-        .from('sales')
-        .select('id, sale_number')
-        .eq('organization_id', currentOrganization.id)
-        .eq('sale_type', 'invoice')
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!currentOrganization?.id,
+    queryKey: invoiceIdsQueryKey,
+    queryFn: fetchInvoiceIds,
+    enabled: !!currentOrganization?.id && navListRequested,
     staleTime: 60000,
   });
+  /** The navigation list, read now if this is the first use (or it is stale). */
+  const ensureInvoiceIds = useCallback(async () => {
+    setNavListRequested(true);
+    return queryClient.fetchQuery({ queryKey: invoiceIdsQueryKey, queryFn: fetchInvoiceIds, staleTime: 60000 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- key is derived from the org id
+  }, [queryClient, fetchInvoiceIds, currentOrganization?.id]);
 
   // Generate next invoice number preview
   useEffect(() => {
@@ -2704,10 +2714,16 @@ export default function SalesInvoice() {
   }, [currentOrganization?.id, toast, rebuildStagedQtyByVariantRef, capturePaidInvoiceGuard]);
 
   const handleLastInvoice = useCallback(() => {
-    if (!allInvoiceIds || allInvoiceIds.length === 0) return;
-    setNavInvoiceIndex(0);
-    reportIfFails(loadInvoiceById(allInvoiceIds[0].id), "open the invoice");
-  }, [allInvoiceIds, loadInvoiceById]);
+    reportIfFails(
+      (async () => {
+        const ids = await ensureInvoiceIds();
+        if (ids.length === 0) return;
+        setNavInvoiceIndex(0);
+        await loadInvoiceById(ids[0].id);
+      })(),
+      "open the invoice",
+    );
+  }, [ensureInvoiceIds, loadInvoiceById]);
 
   const handlePreviousInvoice = useCallback(() => {
     if (!allInvoiceIds || navInvoiceIndex === null) return;
@@ -4863,7 +4879,7 @@ Thank you for choosing us!`;
 
           <div className="entry-page-header-actions flex items-center gap-0.5 shrink-0">
             <Button variant="ghost" size="sm" onClick={handleLastInvoice}
-              disabled={isLoadingNavInvoice || !allInvoiceIds?.length}
+              disabled={isLoadingNavInvoice || (allInvoiceIds !== undefined && allInvoiceIds.length === 0)}
               className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 w-8 p-0"
               title="Last Record">
               <SkipBack className="h-3.5 w-3.5" />
@@ -4963,19 +4979,25 @@ Thank you for choosing us!`;
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     const searchVal = (e.target as HTMLInputElement).value.trim();
-                    if (!searchVal || !allInvoiceIds?.length) return;
-                    const match = allInvoiceIds.find(inv => 
-                      inv.sale_number?.toLowerCase() === searchVal.toLowerCase() ||
-                      inv.sale_number?.toLowerCase().includes(searchVal.toLowerCase())
+                    if (!searchVal) return;
+                    const input = e.target as HTMLInputElement;
+                    reportIfFails(
+                      (async () => {
+                        const ids = await ensureInvoiceIds();
+                        const match = ids.find(inv =>
+                          inv.sale_number?.toLowerCase() === searchVal.toLowerCase() ||
+                          inv.sale_number?.toLowerCase().includes(searchVal.toLowerCase())
+                        );
+                        if (match) {
+                          setNavInvoiceIndex(ids.indexOf(match));
+                          input.value = '';
+                          await loadInvoiceById(match.id);
+                        } else {
+                          toast({ variant: 'destructive', title: 'Not Found', description: `Invoice "${searchVal}" not found` });
+                        }
+                      })(),
+                      "open the invoice",
                     );
-                    if (match) {
-                      const idx = allInvoiceIds.indexOf(match);
-                      setNavInvoiceIndex(idx);
-                      reportIfFails(loadInvoiceById(match.id), "open the invoice");
-                      (e.target as HTMLInputElement).value = '';
-                    } else {
-                      toast({ variant: 'destructive', title: 'Not Found', description: `Invoice "${searchVal}" not found` });
-                    }
                   }
                 }}
               />
