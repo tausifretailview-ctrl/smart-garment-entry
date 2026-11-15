@@ -24,6 +24,15 @@ import {
   type BillWithInvoiceNo,
   type SameDayBill,
 } from "@/lib/data/purchaseDuplicateChecks";
+import {
+  fetchPurchaseVariantById as readPurchaseVariantById,
+  fetchPurchaseVariantsByBarcode,
+  fetchPurchaseVariantsForProducts,
+  searchPurchaseProducts,
+  searchPurchaseVariants,
+  type PurchaseProductMatch,
+  type PurchaseVariantRow,
+} from "@/lib/data/purchaseVariantLookups";
 import { insertProductsPreferringPurchaseFlag } from "@/utils/productCreatedInPurchaseColumn";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -2920,12 +2929,10 @@ const PurchaseEntry = () => {
 
     try {
       // First, search products by name, brand, and style - include size_group_id
-      const { data: matchingProducts } = await supabase
-        .from("products")
-        .select("id, size_group_id, product_name")
-        .eq("organization_id", currentOrganization?.id)
-        .is("deleted_at", null)
-        .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%`);
+      if (!currentOrganization?.id) return;
+      const orgId = currentOrganization.id;
+      // A failed name search still lets the barcode search run (as before).
+      const matchingProducts = await searchPurchaseProducts(orgId, query).catch(() => [] as PurchaseProductMatch[]);
 
       const exactNameProducts = restrictProductsToExactNameMatches(
         matchingProducts || [],
@@ -2954,53 +2961,19 @@ const PurchaseEntry = () => {
       }
 
       // Then search product_variants by barcode OR matching product IDs
-      let variantsQuery = supabase
-        .from("product_variants")
-        .select(`
-          id,
-          size,
-          pur_price,
-          sale_price,
-          mrp,
-          barcode,
-          barcode_source,
-          active,
-          color,
-          product_id,
-          products!inner (
-            id,
-            product_name,
-            brand,
-            category,
-            style,
-            color,
-            hsn_code,
-            gst_per,
-            purchase_gst_percent,
-            sale_gst_percent,
-            default_pur_price,
-            default_sale_price,
-            size_group_id,
-            purchase_discount_type,
-            purchase_discount_value,
-            uom,
-            requires_imei
-          )
-        `)
-        .eq("organization_id", currentOrganization?.id)
-        .eq("active", true)
-        .is("deleted_at", null)
-        .is("products.deleted_at", null);
-
-      if (exactNameProducts && productIds.length > 0) {
-        variantsQuery = variantsQuery.in("product_id", productIds);
-      } else if (productIds.length > 0) {
-        variantsQuery = variantsQuery.or(`barcode.ilike.%${query}%,product_id.in.(${productIds.join(",")})`);
-      } else {
-        variantsQuery = variantsQuery.ilike("barcode", `%${query}%`);
+      // Exact name hit: only those products' sizes. Otherwise name hits + barcode contains.
+      let data: PurchaseVariantRow[] | null = null;
+      let error: unknown = null;
+      try {
+        data = await searchPurchaseVariants(orgId, {
+          query,
+          productIds,
+          exactNameMatch: !!exactNameProducts,
+          limit: 100,
+        });
+      } catch (e) {
+        error = e;
       }
-
-      const { data, error } = await variantsQuery.limit(100);
 
       if (error) throw error;
 
@@ -3399,47 +3372,9 @@ const PurchaseEntry = () => {
       if (!barcode || barcode.length < 1) return [];
 
       const orgId = currentOrganization.id;
-      const { data, error } = await supabase
-        .from("product_variants")
-        .select(
-          `
-          id,
-          size,
-          pur_price,
-          sale_price,
-          mrp,
-          barcode,
-          barcode_source,
-          active,
-          color,
-          product_id,
-          products!inner (
-            id,
-            product_name,
-            brand,
-            category,
-            style,
-            color,
-            hsn_code,
-            gst_per,
-            purchase_gst_percent,
-            sale_gst_percent,
-            default_pur_price,
-            default_sale_price,
-            uom,
-            requires_imei
-          )
-        `,
-        )
-        .eq("organization_id", orgId)
-        .eq("barcode", barcode)
-        .is("deleted_at", null)
-        .is("products.deleted_at", null)
-        .eq("active", true)
-        .order("mrp", { ascending: false })
-        .limit(50);
-
-      if (error || !data?.length) return [];
+      // A failed read is treated as "not found" (as before).
+      const data = await fetchPurchaseVariantsByBarcode(orgId, barcode).catch(() => [] as PurchaseVariantRow[]);
+      if (!data.length) return [];
       return data.map((row) => mapPurchaseVariantRow(row as Record<string, unknown>, barcode));
     },
     [currentOrganization?.id, mapPurchaseVariantRow],
@@ -3457,45 +3392,9 @@ const PurchaseEntry = () => {
     async (variantId: string): Promise<ProductVariant | null> => {
       if (!currentOrganization?.id || !variantId) return null;
       const orgId = currentOrganization.id;
-      const { data, error } = await supabase
-        .from("product_variants")
-        .select(
-          `
-          id,
-          size,
-          pur_price,
-          sale_price,
-          mrp,
-          barcode,
-          barcode_source,
-          active,
-          color,
-          product_id,
-          products!inner (
-            id,
-            product_name,
-            brand,
-            category,
-            style,
-            color,
-            hsn_code,
-            gst_per,
-            purchase_gst_percent,
-            sale_gst_percent,
-            default_pur_price,
-            default_sale_price,
-            uom,
-            requires_imei
-          )
-        `,
-        )
-        .eq("organization_id", orgId)
-        .eq("id", variantId)
-        .is("deleted_at", null)
-        .is("products.deleted_at", null)
-        .eq("active", true)
-        .maybeSingle();
-      if (error || !data) return null;
+      // A failed read is treated as "not found" (as before).
+      const data = await readPurchaseVariantById(orgId, variantId).catch(() => null);
+      if (!data) return null;
       const bc = String((data as { barcode?: string }).barcode ?? "");
       return mapPurchaseVariantRow(data as Record<string, unknown>, bc);
     },
@@ -3836,12 +3735,12 @@ const PurchaseEntry = () => {
 
     try {
       // First, search products by name, brand, and style - include size_group_id
-      const { data: matchingProducts } = await supabase
-        .from("products")
-        .select("id, size_group_id, product_name")
-        .eq("organization_id", currentOrganization?.id)
-        .is("deleted_at", null)
-        .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%,category.ilike.%${query}%`);
+      if (!currentOrganization?.id) return;
+      const orgId = currentOrganization.id;
+      // A failed name search still lets the barcode search run (as before).
+      const matchingProducts = await searchPurchaseProducts(orgId, query, { includeCategory: true }).catch(
+        () => [] as PurchaseProductMatch[],
+      );
 
       // Check if aborted before continuing
       if (currentController.signal.aborted) return;
@@ -3876,54 +3775,20 @@ const PurchaseEntry = () => {
       }
 
       // Then search product_variants by barcode OR matching product IDs
-      let variantsQuery = supabase
-        .from("product_variants")
-        .select(`
-          id,
-          size,
-          pur_price,
-          sale_price,
-          mrp,
-          barcode,
-          barcode_source,
-          active,
-          color,
-          product_id,
-          products!inner (
-            id,
-            product_name,
-            brand,
-            category,
-            style,
-            color,
-            hsn_code,
-            gst_per,
-            purchase_gst_percent,
-            sale_gst_percent,
-            default_pur_price,
-            default_sale_price,
-            size_group_id,
-            purchase_discount_type,
-            purchase_discount_value,
-            uom,
-            requires_imei
-          )
-        `)
-        .eq("organization_id", currentOrganization?.id)
-        .eq("active", true)
-        .is("deleted_at", null)
-        .is("products.deleted_at", null);
-
-      // Exact name hit: only those products' variants. Otherwise name hits + barcode contains.
-      if (exactNameProducts && productIds.length > 0) {
-        variantsQuery = variantsQuery.in("product_id", productIds);
-      } else if (productIds.length > 0) {
-        variantsQuery = variantsQuery.or(`barcode.ilike.%${query}%,product_id.in.(${productIds.join(",")})`);
-      } else {
-        variantsQuery = variantsQuery.ilike("barcode", `%${query}%`);
+      // Bounded (was unlimited: a short barcode search could return thousands of sizes).
+      // Exact name hit: only those products' sizes. Otherwise name hits + barcode contains.
+      let data: PurchaseVariantRow[] | null = null;
+      let error: unknown = null;
+      try {
+        data = await searchPurchaseVariants(orgId, {
+          query,
+          productIds,
+          exactNameMatch: !!exactNameProducts,
+          limit: 300,
+        });
+      } catch (e) {
+        error = e;
       }
-
-      const { data, error } = await variantsQuery;
 
       // Check if aborted before setting state
       if (currentController.signal.aborted) return;
@@ -4116,42 +3981,13 @@ const PurchaseEntry = () => {
     setSizeGridLoading(true);
     setShowSizeGrid(true);
     
-    const { data, error } = await supabase
-      .from("product_variants")
-      .select(`
-        id,
-        size,
-        pur_price,
-        sale_price,
-        mrp,
-        barcode,
-        barcode_source,
-        active,
-        color,
-        products (
-          id,
-          product_name,
-          brand,
-          category,
-          color,
-          style,
-          hsn_code,
-          gst_per,
-          requires_imei,
-          purchase_gst_percent,
-          sale_gst_percent,
-          default_pur_price,
-          default_sale_price,
-          purchase_discount_type,
-          purchase_discount_value,
-          uom,
-          size_group_id
-        )
-      `)
-      .in("product_id", ids)
-      .eq("organization_id", currentOrganization.id)
-      .eq("active", true)
-      .is("deleted_at", null);
+    let data: PurchaseVariantRow[] | null = null;
+    let error: { message: string } | null = null;
+    try {
+      data = await fetchPurchaseVariantsForProducts(currentOrganization.id, ids);
+    } catch (e) {
+      error = { message: e instanceof Error ? e.message : String((e as { message?: unknown })?.message ?? e) };
+    }
 
     if (error || !data || data.length === 0) {
       setShowSizeGrid(false);
@@ -4318,38 +4154,13 @@ const PurchaseEntry = () => {
     const ids = [...new Set((productIds?.length ? productIds : [productId]).filter(Boolean))];
     if (ids.length === 0) return;
 
-    const { data, error } = await supabase
-      .from("product_variants")
-      .select(`
-        id,
-        size,
-        pur_price,
-        sale_price,
-        mrp,
-        barcode,
-        active,
-        color,
-        products (
-          id,
-          product_name,
-          brand,
-          category,
-          color,
-          style,
-          hsn_code,
-          gst_per,
-          requires_imei,
-          purchase_gst_percent,
-          purchase_discount_type,
-          purchase_discount_value,
-          uom,
-          size_group_id
-        )
-      `)
-      .in("product_id", ids)
-      .eq("organization_id", currentOrganization.id)
-      .eq("active", true)
-      .is("deleted_at", null);
+    let data: PurchaseVariantRow[] | null = null;
+    let error: { message: string } | null = null;
+    try {
+      data = await fetchPurchaseVariantsForProducts(currentOrganization.id, ids);
+    } catch (e) {
+      error = { message: e instanceof Error ? e.message : String((e as { message?: unknown })?.message ?? e) };
+    }
 
     if (error || !data || data.length === 0) {
       toast({
@@ -4860,41 +4671,14 @@ const PurchaseEntry = () => {
       return;
     }
 
-    const { data, error } = await supabase
-      .from("product_variants")
-      .select(`
-        id,
-        size,
-        pur_price,
-        sale_price,
-        mrp,
-        barcode,
-        barcode_source,
-        color,
-        products (
-          id,
-          product_name,
-          brand,
-          category,
-          color,
-          style,
-          hsn_code,
-          gst_per,
-          requires_imei,
-          purchase_gst_percent,
-          sale_gst_percent,
-          default_pur_price,
-          default_sale_price,
-          purchase_discount_type,
-          purchase_discount_value,
-          uom
-        )
-      `)
-      .eq("product_id", payload.productId)
-      .eq("organization_id", currentOrganization.id)
-      // Null active is still a live size. active = false is a deactivated SKU.
-      .or("active.eq.true,active.is.null")
-      .is("deleted_at", null);
+    // Null active is still a live size. active = false is a deactivated SKU.
+    let data: PurchaseVariantRow[] | null = null;
+    let error: { message: string } | null = null;
+    try {
+      data = await fetchPurchaseVariantsForProducts(currentOrganization.id, [payload.productId], { includeNullActive: true });
+    } catch (e) {
+      error = { message: e instanceof Error ? e.message : String((e as { message?: unknown })?.message ?? e) };
+    }
 
     if (error) {
       toast({
@@ -5005,20 +4789,14 @@ const PurchaseEntry = () => {
     setSearchResults([]);
     setShowSearch(false);
 
-    const { data, error } = await supabase
-      .from("product_variants")
-      .select(`
-        id, size, color, barcode, pur_price, sale_price, mrp, active,
-        products (
-          id, product_name, brand, category, color, style,
-          hsn_code, gst_per, requires_imei, purchase_gst_percent, sale_gst_percent,
-          default_pur_price, default_sale_price,
-          purchase_discount_type, purchase_discount_value, uom
-        )
-      `)
-      .in("product_id", ids)
-      .eq("organization_id", currentOrganization.id)
-      .eq("active", true);
+    // Now also skips sizes in the recycle bin (this copy did not).
+    let data: PurchaseVariantRow[] | null = null;
+    let error: { message: string } | null = null;
+    try {
+      data = await fetchPurchaseVariantsForProducts(currentOrganization.id, ids);
+    } catch (e) {
+      error = { message: e instanceof Error ? e.message : String((e as { message?: unknown })?.message ?? e) };
+    }
 
     if (error || !data || data.length === 0) {
       toast({

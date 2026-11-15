@@ -135,7 +135,9 @@ describe("existing product size load", () => {
       page.indexOf("const handleUseExistingProductSizesFromDialog"),
       page.indexOf("const items = payload.rows.map"),
     );
-    expect(fn).toContain('.or("active.eq.true,active.is.null")');
+    // Null active counts as a live size: the read is fetchPurchaseVariantsForProducts with
+    // includeNullActive (its filter is tested in purchaseVariantLookups.test.ts).
+    expect(fn).toContain("fetchPurchaseVariantsForProducts(currentOrganization.id, [payload.productId], { includeNullActive: true })");
     expect(fn).toContain('.from("products")');
     expect(fn).toContain("existingProductSizesLoadMessage");
     expect(fn).not.toContain("!data?.length");
