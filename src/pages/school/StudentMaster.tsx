@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/data/fetchInIdBatches";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -109,41 +110,47 @@ const StudentMaster = () => {
 
       // Keep historical-year visibility for promoted students:
       // include students having receipts in selected year even if current row moved to next year.
-      const { data: yearFees } = await supabase
-        .from("student_fees")
-        .select("student_id")
-        .eq("organization_id", currentOrganization.id)
-        .eq("academic_year_id", selectedYearId)
-        .neq("status", "deleted");
-      const yearStudentIds = new Set((yearFees || []).map((r: any) => r.student_id));
+      // Every row, page by page: the server answers at most 1,000 rows, so a school with more
+      // students (or more fee rows this year) lost the rest — wrong count, missing students.
+      const yearFees = await fetchAllRows<{ id: string; student_id: string }>(() =>
+        supabase
+          .from("student_fees")
+          .select("id, student_id")
+          .eq("organization_id", currentOrganization.id)
+          .eq("academic_year_id", selectedYearId)
+          .neq("status", "deleted")
+          .order("id"),
+      );
+      const yearStudentIds = new Set(yearFees.map((r: any) => r.student_id));
 
-      let query = supabase
-        .from("students")
-        .select(`
-          *,
-          school_classes (
-            class_name,
-            section
-          ),
-          academic_years (
-            year_name
-          )
-        `)
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .order("student_name");
+      const data = await fetchAllRows<any>(() => {
+        let query = supabase
+          .from("students")
+          .select(`
+            *,
+            school_classes (
+              class_name,
+              section
+            ),
+            academic_years (
+              year_name
+            )
+          `)
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .order("student_name")
+          .order("id");
 
-      if (searchTerm) {
-        query = query.or(`student_name.ilike.%${searchTerm}%,admission_number.ilike.%${searchTerm}%,parent_phone.ilike.%${searchTerm}%`);
-      }
+        if (searchTerm) {
+          query = query.or(`student_name.ilike.%${searchTerm}%,admission_number.ilike.%${searchTerm}%,parent_phone.ilike.%${searchTerm}%`);
+        }
 
-      // Filter for new admissions
-      if (filterNewAdmissions) {
-        query = query.eq("is_new_admission", true);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
+        // Filter for new admissions
+        if (filterNewAdmissions) {
+          query = query.eq("is_new_admission", true);
+        }
+        return query;
+      });
 
       const filtered = (data || []).filter((student: any) =>
         student.academic_year_id === selectedYearId || yearStudentIds.has(student.id)

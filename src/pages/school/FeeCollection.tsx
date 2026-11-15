@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows, fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -210,26 +211,34 @@ const FeeCollection = () => {
       const today = new Date().toISOString().split("T")[0];
       const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0];
 
-      const { data: todayData } = await supabase
-        .from("student_fees")
-        .select("paid_amount, status")
-        .eq("organization_id", currentOrganization!.id)
-        .eq("academic_year_id", activeYear.id)
-        .gte("paid_date", today + "T00:00:00")
-        .lte("paid_date", today + "T23:59:59")
-        .in("status", ["paid", "partial"])
-        .gt("paid_amount", 0);
+      // Every row, page by page (the server answers at most 1,000 rows; the rest were dropped
+      // and the totals came out short for a busy school).
+      const todayData = await fetchAllRows<any>(() =>
+        supabase
+          .from("student_fees")
+          .select("id, paid_amount, status")
+          .eq("organization_id", currentOrganization!.id)
+          .eq("academic_year_id", activeYear.id)
+          .gte("paid_date", today + "T00:00:00")
+          .lte("paid_date", today + "T23:59:59")
+          .in("status", ["paid", "partial"])
+          .gt("paid_amount", 0)
+          .order("id"),
+      );
 
       const todayTotal = (todayData || []).reduce((s: number, r: any) => s + (r.paid_amount || 0), 0);
 
-      const { data: monthData } = await supabase
-        .from("student_fees")
-        .select("paid_amount, status")
-        .eq("organization_id", currentOrganization!.id)
-        .eq("academic_year_id", activeYear.id)
-        .gte("paid_date", monthStart + "T00:00:00")
-        .in("status", ["paid", "partial"])
-        .gt("paid_amount", 0);
+      const monthData = await fetchAllRows<any>(() =>
+        supabase
+          .from("student_fees")
+          .select("id, paid_amount, status")
+          .eq("organization_id", currentOrganization!.id)
+          .eq("academic_year_id", activeYear.id)
+          .gte("paid_date", monthStart + "T00:00:00")
+          .in("status", ["paid", "partial"])
+          .gt("paid_amount", 0)
+          .order("id"),
+      );
 
       const monthTotal = (monthData || []).reduce((s: number, r: any) => s + (r.paid_amount || 0), 0);
 
@@ -239,39 +248,46 @@ const FeeCollection = () => {
         .eq("organization_id", currentOrganization!.id)
         .eq("academic_year_id", activeYear.id);
 
-      const { data: allStudents } = await supabase
-        .from("students")
-        .select("id, class_id, closing_fees_balance, is_new_admission, fees_opening_is_net")
-        .eq("organization_id", currentOrganization!.id)
-        .eq("academic_year_id", activeYear.id)
-        .is("deleted_at", null);
+      const allStudents = await fetchAllRows<any>(() =>
+        supabase
+          .from("students")
+          .select("id, class_id, closing_fees_balance, is_new_admission, fees_opening_is_net")
+          .eq("organization_id", currentOrganization!.id)
+          .eq("academic_year_id", activeYear.id)
+          .is("deleted_at", null)
+          .order("id"),
+      );
 
       // Fetch per-student receipts (any year) so opening-cleared logic can
       // run per student before aggregation. This mirrors the row-level
       // formula in the main grid.
       const studentIdList = (allStudents || []).map((st: any) => st.id);
-      const [paymentsRes, adjustmentsRes] = studentIdList.length > 0
-        ? await Promise.all([
-            supabase
-              .from("student_fees")
-              .select("student_id, paid_amount, status")
-              .eq("organization_id", currentOrganization!.id)
-              .eq("academic_year_id", activeYear.id)
-              .in("student_id", studentIdList)
-              .in("status", ["paid", "partial"])
-              .gt("paid_amount", 0),
-            (supabase.from("student_balance_audit" as any) as any)
-              .select("student_id, adjustment_type, change_amount, old_balance, new_balance, created_at, reason_code")
-              .eq("organization_id", currentOrganization!.id)
-              .eq("academic_year_id", activeYear.id)
-              .in("student_id", studentIdList)
-              // Exclude pure trace entries (receipt_deleted, receipt_modified)
-              // — these are reflected via student_fees row changes directly.
-              .not("reason_code", "in", "(receipt_deleted,receipt_modified)"),
-          ])
-        : [{ data: [] as any[] }, { data: [] as any[] }];
-      const allPayments = paymentsRes?.data || [];
-      const allAdjustments = adjustmentsRes?.data || [];
+      // Student ids in batches of 200, every row (one request with all of a school's students
+      // was too long, and receipts past 1,000 rows were dropped).
+      const [allPayments, allAdjustments] = await Promise.all([
+        fetchInIdBatches<any>(studentIdList, (ids) =>
+          supabase
+            .from("student_fees")
+            .select("id, student_id, paid_amount, status")
+            .eq("organization_id", currentOrganization!.id)
+            .eq("academic_year_id", activeYear.id)
+            .in("student_id", ids)
+            .in("status", ["paid", "partial"])
+            .gt("paid_amount", 0)
+            .order("id"),
+        ),
+        fetchInIdBatches<any>(studentIdList, (ids) =>
+          (supabase.from("student_balance_audit" as any) as any)
+            .select("id, student_id, adjustment_type, change_amount, old_balance, new_balance, created_at, reason_code")
+            .eq("organization_id", currentOrganization!.id)
+            .eq("academic_year_id", activeYear.id)
+            .in("student_id", ids)
+            // Exclude pure trace entries (receipt_deleted, receipt_modified)
+            // — these are reflected via student_fees row changes directly.
+            .not("reason_code", "in", "(receipt_deleted,receipt_modified)")
+            .order("id"),
+        ),
+      ]);
 
       const previousYear = activeYear?.start_date
         ? (academicYears || [])
@@ -283,14 +299,17 @@ const FeeCollection = () => {
         // Subtract ALL prev-year receipts from carried closing_fees_balance
         // (regardless of whether they were posted before or after promotion).
         // This ensures the new-year opening reflects the true unpaid prev-year amount.
-        const { data: latePrevFees } = await supabase
-          .from("student_fees")
-          .select("student_id, paid_amount, status")
-          .eq("organization_id", currentOrganization!.id)
-          .eq("academic_year_id", previousYear.id)
-          .in("student_id", studentIdList)
-          .in("status", ["paid", "partial"])
-          .gt("paid_amount", 0);
+        const latePrevFees = await fetchInIdBatches<any>(studentIdList, (ids) =>
+          supabase
+            .from("student_fees")
+            .select("id, student_id, paid_amount, status")
+            .eq("organization_id", currentOrganization!.id)
+            .eq("academic_year_id", previousYear.id)
+            .in("student_id", ids)
+            .in("status", ["paid", "partial"])
+            .gt("paid_amount", 0)
+            .order("id"),
+        );
         (latePrevFees || []).forEach((f: any) => {
           latePrevPaidByStudent.set(
             f.student_id,
@@ -354,24 +373,26 @@ const FeeCollection = () => {
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
-      let query = supabase
-        .from("students")
-        .select(`*, school_classes:class_id (class_name)`, { count: "exact" })
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .order("student_name", { ascending: true });
+      // Every student, page by page (a school with more than 1,000 lost the rest of the list).
+      const data = await fetchAllRows<any>(() => {
+        let query = supabase
+          .from("students")
+          .select(`*, school_classes:class_id (class_name)`)
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .order("student_name", { ascending: true })
+          .order("id");
 
-      // Filter by selected academic year so only promoted/enrolled students show
-      if (activeYear?.id) {
-        query = query.eq("academic_year_id", activeYear.id);
-      }
+        // Filter by selected academic year so only promoted/enrolled students show
+        if (activeYear?.id) {
+          query = query.eq("academic_year_id", activeYear.id);
+        }
 
-      if (searchQuery) {
-        query = query.or(`student_name.ilike.%${searchQuery}%,admission_number.ilike.%${searchQuery}%,parent_phone.ilike.%${searchQuery}%`);
-      }
-
-      const { data, error, count } = await query;
-      if (error) throw error;
+        if (searchQuery) {
+          query = query.or(`student_name.ilike.%${searchQuery}%,admission_number.ilike.%${searchQuery}%,parent_phone.ilike.%${searchQuery}%`);
+        }
+        return query;
+      });
 
       if (!data?.length) return data || [];
 
@@ -388,27 +409,31 @@ const FeeCollection = () => {
       const classIds = [...new Set(data.map((s: any) => s.class_id).filter(Boolean))];
       const studentIds = data.map((s: any) => s.id);
 
-      const [structuresRes, paymentsRes, adjustmentsRes] = await Promise.all([
+      // Student ids in batches of 200, every row (one request with every student was too long).
+      const [structuresRes, allPayments, allAdjustments] = await Promise.all([
         classIds.length > 0
           ? supabase.from("fee_structures").select("*").eq("organization_id", currentOrganization.id).eq("academic_year_id", activeYear.id).in("class_id", classIds)
           : { data: [] },
         // Fetch payments for the active academic year (for structure-based dues)
-        supabase.from("student_fees").select("student_id, paid_amount, fee_head_id, academic_year_id, status").eq("organization_id", currentOrganization.id).eq("academic_year_id", activeYear.id).in("student_id", studentIds).in("status", ["paid", "partial"]).gt("paid_amount", 0),
+        fetchInIdBatches<any>(studentIds, (ids) =>
+          supabase.from("student_fees").select("id, student_id, paid_amount, fee_head_id, academic_year_id, status").eq("organization_id", currentOrganization.id).eq("academic_year_id", activeYear.id).in("student_id", ids).in("status", ["paid", "partial"]).gt("paid_amount", 0).order("id"),
+        ),
         // Fetch balance adjustments (audit log) — these reduce/increase the displayed due
-        (supabase.from("student_balance_audit" as any) as any)
-          .select("student_id, adjustment_type, change_amount, old_balance, new_balance, academic_year_id, created_at, reason_code")
-          .eq("organization_id", currentOrganization.id)
-          .eq("academic_year_id", activeYear.id)
-          .in("student_id", studentIds)
-          // Exclude pure trace entries (receipt_deleted, receipt_modified) —
-          // they must NOT affect Total Due. Both are already reflected via
-          // student_fees row changes (status='deleted' or updated paid_amount).
-          .not("reason_code", "in", "(receipt_deleted,receipt_modified)"),
+        fetchInIdBatches<any>(studentIds, (ids) =>
+          (supabase.from("student_balance_audit" as any) as any)
+            .select("id, student_id, adjustment_type, change_amount, old_balance, new_balance, academic_year_id, created_at, reason_code")
+            .eq("organization_id", currentOrganization.id)
+            .eq("academic_year_id", activeYear.id)
+            .in("student_id", ids)
+            // Exclude pure trace entries (receipt_deleted, receipt_modified) —
+            // they must NOT affect Total Due. Both are already reflected via
+            // student_fees row changes (status='deleted' or updated paid_amount).
+            .not("reason_code", "in", "(receipt_deleted,receipt_modified)")
+            .order("id"),
+        ),
       ]);
 
       const structures = structuresRes.data || [];
-      const allPayments = paymentsRes.data || [];
-      const allAdjustments = adjustmentsRes.data || [];
       const previousYear = activeYear?.start_date
         ? (academicYears || [])
             .filter((y: any) => new Date(y.end_date) < new Date(activeYear.start_date))
@@ -417,14 +442,17 @@ const FeeCollection = () => {
       const latePrevPaidByStudent = new Map<string, number>();
       if (previousYear?.id && studentIds.length > 0) {
         // Subtract ALL prev-year receipts from carried closing_fees_balance.
-        const { data: latePrevFees } = await supabase
-          .from("student_fees")
-          .select("student_id, paid_amount, status")
-          .eq("organization_id", currentOrganization.id)
-          .eq("academic_year_id", previousYear.id)
-          .in("student_id", studentIds)
-          .in("status", ["paid", "partial"])
-          .gt("paid_amount", 0);
+        const latePrevFees = await fetchInIdBatches<any>(studentIds, (ids) =>
+          supabase
+            .from("student_fees")
+            .select("id, student_id, paid_amount, status")
+            .eq("organization_id", currentOrganization.id)
+            .eq("academic_year_id", previousYear.id)
+            .in("student_id", ids)
+            .in("status", ["paid", "partial"])
+            .gt("paid_amount", 0)
+            .order("id"),
+        );
         (latePrevFees || []).forEach((f: any) => {
           latePrevPaidByStudent.set(
             f.student_id,
