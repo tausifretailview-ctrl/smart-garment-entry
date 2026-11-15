@@ -83,6 +83,7 @@ import {
 } from "@/lib/sizeGroupActions";
 import { getOrgSettingsRow, refreshOrgSettingsCache } from "@/hooks/useSettings";
 import { readSizeGroups, refreshSizeGroupsCache } from "@/lib/data/sizeGroups";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 
 type ProductType = 'goods' | 'service' | 'combo';
 
@@ -2027,7 +2028,9 @@ const ProductEntry = () => {
                     notes: `Opening stock from Excel import - ${v.size}`,
                   }));
                 if (stockMovements.length > 0) {
-                  await supabase.from('stock_movements').insert(stockMovements);
+                  await bestEffortWrite("excel-import:opening-stock-log", () => supabase.from('stock_movements').insert(stockMovements), {
+                    organizationId: currentOrganization.id,
+                  });
                 }
               }
             } else if (variantError) {
@@ -2047,7 +2050,9 @@ const ProductEntry = () => {
                 }));
 
               if (stockMovements.length > 0) {
-                await supabase.from('stock_movements').insert(stockMovements);
+                await bestEffortWrite("excel-import:opening-stock-log", () => supabase.from('stock_movements').insert(stockMovements), {
+                  organizationId: currentOrganization.id,
+                });
               }
             }
           }

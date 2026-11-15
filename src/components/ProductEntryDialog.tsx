@@ -113,6 +113,7 @@ import { expandRowsIntoPieces, isPerPieceBarcodeEnabled, isPerPieceMeasuredUom }
 import { colorSuggestEnterOrTab } from "@/utils/colorSuggestKeys";
 import { getOrgSettingsRow } from "@/hooks/useSettings";
 import { readSizeGroups, refreshSizeGroupsCache } from "@/lib/data/sizeGroups";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 
 type ProductType = 'goods' | 'service' | 'combo';
 
@@ -2879,7 +2880,10 @@ export const ProductEntryDialog = ({
               }));
 
           if (stockMovements.length > 0) {
-            await supabase.from("stock_movements").insert(stockMovements);
+            // Audit row only (stock is already on the variant): log a failure, never block.
+            await bestEffortWrite("product-entry:opening-stock-log", () => supabase.from("stock_movements").insert(stockMovements), {
+              organizationId: currentOrganization.id,
+            });
           }
         }
       }
