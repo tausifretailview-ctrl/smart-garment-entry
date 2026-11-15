@@ -4,7 +4,7 @@ const logged = vi.hoisted(() => [] as { operation: string; additionalContext?: u
 vi.mock("@/lib/errorLogger", () => ({ logError: async (ctx: { operation: string }) => void logged.push(ctx) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
-import { rollbackStep } from "@/lib/rollbackStep";
+import { bestEffortWrite, rollbackStep } from "@/lib/rollbackStep";
 import { reverseCustomerAdvanceFifo } from "@/utils/reverseCustomerAdvanceFifo";
 
 /** Plan Phase 4, R6: clean-up steps never hide a failure; advance writes never fail silently. */
@@ -17,6 +17,30 @@ describe("rollbackStep", () => {
     expect(await rollbackStep("x:ok", async () => ({ error: null }))).toBe(true);
     expect(logged.map((l) => l.operation)).toEqual(["rollback:x:delete", "rollback:x:throw"]);
     expect(logged[0].additionalContext).toEqual({ record_id: "r1" });
+  });
+
+  it("bestEffortWrite logs under best-effort:<label> and never throws", async () => {
+    expect(await bestEffortWrite("sale-return:heal", async () => ({ error: { message: "x" } }))).toBe(false);
+    expect(logged.at(-1)?.operation).toBe("best-effort:sale-return:heal");
+  });
+});
+
+describe("sale return credit", () => {
+  it("POS credit consumption checks every write (no double-spent credit)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("src/hooks/useSaveSale.tsx", "utf8");
+    const fn = src.slice(src.indexOf("const markCreditNoteFullyUsedForSrAdjust"), src.indexOf("type SavePaymentMethod"));
+    for (const v of ["usedErr", "amountErr", "consumeErr", "partialErr", "leftoverErr"]) {
+      expect(fn, v).toContain(`if (${v}) throw ${v};`);
+    }
+    expect(fn).not.toMatch(/^\s*await supabase\s*\n?\s*\.from\(['"](credit_notes|sale_returns)['"]\)\s*\.update/m);
+  });
+
+  it("a failed credit-note read no longer marks the return fully adjusted", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("src/utils/saleSettlement.ts", "utf8");
+    expect(src).toContain("if (cnReadErr || !cnRow)");
+    expect(src).toContain('"cn-apply:sync-sale-return"');
   });
 });
 

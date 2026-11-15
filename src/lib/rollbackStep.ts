@@ -11,8 +11,16 @@ import { logError } from "@/lib/errorLogger";
  * a failure is written to app_error_logs (Admin Health, operation "rollback:<label>") with the
  * record id, and the next step still runs.
  */
-export async function rollbackStep(
+export function rollbackStep(
   label: string,
+  step: () => PromiseLike<unknown>,
+  context?: { organizationId?: string; recordId?: string | null },
+): Promise<boolean> {
+  return runLogged(`rollback:${label}`, step, context);
+}
+
+async function runLogged(
+  operation: string,
   step: () => PromiseLike<unknown>,
   context?: { organizationId?: string; recordId?: string | null },
 ): Promise<boolean> {
@@ -24,7 +32,7 @@ export async function rollbackStep(
   } catch (error) {
     void logError(
       {
-        operation: `rollback:${label}`,
+        operation,
         organizationId: context?.organizationId,
         additionalContext: context?.recordId ? { record_id: context.recordId } : undefined,
       },
@@ -32,4 +40,17 @@ export async function rollbackStep(
     );
     return false;
   }
+}
+
+/**
+ * A background correction that must not stop the main action (for example re-syncing a sale
+ * return's stored balance with its credit note). Same handling as rollbackStep — never throws,
+ * a failure goes to app_error_logs — under the operation "best-effort:<label>".
+ */
+export function bestEffortWrite(
+  label: string,
+  step: () => PromiseLike<unknown>,
+  context?: { organizationId?: string; recordId?: string | null },
+): Promise<boolean> {
+  return runLogged(`best-effort:${label}`, step, context);
 }

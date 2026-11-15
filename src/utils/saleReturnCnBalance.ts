@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 
 export type SaleReturnCnRow = {
   id: string;
@@ -140,11 +141,16 @@ export async function resolveSaleReturnCnAvailable(
   const cabDrift = cabN != null && cnLive != null ? cabN - cnLive : 0;
 
   if (params.healCabDrift && cnLive != null && Math.abs(cabDrift) > 0.01) {
-    await client
-      .from("sale_returns")
-      .update({ credit_available_balance: cnLive })
-      .eq("id", params.saleReturnId)
-      .eq("organization_id", params.organizationId);
+    await bestEffortWrite(
+      "sale-return:heal-balance-to-cn",
+      () =>
+        client
+          .from("sale_returns")
+          .update({ credit_available_balance: cnLive })
+          .eq("id", params.saleReturnId)
+          .eq("organization_id", params.organizationId),
+      { organizationId: params.organizationId, recordId: params.saleReturnId },
+    );
   }
 
   return {
@@ -201,11 +207,17 @@ export async function ensureCreditNoteHeadroom(
       ? Math.max(0, Number(params.maxPoolFromReturn))
       : null;
   if (params.saleReturnId && cap != null && cap > remaining + 0.01) {
-    await client
-      .from("sale_returns")
-      .update({ credit_available_balance: Math.round(remaining * 100) / 100 })
-      .eq("id", params.saleReturnId)
-      .eq("organization_id", params.organizationId);
+    const saleReturnId = params.saleReturnId;
+    await bestEffortWrite(
+      "sale-return:heal-balance-down",
+      () =>
+        client
+          .from("sale_returns")
+          .update({ credit_available_balance: Math.round(remaining * 100) / 100 })
+          .eq("id", saleReturnId)
+          .eq("organization_id", params.organizationId),
+      { organizationId: params.organizationId, recordId: saleReturnId },
+    );
   }
 
   // Heal-up: pending returns without a CN header may have NULL CAB — set to net_amount
@@ -228,11 +240,17 @@ export async function ensureCreditNoteHeadroom(
       const netN = Math.max(0, Number(srRow.net_amount || 0));
       if (cabMissing && isPending && noCn && netN > 0.01) {
         const healed = Math.round(Math.min(netN, remaining > 0.01 ? remaining : netN) * 100) / 100;
-        await client
-          .from("sale_returns")
-          .update({ credit_available_balance: healed })
-          .eq("id", params.saleReturnId)
-          .eq("organization_id", params.organizationId);
+        const saleReturnId = params.saleReturnId;
+        await bestEffortWrite(
+          "sale-return:heal-missing-balance",
+          () =>
+            client
+              .from("sale_returns")
+              .update({ credit_available_balance: healed })
+              .eq("id", saleReturnId)
+              .eq("organization_id", params.organizationId),
+          { organizationId: params.organizationId, recordId: saleReturnId },
+        );
       }
     }
   }
