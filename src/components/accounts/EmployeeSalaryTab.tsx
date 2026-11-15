@@ -32,6 +32,7 @@ import { format } from "date-fns";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { rollbackStep } from "@/lib/rollbackStep";
 import { toast } from "sonner";
 import {
   deleteJournalEntryByReference,
@@ -143,7 +144,7 @@ export function EmployeeSalaryTab({
             supabase
           );
         } catch (jErr) {
-          await supabase.from("voucher_entries").delete().eq("id", inserted.id);
+          await rollbackStep("salary:voucher", () => supabase.from("voucher_entries").delete().eq("id", inserted.id), { organizationId: organizationId, recordId: inserted.id });
           throw jErr;
         }
       }

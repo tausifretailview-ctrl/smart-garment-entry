@@ -16,6 +16,7 @@ import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersist
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { rollbackStep } from "@/lib/rollbackStep";
 import { useSettings } from "@/hooks/useSettings";
 import { recordExpenseVoucherJournalEntry } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
@@ -369,7 +370,7 @@ export function ExpensesTab({
             categoryLedgerId
           );
         } catch (jErr) {
-          await supabase.from("voucher_entries").delete().eq("id", inserted.id);
+          await rollbackStep("expense:voucher", () => supabase.from("voucher_entries").delete().eq("id", inserted.id), { organizationId: organizationId, recordId: inserted.id });
           throw jErr;
         }
       }

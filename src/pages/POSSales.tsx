@@ -6862,10 +6862,11 @@ export default function POSSales() {
   const handleDeleteHeldBill = async (billId: string) => {
     if (!confirm('Delete this held bill permanently?')) return;
     try {
-      await supabase
+      const { error: holdDelError } = await supabase
         .from('sales')
         .update({ deleted_at: new Date().toISOString() } as any)
         .eq('id', billId);
+      if (holdDelError) throw holdDelError;
       await refetchHeldBills();
       toast.success('Held bill deleted');
     } catch (err: any) {

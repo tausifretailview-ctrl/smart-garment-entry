@@ -450,9 +450,11 @@ export default function OrganizationManagement() {
         .eq("user_id", userId);
 
       if (!deleteError) {
-        await supabase
+        // Checked: the old role row is already gone, so a failed insert would leave the user with none.
+        const { error: roleInsertError } = await supabase
           .from("user_roles")
           .insert({ user_id: userId, role: role as any });
+        if (roleInsertError) throw roleInsertError;
       }
 
       // DC User = manager + DC User rights; any other role turns "DC User (only DC)" off.

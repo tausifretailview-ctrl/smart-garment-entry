@@ -135,10 +135,11 @@ const AcademicYearSetup = () => {
       if (!currentOrganization?.id) throw new Error("No organization");
 
       // First, unset all current years
-      await supabase
+      const { error: clearError } = await supabase
         .from("academic_years")
         .update({ is_current: false })
         .eq("organization_id", currentOrganization.id);
+      if (clearError) throw clearError;
 
       // Then set the selected one as current
       const { error } = await supabase

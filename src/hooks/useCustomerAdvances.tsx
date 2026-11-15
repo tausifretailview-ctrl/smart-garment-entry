@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { supabase } from "@/integrations/supabase/client";
+import { rollbackStep } from "@/lib/rollbackStep";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
@@ -111,7 +112,10 @@ export function useCustomerAdvances(organizationId: string | null) {
             supabase
           );
         } catch (glErr) {
-          await supabase.from("customer_advances").delete().eq("id", adv.id);
+          await rollbackStep("customer-advance:remove", () => supabase.from("customer_advances").delete().eq("id", adv.id), {
+            organizationId,
+            recordId: adv.id,
+          });
           throw glErr;
         }
       }

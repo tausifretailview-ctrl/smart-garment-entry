@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 import { postSupplierRefundReceiptJournal } from "@/utils/accounting/journalService";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -218,12 +219,11 @@ export function AdjustCreditNoteDialog({
 
         if (effectiveCreditNoteId) {
           // Update existing credit note description
-          await supabase
-            .from("voucher_entries")
-            .update({
-              description: `Credit Note adjusted against Bill: ${selectedBill.supplier_invoice_no || selectedBill.software_bill_no}`,
-            })
-            .eq("id", effectiveCreditNoteId);
+          await bestEffortWrite(
+            "adjust-credit-note:description",
+            () => supabase.from("voucher_entries").update({ description: `Credit Note adjusted against Bill: ${selectedBill.supplier_invoice_no || selectedBill.software_bill_no}` }).eq("id", effectiveCreditNoteId),
+            { organizationId: currentOrganization?.id, recordId: effectiveCreditNoteId },
+          );
         } else {
           // Guard: a voucher might already exist (created earlier, but not linked to PR)
           const existing = await findExistingCreditNoteVoucher([
@@ -232,16 +232,16 @@ export function AdjustCreditNoteDialog({
             selectedBill.software_bill_no,
           ]);
           if (existing) {
-            await supabase
-              .from("voucher_entries")
-              .update({
-                description: `Credit Note adjusted against Bill: ${selectedBill.supplier_invoice_no || selectedBill.software_bill_no}`,
-              })
-              .eq("id", existing.id);
-            await supabase
+            await bestEffortWrite(
+              "adjust-credit-note:description",
+              () => supabase.from("voucher_entries").update({ description: `Credit Note adjusted against Bill: ${selectedBill.supplier_invoice_no || selectedBill.software_bill_no}` }).eq("id", existing.id),
+              { organizationId: currentOrganization?.id, recordId: existing.id },
+            );
+            const { error: linkError } = await supabase
               .from("purchase_returns" as any)
               .update({ credit_note_id: existing.id })
               .eq("id", purchaseReturnId);
+            if (linkError) throw linkError;
           } else {
           // Create credit_note voucher now (was not auto-created at return save time)
           const today = format(new Date(), "yyyy-MM-dd");
@@ -343,26 +343,25 @@ export function AdjustCreditNoteDialog({
 
         if (effectiveCreditNoteId) {
           // Existing credit_note voucher — just update description
-          await supabase
-            .from("voucher_entries")
-            .update({
-              description: `Credit Note adjusted to Outstanding Balance: ${creditNoteNumber}`,
-            })
-            .eq("id", effectiveCreditNoteId);
+          await bestEffortWrite(
+            "adjust-credit-note:description",
+            () => supabase.from("voucher_entries").update({ description: `Credit Note adjusted to Outstanding Balance: ${creditNoteNumber}` }).eq("id", effectiveCreditNoteId),
+            { organizationId: currentOrganization?.id, recordId: effectiveCreditNoteId },
+          );
         } else {
           // Guard: a matching credit_note voucher may already exist
           const existing = await findExistingCreditNoteVoucher([creditNoteNumber]);
           if (existing) {
-            await supabase
-              .from("voucher_entries")
-              .update({
-                description: `Credit Note adjusted to Outstanding Balance: ${creditNoteNumber}`,
-              })
-              .eq("id", existing.id);
-            await supabase
+            await bestEffortWrite(
+              "adjust-credit-note:description",
+              () => supabase.from("voucher_entries").update({ description: `Credit Note adjusted to Outstanding Balance: ${creditNoteNumber}` }).eq("id", existing.id),
+              { organizationId: currentOrganization?.id, recordId: existing.id },
+            );
+            const { error: linkError } = await supabase
               .from("purchase_returns" as any)
               .update({ credit_note_id: existing.id })
               .eq("id", purchaseReturnId);
+            if (linkError) throw linkError;
           } else {
           // No credit_note voucher was created at save time — create one now
           const today = format(new Date(), "yyyy-MM-dd");

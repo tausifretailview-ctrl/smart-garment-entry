@@ -1,6 +1,9 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { logError } from "@/lib/errorLogger";
+import { rollbackStep } from "@/lib/rollbackStep";
+import { softCancelEmptySaleHeader } from "@/utils/saleEmptyHeaderRollback";
 import { useSettings } from "@/hooks/useSettings";
 import { useIndustrialMode } from "@/hooks/useIndustrialMode";
 import { challanTypeLabel } from "@/utils/industrialMode";
@@ -333,7 +336,17 @@ export default function DeliveryChallanDashboard() {
 
       if (saleError) throw saleError;
 
-      await supabase.from('delivery_challan_items').delete().eq('challan_id', challan.id);
+      const rollbackCtx = { organizationId: currentOrganization?.id, recordId: String(saleData.id) };
+      const cancelNewInvoice = () =>
+        rollbackStep('challan-convert:cancel-invoice', () => softCancelEmptySaleHeader(supabase, saleData.id, user?.id ?? null), rollbackCtx);
+
+      // The challan's lines are removed first (their stock comes back) so the invoice lines can
+      // take it. Checked: had this failed silently, the goods would leave stock twice.
+      const { error: challanItemsDelError } = await supabase.from('delivery_challan_items').delete().eq('challan_id', challan.id);
+      if (challanItemsDelError) {
+        await cancelNewInvoice();
+        throw challanItemsDelError;
+      }
 
       const saleItemsData = saleItems.map((item: any) => ({
         sale_id: saleData.id,
@@ -353,7 +366,15 @@ export default function DeliveryChallanDashboard() {
         hsn_code: item.hsn_code,
       }));
       const { error: itemsError } = await supabase.from('sale_items').insert(saleItemsData);
-      if (itemsError) throw itemsError;
+      if (itemsError) {
+        // Put the challan back as it was and cancel the empty invoice.
+        await rollbackStep('challan-convert:restore-challan-lines', () => supabase.from('delivery_challan_items').insert(items), {
+          organizationId: currentOrganization?.id,
+          recordId: String(challan.id),
+        });
+        await cancelNewInvoice();
+        throw itemsError;
+      }
 
       // Industrial mode: the invoice goes out of the godown the challan was sent from.
       const godownNote = industrialMode.enabled ? await syncSaleFromChallanGodown(String(challan.id), String(saleData.id)) : null;
@@ -370,7 +391,7 @@ export default function DeliveryChallanDashboard() {
         );
       }
 
-      await supabase
+      const { error: challanStatusError } = await supabase
         .from('delivery_challans')
         .update({
           status: 'invoiced',
@@ -378,6 +399,16 @@ export default function DeliveryChallanDashboard() {
           updated_at: new Date().toISOString(),
         })
         .eq('id', challan.id);
+      if (challanStatusError) {
+        // The invoice is real; only the challan's label is stale. Say so, so it is not converted twice.
+        void logError({ operation: 'challan-convert:mark-invoiced', organizationId: currentOrganization?.id, additionalContext: { challan_id: challan.id, sale_id: saleData.id } }, challanStatusError);
+        toast({
+          variant: "destructive",
+          title: "Challan not marked invoiced",
+          description: `Invoice ${saleNumber} was created, but challan ${challan.challan_number} still shows as not invoiced. Do not convert it again.`,
+          duration: 12000,
+        });
+      }
 
       toast({
         title: "Invoice Created",

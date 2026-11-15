@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -271,7 +272,7 @@ const StudentPromotion = () => {
       // Log promotion history
       const fromYear = years.find((y: any) => y.id === fromYearId);
       const toYear = years.find((y: any) => y.id === toYearId);
-      await supabase.from("promotion_history").insert({
+      await bestEffortWrite("student-promotion:history", () => supabase.from("promotion_history").insert({
         organization_id: orgId,
         from_year_id: fromYearId,
         to_year_id: toYearId,
@@ -281,7 +282,7 @@ const StudentPromotion = () => {
         total_failed: failed,
         total_passed_out: passedOut,
         carry_forward_enabled: carryForward,
-      } as any);
+      } as any), { organizationId: orgId });
 
       return { promoted, failed, passedOut };
     },

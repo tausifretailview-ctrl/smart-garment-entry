@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
@@ -194,11 +195,16 @@ export const ProductImageUploader = ({
 
       // If this is the first image, update products.image_url for backward compatibility
       if (nextOrder === 1) {
-        await supabase
-          .from("products")
-          .update({ image_url: imageUrl })
-          .eq("id", productId)
-          .eq("organization_id", currentOrganization.id);
+        await bestEffortWrite(
+          "product-image:primary-url",
+          () =>
+            supabase
+              .from("products")
+              .update({ image_url: imageUrl })
+              .eq("id", productId)
+              .eq("organization_id", currentOrganization.id),
+          { organizationId: currentOrganization.id, recordId: productId },
+        );
       }
 
       toast({
@@ -242,11 +248,16 @@ export const ProductImageUploader = ({
       if (deletedImage?.display_order === 1) {
         // Set to next image or null
         const nextPrimaryImage = remainingImages.find(img => img.display_order === 2);
-        await supabase
-          .from("products")
-          .update({ image_url: nextPrimaryImage?.image_url || null })
-          .eq("id", productId)
-          .eq("organization_id", currentOrganization?.id || "");
+        await bestEffortWrite(
+          "product-image:primary-url",
+          () =>
+            supabase
+              .from("products")
+              .update({ image_url: nextPrimaryImage?.image_url || null })
+              .eq("id", productId)
+              .eq("organization_id", currentOrganization?.id || ""),
+          { organizationId: currentOrganization?.id, recordId: productId },
+        );
       }
 
       // Try to delete from storage (don't fail if this fails)

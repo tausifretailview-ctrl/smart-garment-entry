@@ -5800,13 +5800,16 @@ export default function Settings() {
                           .eq("organization_id", orgId)
                           .maybeSingle();
                         if (!data) return;
-                        await supabase
+                        const { error: groupLinkError } = await supabase
                           .from("whatsapp_api_settings")
                           .update({
                             social_links: { ...((data as any).social_links || {}), whatsapp_group: e.target.value.trim() },
                           } as any)
                           .eq("id", (data as any).id)
                           .eq("organization_id", orgId);
+                        if (groupLinkError) {
+                          toast({ variant: "destructive", title: "WhatsApp group link not saved", description: groupLinkError.message });
+                        }
                       }}
                       placeholder="e.g., https://chat.whatsapp.com/xxxx"
                       className="no-uppercase"
