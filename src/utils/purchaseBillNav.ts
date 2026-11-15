@@ -5,11 +5,12 @@
 export function purchaseBillNavDisabled(
   isLoading: boolean,
   navIndex: number | null,
-  /** Bills in the list; null while the list is not loaded. */
+  /** Bills in the list; null while the list is not read yet (it is read when Last is used). */
   billCount: number | null,
 ): { last: boolean; previous: boolean; next: boolean } {
   return {
-    last: isLoading || !billCount,
+    // Unknown count (list not read yet) still allows Last: it reads the list on first use.
+    last: isLoading || billCount === 0,
     previous: isLoading || navIndex === null || navIndex >= (billCount ?? 0) - 1,
     next: isLoading || navIndex === null || navIndex <= 0,
   };
