@@ -43,7 +43,7 @@ describe("fetchInIdBatches", () => {
  * rows past 1,000 dropped). The count may only go down: move a read onto fetchInIdBatches /
  * fetchAllRows, then lower the baseline. `node scripts/count-unbatched-id-lists.mjs` lists them.
  */
-const UNBATCHED_ID_LISTS_BASELINE = 97;
+const UNBATCHED_ID_LISTS_BASELINE = 91;
 
 describe("unbatched id-list reads (ratchet)", () => {
   it(`stay at or below ${UNBATCHED_ID_LISTS_BASELINE}`, async () => {

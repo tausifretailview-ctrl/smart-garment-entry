@@ -9,6 +9,7 @@ import {
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { buildAdvanceRefundDescription } from "@/utils/advanceRefundVoucher";
 import { rollbackStep } from "@/lib/rollbackStep";
+import { fetchInIdBatches, type RangeQuery } from "@/lib/data/fetchInIdBatches";
 
 export type AdvanceRefundRow = {
   id: string;
@@ -329,26 +330,30 @@ export async function fetchAdvanceRefundsForAdvances(
   const extended = `${base}, refund_number, voucher_entry_id`;
   const join = options?.includeAdvanceNumber ? ", customer_advances(advance_number)" : "";
 
+  // A customer's advances grow without limit: 200 ids per request, paged past 1,000 rows,
+  // then back in refund-date order.
   const run = async (select: string) => {
-    let q = client
-      .from("advance_refunds")
-      .select(select + join)
-      .eq("organization_id", organizationId)
-      .in("advance_id", advanceIds)
-      .order("refund_date", { ascending: true });
-    if (options?.startDate) q = q.gte("refund_date", options.startDate);
-    if (options?.endDate) q = q.lte("refund_date", options.endDate);
-    return q;
+    const rows = await fetchInIdBatches<Record<string, unknown>>(advanceIds, (batch) => {
+      let q = client
+        .from("advance_refunds")
+        .select(select + join)
+        .eq("organization_id", organizationId)
+        .in("advance_id", batch);
+      if (options?.startDate) q = q.gte("refund_date", options.startDate);
+      if (options?.endDate) q = q.lte("refund_date", options.endDate);
+      return q.order("refund_date", { ascending: true }).order("id") as unknown as RangeQuery<
+        Record<string, unknown>
+      >;
+    });
+    return rows.sort((a, b) => String(a.refund_date ?? "").localeCompare(String(b.refund_date ?? "")));
   };
 
-  const ext = await run(extended);
-  if (!ext.error) return ((ext.data || []) as unknown) as Record<string, unknown>[];
-
-  if (!isRecoverableSchemaError(ext.error)) throw ext.error;
-
-  const leg = await run(base);
-  if (leg.error) throw leg.error;
-  return ((leg.data || []) as unknown) as Record<string, unknown>[];
+  try {
+    return await run(extended);
+  } catch (error) {
+    if (!isRecoverableSchemaError(error)) throw error;
+  }
+  return run(base);
 }
 
 /** Reverse mistaken advance refund (restores advance available balance). */

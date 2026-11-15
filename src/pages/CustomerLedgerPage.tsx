@@ -31,7 +31,7 @@ import {
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { QuietRefreshBar } from "@/components/QuietRefreshBar";
-import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
+import { fetchAllRows, fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 
 interface LedgerRow {
   id: string;
@@ -577,24 +577,29 @@ export default function CustomerLedgerPage() {
       }
 
       // Advance refunds (cash out) — debit.
-      const { data: advIdsRows } = await supabase
-        .from("customer_advances")
-        .select("id")
-        .eq("customer_id", customerId!)
-        .eq("organization_id", currentOrganization!.id);
-      const advanceIds = (advIdsRows || []).map((r: { id: string }) => r.id).filter(Boolean);
+      // Every advance of the customer (paged), then their refunds 200 advances per request.
+      const advIdsRows = await fetchAllRows<{ id: string }>(() =>
+        supabase
+          .from("customer_advances")
+          .select("id")
+          .eq("customer_id", customerId!)
+          .eq("organization_id", currentOrganization!.id)
+          .order("id"),
+      );
+      const advanceIds = advIdsRows.map((r) => r.id).filter(Boolean);
       const advanceRefundLedgerRows: LedgerRow[] = [];
       if (advanceIds.length > 0) {
-        let arq = supabase
-          .from("advance_refunds")
-          .select("id, refund_date, refund_amount, reason, payment_method, advance_id")
-          .eq("organization_id", currentOrganization!.id)
-          .in("advance_id", advanceIds);
-        if (fromDate) arq = arq.gte("refund_date", format(fromDate, "yyyy-MM-dd"));
-        if (toDate) arq = arq.lte("refund_date", format(toDate, "yyyy-MM-dd"));
-        const { data: advRefunds, error: advRefundsErr } = await arq;
-        if (advRefundsErr) throw advRefundsErr;
-        for (const r of advRefunds || []) {
+        const advRefunds = await fetchInIdBatches<any>(advanceIds, (batch) => {
+          let arq = supabase
+            .from("advance_refunds")
+            .select("id, refund_date, refund_amount, reason, payment_method, advance_id")
+            .eq("organization_id", currentOrganization!.id)
+            .in("advance_id", batch);
+          if (fromDate) arq = arq.gte("refund_date", format(fromDate, "yyyy-MM-dd"));
+          if (toDate) arq = arq.lte("refund_date", format(toDate, "yyyy-MM-dd"));
+          return arq.order("id");
+        });
+        for (const r of advRefunds) {
           const dr = Number((r as any).refund_amount || 0);
           if (dr <= 0) continue;
           advanceRefundLedgerRows.push({

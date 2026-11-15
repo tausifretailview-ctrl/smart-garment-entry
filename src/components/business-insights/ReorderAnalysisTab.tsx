@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { AlertTriangle, PackagePlus } from "lucide-react";
@@ -91,7 +92,7 @@ async function loadPoEnrichment(
   supplier: SupplierRecord | null;
   priceByVariant: Map<string, { purPrice: number; gstPercent: number; hsnCode: string }>;
 }> {
-  const [{ data: supplier }, { data: variants }] = await Promise.all([
+  const [{ data: supplier }, variants] = await Promise.all([
     supabase
       .from("suppliers")
       .select("id, supplier_name, phone, email, address, gst_number")
@@ -99,11 +100,15 @@ async function loadPoEnrichment(
       .eq("id", supplierId)
       .is("deleted_at", null)
       .maybeSingle(),
-    supabase
-      .from("product_variants")
-      .select("id, pur_price, products(hsn_code, gst_per)")
-      .eq("organization_id", orgId)
-      .in("id", variantIds),
+    // A supplier's reorder list can pass 200 sizes: batched so the URL is accepted.
+    fetchInIdBatches<{ id: string; pur_price: number | null; products: unknown }>(variantIds, (batch) =>
+      supabase
+        .from("product_variants")
+        .select("id, pur_price, products(hsn_code, gst_per)")
+        .eq("organization_id", orgId)
+        .in("id", batch)
+        .order("id"),
+    ),
   ]);
 
   const priceByVariant = new Map<string, { purPrice: number; gstPercent: number; hsnCode: string }>();
