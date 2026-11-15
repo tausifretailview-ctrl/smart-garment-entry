@@ -17,6 +17,10 @@ type CustomerLocationFilterProps = {
   options: string[];
   onChange: (location: string) => void;
   className?: string;
+  /** Called when the list opens or closes (the page loads saved cities on first open). */
+  onOpenChange?: (open: boolean) => void;
+  /** Saved cities are still loading. */
+  loading?: boolean;
 };
 
 export function CustomerLocationFilter({
@@ -24,8 +28,14 @@ export function CustomerLocationFilter({
   options,
   onChange,
   className,
+  onOpenChange,
+  loading = false,
 }: CustomerLocationFilterProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpenState] = useState(false);
+  const setOpen = (next: boolean) => {
+    setOpenState(next);
+    onOpenChange?.(next);
+  };
   const [typed, setTyped] = useState("");
 
   const apply = (next: string) => {
@@ -72,7 +82,9 @@ export function CustomerLocationFilter({
             <CommandEmpty>
               {typed.trim()
                 ? `No saved city. Press Enter to filter “${typed.trim()}”.`
-                : "No locations in customer addresses yet."}
+                : loading
+                  ? "Loading cities…"
+                  : "No locations in customer addresses yet."}
             </CommandEmpty>
             <CommandGroup>
               <CommandItem value="all-locations" onSelect={() => apply("")}>
@@ -84,6 +96,9 @@ export function CustomerLocationFilter({
                 </CommandItem>
               ))}
             </CommandGroup>
+            {loading && options.length === 0 && (
+              <div className="px-3 py-2 text-xs text-muted-foreground">Loading cities…</div>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>

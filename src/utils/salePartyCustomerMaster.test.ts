@@ -5,6 +5,7 @@ import {
   canonicalCustomerName,
   isWalkInCustomerName,
   planUnlinkedSaleParties,
+  syncUnlinkedSalesIntoCustomerMaster,
   totalCustomerCount,
 } from "./salePartyCustomerMaster";
 
@@ -148,5 +149,27 @@ describe("Customer Master reads POS parties", () => {
     expect(masterPage).toContain("syncUnlinkedSalesIntoCustomerMaster");
     expect(saveSale).toContain("linkOrCreateCustomerFromSaleParty");
     expect(saveSale.match(/attachSaleCustomerMasterId\(/g)?.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("Customer Master open: unlinked-bill sync", () => {
+  it("counts unlinked bills first and reads no customers when there are none", async () => {
+    const tables: string[] = [];
+    const client = {
+      from(table: string) {
+        tables.push(table);
+        const q: Record<string, unknown> = {};
+        for (const m of ["select", "eq", "is", "order"]) q[m] = () => q;
+        q.then = (resolve: (v: unknown) => void) => resolve({ count: 0, data: null, error: null });
+        q.range = () => Promise.resolve({ data: [], error: null });
+        return q;
+      },
+    };
+    const result = await syncUnlinkedSalesIntoCustomerMaster(
+      "org-sync-none",
+      client as unknown as Parameters<typeof syncUnlinkedSalesIntoCustomerMaster>[1],
+    );
+    expect(result).toEqual({ created: 0, linked: 0 });
+    expect(tables).toEqual(["sales"]);
   });
 });
