@@ -16,7 +16,9 @@ describe("PurchaseEntry duplicate-bill dialog", () => {
   const desktopStart = src.indexOf("\n  return (\n", mobileStart + 1);
 
   it("the guard raises the dialog", () => {
-    expect(src).toContain("setDuplicateWarning({ bill: match as ExistingDuplicateBill, reason })");
+    // The decision lives in findLikelyDuplicateBill (src/lib/data/purchaseDuplicateChecks.ts, tested there).
+    expect(src).toContain("findLikelyDuplicateBill(sameDayBills");
+    expect(src).toContain("setDuplicateWarning({ bill: likely.bill as unknown as ExistingDuplicateBill, reason: likely.reason })");
     expect(src).toContain("See warning dialog to open the existing bill or save anyway.");
   });
 
