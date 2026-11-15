@@ -5,6 +5,7 @@ import {
   isAdvanceApplicationVoucher,
   isReceiptMemoApplicationLedgerAligned,
 } from "@/utils/customerAuditMath";
+import { fetchAllRows, fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 
 export interface AuditRow {
   id: string;
@@ -449,6 +450,11 @@ export async function fetchCustomerAuditBundle(client: SupabaseClient, orgId: st
 
   // Stage 1: reads that depend on nothing else. They used to run one after another, and on a
   // slow connection (~450 ms per round trip) the POS "Invoice Saved" window waited on all of them.
+  const asResult = <T,>(p: Promise<T[]>) =>
+    p.then(
+      (data) => ({ data, error: null as unknown as { message?: string } | null }),
+      (error: unknown) => ({ data: null as T[] | null, error: error as { message?: string } | null }),
+    );
   const [custRes, salesRes, srRes, vcRes, advRes, baRes] = await Promise.all([
     client
       .from("customers")
@@ -457,31 +463,42 @@ export async function fetchCustomerAuditBundle(client: SupabaseClient, orgId: st
       .eq("organization_id", orgId)
       .is("deleted_at", null)
       .maybeSingle(),
-    client
-      .from("sales")
-      .select(
-        // refund_amount must be here. A direct Cash click on an exchange (bill ₹3,300,
-        // return ₹3,500, ₹200 paid back) stores the payout on the sale and also writes
-        // "Refund paid for POS exchange …". The balance skips that voucher only when
-        // refund_amount is loaded; without the column the customer is left owing ₹200.
-        // gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount and round_off
-        // let computeCustomerBalanceCore tell a bill the CN was applied to AFTER billing (net is the
-        // full bill) from one with the return baked into net. Without them the check falls back to
-        // MRP-based items_gross, which misfires on discounted/wholesale bills and leaves the applied
-        // CN out of the balance (KS Footwear / Soni Shoes: Net Position 5,014 vs ledger 2,624).
-        "id, sale_number, sale_date, net_amount, paid_amount, cash_amount, card_amount, upi_amount, refund_amount, sale_return_adjust, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, payment_status, is_cancelled, cancelled_at, cancelled_reason",
-      )
-      .eq("customer_id", customerId)
-      .eq("organization_id", orgId)
-      .is("deleted_at", null),
-    client
-      .from("sale_returns")
-      .select(
-        "id, return_number, return_date, net_amount, credit_status, linked_sale_id, credit_available_balance, refund_type, notes",
-      )
-      .eq("customer_id", customerId)
-      .eq("organization_id", orgId)
-      .is("deleted_at", null),
+    // Every bill, past the 1,000-row cap (a customer with more bills lost the rest — wrong balance).
+    asResult(
+      fetchAllRows<any>(() =>
+        client
+          .from("sales")
+          .select(
+            // refund_amount must be here. A direct Cash click on an exchange (bill ₹3,300,
+            // return ₹3,500, ₹200 paid back) stores the payout on the sale and also writes
+            // "Refund paid for POS exchange …". The balance skips that voucher only when
+            // refund_amount is loaded; without the column the customer is left owing ₹200.
+            // gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount and round_off
+            // let computeCustomerBalanceCore tell a bill the CN was applied to AFTER billing (net is the
+            // full bill) from one with the return baked into net. Without them the check falls back to
+            // MRP-based items_gross, which misfires on discounted/wholesale bills and leaves the applied
+            // CN out of the balance (KS Footwear / Soni Shoes: Net Position 5,014 vs ledger 2,624).
+            "id, sale_number, sale_date, net_amount, paid_amount, cash_amount, card_amount, upi_amount, refund_amount, sale_return_adjust, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, payment_status, is_cancelled, cancelled_at, cancelled_reason",
+          )
+          .eq("customer_id", customerId)
+          .eq("organization_id", orgId)
+          .is("deleted_at", null)
+          .order("id"),
+      ),
+    ),
+    asResult(
+      fetchAllRows<any>(() =>
+        client
+          .from("sale_returns")
+          .select(
+            "id, return_number, return_date, net_amount, credit_status, linked_sale_id, credit_available_balance, refund_type, notes",
+          )
+          .eq("customer_id", customerId)
+          .eq("organization_id", orgId)
+          .is("deleted_at", null)
+          .order("id"),
+      ),
+    ),
     client
       .from("voucher_entries")
       .select(VOUCHER_COLS)
@@ -533,57 +550,83 @@ export async function fetchCustomerAuditBundle(client: SupabaseClient, orgId: st
     .filter(Boolean);
   const advanceIds = (advances || []).map((a: { id: string }) => a.id).filter(Boolean);
 
-  // Stage 2: reads that need ids from stage 1, also in parallel.
-  const orFilter = returnNumbers
-    .map((rn: string) => `description.ilike.%${rn.replace(/[%,()]/g, " ")}%`)
-    .join(",");
-  const [itemsRes, refundBySrRes, saleVouchersRes, mistaggedRes, refundsRes] = await Promise.all([
-    // Merchandise gross (Σ mrp × qty) per sale — discriminates the two net_amount conventions
-    // (pre-return full-bill vs post-return) so an applied sale return credits the customer once.
-    saleIds.length > 0
-      ? client.from("sale_items").select("sale_id, quantity, mrp").in("sale_id", saleIds).is("deleted_at", null)
-      : Promise.resolve({ data: [], error: null }),
-    orFilter
-      ? client
+  // Stage 2: reads that need ids from stage 1, also in parallel. Id lists go in batches of 200
+  // and every row is read (fetchInIdBatches): a long-standing customer's thousands of bill ids
+  // made the URL too long, and their bill lines passed the 1,000-row cap and were cut off,
+  // which skewed the merchandise gross below.
+  // Return numbers, 40 per OR filter (one filter with every number grew without bound).
+  const returnNumberGroups: string[][] = [];
+  for (let i = 0; i < returnNumbers.length; i += 40) returnNumberGroups.push(returnNumbers.slice(i, i + 40));
+  const refundBySrPromise = asResult(
+    Promise.all(
+      returnNumberGroups.map(async (group) => {
+        const orFilter = group.map((rn: string) => `description.ilike.%${rn.replace(/[%,()]/g, " ")}%`).join(",");
+        const { data, error } = await client
           .from("voucher_entries")
           .select(VOUCHER_COLS)
           .eq("organization_id", orgId)
           .eq("voucher_type", "payment")
           .eq("reference_type", "customer")
           .is("deleted_at", null)
-          .or(orFilter)
-      : Promise.resolve({ data: [], error: null }),
-    saleIds.length > 0
-      ? client
+          .or(orFilter);
+        if (error) throw error;
+        return data || [];
+      }),
+    ).then((pages) => {
+      const byId = new Map<string, any>();
+      for (const row of pages.flat()) byId.set(String((row as { id?: string }).id), row);
+      return [...byId.values()];
+    }),
+  );
+  const [itemsRes, refundBySrRes, saleVouchersRes, mistaggedRes, refundsRes] = await Promise.all([
+    // Merchandise gross (Σ mrp × qty) per sale — discriminates the two net_amount conventions
+    // (pre-return full-bill vs post-return) so an applied sale return credits the customer once.
+    asResult(
+      fetchInIdBatches<any>(saleIds, (ids) =>
+        client.from("sale_items").select("id, sale_id, quantity, mrp").in("sale_id", ids).is("deleted_at", null).order("id"),
+      ),
+    ),
+    refundBySrPromise,
+    asResult(
+      fetchInIdBatches<any>(saleIds, (ids) =>
+        client
           .from("voucher_entries")
           .select(VOUCHER_COLS)
           .eq("organization_id", orgId)
           .eq("voucher_type", "receipt")
           .eq("reference_type", "sale")
-          .in("reference_id", saleIds)
+          .in("reference_id", ids)
           .is("deleted_at", null)
-      : Promise.resolve({ data: [], error: null }),
+          .order("id"),
+      ),
+    ),
     // Phase 1.1: catch legacy mis-tagged receipts where reference_type='customer'
     // but reference_id is actually one of this customer's sale ids. Classification
     // downstream is by id-match, so simply pulling these rows into the bundle is
     // enough — voucherById de-dupes by id.
-    saleIds.length > 0
-      ? client
+    asResult(
+      fetchInIdBatches<any>(saleIds, (ids) =>
+        client
           .from("voucher_entries")
           .select(VOUCHER_COLS)
           .eq("organization_id", orgId)
           .eq("voucher_type", "receipt")
           .eq("reference_type", "customer")
-          .in("reference_id", saleIds)
+          .in("reference_id", ids)
           .is("deleted_at", null)
-      : Promise.resolve({ data: [], error: null }),
-    advanceIds.length > 0
-      ? client
+          .order("id"),
+      ),
+    ),
+    asResult(
+      fetchInIdBatches<any>(advanceIds, (ids) =>
+        client
           .from("advance_refunds")
           .select("id, refund_date, refund_amount, advance_id, reason, payment_method")
           .eq("organization_id", orgId)
-          .in("advance_id", advanceIds)
-      : Promise.resolve({ data: [], error: null }),
+          .in("advance_id", ids)
+          .order("id"),
+      ),
+    ),
   ]);
 
   if (itemsRes.error) throw itemsRes.error;

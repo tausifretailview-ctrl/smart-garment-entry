@@ -1441,7 +1441,7 @@ export function CustomerLedger({
           if (endDate) {
             vouchersQuery = vouchersQuery.lte("voucher_date", format(endDate, 'yyyy-MM-dd'));
           }
-          return vouchersQuery;
+          return vouchersQuery.order("id");
         })
       ).sort((a: any, b: any) => String(b.voucher_date || "").localeCompare(String(a.voucher_date || "")));
 
@@ -2285,7 +2285,7 @@ export function CustomerLedger({
             .in("reference_id", ids);
           if (startDate) vq = vq.gte("voucher_date", format(startDate, "yyyy-MM-dd"));
           if (endDate) vq = vq.lte("voucher_date", format(endDate, "yyyy-MM-dd"));
-          return vq;
+          return vq.order("id");
         })
       ).sort((a: any, b: any) => String(a.voucher_date || "").localeCompare(String(b.voucher_date || "")));
       const mapRow = (v: any): LedgerAllocationRow => {
