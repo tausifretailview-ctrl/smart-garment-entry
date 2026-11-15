@@ -12,6 +12,7 @@ import {
 } from "@/utils/purchaseSupplierLedgerCn";
 import { buildAppliedReturnAdjustByBillIdMap } from "@/utils/purchaseBillReturnAdjust";
 import { linkedBillDisplayNo } from "@/utils/purchaseReturnCnDisplay";
+import { fetchAllRows, fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 
 export type SupplierLedgerTab = 'all' | 'payments' | 'cn-adjusted' | 'cn-pending';
 
@@ -56,22 +57,19 @@ export async function fetchSupplierLedgerTransactions(
   if (billsError) throw billsError;
 
   // Fetch voucher payments for this supplier
-  let vouchersQuery = supabase
-    .from("voucher_entries")
-    .select("*")
-    .eq("reference_type", "supplier")
-    .eq("voucher_type", "payment")
-    .is("deleted_at", null);
+  // Get all bill IDs for this supplier to find related payments (every page: a supplier with more
+  // than 1,000 bills lost the rest, and their payments went missing from the ledger).
+  const allBills = await fetchAllRows<{ id: string }>(() =>
+    supabase
+      .from("purchase_bills")
+      .select("id")
+      .eq("supplier_id", selectedSupplier.id)
+      .is("deleted_at", null)
+      .or("is_cancelled.is.null,is_cancelled.eq.false")
+      .order("id"),
+  );
 
-  // Get all bill IDs for this supplier to find related payments
-  const { data: allBills } = await supabase
-    .from("purchase_bills")
-    .select("id")
-    .eq("supplier_id", selectedSupplier.id)
-    .is("deleted_at", null)
-    .or("is_cancelled.is.null,is_cancelled.eq.false");
-
-  const billIds = allBills?.map(b => b.id) || [];
+  const billIds = allBills.map(b => b.id);
   const billById = new Map(
     (billsData || []).map((b: any) => [
       b.id,
@@ -79,22 +77,26 @@ export async function fetchSupplierLedgerTransactions(
     ])
   );
 
-  if (billIds.length > 0) {
-    vouchersQuery = vouchersQuery.in("reference_id", billIds);
-  } else {
-    vouchersQuery = vouchersQuery.eq("reference_id", "00000000-0000-0000-0000-000000000000");
-  }
-
-  if (startDate) {
-    vouchersQuery = vouchersQuery.gte("voucher_date", format(startDate, 'yyyy-MM-dd'));
-  }
-  if (endDate) {
-    vouchersQuery = vouchersQuery.lte("voucher_date", format(endDate, 'yyyy-MM-dd'));
-  }
-
-  const { data: vouchersData, error: vouchersError } = await vouchersQuery.order("voucher_date", { ascending: true });
-
-  if (vouchersError) throw vouchersError;
+  // Bill ids in batches of 200 (all of them in one request made the URL too long). A fresh query
+  // per request: query builders are mutable, so one shared builder would stack every batch's filter.
+  const vouchersData = (
+    await fetchInIdBatches<any>(billIds, (ids) => {
+      let vouchersQuery = supabase
+        .from("voucher_entries")
+        .select("*")
+        .eq("reference_type", "supplier")
+        .eq("voucher_type", "payment")
+        .is("deleted_at", null)
+        .in("reference_id", ids);
+      if (startDate) {
+        vouchersQuery = vouchersQuery.gte("voucher_date", format(startDate, 'yyyy-MM-dd'));
+      }
+      if (endDate) {
+        vouchersQuery = vouchersQuery.lte("voucher_date", format(endDate, 'yyyy-MM-dd'));
+      }
+      return vouchersQuery.order("id");
+    })
+  ).sort((a: any, b: any) => String(a.voucher_date || "").localeCompare(String(b.voucher_date || "")));
 
   // Also fetch opening balance payments (reference_id = supplier_id)
   let openingBalanceQuery = supabase

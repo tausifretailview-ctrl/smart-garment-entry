@@ -26,6 +26,7 @@ import {
 } from "@/utils/purchaseSupplierLedgerCn";
 import { buildAppliedReturnAdjustByBillIdMap } from "@/utils/purchaseBillReturnAdjust";
 import { linkedBillDisplayNo } from "@/utils/purchaseReturnCnDisplay";
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 
 interface FloatingSupplierLedgerProps {
   isOpen: boolean;
@@ -102,16 +103,20 @@ export const FloatingSupplierLedger = ({
       // Voucher payments (bill-linked)
       let vouchersData: any[] = [];
       if (billIds.length > 0) {
-        const { data, error } = await supabase
-          .from("voucher_entries")
-          .select("*")
-          .eq("reference_type", "supplier")
-          .eq("voucher_type", "payment")
-          .is("deleted_at", null)
-          .in("reference_id", billIds)
-          .order("voucher_date", { ascending: true });
-        if (error) throw error;
-        vouchersData = data || [];
+        // In batches of 200 bill ids (one request with every id failed for big suppliers).
+        vouchersData = (
+          await fetchInIdBatches<any>(billIds, (ids) =>
+            supabase
+              .from("voucher_entries")
+              .select("*")
+              .eq("organization_id", organizationId)
+              .eq("reference_type", "supplier")
+              .eq("voucher_type", "payment")
+              .is("deleted_at", null)
+              .in("reference_id", ids)
+              .order("id"),
+          )
+        ).sort((a: any, b: any) => String(a.voucher_date || "").localeCompare(String(b.voucher_date || "")));
       }
 
       // Opening balance payments (reference_id = supplier_id)

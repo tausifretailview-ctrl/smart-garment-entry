@@ -31,6 +31,7 @@ import {
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { QuietRefreshBar } from "@/components/QuietRefreshBar";
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 
 interface LedgerRow {
   id: string;
@@ -370,23 +371,25 @@ export default function CustomerLedgerPage() {
         (inRangeSales || []).map((s: any) => [String(s.id), s.sale_date]),
       );
       if (saleIds.length > 0) {
-        let veSaleQ = supabase
-          .from("voucher_entries")
-          .select(
-            "id, voucher_number, voucher_date, total_amount, discount_amount, description, payment_method, reference_type, reference_id, voucher_type",
-          )
-          .eq("organization_id", currentOrganization!.id)
-          .eq("voucher_type", "receipt")
-          // Phase 1.2: include legacy mis-tagged rows where reference_type='customer'
-          // but reference_id is one of this customer's sale ids. Safe — saleIds filter
-          // prevents true opening-balance rows from being pulled in.
-          .in("reference_type", ["sale", "customer"])
-          .in("reference_id", saleIds)
-          .is("deleted_at", null);
-        if (fromDate) veSaleQ = veSaleQ.gte("voucher_date", format(fromDate, "yyyy-MM-dd"));
-        if (toDate) veSaleQ = veSaleQ.lte("voucher_date", format(toDate, "yyyy-MM-dd"));
-        const { data: saleReceiptVouchers, error: saleReceiptVouchersErr } = await veSaleQ;
-        if (saleReceiptVouchersErr) throw saleReceiptVouchersErr;
+        // In batches of 200 bill ids (one request with every id failed for big customers).
+        const saleReceiptVouchers = await fetchInIdBatches<any>(saleIds, (ids) => {
+          let veSaleQ = supabase
+            .from("voucher_entries")
+            .select(
+              "id, voucher_number, voucher_date, total_amount, discount_amount, description, payment_method, reference_type, reference_id, voucher_type",
+            )
+            .eq("organization_id", currentOrganization!.id)
+            .eq("voucher_type", "receipt")
+            // Phase 1.2: include legacy mis-tagged rows where reference_type='customer'
+            // but reference_id is one of this customer's sale ids. Safe — saleIds filter
+            // prevents true opening-balance rows from being pulled in.
+            .in("reference_type", ["sale", "customer"])
+            .in("reference_id", ids)
+            .is("deleted_at", null);
+          if (fromDate) veSaleQ = veSaleQ.gte("voucher_date", format(fromDate, "yyyy-MM-dd"));
+          if (toDate) veSaleQ = veSaleQ.lte("voucher_date", format(toDate, "yyyy-MM-dd"));
+          return veSaleQ.order("id");
+        });
         for (const v of saleReceiptVouchers || []) {
           const vn = ((v as any).voucher_number || "").trim();
           if (vn && existingVoucherNumbers.has(vn)) continue;
