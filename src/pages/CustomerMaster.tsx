@@ -1234,7 +1234,7 @@ const CustomerMaster = () => {
     const fetchByIds = async (ids: string[]) => {
       if (ids.length === 0) return [] as Customer[];
       const rows: Customer[] = [];
-      const BATCH = 500;
+      const BATCH = 200; // UUIDs in the URL: 500 (~20 KB) is over the gateway limit
       for (let i = 0; i < ids.length; i += BATCH) {
         const chunk = ids.slice(i, i + BATCH);
         const { data, error } = await supabase
@@ -1318,7 +1318,7 @@ const CustomerMaster = () => {
       if (!currentOrganization?.id || customerIds.length === 0) return {};
 
       const balanceMap: Record<string, number> = {};
-      const BATCH = 500;
+      const BATCH = 200; // UUIDs in the URL: 500 (~20 KB) is over the gateway limit
 
       for (let i = 0; i < customerIds.length; i += BATCH) {
         const chunk = customerIds.slice(i, i + BATCH);

@@ -18,6 +18,9 @@ function chain(resolver: () => Promise<{ data: unknown; error: unknown }>) {
   c.select = () => self();
   c.in = () => self();
   c.is = () => self();
+  // Paged reads (fetchInIdBatches) order by id and request a range, like the real client.
+  c.order = () => self();
+  c.range = () => self();
   c.then = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
     resolver().then(resolve, reject);
   return c;

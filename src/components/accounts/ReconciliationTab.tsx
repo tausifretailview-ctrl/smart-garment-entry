@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows, fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 import { toast } from "sonner";
 import { AccountsExportButtons } from "@/components/accounts/AccountsExportButtons";
 import { accountsHistoryTableClass, accountsHistoryTableWrapClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
@@ -91,24 +92,44 @@ export function ReconciliationTab({ organizationId, customers, visitedTabs }: Re
     queryFn: async () => {
       let salesIdsFilter: string[] | null = null;
       if (reconCustomerFilter && reconCustomerFilter !== "all" && reconCustomerFilter !== "") {
-        const { data: customerSales, error: salesError } = await supabase.from("sales").select("id").eq("customer_id", reconCustomerFilter).is("deleted_at", null);
-        if (salesError) throw salesError;
-        salesIdsFilter = customerSales?.map(s => s.id) || [];
+        // Every bill of the customer (past the 1,000-row cap).
+        const customerSales = await fetchAllRows<{ id: string }>(() =>
+          supabase
+            .from("sales")
+            .select("id")
+            .eq("organization_id", organizationId)
+            .eq("customer_id", reconCustomerFilter)
+            .is("deleted_at", null)
+            .order("id"),
+        );
+        salesIdsFilter = customerSales.map(s => s.id);
         if (salesIdsFilter.length === 0) return [];
       }
-      let query = supabase
-        .from("voucher_entries")
-        .select(RECON_VOUCHER_COLUMNS)
-        .eq("organization_id", organizationId)
-        .or("voucher_type.eq.receipt,voucher_type.eq.RECEIPT")
-        .is("deleted_at", null)
-        .gte("voucher_date", format(reconStartDate, "yyyy-MM-dd"))
-        .lte("voucher_date", format(reconEndDate, "yyyy-MM-dd"));
-      if (salesIdsFilter !== null) query = query.in("reference_id", salesIdsFilter);
-      const { data: payments, error } = await query
-        .order("voucher_date", { ascending: false })
-        .limit(RECON_VOUCHER_LIMIT);
-      if (error) throw error;
+      const receiptsQuery = () =>
+        supabase
+          .from("voucher_entries")
+          .select(RECON_VOUCHER_COLUMNS)
+          .eq("organization_id", organizationId)
+          .or("voucher_type.eq.receipt,voucher_type.eq.RECEIPT")
+          .is("deleted_at", null)
+          .gte("voucher_date", format(reconStartDate, "yyyy-MM-dd"))
+          .lte("voucher_date", format(reconEndDate, "yyyy-MM-dd"));
+      let payments: any[];
+      if (salesIdsFilter !== null) {
+        // One customer's bills in batches of 200 (all of them in one request was too long);
+        // newest RECON_VOUCHER_LIMIT receipts, as before.
+        payments = (
+          await fetchInIdBatches<any>(salesIdsFilter, (ids) => receiptsQuery().in("reference_id", ids).order("id"))
+        )
+          .sort((a: any, b: any) => String(b.voucher_date || "").localeCompare(String(a.voucher_date || "")))
+          .slice(0, RECON_VOUCHER_LIMIT);
+      } else {
+        const { data, error } = await receiptsQuery()
+          .order("voucher_date", { ascending: false })
+          .limit(RECON_VOUCHER_LIMIT);
+        if (error) throw error;
+        payments = data || [];
+      }
 
       const paymentRows = payments || [];
       const referenceSaleIds = paymentRows

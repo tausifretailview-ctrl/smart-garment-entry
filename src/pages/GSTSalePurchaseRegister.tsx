@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Badge } from "@/components/ui/badge";
@@ -375,11 +376,15 @@ const GSTSalePurchaseRegister = () => {
       ];
       const linkedSaleTaxType = new Map<string, ReturnType<typeof normalizeGstTaxType>>();
       if (linkedSaleIds.length > 0) {
-        const { data: linkedSales } = await supabase
-          .from("sales")
-          .select("id, tax_type")
-          .eq("organization_id", currentOrganization.id)
-          .in("id", linkedSaleIds);
+        // In batches of 200: a busy period's returns link to more bills than fit one request.
+        const linkedSales = await fetchInIdBatches<{ id: string; tax_type: string | null }>(linkedSaleIds, (ids) =>
+          supabase
+            .from("sales")
+            .select("id, tax_type")
+            .eq("organization_id", currentOrganization.id)
+            .in("id", ids)
+            .order("id"),
+        );
         (linkedSales || []).forEach((s) => {
           linkedSaleTaxType.set(String(s.id), normalizeGstTaxType((s as { tax_type?: string | null }).tax_type));
         });

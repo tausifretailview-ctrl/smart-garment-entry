@@ -1,6 +1,7 @@
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Clock, CheckCircle2, TrendingUp, Search, Calendar as CalendarIcon, MessageCircle, Download, User } from "lucide-react";
@@ -375,10 +376,11 @@ const DeliveryDashboard = () => {
 
       // Fetch sale items for all exported invoices
       const saleIds = invoicesToExport.map((inv) => inv.id);
-      const { data: saleItems } = await supabase
-        .from("sale_items")
-        .select("sale_id, product_name, size, color, quantity")
-        .in("sale_id", saleIds);
+      // In batches of 200, every line: a large export's bill ids did not fit one request and
+      // lines past 1,000 were dropped from the sheet.
+      const saleItems = await fetchInIdBatches<any>(saleIds, (ids) =>
+        supabase.from("sale_items").select("id, sale_id, product_name, size, color, quantity").in("sale_id", ids).order("id"),
+      );
 
       // Group items by sale_id
       const itemsBySaleId = new Map<string, any[]>();
@@ -400,11 +402,14 @@ const DeliveryDashboard = () => {
       ];
       const liveAddressByCustomerId = new Map<string, string>();
       if (customerIds.length > 0 && currentOrganization?.id) {
-        const { data: customerRows } = await supabase
-          .from("customers")
-          .select("id, address")
-          .eq("organization_id", currentOrganization.id)
-          .in("id", customerIds);
+        const customerRows = await fetchInIdBatches<{ id: string; address: string | null }>(customerIds, (ids) =>
+          supabase
+            .from("customers")
+            .select("id, address")
+            .eq("organization_id", currentOrganization.id)
+            .in("id", ids)
+            .order("id"),
+        );
         (customerRows || []).forEach((row) => {
           if (row.id && row.address) {
             liveAddressByCustomerId.set(row.id, row.address);

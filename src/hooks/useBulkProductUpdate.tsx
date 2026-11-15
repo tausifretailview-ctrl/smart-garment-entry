@@ -151,7 +151,7 @@ export const useBulkProductUpdate = () => {
 
     // Paginate variants fetch in batches of product IDs
     const allVariants: any[] = [];
-    const batchSize = 500;
+    const batchSize = 200; // UUIDs in the URL: 500 (~20 KB) is over the gateway limit
 
     for (let i = 0; i < allProductIds.length; i += batchSize) {
       const batchIds = allProductIds.slice(i, i + batchSize);
@@ -405,7 +405,7 @@ export const useBulkProductUpdate = () => {
   };
 
   const batchUpdateProducts = async (ids: string[], updateData: Record<string, any>) => {
-    const batchSize = 500;
+    const batchSize = 200; // UUIDs in the URL: 500 (~20 KB) is over the gateway limit
     for (let i = 0; i < ids.length; i += batchSize) {
       const batch = ids.slice(i, i + batchSize);
       const { error } = await supabase

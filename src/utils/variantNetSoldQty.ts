@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 
 /**
  * Net sold qty per variant: SUM(sale_items.quantity) − SUM(sale_return_items.quantity)
@@ -50,23 +51,19 @@ async function aggregateNetSoldClient(ids: string[]): Promise<Map<string, number
   const result = new Map<string, number>();
   for (const id of ids) result.set(id, 0);
 
-  const { data: soldRows, error: soldErr } = await supabase
-    .from("sale_items")
-    .select("variant_id, quantity, sale_id")
-    .in("variant_id", ids)
-    .is("deleted_at", null);
-  if (soldErr) throw soldErr;
+  // Every row, in batches (a popular size passes 1,000 sale lines; the rest were dropped and
+  // the net sold qty came out too low).
+  const soldRows = await fetchInIdBatches<{ id: string; variant_id: string; quantity: number; sale_id: string }>(ids, (b) =>
+    supabase.from("sale_items").select("id, variant_id, quantity, sale_id").in("variant_id", b).is("deleted_at", null).order("id"),
+  );
 
   const saleIds = [...new Set((soldRows ?? []).map((r) => r.sale_id).filter(Boolean))];
   const liveSaleIds = new Set<string>();
   if (saleIds.length > 0) {
-    const { data: sales, error } = await supabase
-      .from("sales")
-      .select("id")
-      .in("id", saleIds)
-      .is("deleted_at", null);
-    if (error) throw error;
-    for (const s of sales ?? []) liveSaleIds.add(s.id);
+    const sales = await fetchInIdBatches<{ id: string }>(saleIds, (b) =>
+      supabase.from("sales").select("id").in("id", b).is("deleted_at", null).order("id"),
+    );
+    for (const s of sales) liveSaleIds.add(s.id);
   }
 
   for (const row of soldRows ?? []) {
@@ -74,23 +71,17 @@ async function aggregateNetSoldClient(ids: string[]): Promise<Map<string, number
     result.set(row.variant_id, (result.get(row.variant_id) || 0) + (Number(row.quantity) || 0));
   }
 
-  const { data: returnRows, error: retErr } = await supabase
-    .from("sale_return_items")
-    .select("variant_id, quantity, return_id")
-    .in("variant_id", ids)
-    .is("deleted_at", null);
-  if (retErr) throw retErr;
+  const returnRows = await fetchInIdBatches<{ id: string; variant_id: string; quantity: number; return_id: string }>(ids, (b) =>
+    supabase.from("sale_return_items").select("id, variant_id, quantity, return_id").in("variant_id", b).is("deleted_at", null).order("id"),
+  );
 
   const returnIds = [...new Set((returnRows ?? []).map((r) => r.return_id).filter(Boolean))];
   const liveReturnIds = new Set<string>();
   if (returnIds.length > 0) {
-    const { data: returns, error } = await supabase
-      .from("sale_returns")
-      .select("id")
-      .in("id", returnIds)
-      .is("deleted_at", null);
-    if (error) throw error;
-    for (const r of returns ?? []) liveReturnIds.add(r.id);
+    const returns = await fetchInIdBatches<{ id: string }>(returnIds, (b) =>
+      supabase.from("sale_returns").select("id").in("id", b).is("deleted_at", null).order("id"),
+    );
+    for (const r of returns) liveReturnIds.add(r.id);
   }
 
   for (const row of returnRows ?? []) {

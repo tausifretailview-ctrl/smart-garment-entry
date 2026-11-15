@@ -571,7 +571,7 @@ export default function ItemWiseSalesReport() {
       const variantIds = [...new Set(saleItemsData.map(item => item.variant_id).filter(Boolean))];
       let variantStockMap: Record<string, number> = {};
       if (variantIds.length > 0) {
-        const batchSize = 500;
+        const batchSize = 200; // UUIDs in the URL: 500 (~20 KB) is over the gateway limit
         for (let i = 0; i < variantIds.length; i += batchSize) {
           const batch = variantIds.slice(i, i + batchSize);
           const { data: variants } = await supabase

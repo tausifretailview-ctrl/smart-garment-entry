@@ -84,7 +84,7 @@ async function fetchSaleItemProductMeta(orgId: string, productIds: string[]) {
   const unique = [...new Set(productIds.filter(Boolean))];
   const metaById = new Map<string, { brand?: string | null; category?: string | null }>();
   if (unique.length === 0) return metaById;
-  const batchSize = 500;
+  const batchSize = 200; // UUIDs in the URL: 500 (~20 KB) is over the gateway limit
   for (let i = 0; i < unique.length; i += batchSize) {
     const batchIds = unique.slice(i, i + batchSize);
     const { data, error } = await supabase

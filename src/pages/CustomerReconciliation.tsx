@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows, fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -102,11 +103,12 @@ export default function CustomerReconciliation() {
     queryKey: ["reconcile-balances", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
-      const { data, error } = await supabase.rpc("reconcile_customer_balances", {
-        p_organization_id: currentOrganization.id,
-      });
-      if (error) throw error;
-      return (data || []) as RawBalance[];
+      // Every row, page by page (the function's answer is capped at 1,000 rows like any read:
+      // shops with more customers lost the rest from this page).
+      const orgId = currentOrganization.id;
+      return fetchAllRows<RawBalance>(() =>
+        (supabase.rpc("reconcile_customer_balances", { p_organization_id: orgId }) as any).order("customer_id"),
+      );
     },
     enabled: !!currentOrganization?.id,
     staleTime: 30_000,
@@ -120,78 +122,103 @@ export default function CustomerReconciliation() {
       if (!currentOrganization?.id) return new Map<string, LedgerBalance>();
       const orgId = currentOrganization.id;
 
-      // Fetch customers
-      const { data: customers } = await supabase
-        .from("customers")
-        .select("id, opening_balance")
-        .eq("organization_id", orgId)
-        .is("deleted_at", null);
+      // Every row of each shop-wide table, page by page: the server answers at most 1,000 rows,
+      // so almost every shop's sales (and many shops' vouchers / returns) were cut off and these
+      // balances were computed from part of the data. Reads run together.
+      const [customers, sales, allVouchers, advances, saleReturns, refundVouchers, adjustments] = await Promise.all([
+        fetchAllRows<any>(() =>
+          supabase.from("customers").select("id, opening_balance").eq("organization_id", orgId).is("deleted_at", null).order("id"),
+        ),
+        fetchAllRows<any>(() =>
+          supabase
+            .from("sales")
+            .select(
+              "id, customer_id, net_amount, paid_amount, cash_amount, card_amount, upi_amount, sale_return_adjust, payment_status",
+            )
+            .eq("organization_id", orgId)
+            .is("deleted_at", null)
+            .neq("payment_status", "cancelled")
+            .neq("payment_status", "hold")
+            .order("id"),
+        ),
+        fetchAllRows<any>(() =>
+          supabase
+            .from("voucher_entries")
+            .select(
+              "id, reference_id, reference_type, total_amount, discount_amount, voucher_type, payment_method, description",
+            )
+            .eq("organization_id", orgId)
+            .eq("voucher_type", "receipt")
+            .is("deleted_at", null)
+            .order("id"),
+        ),
+        fetchAllRows<any>(() =>
+          supabase
+            .from("customer_advances")
+            .select("id, customer_id, amount, used_amount, status")
+            .eq("organization_id", orgId)
+            .in("status", ["active", "partially_used"])
+            .order("id"),
+        ),
+        fetchAllRows<any>(() =>
+          supabase
+            .from("sale_returns")
+            .select("id, customer_id, net_amount, credit_status, linked_sale_id")
+            .eq("organization_id", orgId)
+            .is("deleted_at", null)
+            .order("id"),
+        ),
+        fetchAllRows<any>(() =>
+          supabase
+            .from("voucher_entries")
+            .select("id, reference_id, total_amount")
+            .eq("organization_id", orgId)
+            .eq("voucher_type", "payment")
+            .eq("reference_type", "customer")
+            .is("deleted_at", null)
+            .order("id"),
+        ),
+        // Unmaterialized adjustments only (materialized floaters are receipt vouchers)
+        fetchAllRows<any>(() =>
+          supabase
+            .from("customer_balance_adjustments")
+            .select("id, customer_id, outstanding_difference")
+            .eq("organization_id", orgId)
+            .is("materialized_at", null)
+            .order("id"),
+        ),
+      ]);
 
-      if (!customers?.length) return new Map<string, LedgerBalance>();
+      if (!customers.length) return new Map<string, LedgerBalance>();
 
-      // Fetch all sales
-      const { data: sales } = await supabase
-        .from("sales")
-        .select(
-          "id, customer_id, net_amount, paid_amount, cash_amount, card_amount, upi_amount, sale_return_adjust, payment_status",
-        )
-        .eq("organization_id", orgId)
-        .is("deleted_at", null)
-        .neq("payment_status", "cancelled")
-        .neq("payment_status", "hold");
+      // Advance refunds, advance ids in batches of 200 (all advances in one request was too long).
+      const advRefundMap = new Map<string, number>();
+      const advRefunds = await fetchInIdBatches<any>(
+        advances.map((a: any) => a.id),
+        (ids) =>
+          supabase.from("advance_refunds").select("id, advance_id, refund_amount").eq("organization_id", orgId).in("advance_id", ids).order("id"),
+      );
+      advRefunds.forEach((r: any) => {
+        advRefundMap.set(r.advance_id, (advRefundMap.get(r.advance_id) || 0) + (r.refund_amount || 0));
+      });
 
-      // Fetch vouchers
-      const { data: allVouchers } = await supabase
-        .from("voucher_entries")
-        .select(
-          "reference_id, reference_type, total_amount, discount_amount, voucher_type, payment_method, description",
-        )
-        .eq("organization_id", orgId)
-        .eq("voucher_type", "receipt")
-        .is("deleted_at", null);
-
-      // Fetch advances
-      const { data: advances } = await supabase
-        .from("customer_advances")
-        .select("id, customer_id, amount, used_amount, status")
-        .eq("organization_id", orgId)
-        .in("status", ["active", "partially_used"]);
-
-      // Fetch advance refunds
-      const advanceIds = advances?.map((a) => a.id) || [];
-      let advRefundMap = new Map<string, number>();
-      if (advanceIds.length > 0) {
-        const { data: advRefunds } = await supabase
-          .from("advance_refunds")
-          .select("advance_id, refund_amount")
-          .in("advance_id", advanceIds);
-        advRefunds?.forEach((r) => {
-          advRefundMap.set(r.advance_id, (advRefundMap.get(r.advance_id) || 0) + (r.refund_amount || 0));
-        });
-      }
-
-      // Fetch sale returns
-      const { data: saleReturns } = await supabase
-        .from("sale_returns")
-        .select("customer_id, net_amount, credit_status, linked_sale_id")
-        .eq("organization_id", orgId)
-        .is("deleted_at", null);
-
-      // Fetch refund vouchers
-      const { data: refundVouchers } = await supabase
-        .from("voucher_entries")
-        .select("reference_id, total_amount")
-        .eq("organization_id", orgId)
-        .eq("voucher_type", "payment")
-        .eq("reference_type", "customer")
-        .is("deleted_at", null);
-
-      // Fetch unmaterialized adjustments only (materialized floaters are receipt vouchers)
-      const { data: adjustments } = await supabase
-        .from("customer_balance_adjustments")
-        .select("customer_id, outstanding_difference")
-        .eq("organization_id", orgId)
-        .is("materialized_at", null);
+      // Grouped once by customer: filtering every list per customer was customers x rows
+      // (50,000 bills x 5,000 customers froze the page).
+      const groupBy = (rows: any[], key: string) => {
+        const m = new Map<string, any[]>();
+        for (const r of rows) {
+          const k = r[key];
+          if (!k) continue;
+          const list = m.get(k);
+          if (list) list.push(r);
+          else m.set(k, [r]);
+        }
+        return m;
+      };
+      const salesByCustomer = groupBy(sales, "customer_id");
+      const adjustmentsByCustomer = groupBy(adjustments, "customer_id");
+      const advancesByCustomer = groupBy(advances, "customer_id");
+      const refundsByCustomer = groupBy(refundVouchers, "reference_id");
 
       const result = new Map<string, LedgerBalance>();
 
@@ -237,14 +264,17 @@ export default function CustomerReconciliation() {
       customers.forEach((cust) => {
         const custId = cust.id;
         const openingBalance = cust.opening_balance || 0;
-        const custSales = sales?.filter((s) => s.customer_id === custId) || [];
-        const adjustmentTotal =
-          adjustments?.filter((a) => a.customer_id === custId).reduce((s, a) => s + (a.outstanding_difference || 0), 0) ||
-          0;
-        const custAdvances = advances?.filter((a) => a.customer_id === custId) || [];
-        const advanceRefundTotal = custAdvances.reduce((s, a) => s + (advRefundMap.get(a.id) || 0), 0);
-        const refundsPaidTotal =
-          refundVouchers?.filter((v) => v.reference_id === custId).reduce((s, v) => s + (v.total_amount || 0), 0) || 0;
+        const custSales = salesByCustomer.get(custId) || [];
+        const adjustmentTotal = (adjustmentsByCustomer.get(custId) || []).reduce(
+          (s: number, a: any) => s + (a.outstanding_difference || 0),
+          0,
+        );
+        const custAdvances = advancesByCustomer.get(custId) || [];
+        const advanceRefundTotal = custAdvances.reduce((s: number, a: any) => s + (advRefundMap.get(a.id) || 0), 0);
+        const refundsPaidTotal = (refundsByCustomer.get(custId) || []).reduce(
+          (s: number, v: any) => s + (v.total_amount || 0),
+          0,
+        );
 
         const outstanding = computeCustomerOutstanding({
           openingBalance,
@@ -260,7 +290,7 @@ export default function CustomerReconciliation() {
           })),
           vouchers: vouchersByCustomer.get(custId) || [],
           adjustmentTotal,
-          advances: custAdvances.map((a) => ({
+          advances: custAdvances.map((a: any) => ({
             id: a.id,
             amount: a.amount,
             used_amount: a.used_amount,
