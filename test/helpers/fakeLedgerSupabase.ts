@@ -15,6 +15,7 @@ class FakeQuery {
   private sortCol: string | null = null;
   private sortAsc = true;
   private mode: "list" | "single" | "update" = "list";
+  private rangeFromTo: [number, number] | null = null;
 
   constructor(
     private readonly table: string,
@@ -83,6 +84,12 @@ class FakeQuery {
     return this;
   }
 
+  /** Rows from..to (inclusive) after filters and order, like PostgREST's Range header. */
+  range(from: number, to: number): this {
+    this.rangeFromTo = [from, to];
+    return this;
+  }
+
   maybeSingle(): this {
     this.mode = "single";
     return this;
@@ -111,6 +118,7 @@ class FakeQuery {
         return asc ? cmp : -cmp;
       });
     }
+    if (this.rangeFromTo) out = out.slice(this.rangeFromTo[0], this.rangeFromTo[1] + 1);
     return out;
   }
 

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 import { adjustmentDueDelta, resolveLiability } from "@/lib/schoolFeeLiability";
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 
 type AcademicYearRow = {
   id: string;
@@ -182,13 +183,18 @@ export async function computePendingAllSessionsBatch(
   const yearIds = yearsChrono.map((y) => y.id);
   const studentIds = students.map((s) => s.id);
 
-  const { data: allFees } = await supabase
-    .from("student_fees")
-    .select("student_id, academic_year_id, paid_amount, status")
-    .eq("organization_id", organizationId)
-    .in("student_id", studentIds)
-    .in("status", ["paid", "partial"])
-    .gt("paid_amount", 0);
+  // Student ids in batches of 200, every row: all years' receipts of a whole school pass the
+  // 1,000-row server cap quickly, and the dropped rows made pending dues wrong.
+  const allFees = await fetchInIdBatches<any>(studentIds, (ids) =>
+    supabase
+      .from("student_fees")
+      .select("id, student_id, academic_year_id, paid_amount, status")
+      .eq("organization_id", organizationId)
+      .in("student_id", ids)
+      .in("status", ["paid", "partial"])
+      .gt("paid_amount", 0)
+      .order("id"),
+  );
 
   const payByStudent = new Map<string, Map<string, number>>();
   (allFees || []).forEach((f: any) => {
@@ -200,11 +206,14 @@ export async function computePendingAllSessionsBatch(
     m.set(y, (m.get(y) || 0) + Number(f.paid_amount || 0));
   });
 
-  const { data: allAdj } = await (supabase.from("student_balance_audit" as any) as any)
-    .select("student_id, academic_year_id, adjustment_type, change_amount, old_balance, new_balance")
-    .eq("organization_id", organizationId)
-    .in("student_id", studentIds)
-    .not("reason_code", "in", "(receipt_deleted,receipt_modified)");
+  const allAdj = await fetchInIdBatches<any>(studentIds, (ids) =>
+    (supabase.from("student_balance_audit" as any) as any)
+      .select("id, student_id, academic_year_id, adjustment_type, change_amount, old_balance, new_balance")
+      .eq("organization_id", organizationId)
+      .in("student_id", ids)
+      .not("reason_code", "in", "(receipt_deleted,receipt_modified)")
+      .order("id"),
+  );
 
   const adjByStudent = new Map<string, Map<string, number>>();
   (allAdj || []).forEach((a: any) => {
