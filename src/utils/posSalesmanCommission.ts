@@ -4,6 +4,7 @@
  * Non-blocking: errors are logged, never thrown, so the sale itself is never affected.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { logError } from "@/lib/errorLogger";
 import { buildSalesmanCommissionRecords } from "@/utils/salesmanCommissionLineRepair";
 
 export async function recordPosSalesmanCommission(input: {
@@ -63,8 +64,10 @@ export async function recordPosSalesmanCommission(input: {
       rules: rulesRes?.error ? [] : rulesRes?.data || [],
     });
     if (records.length === 0) return;
-    await (supabase.from("salesman_commissions" as any) as any).insert(records);
+    const { error: commissionError } = await (supabase.from("salesman_commissions" as any) as any).insert(records);
+    if (commissionError) throw commissionError;
   } catch (err) {
-    console.error("Commission record failed (non-blocking):", err);
+    // Non-blocking for the bill, but visible in Admin Health (commission reports would miss it).
+    void logError({ operation: "pos:salesman-commission", organizationId: input.organizationId, additionalContext: { sale_id: input.saleId } }, err);
   }
 }

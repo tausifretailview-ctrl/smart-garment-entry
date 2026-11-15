@@ -29,8 +29,10 @@ describe("purchaseBillNavDisabled", () => {
   it("oldest bill open: Next works, Previous does not", () => {
     expect(purchaseBillNavDisabled(false, 4, 5)).toEqual({ last: false, previous: true, next: false });
   });
-  it("no list, empty list, or loading: all off", () => {
-    expect(purchaseBillNavDisabled(false, null, null)).toEqual({ last: true, previous: true, next: true });
+  it("list not read yet: Last works (it reads the list), Previous / Next do not", () => {
+    expect(purchaseBillNavDisabled(false, null, null)).toEqual({ last: false, previous: true, next: true });
+  });
+  it("empty list or loading: all off", () => {
     expect(purchaseBillNavDisabled(false, null, 0).last).toBe(true);
     expect(purchaseBillNavDisabled(true, 2, 5)).toEqual({ last: true, previous: true, next: true });
   });

@@ -7,6 +7,7 @@ import { posExchangeVoucherRequestId } from "@/utils/exchangeRefundAfterDelete";
 import { useState, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { logError } from "@/lib/errorLogger";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
@@ -574,7 +575,9 @@ export const useSaveSale = () => {
   ) => {
     if (!currentOrganization?.id || !saleNumber || !customerId) return;
     if (saleId) {
-      await (supabase as any)
+      {
+        // Checked: a failed delete would leave the old exchange vouchers next to the new ones.
+        const { error } = await (supabase as any)
         .from("voucher_entries")
         .delete()
         .eq("organization_id", currentOrganization.id)
@@ -583,8 +586,12 @@ export const useSaveSale = () => {
           posExchangeVoucherRequestId("refund", saleId),
           posExchangeVoucherRequestId("roundoff", saleId),
         ]);
+        if (error) throw error;
+      }
     }
-    await (supabase as any)
+    {
+      // Checked: a failed delete would leave the old exchange vouchers next to the new ones.
+      const { error } = await (supabase as any)
       .from("voucher_entries")
       .delete()
       .eq("organization_id", currentOrganization.id)
@@ -592,13 +599,19 @@ export const useSaveSale = () => {
       .eq("reference_type", "customer")
       .eq("reference_id", customerId)
       .ilike("description", `%POS exchange ${saleNumber}%`);
-    await (supabase as any)
+      if (error) throw error;
+    }
+    {
+      // Checked: a failed delete would leave the old exchange vouchers next to the new ones.
+      const { error } = await (supabase as any)
       .from("customer_ledger_entries")
       .delete()
       .eq("organization_id", currentOrganization.id)
       .eq("customer_id", customerId)
       .eq("voucher_type", "PAYMENT")
       .ilike("particulars", `%POS exchange ${saleNumber}%`);
+      if (error) throw error;
+    }
   };
 
   const markCreditNoteFullyUsedForSrAdjust = async (cnId: string) => {
@@ -2483,6 +2496,7 @@ export const useSaveSale = () => {
           });
         } catch (exErr) {
           console.error('Exchange refund voucher refresh failed:', exErr);
+          void logError({ operation: 'pos-exchange:voucher-refresh', organizationId: currentOrganization.id, additionalContext: { sale_id: sale.id } }, exErr);
         }
       }
 

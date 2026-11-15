@@ -7,6 +7,14 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getSizeGroupsByIds } from "@/lib/data/sizeGroups";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  fetchAutoSupplierInvoiceNumbers,
+  fetchLastPurchaseBill,
+  fetchPurchaseBillForEdit,
+  fetchPurchaseBillIds,
+  peekNextSupplierInvoiceNumber,
+  purchaseBillIdsQueryKey,
+} from "@/lib/data/purchaseBillReads";
 import { insertProductsPreferringPurchaseFlag } from "@/utils/productCreatedInPurchaseColumn";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -2435,18 +2443,7 @@ const PurchaseEntry = () => {
   // Fetch last purchase bill for reference
   const { data: lastPurchaseBill } = useQuery({
     queryKey: ["last-purchase-bill", currentOrganization?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("purchase_bills")
-        .select("software_bill_no, supplier_invoice_no, supplier_name, bill_date")
-        .eq("organization_id", currentOrganization?.id)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-      if (error && error.code !== "PGRST116") throw error; // PGRST116 = no rows found
-      return data;
-    },
+    queryFn: () => fetchLastPurchaseBill(currentOrganization!.id),
     enabled: !!currentOrganization?.id && !isEditMode,
     refetchOnWindowFocus: false,
     staleTime: 15000,
@@ -2454,19 +2451,8 @@ const PurchaseEntry = () => {
 
   const peekInvoiceQuery = useQuery({
     queryKey: ["peek-next-supplier-invoice", currentOrganization?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("peek_next_supplier_invoice_number", {
-        p_organization_id: currentOrganization!.id,
-      });
-      if (error) {
-        // RPC not deployed yet — client fallback in nextSupplierInvNo handles it.
-        if (error.code === "PGRST202" || (error as { status?: number }).status === 404) {
-          return null;
-        }
-        throw error;
-      }
-      return data ? String(data) : null;
-    },
+    // null while the SQL is not deployed — the client fallback in nextSupplierInvNo handles it.
+    queryFn: () => peekNextSupplierInvoiceNumber(currentOrganization!.id),
     enabled: !!currentOrganization?.id && !isEditMode,
     refetchOnWindowFocus: false,
     staleTime: 15000,
@@ -2475,20 +2461,7 @@ const PurchaseEntry = () => {
 
   const { data: orgSupplierInvoices } = useQuery({
     queryKey: ["org-supplier-invoice-numbers", currentOrganization?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("purchase_bills")
-        .select("supplier_invoice_no, supplier_inv_auto_generated, software_bill_no, bill_date")
-        .eq("organization_id", currentOrganization?.id)
-        .is("deleted_at", null)
-        .or("is_cancelled.is.null,is_cancelled.eq.false")
-        .eq("supplier_inv_auto_generated", true)
-        .not("supplier_invoice_no", "is", null)
-        .order("created_at", { ascending: false })
-        .limit(1000);
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () => fetchAutoSupplierInvoiceNumbers(currentOrganization!.id),
     enabled: !!currentOrganization?.id && !isEditMode && peekInvoiceQuery.isFetched && !peekInvoiceQuery.data,
     refetchOnWindowFocus: false,
     staleTime: 15000,
@@ -2523,24 +2496,25 @@ const PurchaseEntry = () => {
     return best;
   }, [isEditMode, orgSupplierInvoices]);
 
-  // Fetch all purchase bill IDs for navigation
+  // Bill list for Last / Previous / Next. Read the first time "Last" is used, not on every
+  // open of the screen (up to 500 rows); Previous / Next only work after "Last".
+  const [navListRequested, setNavListRequested] = useState(false);
   const { data: allBillIds } = useQuery({
-    queryKey: ['all-purchase-bill-ids', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      const { data, error } = await supabase
-        .from('purchase_bills')
-        .select('id, software_bill_no')
-        .eq('organization_id', currentOrganization.id)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!currentOrganization?.id,
+    queryKey: purchaseBillIdsQueryKey(currentOrganization?.id),
+    queryFn: () => fetchPurchaseBillIds(currentOrganization!.id),
+    enabled: !!currentOrganization?.id && navListRequested,
     staleTime: 60000,
   });
+  /** The navigation list, read now if this is the first use (or it is stale). */
+  const ensureBillIds = useCallback(async () => {
+    if (!currentOrganization?.id) return [];
+    setNavListRequested(true);
+    return queryClient.fetchQuery({
+      queryKey: purchaseBillIdsQueryKey(currentOrganization.id),
+      queryFn: () => fetchPurchaseBillIds(currentOrganization.id),
+      staleTime: 60000,
+    });
+  }, [queryClient, currentOrganization?.id]);
 
   // Load a purchase bill by ID (edit from dashboard or prev/next navigation)
   const loadBillById = useCallback(async (billId: string, options?: { usePageLoader?: boolean; force?: boolean }) => {
@@ -2558,14 +2532,7 @@ const PurchaseEntry = () => {
     }
 
     try {
-      const { data: existingBill, error: billError } = await supabase
-        .from('purchase_bills')
-        .select('*')
-        .eq('id', billId)
-        .eq('organization_id', currentOrganization.id)
-        .is('deleted_at', null)
-        .single();
-      if (billError) throw billError;
+      const existingBill = await fetchPurchaseBillForEdit(currentOrganization.id, billId);
 
       if ((existingBill as any)?.is_cancelled) {
         loadedEditBillIdRef.current = null;
@@ -2770,10 +2737,16 @@ const PurchaseEntry = () => {
   );
 
   const handleLastBill = useCallback(() => {
-    if (!allBillIds || allBillIds.length === 0) return;
-    setNavBillIndex(0);
-    reportIfFails(loadBillById(allBillIds[0].id), "open the bill");
-  }, [allBillIds, loadBillById]);
+    reportIfFails(
+      (async () => {
+        const ids = await ensureBillIds();
+        if (ids.length === 0) return;
+        setNavBillIndex(0);
+        await loadBillById(ids[0].id);
+      })(),
+      "open the bill",
+    );
+  }, [ensureBillIds, loadBillById]);
 
   const handlePreviousBill = useCallback(() => {
     if (!allBillIds || navBillIndex === null) return;
@@ -6916,19 +6889,18 @@ const PurchaseEntry = () => {
               supabase,
               format(billDate, "yyyy-MM-dd")
             );
-            await (supabase as any)
-              .from("purchase_bills")
-              .update({ journal_status: "posted", journal_error: null })
-              .eq("id", editBillId);
+            await bestEffortWrite(
+              "purchase:journal-posted",
+              () => (supabase as any).from("purchase_bills").update({ journal_status: "posted", journal_error: null }).eq("id", editBillId),
+              { organizationId: currentOrganization?.id, recordId: editBillId },
+            );
           } catch (journalErr) {
             console.error("Auto-journal (purchase edit) failed:", journalErr);
-            await (supabase as any)
-              .from("purchase_bills")
-              .update({
-                journal_status: "failed",
-                journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
-              })
-              .eq("id", editBillId);
+            await bestEffortWrite(
+              "purchase:journal-failed",
+              () => (supabase as any).from("purchase_bills").update({ journal_status: "failed", journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal", }).eq("id", editBillId),
+              { organizationId: currentOrganization?.id, recordId: editBillId },
+            );
           }
         }
 
@@ -7296,19 +7268,18 @@ const PurchaseEntry = () => {
               supabase,
               format(billDate, "yyyy-MM-dd")
             );
-            await (supabase as any)
-              .from("purchase_bills")
-              .update({ journal_status: "posted", journal_error: null })
-              .eq("id", billDataResult.id);
+            await bestEffortWrite(
+              "purchase:journal-posted",
+              () => (supabase as any).from("purchase_bills").update({ journal_status: "posted", journal_error: null }).eq("id", billDataResult.id),
+              { organizationId: currentOrganization?.id, recordId: billDataResult.id },
+            );
           } catch (journalErr) {
             console.error("Auto-journal (purchase) failed:", journalErr);
-            await (supabase as any)
-              .from("purchase_bills")
-              .update({
-                journal_status: "failed",
-                journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
-              })
-              .eq("id", billDataResult.id);
+            await bestEffortWrite(
+              "purchase:journal-failed",
+              () => (supabase as any).from("purchase_bills").update({ journal_status: "failed", journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal", }).eq("id", billDataResult.id),
+              { organizationId: currentOrganization?.id, recordId: billDataResult.id },
+            );
           }
         }
 

@@ -122,3 +122,26 @@ describe("unchecked database writes (ratchet)", () => {
     expect(hits.length, hits.join("\n")).toBeLessThanOrEqual(UNCHECKED_WRITES_BASELINE);
   });
 });
+
+describe("unchecked-writes scanner", () => {
+  it("also sees writes hidden behind type casts", async () => {
+    const { mkdtempSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const dir = mkdtempSync(join(tmpdir(), "uw-"));
+    writeFileSync(
+      join(dir, "sample.ts"),
+      [
+        'await (supabase as any).from("sales").update({ a: 1 }).eq("id", x);',
+        'await supabase.from("purchase_returns" as any).update({ a: 1 }).eq("id", x);',
+        'await (supabase.from("salesman_commissions" as any) as any).insert(rows);',
+        'const { error } = await (supabase as any).from("sales").update({ a: 1 }).eq("id", x);',
+      ].join("\n"),
+    );
+    const hits: string[] = findUncheckedWrites(dir);
+    expect(hits.map((h) => h.replace(/^.*sample\.ts:/, ""))).toEqual([
+      "1 update sales",
+      "2 update purchase_returns",
+      "3 insert salesman_commissions",
+    ]);
+  });
+});

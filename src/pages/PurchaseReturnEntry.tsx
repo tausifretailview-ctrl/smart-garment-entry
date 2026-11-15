@@ -4,6 +4,8 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useSearchParams, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { logError } from "@/lib/errorLogger";
+import { bestEffortWrite, rollbackStep } from "@/lib/rollbackStep";
 import { allocateSupplierVoucherNumber } from "@/utils/supplierVoucherNumber";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1373,10 +1375,11 @@ const PurchaseReturnEntry = () => {
         if (!isDC && isAccountingEngineEnabled(acctEditPr as { accounting_engine_enabled?: boolean } | null)) {
           try {
             await deleteJournalEntryByReference(currentOrganization!.id, "PurchaseReturn", editId, supabase);
-            await supabase
-              .from("purchase_returns" as any)
-              .update({ journal_status: "pending", journal_error: null })
-              .eq("id", editId);
+            await bestEffortWrite(
+              "purchase-return:journal-pending",
+              () => (supabase as any).from("purchase_returns").update({ journal_status: "pending", journal_error: null }).eq("id", editId),
+              { organizationId: currentOrganization?.id, recordId: editId },
+            );
             await recordPurchaseReturnJournalEntry(
               editId,
               currentOrganization!.id,
@@ -1386,16 +1389,18 @@ const PurchaseReturnEntry = () => {
               supabase,
               paymentMethodForReturnRow
             );
-            await supabase
-              .from("purchase_returns" as any)
-              .update({ journal_status: "posted", journal_error: null })
-              .eq("id", editId);
+            await bestEffortWrite(
+              "purchase-return:journal-posted",
+              () => (supabase as any).from("purchase_returns").update({ journal_status: "posted", journal_error: null }).eq("id", editId),
+              { organizationId: currentOrganization?.id, recordId: editId },
+            );
           } catch (glErr) {
             const errMsg = glErr instanceof Error ? glErr.message : String(glErr);
-            await supabase
-              .from("purchase_returns" as any)
-              .update({ journal_status: "failed", journal_error: errMsg.slice(0, 2000) })
-              .eq("id", editId);
+            await bestEffortWrite(
+              "purchase-return:journal-failed",
+              () => (supabase as any).from("purchase_returns").update({ journal_status: "failed", journal_error: errMsg.slice(0, 2000) }).eq("id", editId),
+              { organizationId: currentOrganization?.id, recordId: editId },
+            );
             console.error("Purchase return edit journal:", glErr);
             toast({
               title: "Ledger warning",
@@ -1404,10 +1409,11 @@ const PurchaseReturnEntry = () => {
             });
           }
         } else if (isDC) {
-          await supabase
-            .from("purchase_returns" as any)
-            .update({ journal_status: "not_applicable", journal_error: null })
-            .eq("id", editId);
+          await bestEffortWrite(
+            "purchase-return:journal-not_applicable",
+            () => (supabase as any).from("purchase_returns").update({ journal_status: "not_applicable", journal_error: null }).eq("id", editId),
+            { organizationId: currentOrganization?.id, recordId: editId },
+          );
         }
 
         toast({
@@ -1540,34 +1546,41 @@ const PurchaseReturnEntry = () => {
               supabase,
               paymentMethodForReturnRow
             );
-            await supabase
-              .from("purchase_returns" as any)
-              .update({ journal_status: "posted", journal_error: null })
-              .eq("id", prId);
+            await bestEffortWrite(
+              "purchase-return:journal-posted",
+              () => (supabase as any).from("purchase_returns").update({ journal_status: "posted", journal_error: null }).eq("id", prId),
+              { organizationId: currentOrganization?.id, recordId: prId },
+            );
           } catch (glErr) {
-            await supabase
-              .from("purchase_returns" as any)
-              .update({
-                journal_status: "failed",
-                journal_error: glErr instanceof Error ? glErr.message.slice(0, 2000) : String(glErr).slice(0, 2000),
-              })
-              .eq("id", prId);
+            await bestEffortWrite(
+              "purchase-return:journal-failed",
+              () => (supabase as any).from("purchase_returns").update({ journal_status: "failed", journal_error: glErr instanceof Error ? glErr.message.slice(0, 2000) : String(glErr).slice(0, 2000), }).eq("id", prId),
+              { organizationId: currentOrganization?.id, recordId: prId },
+            );
             const rollbackAt = new Date().toISOString();
-            await supabase.from("purchase_return_items" as any).delete().eq("return_id", prId);
-            await supabase.from("purchase_returns" as any).update({
-              deleted_at: rollbackAt,
-              notes: "auto-rollback: items insert failed during save",
-            }).eq("id", prId);
+            const ctx = { organizationId: currentOrganization?.id, recordId: prId };
+            await rollbackStep("purchase-return:lines", () => (supabase as any).from("purchase_return_items").delete().eq("return_id", prId), ctx);
+            await rollbackStep(
+              "purchase-return:header",
+              () =>
+                (supabase as any)
+                  .from("purchase_returns")
+                  .update({ deleted_at: rollbackAt, notes: "auto-rollback: items insert failed during save" })
+                  .eq("id", prId),
+              ctx,
+            );
             throw glErr;
           }
         } else if (isDC) {
-          await supabase
-            .from("purchase_returns" as any)
-            .update({ journal_status: "not_applicable", journal_error: null })
-            .eq("id", prId);
+          await bestEffortWrite(
+            "purchase-return:journal-not_applicable",
+            () => (supabase as any).from("purchase_returns").update({ journal_status: "not_applicable", journal_error: null }).eq("id", prId),
+            { organizationId: currentOrganization?.id, recordId: prId },
+          );
         }
 
         // Auto-create credit note voucher for proper accounting
+        let creditNoteFailed = false;
         try {
           // Global series: per-shop SCN-00001 numbers collided with other shops (unique index).
           const creditNoteNumber = await allocateSupplierVoucherNumber(
@@ -1596,20 +1609,28 @@ const PurchaseReturnEntry = () => {
           if (creditNoteError) throw creditNoteError;
 
           // Link credit note to purchase return
-          await supabase
+          const { error: linkCnError } = await supabase
             .from("purchase_returns" as any)
             .update({ credit_note_id: creditNote?.id })
             .eq("id", (returnRecord as any).id);
+          if (linkCnError) throw linkCnError;
 
         } catch (creditError) {
           console.error("Error creating credit note voucher:", creditError);
-          // Don't fail the whole save, just log it
+          // Don't fail the whole save (the return and its stock are saved), but say so.
+          creditNoteFailed = true;
+          void logError({ operation: "purchase-return:credit-note", organizationId: currentOrganization?.id, additionalContext: { return_id: prId } }, creditError);
         }
 
-        toast({
-          title: "Success",
-          description: "Purchase return saved successfully with credit note",
-        });
+        toast(
+          creditNoteFailed
+            ? {
+                title: "Saved without credit note",
+                description: "The purchase return is saved, but its supplier credit note could not be created. Add it in Accounts before settling this supplier.",
+                variant: "destructive",
+              }
+            : { title: "Success", description: "Purchase return saved successfully with credit note" },
+        );
         // Never throws: a problem only leaves the goods going out of Main, and the user is told so.
         await returnGodown.syncAfterSave(prId, false);
       }

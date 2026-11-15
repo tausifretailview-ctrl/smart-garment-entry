@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { useCustomerAdvances } from "@/hooks/useCustomerAdvances";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 import { toast } from "sonner";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import {
@@ -229,20 +230,22 @@ export function AddAdvanceBookingDialog({
       if (!verifyRow) {
         const msg = "Advance was rolled back by the accounting engine. Please check chart of accounts (Customer Advances 2150 and the cash/bank/UPI ledgers) and try again.";
         if (attemptId) {
-          await supabase
-            .from("advance_booking_attempts" as any)
-            .update({ status: "failed", error_message: msg } as any)
-            .eq("id", attemptId);
+          await bestEffortWrite(
+            "advance-booking:attempt-failed",
+            () => (supabase as any).from("advance_booking_attempts").update({ status: "failed", error_message: msg }).eq("id", attemptId),
+            { recordId: attemptId },
+          );
         }
         setSaveError(msg);
         return;
       }
 
       if (attemptId) {
-        await supabase
-          .from("advance_booking_attempts" as any)
-          .update({ status: "succeeded", advance_id: (result as any).id } as any)
-          .eq("id", attemptId);
+        await bestEffortWrite(
+          "advance-booking:attempt-succeeded",
+          () => (supabase as any).from("advance_booking_attempts").update({ status: "succeeded", advance_id: (result as any).id }).eq("id", attemptId),
+          { recordId: attemptId },
+        );
       }
 
       // Voucher code + expiry for POS lookup. If the gift voucher SQL is not run yet the
@@ -308,10 +311,11 @@ export function AddAdvanceBookingDialog({
     } catch (error: any) {
       const msg = error?.message || "Unknown error while saving advance.";
       if (attemptId) {
-        await supabase
-          .from("advance_booking_attempts" as any)
-          .update({ status: "failed", error_message: msg } as any)
-          .eq("id", attemptId);
+        await bestEffortWrite(
+          "advance-booking:attempt-failed",
+          () => (supabase as any).from("advance_booking_attempts").update({ status: "failed", error_message: msg }).eq("id", attemptId),
+          { recordId: attemptId },
+        );
       }
       setSaveError(msg);
     }
