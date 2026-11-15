@@ -34,6 +34,7 @@ import {
   type PurchaseVariantRow,
 } from "@/lib/data/purchaseVariantLookups";
 import { syncPurchaseLineBrands, updatePurchaseLines, updatePurchaseLinesEach } from "@/lib/data/purchaseLineWrites";
+import { generateNextBarcodes } from "@/lib/data/barcodeSeries";
 import { insertProductsPreferringPurchaseFlag } from "@/utils/productCreatedInPurchaseColumn";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -7794,25 +7795,26 @@ const PurchaseEntry = () => {
         rowsNeedingGeneratedBarcode.push(i);
       }
     }
-    for (let g = 0; g < rowsNeedingGeneratedBarcode.length; g++) {
-      const rowIndex = rowsNeedingGeneratedBarcode[g];
-      const { data: generated } = await supabase.rpc('generate_next_barcode', {
-        p_organization_id: currentOrganization.id,
-      });
+    // All needed barcodes in one request (one per row, one after another, until the
+    // generate_next_barcodes SQL is applied). A missing one falls back to a temporary IMP code.
+    const needed = rowsNeedingGeneratedBarcode.length;
+    const generatedCodes =
+      needed > 0
+        ? await generateNextBarcodes(currentOrganization.id, needed, (done) => {
+            if (done % 100 === 0 || done === needed) {
+              reportImportProgress(Math.min(done, validRows.length), validRows.length, `Generating barcodes (${done} / ${needed})...`, {
+                skippedCount,
+              });
+            }
+          }).catch((err) => {
+            console.error("[PurchaseEntry] barcode series failed:", err);
+            return [] as string[];
+          })
+        : [];
+    rowsNeedingGeneratedBarcode.forEach((rowIndex, g) => {
       barcodePool[rowIndex] =
-        (generated as string) ||
-        `IMP${Date.now()}${rowIndex}${Math.random().toString(36).slice(2, 7)}`;
-      if (g % 100 === 0 || g === rowsNeedingGeneratedBarcode.length - 1) {
-        reportImportProgress(
-          Math.min(g + 1, validRows.length),
-          validRows.length,
-          rowsNeedingGeneratedBarcode.length > 0
-            ? `Generating barcodes (${g + 1} / ${rowsNeedingGeneratedBarcode.length})...`
-            : "Preparing items...",
-          { skippedCount },
-        );
-      }
-    }
+        generatedCodes[g] || `IMP${Date.now()}${rowIndex}${Math.random().toString(36).slice(2, 7)}`;
+    });
 
     // Pre-fetch existing variants for Excel barcodes (reuse only at the same MRP/sale tier).
     const existingVariantByBarcodeTier = new Map<string, string>();
