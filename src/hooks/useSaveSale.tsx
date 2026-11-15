@@ -88,7 +88,7 @@ import {
 import { saleItemSalesmanInsertField } from "@/utils/posLineSalesman";
 import { linkOrCreateCustomerFromSaleParty } from "@/utils/salePartyCustomerMaster";
 import { salePrintFirmPatch, type PrintFirm } from "@/utils/secondFirm";
-import { INVOICE_WHATSAPP_COLUMNS } from "@/lib/data/invoiceWhatsAppSettings";
+import { getInvoiceWhatsAppSettings } from "@/lib/data/invoiceWhatsAppSettings";
 
 interface CartItem {
   id: string;
@@ -1680,11 +1680,8 @@ export const useSaveSale = () => {
       if (saleData.customerPhone && currentOrganization?.id && !runtimeOptions?.skipWhatsAppAutoSend) {
         const whatsAppPromise = (async () => { try {
           // Check WhatsApp settings
-          const { data: whatsappSettings } = await supabase
-            .from('whatsapp_api_settings')
-            .select(INVOICE_WHATSAPP_COLUMNS)
-            .eq('organization_id', currentOrganization.id)
-            .maybeSingle();
+          // Cached for 60 s (was read again for every bill with a customer phone).
+          const whatsappSettings = await getInvoiceWhatsAppSettings(queryClient, currentOrganization.id);
 
           if (whatsappSettings?.is_active && whatsappSettings?.auto_send_invoice) {
             // Read cached org settings (centralized)

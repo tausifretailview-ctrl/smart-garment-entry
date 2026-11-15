@@ -1,3 +1,4 @@
+import type { QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -18,4 +19,20 @@ export async function fetchInvoiceWhatsAppSettings(orgId: string) {
     .maybeSingle();
   if (error) throw error;
   return data;
+}
+
+/**
+ * Same settings through the query cache: every saved bill with a customer phone read them again
+ * (one extra request per bill). Fresh for 60 s; the key starts with "whatsapp-api-settings", so a
+ * settings save (which invalidates that prefix) is seen at once.
+ */
+export const invoiceWhatsAppSettingsQueryKey = (orgId: string) => ["whatsapp-api-settings", orgId, "invoice"] as const;
+export const INVOICE_WHATSAPP_SETTINGS_FRESH_MS = 60_000;
+
+export function getInvoiceWhatsAppSettings(queryClient: QueryClient, orgId: string) {
+  return queryClient.fetchQuery({
+    queryKey: invoiceWhatsAppSettingsQueryKey(orgId),
+    queryFn: () => fetchInvoiceWhatsAppSettings(orgId),
+    staleTime: INVOICE_WHATSAPP_SETTINGS_FRESH_MS,
+  });
 }
