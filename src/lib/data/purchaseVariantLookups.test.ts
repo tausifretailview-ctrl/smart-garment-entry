@@ -1,22 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const db = vi.hoisted(() => ({ ops: [] as unknown[][], result: { data: null as unknown, error: null as unknown } }));
+const db = vi.hoisted(() => ({
+  ops: [] as unknown[][],
+  result: { data: null as unknown, error: null as unknown },
+  pages: [] as Array<{ data: unknown; error: unknown }>,
+}));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: (table: string) => {
       db.ops.push(["from", table]);
       const b: Record<string, unknown> = {};
-      for (const m of ["select", "eq", "in", "is", "or", "ilike", "order", "limit"]) {
+      for (const m of ["select", "eq", "in", "is", "or", "ilike", "order", "limit", "range"]) {
         b[m] = (...args: unknown[]) => (db.ops.push([m, ...args]), b);
       }
       b.maybeSingle = async () => db.result;
-      b.then = (resolve: (v: unknown) => void) => resolve(db.result);
+      b.then = (resolve: (v: unknown) => void) => resolve(db.pages.length ? db.pages.shift() : db.result);
       return b;
     },
   },
 }));
 
 import {
+  fetchProductCatalogForImport,
   fetchPurchaseVariantById,
   fetchPurchaseVariantsByBarcode,
   fetchPurchaseVariantsForProducts,
@@ -32,6 +37,7 @@ describe("purchase variant lookups", () => {
   beforeEach(() => {
     db.ops = [];
     db.result = { data: [], error: null };
+    db.pages = [];
   });
 
   it("product search is limited (ids go into the next request's URL) and skips the recycle bin", async () => {
@@ -85,5 +91,19 @@ describe("purchase variant lookups", () => {
     db.result = { data: null, error: { message: "timeout" } };
     await expect(fetchPurchaseVariantsByBarcode("org-1", "1")).rejects.toMatchObject({ message: "timeout" });
     await expect(searchPurchaseProducts("org-1", "a")).rejects.toMatchObject({ message: "timeout" });
+  });
+
+  it("import catalog: reads every page in id order; a failed page throws", async () => {
+    db.pages = [
+      { data: [{ id: "p1" }, { id: "p2" }], error: null },
+      { data: [{ id: "p3" }, { id: "p4" }], error: null },
+      { data: [{ id: "p5" }], error: null },
+    ];
+    expect((await fetchProductCatalogForImport("org-1", 2)).map((p) => p.id)).toEqual(["p1", "p2", "p3", "p4", "p5"]);
+    has("order", "id", { ascending: true });
+    has("range", 0, 1);
+    has("range", 4, 5);
+    db.pages = [{ data: [{ id: "p1" }, { id: "p2" }], error: null }, { data: null, error: { message: "timeout" } }];
+    await expect(fetchProductCatalogForImport("org-1", 2)).rejects.toMatchObject({ message: "timeout" });
   });
 });

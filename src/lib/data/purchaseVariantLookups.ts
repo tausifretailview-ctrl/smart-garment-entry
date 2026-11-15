@@ -132,3 +132,37 @@ export async function fetchPurchaseVariantsForProducts(
   if (error) throw error;
   return (data ?? []) as PurchaseVariantRow[];
 }
+
+export type ImportCatalogProduct = {
+  id: string;
+  product_name: string;
+  brand: string | null;
+  category: string | null;
+  color: string | null;
+  style: string | null;
+  default_sale_price: number | null;
+};
+
+/**
+ * Every live product of the shop, for matching Excel import rows. Read in pages of 1,000
+ * ordered by id: without an order the pages are not stable and products could be skipped or
+ * read twice (an existing product then looked new). Throws on any failed page — a partial
+ * catalog must not be used.
+ */
+export async function fetchProductCatalogForImport(orgId: string, pageSize = 1000): Promise<ImportCatalogProduct[]> {
+  const all: ImportCatalogProduct[] = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase
+      .from("products")
+      .select("id, product_name, brand, category, color, style, default_sale_price")
+      .eq("organization_id", orgId)
+      .is("deleted_at", null)
+      .order("id", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    const page = (data ?? []) as ImportCatalogProduct[];
+    all.push(...page);
+    if (page.length < pageSize) break;
+  }
+  return all;
+}
