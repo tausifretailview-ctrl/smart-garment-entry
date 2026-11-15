@@ -8,6 +8,7 @@ import {
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { buildAdvanceRefundDescription } from "@/utils/advanceRefundVoucher";
+import { rollbackStep } from "@/lib/rollbackStep";
 
 export type AdvanceRefundRow = {
   id: string;
@@ -260,11 +261,13 @@ export async function createAdvanceRefund(params: {
     .update({ used_amount: newUsed, status: newStatus })
     .eq("id", params.advanceId);
   if (updateErr) {
-    await client.from("advance_refunds").delete().eq("id", refundId);
-    await client
-      .from("voucher_entries")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("id", voucherEntryId);
+    const ctx = { organizationId: params.organizationId, recordId: refundId };
+    await rollbackStep("advance-refund:delete-refund", () => client.from("advance_refunds").delete().eq("id", refundId), ctx);
+    await rollbackStep(
+      "advance-refund:void-voucher",
+      () => client.from("voucher_entries").update({ deleted_at: new Date().toISOString() }).eq("id", voucherEntryId),
+      ctx,
+    );
     throw updateErr;
   }
 
@@ -287,15 +290,18 @@ export async function createAdvanceRefund(params: {
         refundId,
         client,
       );
-      await client
-        .from("customer_advances")
-        .update({ used_amount: snapUsed, status: snapStatus })
-        .eq("id", params.advanceId);
-      await client.from("advance_refunds").delete().eq("id", refundId);
-      await client
-        .from("voucher_entries")
-        .update({ deleted_at: new Date().toISOString() })
-        .eq("id", voucherEntryId);
+      const ctx = { organizationId: params.organizationId, recordId: refundId };
+      await rollbackStep(
+        "advance-refund:restore-advance",
+        () => client.from("customer_advances").update({ used_amount: snapUsed, status: snapStatus }).eq("id", params.advanceId),
+        ctx,
+      );
+      await rollbackStep("advance-refund:delete-refund", () => client.from("advance_refunds").delete().eq("id", refundId), ctx);
+      await rollbackStep(
+        "advance-refund:void-voucher",
+        () => client.from("voucher_entries").update({ deleted_at: new Date().toISOString() }).eq("id", voucherEntryId),
+        ctx,
+      );
       throw glErr;
     }
   }
@@ -418,10 +424,20 @@ export async function deleteAdvanceRefund(params: {
   if (advErr) throw advErr;
 
   if (refund.voucher_entry_id) {
-    await client
+    // Main path: the refund's cash voucher must go too, or the refund is counted twice
+    // (advance restored, voucher still live). It used to be unchecked.
+    const { error: voidErr } = await client
       .from("voucher_entries")
       .update({ deleted_at: new Date().toISOString() })
       .eq("id", refund.voucher_entry_id);
+    if (voidErr) {
+      await rollbackStep(
+        "advance-refund-delete:restore-advance",
+        () => client.from("customer_advances").update({ used_amount: snapUsed, status: snapStatus }).eq("id", refund.advance_id),
+        { organizationId: params.organizationId, recordId: params.refundId },
+      );
+      throw voidErr;
+    }
   }
 
   const acctRef = await getAccountingEngineSettingsRow(params.organizationId, client);
@@ -436,10 +452,11 @@ export async function deleteAdvanceRefund(params: {
 
   const { error: delErr } = await client.from("advance_refunds").delete().eq("id", params.refundId);
   if (delErr) {
-    await client
-      .from("customer_advances")
-      .update({ used_amount: snapUsed, status: snapStatus })
-      .eq("id", refund.advance_id);
+    await rollbackStep(
+      "advance-refund-delete:restore-advance",
+      () => client.from("customer_advances").update({ used_amount: snapUsed, status: snapStatus }).eq("id", refund.advance_id),
+      { organizationId: params.organizationId, recordId: params.refundId },
+    );
     throw delErr;
   }
 }

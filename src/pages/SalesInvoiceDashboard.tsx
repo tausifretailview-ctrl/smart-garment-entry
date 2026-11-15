@@ -204,6 +204,7 @@ import {
   validateReceivingBankForSave,
 } from "@/utils/organizationBankAccounts";
 import { useShopMembers, useShopUsers } from "@/lib/data/shopUsers";
+import { rollbackStep } from "@/lib/rollbackStep";
 
 const safeErrorString = (val: any): string => {
   if (!val) return '';
@@ -3031,42 +3032,58 @@ export default function SalesInvoiceDashboard() {
             : voucherRowId
               ? [voucherRowId]
               : [];
+          // Clean-up after the ledger post failed. Each step runs even if an earlier one fails;
+          // failures are logged to Admin Health (rollback:*) instead of being ignored.
+          const rbCtx = { organizationId: currentOrganization!.id, recordId: selectedInvoiceForPayment.id };
           for (const vid of voucherIdsToRevert) {
-            await deleteJournalEntryByReference(
-              currentOrganization!.id,
-              glRefType,
-              vid,
-              supabase,
+            await rollbackStep(
+              "invoice-payment:delete-journal",
+              () => deleteJournalEntryByReference(currentOrganization!.id, glRefType, vid, supabase),
+              { ...rbCtx, recordId: vid },
             );
-            await supabase.from("voucher_entries").delete().eq("id", vid);
+            await rollbackStep(
+              "invoice-payment:delete-voucher",
+              () => supabase.from("voucher_entries").delete().eq("id", vid),
+              { ...rbCtx, recordId: vid },
+            );
           }
           if (bookingDeductionForRollback > 0 && selectedInvoiceForPayment.customer_id) {
-            await reverseCustomerAdvanceFifo(
-              supabase,
-              currentOrganization!.id,
-              selectedInvoiceForPayment.customer_id,
-              bookingDeductionForRollback,
+            const customerId = selectedInvoiceForPayment.customer_id;
+            await rollbackStep(
+              "invoice-payment:restore-advance",
+              () => reverseCustomerAdvanceFifo(supabase, currentOrganization!.id, customerId, bookingDeductionForRollback),
+              rbCtx,
             );
           }
-          await supabase
-            .from("sales")
-            .update({
-              paid_amount: saleSnapshot.paid_amount,
-              payment_status: saleSnapshot.payment_status,
-              payment_method: saleSnapshot.payment_method,
-              payment_date: saleSnapshot.payment_date,
-              sale_return_adjust: saleSnapshot.sale_return_adjust,
-            })
-            .eq("id", selectedInvoiceForPayment.id);
+          await rollbackStep(
+            "invoice-payment:restore-invoice",
+            () =>
+              supabase
+                .from("sales")
+                .update({
+                  paid_amount: saleSnapshot.paid_amount,
+                  payment_status: saleSnapshot.payment_status,
+                  payment_method: saleSnapshot.payment_method,
+                  payment_date: saleSnapshot.payment_date,
+                  sale_return_adjust: saleSnapshot.sale_return_adjust,
+                })
+                .eq("id", selectedInvoiceForPayment.id),
+            rbCtx,
+          );
           for (const sr of saleReturnRollbackRows) {
-            await supabase
-              .from("sale_returns")
-              .update({
-                credit_status: sr.credit_status,
-                linked_sale_id: sr.linked_sale_id,
-                credit_available_balance: sr.credit_available_balance,
-              })
-              .eq("id", sr.id);
+            await rollbackStep(
+              "invoice-payment:restore-sale-return",
+              () =>
+                supabase
+                  .from("sale_returns")
+                  .update({
+                    credit_status: sr.credit_status,
+                    linked_sale_id: sr.linked_sale_id,
+                    credit_available_balance: sr.credit_available_balance,
+                  })
+                  .eq("id", sr.id),
+              { ...rbCtx, recordId: sr.id },
+            );
           }
           throw glErr;
         }
