@@ -167,7 +167,6 @@ import {
   withDefaultLineSalesman,
 } from "@/utils/posLineSalesman";
 import { posFocusMovedToOtherField } from "@/utils/posBarcodeRefocus";
-import { buildSalesmanCommissionRecords } from "@/utils/salesmanCommissionLineRepair";
 import { TabletPOSLayout } from "@/components/tablet/TabletPOSLayout";
 import { WindowTabsBar } from "@/components/WindowTabsBar";
 import { Card } from "@/components/ui/card";
@@ -333,6 +332,7 @@ import {
 import { phonesMatchExactly } from "@/utils/posCustomerPhoneMatch";
 import { searchSaleOrderVariants } from "@/utils/saleOrderProductSearch";
 import { useActiveStaff } from "@/lib/data/employees";
+import { recordPosSalesmanCommission } from "@/utils/posSalesmanCommission";
 
 interface PendingPriceSelection {
   product: any;
@@ -5403,51 +5403,22 @@ export default function POSSales() {
   };
 
   // Auto-create commission records after sale save
+  // Same helper as the phone / offline POS, with this screen's cached staff and rules.
   const createCommissionRecords = async (
     saleId: string, saleNumber: string, saleDate: string, salesmanName: string, totalNetAmount: number
   ) => {
     if (!currentOrganization?.id) return;
-    try {
-      const { data: saleItems } = await supabase
-        .from("sale_items")
-        .select("product_id, product_name, quantity, line_total, discount_share, net_after_discount, salesman")
-        .eq("sale_id", saleId)
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null);
-
-      const productIds = [...new Set((saleItems || []).map((item) => item.product_id).filter(Boolean))];
-      const productMap: Record<string, { brand?: string | null; category?: string | null; style?: string | null }> = {};
-      if (productIds.length > 0) {
-        const { data: prods } = await supabase
-          .from("products")
-          .select("id, brand, category, style")
-          .eq("organization_id", currentOrganization.id)
-          .in("id", productIds);
-        (prods || []).forEach((product) => {
-          productMap[product.id] = product;
-        });
-      }
-
-      const records = buildSalesmanCommissionRecords({
-        organizationId: currentOrganization.id,
-        saleId,
-        saleNumber,
-        saleDate,
-        customerName,
-        headerSalesman: salesmanName,
-        totalNetAmount,
-        items: saleItems || [],
-        productsById: productMap,
-        employees: employees || [],
-        rules: commissionRules || [],
-      });
-      if (records.length === 0) return;
-      const { error: commissionError } = await (supabase.from("salesman_commissions" as any) as any).insert(records);
-      if (commissionError) throw commissionError;
-    } catch (err) {
-      // Non-blocking for the bill, but visible in Admin Health (commission reports would miss it).
-      void logError({ operation: "pos:salesman-commission", organizationId: currentOrganization?.id, additionalContext: { sale_id: saleId } }, err);
-    }
+    await recordPosSalesmanCommission({
+      organizationId: currentOrganization.id,
+      saleId,
+      saleNumber,
+      saleDate,
+      customerName,
+      salesmanName,
+      totalNetAmount,
+      employees: employees || [],
+      rules: commissionRules || [],
+    });
   };
 
   // Offline billing: keep this counter's item list fresh and send bills saved without internet.

@@ -1,6 +1,6 @@
 /**
  * Salesman commission rows for a freshly saved POS bill.
- * Same reads and insert as desktop POSSales createCommissionRecords — used by the phone POS.
+ * Used by desktop POS (with its cached staff and rules) and the phone / offline POS.
  * Non-blocking: errors are logged, never thrown, so the sale itself is never affected.
  */
 import { supabase } from "@/integrations/supabase/client";
@@ -15,20 +15,27 @@ export async function recordPosSalesmanCommission(input: {
   customerName: string;
   salesmanName: string;
   totalNetAmount: number;
+  /** Already-loaded active staff / commission rules (desktop POS caches both); read when absent. */
+  employees?: unknown[];
+  rules?: unknown[];
 }): Promise<void> {
   try {
     const orgId = input.organizationId;
     const [{ data: employees }, rulesRes, { data: saleItems }] = await Promise.all([
-      supabase
-        .from("employees")
-        .select("id, employee_name, designation, commission_percent")
-        .eq("organization_id", orgId)
-        .is("deleted_at", null)
-        .eq("status", "active"),
-      (supabase.from("commission_rules" as any) as any)
-        .select("id, employee_id, employee_name, rule_type, rule_value, commission_percent")
-        .eq("organization_id", orgId)
-        .eq("is_active", true),
+      input.employees
+        ? Promise.resolve({ data: input.employees })
+        : supabase
+            .from("employees")
+            .select("id, employee_name, designation, commission_percent")
+            .eq("organization_id", orgId)
+            .is("deleted_at", null)
+            .eq("status", "active"),
+      input.rules
+        ? Promise.resolve({ data: input.rules, error: null })
+        : (supabase.from("commission_rules" as any) as any)
+            .select("id, employee_id, employee_name, rule_type, rule_value, commission_percent")
+            .eq("organization_id", orgId)
+            .eq("is_active", true),
       supabase
         .from("sale_items")
         .select("product_id, product_name, quantity, line_total, discount_share, net_after_discount, salesman")
@@ -60,8 +67,8 @@ export async function recordPosSalesmanCommission(input: {
       totalNetAmount: input.totalNetAmount,
       items: saleItems || [],
       productsById: productMap,
-      employees: employees || [],
-      rules: rulesRes?.error ? [] : rulesRes?.data || [],
+      employees: (employees || []) as never[],
+      rules: (rulesRes?.error ? [] : rulesRes?.data || []) as never[],
     });
     if (records.length === 0) return;
     const { error: commissionError } = await (supabase.from("salesman_commissions" as any) as any).insert(records);

@@ -198,7 +198,7 @@ import {
 } from "@/utils/salesInvoiceDiscountRestore";
 import { useSizeGroups } from "@/lib/data/sizeGroups";
 import { useActiveStaff } from "@/lib/data/employees";
-import { fetchInvoiceWhatsAppSettings } from "@/lib/data/invoiceWhatsAppSettings";
+import { getInvoiceWhatsAppSettings } from "@/lib/data/invoiceWhatsAppSettings";
 import { fetchCustomerInvoiceDetails } from "@/lib/data/customerInvoiceDetails";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 
@@ -3881,7 +3881,7 @@ Thank you for choosing us!`;
         if (selectedCustomer?.phone && currentOrganization?.id) {
           (async () => {
             try {
-              const whatsappSettings = await fetchInvoiceWhatsAppSettings(currentOrganization.id);
+              const whatsappSettings = await getInvoiceWhatsAppSettings(queryClient, currentOrganization.id);
 
               if (!whatsappSettings?.is_active || !whatsappSettings?.auto_send_invoice) return;
 

@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
-const db = vi.hoisted(() => ({ selected: "" }));
+const db = vi.hoisted(() => ({ selected: "", reads: 0 }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: () => {
@@ -14,13 +14,14 @@ vi.mock("@/integrations/supabase/client", () => ({
         return b;
       };
       b.eq = () => b;
-      b.maybeSingle = async () => ({ data: { is_active: true, auto_send_invoice: true, send_provider: "existing" }, error: null });
+      b.maybeSingle = async () => (db.reads++, { data: { is_active: true, auto_send_invoice: true, send_provider: "existing" }, error: null });
       return b;
     },
   },
 }));
 
-import { fetchInvoiceWhatsAppSettings, INVOICE_WHATSAPP_COLUMNS } from "@/lib/data/invoiceWhatsAppSettings";
+import { QueryClient } from "@tanstack/react-query";
+import { fetchInvoiceWhatsAppSettings, getInvoiceWhatsAppSettings, INVOICE_WHATSAPP_COLUMNS } from "@/lib/data/invoiceWhatsAppSettings";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -37,10 +38,23 @@ describe("invoice WhatsApp settings", () => {
     }
   });
 
-  it("Sales Invoice and POS save both use the named columns", () => {
+  it("Sales Invoice and POS save both use the named columns (through the cache)", () => {
     const invoice = readFileSync(join(root, "src/pages/SalesInvoice.tsx"), "utf8");
-    expect(invoice).toContain("fetchInvoiceWhatsAppSettings(currentOrganization.id)");
+    expect(invoice).toContain("getInvoiceWhatsAppSettings(queryClient, currentOrganization.id)");
     expect(invoice).not.toMatch(/from\("whatsapp_api_settings"\)\s*\.select\("\*"\)/);
-    expect(readFileSync(join(root, "src/hooks/useSaveSale.tsx"), "utf8")).toContain(".select(INVOICE_WHATSAPP_COLUMNS)");
+    const save = readFileSync(join(root, "src/hooks/useSaveSale.tsx"), "utf8");
+    expect(save).toContain("getInvoiceWhatsAppSettings(queryClient, currentOrganization.id)");
+    expect(save).not.toContain(".from('whatsapp_api_settings')");
+  });
+
+  it("cached: bills within 60 s reuse one read; a settings change (prefix invalidation) reads again", async () => {
+    const qc = new QueryClient();
+    db.reads = 0;
+    await getInvoiceWhatsAppSettings(qc, "org-1");
+    await getInvoiceWhatsAppSettings(qc, "org-1");
+    expect(db.reads).toBe(1);
+    await qc.invalidateQueries({ queryKey: ["whatsapp-api-settings"] });
+    await getInvoiceWhatsAppSettings(qc, "org-1");
+    expect(db.reads).toBe(2);
   });
 });
