@@ -9,7 +9,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
 import { STALE_DASHBOARD_TAB_RETURN, STALE_SETTINGS } from "@/lib/queryStaleTimes";
 import { DASHBOARD_KPI_QUERY_OPTIONS, DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
-import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { isStatementTimeout, statementTimeoutMessage } from "@/utils/statementTimeout";
@@ -276,6 +275,10 @@ export default function SalesInvoiceDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loadedItems, setLoadedItems] = useState<Record<string, any[]>>({});
+  /** Brand / style / colour of products on expanded bills (the item columns read these). */
+  const [productsById, setProductsById] = useState<Record<string, { brand?: string | null; style?: string | null; color?: string | null }>>({});
+  const productsByIdRef = useRef(productsById);
+  productsByIdRef.current = productsById;
   const loadedItemsRef = useRef<Record<string, any[]>>({});
   const [deliveryFilter, setDeliveryFilter] = useState<string>("all");
   /** KPI strip visibility — default expanded; persisted per browser. */
@@ -1230,34 +1233,6 @@ export default function SalesInvoiceDashboard() {
     refetchOnWindowFocus: false,
   });
 
-  const productIdsForLookup: string[] = [];
-
-  const productsById: Record<string, any> = {};
-
-  // Fetch sale returns with credit_status = 'adjusted' linked to invoices
-  const { data: cnAdjustedMap } = useOrgQuery<Record<string, any[]>>({
-    queryKey: ['cn-adjusted-returns'],
-    queryFn: async (orgId) => {
-      const { data, error } = await supabase
-        .from('sale_returns')
-        .select('id, return_number, net_amount, linked_sale_id, credit_status')
-        .eq('organization_id', orgId)
-        .is('deleted_at', null)
-        .in('credit_status', ['adjusted', 'refunded', 'adjusted_outstanding']);
-
-      if (error) throw error;
-
-      const map: Record<string, any[]> = {};
-      (data || []).forEach((sr: any) => {
-        if (sr.linked_sale_id) {
-          if (!map[sr.linked_sale_id]) map[sr.linked_sale_id] = [];
-          map[sr.linked_sale_id].push(sr);
-        }
-      });
-      return map;
-    },
-    options: { staleTime: 2 * 60 * 1000 },
-  });
 
   // Get item display settings from settings (saleSettings declared above with bill-format helpers)
   const showItemBrand = saleSettings?.show_item_brand ?? false;
@@ -1510,10 +1485,29 @@ export default function SalesInvoiceDashboard() {
       if (error) throw error;
       loadedItemsRef.current[saleId] = data || [];
       setLoadedItems(prev => ({ ...prev, [saleId]: data || [] }));
+      // Brand / style / colour columns: this bill's products not loaded yet (one small read).
+      // These were never loaded, so the columns always showed "-".
+      const missing = [...new Set((data || []).map((i: any) => i.product_id).filter(Boolean))].filter(
+        (id) => !productsByIdRef.current[id as string],
+      ) as string[];
+      if (missing.length > 0 && currentOrganization?.id) {
+        const { data: products, error: productsError } = await supabase
+          .from('products')
+          .select('id, brand, style, color')
+          .eq('organization_id', currentOrganization.id)
+          .in('id', missing);
+        if (!productsError && products?.length) {
+          setProductsById((prev) => {
+            const next = { ...prev };
+            for (const p of products) next[p.id] = p;
+            return next;
+          });
+        }
+      }
     } catch (error) {
       console.error('Error fetching sale items:', error);
     }
-  }, []);
+  }, [currentOrganization?.id]);
 
   const toggleExpanded = useCallback((id: string, saleNumber?: string) => {
     setExpandedRows(prev => {
