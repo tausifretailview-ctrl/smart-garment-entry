@@ -28,6 +28,7 @@ import {
   fetchPurchaseVariantById as readPurchaseVariantById,
   fetchPurchaseVariantsByBarcode,
   fetchPurchaseVariantsForProducts,
+  fetchProductCatalogForImport,
   searchPurchaseProducts,
   searchPurchaseVariants,
   type PurchaseProductMatch,
@@ -7740,36 +7741,30 @@ const PurchaseEntry = () => {
     const catalogNameByKey = new Map<string, string>();
     /** Existing product id by LOWER(TRIM(name)) — the live DB allows one active product per name. */
     const catalogIdByNameKey = new Map<string, string>();
-    const PRODUCT_PAGE = 1000;
-    let productOffset = 0;
-    while (true) {
-      const { data: page, error: pageErr } = await supabase
-        .from('products')
-        .select('id, product_name, brand, category, color, style, default_sale_price')
-        .eq('organization_id', currentOrganization.id)
-        .is('deleted_at', null)
-        .range(productOffset, productOffset + PRODUCT_PAGE - 1);
-      if (pageErr) {
-        console.error('Product catalog fetch error:', pageErr);
-        break;
-      }
-      if (!page?.length) break;
-      page.forEach((p) => {
-        const nameKey = productNameMatchKey(p.product_name);
-        if (nameKey && !catalogNameByKey.has(nameKey)) catalogNameByKey.set(nameKey, p.product_name);
-        const exactNameKey = p.product_name?.toString().trim().toLowerCase();
-        if (exactNameKey && !catalogIdByNameKey.has(exactNameKey)) catalogIdByNameKey.set(exactNameKey, p.id);
-        productMap.set(
-          makePurchaseImportProductKey(
-            { ...p, sale_price: p.default_sale_price, mrp: null },
-            parseLocalizedNumber,
-          ),
-          p.id,
-        );
+    // Ordered pages (unordered ones could skip or repeat products); a failed page stops the
+    // import here, before anything is created, instead of matching against half a catalog.
+    let catalog: Awaited<ReturnType<typeof fetchProductCatalogForImport>>;
+    try {
+      catalog = await fetchProductCatalogForImport(currentOrganization.id);
+    } catch (catalogErr) {
+      console.error("Product catalog fetch error:", catalogErr);
+      toast({
+        title: "Import stopped",
+        description: "Could not load your product list, so rows could not be matched. Nothing was added — please try the import again.",
+        variant: "destructive",
       });
-      if (page.length < PRODUCT_PAGE) break;
-      productOffset += PRODUCT_PAGE;
+      return;
     }
+    catalog.forEach((p) => {
+      const nameKey = productNameMatchKey(p.product_name);
+      if (nameKey && !catalogNameByKey.has(nameKey)) catalogNameByKey.set(nameKey, p.product_name);
+      const exactNameKey = p.product_name?.toString().trim().toLowerCase();
+      if (exactNameKey && !catalogIdByNameKey.has(exactNameKey)) catalogIdByNameKey.set(exactNameKey, p.id);
+      productMap.set(
+        makePurchaseImportProductKey({ ...p, sale_price: p.default_sale_price, mrp: null }, parseLocalizedNumber),
+        p.id,
+      );
+    });
 
     // Same product name typed with other case / spaces / - _ . / → the catalog's spelling,
     // so stock is not split across look-alike names. Only the name is snapped; brand,
