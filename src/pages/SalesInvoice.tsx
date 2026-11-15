@@ -200,6 +200,7 @@ import { useSizeGroups } from "@/lib/data/sizeGroups";
 import { useActiveStaff } from "@/lib/data/employees";
 import { fetchInvoiceWhatsAppSettings } from "@/lib/data/invoiceWhatsAppSettings";
 import { fetchCustomerInvoiceDetails } from "@/lib/data/customerInvoiceDetails";
+import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 
 interface LineItem {
   id: string;
@@ -3565,15 +3566,20 @@ Thank you for choosing us!`;
               description: `Saved ₹${netAmount.toLocaleString("en-IN")} but the database now shows ₹${Math.round(Number(updatedSale.net_amount) || 0).toLocaleString("en-IN")}. A server recompute may have dropped the header discount.`,
             });
           }
-          const totalSettled = (updatedSale.paid_amount || 0) + (updatedSale.sale_return_adjust || 0);
-          const correctStatus = totalSettled >= updatedSale.net_amount - 1
-            ? 'completed'
-            : totalSettled > 0 ? 'partial' : 'pending';
-
-          await supabase
-            .from('sales')
-            .update({ payment_status: correctStatus })
-            .eq('id', editingInvoiceId);
+          // Paid amount / status from the shared database settlement (compute_sale_settlement),
+          // as POS edits, receipts and credit notes do. The inline formula used here before
+          // skipped pay-later, credit-note de-duplication and the ₹0.50 tolerance, and its write
+          // was never checked.
+          try {
+            await applyRecomputedSalePaymentState(editingInvoiceId, currentOrganization!.id, supabase);
+          } catch (settleErr) {
+            console.error("Payment status recompute after invoice edit failed:", settleErr);
+            toast({
+              variant: "destructive",
+              title: "Payment status not refreshed",
+              description: "The invoice was saved. Open it from the dashboard to refresh its paid status.",
+            });
+          }
         }
 
         // Re-post the ledger from the saved bill, as a POS edit does, so edited totals, GST and
@@ -3789,7 +3795,7 @@ Thank you for choosing us!`;
 
         // Save financer details if provided
         if (financerDetails?.financer_name) {
-          await supabase
+          const { error: financerErr } = await supabase
             .from('sale_financer_details')
             .insert({
               sale_id: saleData.id,
@@ -3803,6 +3809,15 @@ Thank you for choosing us!`;
               bank_transfer_amount: financerDetails.bank_transfer_amount || 0,
               finance_discount: financerDetails.finance_discount || 0,
             });
+          // The bill is saved either way; it used to lose the loan details silently.
+          if (financerErr) {
+            console.error("Finance details save failed:", financerErr);
+            toast({
+              variant: "destructive",
+              title: "Finance details not saved",
+              description: "The invoice was saved without the financer / loan details. Edit the invoice to add them again.",
+            });
+          }
         }
 
         // CRM: Redeem points if requested
