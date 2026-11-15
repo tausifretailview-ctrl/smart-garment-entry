@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { toast } from "sonner";
 
@@ -346,20 +347,22 @@ export const useBulkProductUpdate = () => {
 
     const piField = purchaseItemsFieldMap[field];
     if (piField) {
-      await (supabase
+      const { error } = await (supabase
         .from("purchase_items")
         .update({ [piField]: value } as any) as any)
         .in("product_id", productIds)
         .eq("organization_id", currentOrganization.id);
+      if (error) throw error;
     }
 
     const siField = saleItemsFieldMap[field];
     if (siField) {
-      await (supabase
+      const { error } = await (supabase
         .from("sale_items")
         .update({ [siField]: value } as any) as any)
         .in("product_id", productIds)
         .eq("organization_id", currentOrganization.id);
+      if (error) throw error;
     }
   };
 
@@ -379,7 +382,7 @@ export const useBulkProductUpdate = () => {
       barcode: i.barcode,
       size: i.size,
     }));
-    await supabase.from("bulk_update_history" as any).insert({
+    await bestEffortWrite("bulk-update:history", () => (supabase as any).from("bulk_update_history").insert({
       organization_id: currentOrganization.id,
       update_type: updateType,
       filters: filters as any,
@@ -387,7 +390,7 @@ export const useBulkProductUpdate = () => {
       items_count: items.length,
       items_summary: summary as any,
       created_by: user?.id,
-    } as any);
+    } as any), { organizationId: currentOrganization.id });
   };
 
   const fetchHistory = async () => {

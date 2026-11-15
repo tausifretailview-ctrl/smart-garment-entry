@@ -63,7 +63,7 @@ export function ModifyFeeReceiptDialog({ open, onOpenChange, fee }: ModifyFeeRec
 
       // Record edit audit trail before modifying
       const { data: { user: currentUser } } = await supabase.auth.getUser();
-      await (supabase.from("student_balance_audit" as any) as any).insert({
+      const { error: auditError } = await (supabase.from("student_balance_audit" as any) as any).insert({
         organization_id: currentOrganization.id,
         student_id: fee.student_id,
         academic_year_id: fee.academic_year_id || null,
@@ -77,6 +77,7 @@ export function ModifyFeeReceiptDialog({ open, onOpenChange, fee }: ModifyFeeRec
         adjusted_by_name: currentUser?.email || 'Unknown',
         created_at: new Date().toISOString(),
       });
+      if (auditError) throw auditError;
 
       // Update the student_fees record
       const { error } = await supabase

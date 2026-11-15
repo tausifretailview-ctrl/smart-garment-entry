@@ -169,11 +169,13 @@ export const saveFinancerDetails = async (
   details: FinancerDetails
 ) => {
   // Upsert — delete existing then insert
-  await supabase
+  // Checked: if the old row stayed, the insert below would add a second financer row.
+  const { error: deleteError } = await supabase
     .from("sale_financer_details" as any)
     .delete()
     .eq("sale_id", saleId)
     .eq("organization_id", organizationId);
+  if (deleteError) throw deleteError;
 
   if (details.financer_name) {
     const { error } = await supabase

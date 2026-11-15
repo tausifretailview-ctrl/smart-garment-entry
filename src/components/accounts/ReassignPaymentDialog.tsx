@@ -19,7 +19,7 @@ import {
   isAccountingEngineOnForOrg,
   repostJournalForRestoredVoucher,
 } from "@/utils/accounting/journalService";
-import { rollbackStep } from "@/lib/rollbackStep";
+import { bestEffortWrite, rollbackStep } from "@/lib/rollbackStep";
 
 interface ReassignPaymentDialogProps {
   open: boolean;
@@ -199,12 +199,17 @@ export function ReassignPaymentDialog({
       // Account statement row of the original receipt: the new parts got their own rows
       // from the insert trigger, so the original keeps only its new amount.
       const keptAmount = originalPart ? originalPart.amount : plan.leftover;
-      await (supabase as any)
-        .from("customer_ledger_entries")
-        .update({ credit: keptAmount })
-        .eq("organization_id", organizationId)
-        .eq("voucher_no", baseNumber)
-        .eq("voucher_type", "RECEIPT");
+      await bestEffortWrite(
+        "reassign-payment:statement-amount",
+        () =>
+          (supabase as any)
+            .from("customer_ledger_entries")
+            .update({ credit: keptAmount })
+            .eq("organization_id", organizationId)
+            .eq("voucher_no", baseNumber)
+            .eq("voucher_type", "RECEIPT"),
+        { organizationId, recordId: baseNumber },
+      );
 
       let journalWarning = false;
       try {

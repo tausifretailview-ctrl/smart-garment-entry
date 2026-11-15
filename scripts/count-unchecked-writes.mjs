@@ -14,9 +14,10 @@ export function findUncheckedWrites(root) {
         const lines = readFileSync(p, "utf8").split("\n");
         lines.forEach((line, i) => {
           const s = line.trim();
-          if (!/^await (supabase|sb|client|db)\b/.test(s) || /=\s*await/.test(line)) return;
+          // Also `(supabase as any)…` and `.from("table" as any)`: casts used to hide these from the count.
+          if (!/^await \(?(supabase|sb|client|db)\b/.test(s) || /=\s*await/.test(line)) return;
           const block = lines.slice(i, i + 5).map((l) => l.trim()).join(" ");
-          const m = block.match(/\.from\(['"](\w+)['"]\)\s*\.(insert|update|delete|upsert)\(/);
+          const m = block.match(/\.from\(['"](\w+)['"](?:\s+as\s+\w+)?\)(?:\s+as\s+\w+\))?\s*\.(insert|update|delete|upsert)\(/);
           if (m) hits.push(`${p}:${i + 1} ${m[2]} ${m[1]}`);
         });
       }

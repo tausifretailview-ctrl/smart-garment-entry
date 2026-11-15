@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -241,7 +242,8 @@ const FeeStructureSetup = () => {
 
           // Log history if amount or frequency changed
           if (amountChanged || frequencyChanged) {
-            await supabase.from("fee_structure_history" as any).insert({
+            const changedBy = (await supabase.auth.getUser()).data.user?.email || "Unknown";
+            await bestEffortWrite("fee-structure:history", () => (supabase as any).from("fee_structure_history").insert({
               organization_id: currentOrganization.id,
               fee_structure_id: row.existing_id,
               academic_year_id: selectedYear,
@@ -251,8 +253,8 @@ const FeeStructureSetup = () => {
               new_amount: row.amount,
               old_frequency: row.original_frequency || "yearly",
               new_frequency: row.frequency,
-              changed_by: (await supabase.auth.getUser()).data.user?.email || "Unknown",
-            });
+              changed_by: changedBy,
+            }), { organizationId: currentOrganization.id });
           }
         } else if (row.amount > 0) {
           const { data: inserted, error } = await supabase
@@ -263,7 +265,8 @@ const FeeStructureSetup = () => {
           if (error) throw error;
 
           // Log history for new entry
-          await supabase.from("fee_structure_history" as any).insert({
+          const changedBy = (await supabase.auth.getUser()).data.user?.email || "Unknown";
+          await bestEffortWrite("fee-structure:history", () => (supabase as any).from("fee_structure_history").insert({
             organization_id: currentOrganization.id,
             fee_structure_id: inserted.id,
             academic_year_id: selectedYear,
@@ -273,8 +276,8 @@ const FeeStructureSetup = () => {
             new_amount: row.amount,
             old_frequency: null,
             new_frequency: row.frequency,
-            changed_by: (await supabase.auth.getUser()).data.user?.email || "Unknown",
-          });
+            changed_by: changedBy,
+          }), { organizationId: currentOrganization.id });
         }
       }
     },

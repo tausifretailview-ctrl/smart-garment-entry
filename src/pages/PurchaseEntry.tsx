@@ -6916,19 +6916,18 @@ const PurchaseEntry = () => {
               supabase,
               format(billDate, "yyyy-MM-dd")
             );
-            await (supabase as any)
-              .from("purchase_bills")
-              .update({ journal_status: "posted", journal_error: null })
-              .eq("id", editBillId);
+            await bestEffortWrite(
+              "purchase:journal-posted",
+              () => (supabase as any).from("purchase_bills").update({ journal_status: "posted", journal_error: null }).eq("id", editBillId),
+              { organizationId: currentOrganization?.id, recordId: editBillId },
+            );
           } catch (journalErr) {
             console.error("Auto-journal (purchase edit) failed:", journalErr);
-            await (supabase as any)
-              .from("purchase_bills")
-              .update({
-                journal_status: "failed",
-                journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
-              })
-              .eq("id", editBillId);
+            await bestEffortWrite(
+              "purchase:journal-failed",
+              () => (supabase as any).from("purchase_bills").update({ journal_status: "failed", journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal", }).eq("id", editBillId),
+              { organizationId: currentOrganization?.id, recordId: editBillId },
+            );
           }
         }
 
@@ -7296,19 +7295,18 @@ const PurchaseEntry = () => {
               supabase,
               format(billDate, "yyyy-MM-dd")
             );
-            await (supabase as any)
-              .from("purchase_bills")
-              .update({ journal_status: "posted", journal_error: null })
-              .eq("id", billDataResult.id);
+            await bestEffortWrite(
+              "purchase:journal-posted",
+              () => (supabase as any).from("purchase_bills").update({ journal_status: "posted", journal_error: null }).eq("id", billDataResult.id),
+              { organizationId: currentOrganization?.id, recordId: billDataResult.id },
+            );
           } catch (journalErr) {
             console.error("Auto-journal (purchase) failed:", journalErr);
-            await (supabase as any)
-              .from("purchase_bills")
-              .update({
-                journal_status: "failed",
-                journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
-              })
-              .eq("id", billDataResult.id);
+            await bestEffortWrite(
+              "purchase:journal-failed",
+              () => (supabase as any).from("purchase_bills").update({ journal_status: "failed", journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal", }).eq("id", billDataResult.id),
+              { organizationId: currentOrganization?.id, recordId: billDataResult.id },
+            );
           }
         }
 

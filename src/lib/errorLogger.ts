@@ -61,7 +61,7 @@ export async function logError(ctx: ErrorContext, error: unknown): Promise<void>
     // Silently skip if not authenticated — can't log anonymously due to RLS
     if (!user) return;
 
-    await (supabase as any).from('app_error_logs').insert({
+    const { error: insertErr } = await (supabase as any).from('app_error_logs').insert({
       organization_id: ctx.organizationId || null,
       user_id: user.id,
       page_path: ctx.page || (typeof window !== 'undefined' ? window.location.pathname : null),
@@ -75,6 +75,8 @@ export async function logError(ctx: ErrorContext, error: unknown): Promise<void>
       } : null,
       additional_context: { ...(ctx.additionalContext || {}), ...(info.details ? { error_details: info.details } : {}) },
     });
+    // Never throws (logging must not break the app), but a refused log row is not hidden either.
+    if (insertErr) console.warn('errorLogger: failed to persist error', insertErr);
   } catch (logErr) {
     // Swallow any logging failure — the app must not break because logging failed
     console.warn('errorLogger: failed to persist error', logErr);

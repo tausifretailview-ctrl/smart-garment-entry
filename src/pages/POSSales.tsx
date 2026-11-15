@@ -5424,8 +5424,12 @@ export default function POSSales() {
         rules: commissionRules || [],
       });
       if (records.length === 0) return;
-      await (supabase.from("salesman_commissions" as any) as any).insert(records);
-    } catch (err) { console.error("Commission record failed (non-blocking):", err); }
+      const { error: commissionError } = await (supabase.from("salesman_commissions" as any) as any).insert(records);
+      if (commissionError) throw commissionError;
+    } catch (err) {
+      // Non-blocking for the bill, but visible in Admin Health (commission reports would miss it).
+      void logError({ operation: "pos:salesman-commission", organizationId: currentOrganization?.id, additionalContext: { sale_id: saleId } }, err);
+    }
   };
 
   // Offline billing: keep this counter's item list fresh and send bills saved without internet.

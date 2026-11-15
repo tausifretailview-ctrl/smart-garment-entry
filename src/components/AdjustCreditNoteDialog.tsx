@@ -266,10 +266,11 @@ export function AdjustCreditNoteDialog({
           if (vnError) throw vnError;
 
           // Link new voucher to purchase return
-          await supabase
+          const { error: linkNewError } = await supabase
             .from("purchase_returns" as any)
             .update({ credit_note_id: newVoucher.id })
             .eq("id", purchaseReturnId);
+          if (linkNewError) throw linkNewError;
           }
         }
 
@@ -386,10 +387,11 @@ export function AdjustCreditNoteDialog({
           if (vnError) throw vnError;
 
           // Link this new voucher back to the purchase return
-          await supabase
+          const { error: linkNewError } = await supabase
             .from("purchase_returns" as any)
             .update({ credit_note_id: newVoucher.id })
             .eq("id", purchaseReturnId);
+          if (linkNewError) throw linkNewError;
           }
         }
 
