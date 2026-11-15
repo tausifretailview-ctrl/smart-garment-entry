@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows, type RangeQuery } from "@/lib/data/fetchInIdBatches";
 
 /** Same rules as main dashboard (Index.tsx) and get_customer_segment_* RPCs. */
 export const CUSTOMER_SEGMENT_RULES = {
@@ -306,38 +307,46 @@ export function diffCustomerSegmentEquivalence(
 /**
  * Build segment index for Customer Master filters/badges.
  *
- * Phase B #4: after a real-org equivalence proof passes (see
- * `docs/customer-segment-equivalence.md` + `scripts/prove-customer-segment-equivalence.mjs`),
- * flip this to prefer `fetchCustomerSegmentIndexViaRpc`. Until then the client walk
- * remains canonical so we do not silently prefer an unproven RPC.
+ * Uses `get_customer_segment_index` (one server-side pass, paged past the 1,000-row cap) — the
+ * same SQL rules as `get_customer_segment_counts`, which already drives the chip counts, so the
+ * badges and the chips now agree. The old browser walk downloaded every sale the shop ever made
+ * on each Customer Master open; it stays only as a fallback when the RPC fails (e.g. a database
+ * where the migration is missing).
  *
- * Chip counts already use `fetchCustomerSegmentCounts` (deployed RPC) and do not
- * block the customer list.
+ * Known edge: the browser walk counted days from local noon, the RPC from the database's
+ * CURRENT_DATE, so a customer exactly on day 91 / 366 can fall in the next band a few hours
+ * earlier or later. See docs/customer-segment-equivalence.md.
  */
 export async function fetchCustomerSegmentIndex(
   organizationId: string,
 ): Promise<CustomerSegmentIndex> {
-  return fetchCustomerSegmentIndexClient(organizationId);
+  try {
+    return await fetchCustomerSegmentIndexViaRpc(organizationId);
+  } catch (error) {
+    console.error("Customer segments: server index failed, using the slower browser count:", error);
+    return fetchCustomerSegmentIndexClient(organizationId);
+  }
 }
 
-/** RPC path — ready once migration is applied and equivalence proof passes. */
+type SegmentIndexRow = {
+  customer_id: string;
+  segment: string;
+  order_count: number | string | null;
+  revenue: number | string | null;
+  last_sale_date: string | null;
+};
+
+/** RPC path, paged by customer_id (the server returns at most 1,000 rows per request). */
 export async function fetchCustomerSegmentIndexViaRpc(
   organizationId: string,
 ): Promise<CustomerSegmentIndex> {
-  const { data, error } = await supabase.rpc("get_customer_segment_index", {
-    p_org_id: organizationId,
-  });
-  if (error) throw error;
-
-  return indexFromRows(
-    (data || []) as Array<{
-      customer_id: string;
-      segment: string;
-      order_count: number | string | null;
-      revenue: number | string | null;
-      last_sale_date: string | null;
-    }>,
+  const rows = await fetchAllRows<SegmentIndexRow>(
+    () =>
+      supabase
+        .rpc("get_customer_segment_index", { p_org_id: organizationId })
+        .order("customer_id") as unknown as RangeQuery<SegmentIndexRow>,
   );
+  return indexFromRows(rows);
 }
 
 /**

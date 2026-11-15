@@ -63,3 +63,16 @@ prefer either side; investigate timezone/`CURRENT_DATE` vs client `daysSince`.
 2. Change `fetchCustomerSegmentIndex` to call `fetchCustomerSegmentIndexViaRpc`
    (optional client fallback only for deploy skew).
 3. Delete or quarantine `fetchAllSalesForSegments` from UI mounts.
+
+## 2026-11-15: switched to the RPC
+
+`fetchCustomerSegmentIndex` now reads `get_customer_segment_index` (paged by `customer_id`,
+past the 1,000-row cap) and falls back to the browser walk only when the RPC fails. Reasons:
+
+- The browser walk downloaded every sale on every Customer Master open (also Quiet Customers
+  and the bulk WhatsApp picker). Large shops waited seconds and moved tens of thousands of rows.
+- The chips already used `get_customer_segment_counts`, which has the same SQL rules, so the
+  per-row badges could disagree with the chips. Now both come from the same rules.
+- The numeric proof could never exit 0 reliably: the browser counted days from local noon
+  (`daysSince` uses `T12:00`) and the RPC from the database's `CURRENT_DATE`, so customers exactly
+  on day 91 / 366 move band a few hours apart. Only those edge-day customers can differ.

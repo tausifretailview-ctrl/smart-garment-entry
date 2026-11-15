@@ -359,6 +359,7 @@ async function loadAllCustomers(
       .select("id, customer_name, phone")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
+      .order("id")
       .range(from, from + CUSTOMER_PAGE - 1);
     if (error) throw error;
     const batch = (data || []) as ExistingCustomerRef[];
@@ -382,6 +383,7 @@ async function loadUnlinkedSales(
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .is("customer_id", null)
+      .order("id")
       .range(from, from + SALE_PAGE - 1);
     if (error) throw error;
     const batch = (data || []) as SalePartyInput[];
@@ -396,6 +398,16 @@ async function syncUnlinkedSalesIntoCustomerMasterOnce(
   client: SupabaseClient,
   organizationId: string,
 ): Promise<{ created: number; linked: number }> {
+  // Most opens find no unlinked bills: count them first and skip reading every customer.
+  const { count: unlinkedCount, error: countError } = await client
+    .from("sales")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null)
+    .is("customer_id", null);
+  if (countError) throw countError;
+  if (!unlinkedCount) return { created: 0, linked: 0 };
+
   const [customers, sales] = await Promise.all([
     loadAllCustomers(client, organizationId),
     loadUnlinkedSales(client, organizationId),

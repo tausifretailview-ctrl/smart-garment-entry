@@ -440,7 +440,13 @@ const CustomerMaster = () => {
     staleTime: 60000,
   });
 
-  const { data: locationOptions = [] } = useQuery({
+  // The city list reads every customer address, so it loads the first time the location
+  // filter opens (or when a city filter is already set), not on every page open.
+  const [locationListWanted, setLocationListWanted] = useState(false);
+  const openLocationList = useCallback((open: boolean) => {
+    if (open) setLocationListWanted(true);
+  }, []);
+  const { data: locationOptions = [], isFetching: locationOptionsLoading } = useQuery({
     queryKey: ["customer-locations", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [] as string[];
@@ -464,7 +470,7 @@ const CustomerMaster = () => {
       }
       return uniqueCustomerLocations(addresses);
     },
-    enabled: !!currentOrganization?.id,
+    enabled: !!currentOrganization?.id && (locationListWanted || !!locationFilter),
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
     staleTime: 5 * 60 * 1000,
   });
@@ -621,7 +627,7 @@ const CustomerMaster = () => {
 
   const visibleCustomerIds = customers.map(c => c.id);
   const { data: advanceBalances = {} } = useQuery({
-    queryKey: ["customer-advances-summary", visibleCustomerIds],
+    queryKey: ["customer-advances-summary", currentOrganization?.id, visibleCustomerIds],
     queryFn: async () => {
       if (!currentOrganization?.id || visibleCustomerIds.length === 0) return {};
       
@@ -1752,6 +1758,8 @@ const CustomerMaster = () => {
             value={locationFilter}
             options={locationOptions}
             onChange={handleLocationFilter}
+            onOpenChange={openLocationList}
+            loading={locationOptionsLoading && locationOptions.length === 0}
             className="h-10 w-full rounded-xl"
           />
           <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
@@ -2040,6 +2048,8 @@ const CustomerMaster = () => {
               value={locationFilter}
               options={locationOptions}
               onChange={handleLocationFilter}
+              onOpenChange={openLocationList}
+              loading={locationOptionsLoading && locationOptions.length === 0}
               className="h-9 w-36 min-w-0 shrink-0"
             />
 
