@@ -57,6 +57,7 @@ import { Switch } from "@/components/ui/switch";
 import { useIndustrialMode } from "@/hooks/useIndustrialMode";
 import { fromIsoDay, quotationDisplayNumber, toIsoDay } from "@/utils/industrialMode";
 import { useActiveStaff } from "@/lib/data/employees";
+import { replaceDocumentLines } from "@/lib/data/replaceDocumentLines";
 
 interface LineItem {
   id: string;
@@ -882,11 +883,6 @@ export default function QuotationEntry() {
           .eq("id", editingQuotationId)
           .eq("organization_id", currentOrganization!.id);
         if (error) throw error;
-
-        await supabase
-          .from("quotation_items")
-          .delete()
-          .eq("quotation_id", editingQuotationId);
       } else {
         const { data, error } = await supabase
           .from("quotations")
@@ -916,8 +912,13 @@ export default function QuotationEntry() {
         hsn_code: item.hsnCode || null,
       }));
 
-      const { error: itemsError } = await supabase.from("quotation_items").insert(quotationItems);
-      if (itemsError) throw itemsError;
+      if (editingQuotationId) {
+        // Checked replace: a failed delete used to double the lines, a failed insert to empty them.
+        await replaceDocumentLines({ table: "quotation_items", parentColumn: "quotation_id", parentId: editingQuotationId, rows: quotationItems });
+      } else {
+        const { error: itemsError } = await supabase.from("quotation_items").insert(quotationItems);
+        if (itemsError) throw itemsError;
+      }
 
       // Industrial mode: follow-up date and revision, written on their own so a
       // shop that has not run the step-5 SQL still saves the quotation.

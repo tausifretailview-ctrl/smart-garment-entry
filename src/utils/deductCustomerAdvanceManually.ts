@@ -71,8 +71,12 @@ export async function deductCustomerAdvanceManually(
           .update({ ...patch, manual_used_amount: manual })
           .eq("id", adv.id)
       : await client.from("customer_advances").update(patch).eq("id", adv.id);
-    if (res.error && withManual) {
-      await client.from("customer_advances").update(patch).eq("id", adv.id);
+    if (res.error) {
+      // Older databases have no manual_used_amount column: retry without it. Any other failure
+      // stops here — the loop used to count the amount as deducted although nothing was saved.
+      if (!withManual) throw res.error;
+      const { error: retryErr } = await client.from("customer_advances").update(patch).eq("id", adv.id);
+      if (retryErr) throw retryErr;
     }
     remaining = round2(remaining - deduct);
   }

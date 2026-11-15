@@ -86,6 +86,7 @@ import {
   type SaleOrderVariantSearchResult,
 } from "@/utils/saleOrderProductSearch";
 import { useActiveStaff } from "@/lib/data/employees";
+import { replaceDocumentLines } from "@/lib/data/replaceDocumentLines";
 
 interface LineItem {
   id: string;
@@ -1305,8 +1306,6 @@ export default function SaleOrderEntry() {
           .update(orderData)
           .eq('id', editingOrderId);
         if (error) throw error;
-        
-        await supabase.from('sale_order_items').delete().eq('order_id', editingOrderId);
       } else {
         let insertError: any = null;
         for (let attempt = 0; attempt < 5; attempt++) {
@@ -1361,10 +1360,15 @@ export default function SaleOrderEntry() {
       
       
 
-      const { error: itemsError } = await supabase
-        .from('sale_order_items')
-        .insert(orderItems);
-      if (itemsError) throw itemsError;
+      if (editingOrderId) {
+        // Checked replace: a failed delete used to double the lines, a failed insert to empty them.
+        await replaceDocumentLines({ table: 'sale_order_items', parentColumn: 'order_id', parentId: editingOrderId, rows: orderItems });
+      } else {
+        const { error: itemsError } = await supabase
+          .from('sale_order_items')
+          .insert(orderItems);
+        if (itemsError) throw itemsError;
+      }
 
       // Industrial mode: buyer's PO, written on its own so a shop that has not
       // run the step-6 SQL still saves the order.
