@@ -26,6 +26,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
 import { supabase } from "@/integrations/supabase/client";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -497,6 +498,23 @@ export default function Accounts() {
 
   const failedJournalRows = failedJournalRowsRaw ?? [];
 
+  /** Journal status marker on the bill (a follow-up write: a failure is logged, never blocks). */
+  const markJournalStatus = (
+    source: "sale" | "purchase",
+    id: string,
+    status: "posted" | "failed",
+    journalError: string | null,
+  ) =>
+    bestEffortWrite(
+      `accounts:journal-status-${status}`,
+      () =>
+        supabase
+          .from(source === "sale" ? "sales" : "purchase_bills")
+          .update({ journal_status: status, journal_error: journalError })
+          .eq("id", id),
+      { organizationId: currentOrganization?.id, recordId: id },
+    );
+
   const retryJournal = useMutation({
     mutationFn: async (row: {
       source: "sale" | "purchase";
@@ -519,10 +537,7 @@ export default function Accounts() {
           supabase,
           row.entry_date
         );
-        await supabase
-          .from("sales")
-          .update({ journal_status: "posted", journal_error: null })
-          .eq("id", row.id);
+        await markJournalStatus("sale", row.id, "posted", null);
       } else {
         await deleteJournalEntryByReference(currentOrganization.id, "Purchase", row.id, supabase);
         await recordPurchaseJournalEntry(
@@ -534,10 +549,7 @@ export default function Accounts() {
           supabase,
           row.entry_date
         );
-        await supabase
-          .from("purchase_bills")
-          .update({ journal_status: "posted", journal_error: null })
-          .eq("id", row.id);
+        await markJournalStatus("purchase", row.id, "posted", null);
       }
     },
     onSuccess: () => {
@@ -549,15 +561,9 @@ export default function Accounts() {
     onError: async (error: any, variables) => {
       const errorMessage = error?.message || "Retry failed";
       if (variables.source === "sale") {
-        await supabase
-          .from("sales")
-          .update({ journal_status: "failed", journal_error: errorMessage })
-          .eq("id", variables.id);
+        await markJournalStatus("sale", variables.id, "failed", errorMessage);
       } else {
-        await supabase
-          .from("purchase_bills")
-          .update({ journal_status: "failed", journal_error: errorMessage })
-          .eq("id", variables.id);
+        await markJournalStatus("purchase", variables.id, "failed", errorMessage);
       }
       toast.error(errorMessage);
       queryClient.invalidateQueries({ queryKey: ["failed-journal-count", currentOrganization?.id] });
@@ -590,10 +596,7 @@ export default function Accounts() {
               supabase,
               row.entry_date
             );
-            await supabase
-              .from("sales")
-              .update({ journal_status: "posted", journal_error: null })
-              .eq("id", row.id);
+            await markJournalStatus("sale", row.id, "posted", null);
           } else {
             await deleteJournalEntryByReference(currentOrganization!.id, "Purchase", row.id, supabase);
             await recordPurchaseJournalEntry(
@@ -605,24 +608,15 @@ export default function Accounts() {
               supabase,
               row.entry_date
             );
-            await supabase
-              .from("purchase_bills")
-              .update({ journal_status: "posted", journal_error: null })
-              .eq("id", row.id);
+            await markJournalStatus("purchase", row.id, "posted", null);
           }
           success += 1;
         } catch (error: any) {
           const errorMessage = error?.message || "Retry failed";
           if (row.source === "sale") {
-            await supabase
-              .from("sales")
-              .update({ journal_status: "failed", journal_error: errorMessage })
-              .eq("id", row.id);
+            await markJournalStatus("sale", row.id, "failed", errorMessage);
           } else {
-            await supabase
-              .from("purchase_bills")
-              .update({ journal_status: "failed", journal_error: errorMessage })
-              .eq("id", row.id);
+            await markJournalStatus("purchase", row.id, "failed", errorMessage);
           }
           failed += 1;
         }

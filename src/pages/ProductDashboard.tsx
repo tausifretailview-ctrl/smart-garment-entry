@@ -84,6 +84,7 @@ import {
 import { colorChipStyle, distinctColorLabels } from "@/utils/formatColorName";
 import { columnHasVisibleValue } from "@/utils/productDashboardColumns";
 import { useSizeGroups } from "@/lib/data/sizeGroups";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 
 interface ProductVariant {
   variant_id: string;
@@ -1424,13 +1425,18 @@ const ProductDashboard = () => {
             .eq("id", item.variant_id)
             .eq("organization_id", currentOrganization.id);
           if (error) { errors++; return; }
-          await supabase.from("stock_movements").insert({
-            variant_id: item.variant_id,
-            quantity: item.new_qty - item.current_qty,
-            movement_type: "reconciliation",
-            notes: `Closing stock import — set to ${item.new_qty} (was ${item.current_qty})`,
-            organization_id: currentOrganization.id,
-          });
+          await bestEffortWrite(
+            "stock-import:movement-log",
+            () =>
+              supabase.from("stock_movements").insert({
+                variant_id: item.variant_id,
+                quantity: item.new_qty - item.current_qty,
+                movement_type: "reconciliation",
+                notes: `Closing stock import — set to ${item.new_qty} (was ${item.current_qty})`,
+                organization_id: currentOrganization.id,
+              }),
+            { organizationId: currentOrganization.id, recordId: item.variant_id },
+          );
           done++;
         }));
         setStockImportProgress({ done: Math.min(i + CHUNK, stockImportPreview.length), total: stockImportPreview.length });

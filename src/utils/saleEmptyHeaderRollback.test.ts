@@ -35,6 +35,29 @@ describe("softCancelEmptySaleHeader", () => {
   });
 });
 
+describe("softCancelEmptySaleHeader failures", () => {
+  const clientWith = (deleteResult: unknown, updateResult: unknown) =>
+    ({
+      from: vi.fn((table: string) =>
+        table === "sale_items"
+          ? { delete: vi.fn(() => ({ eq: vi.fn().mockResolvedValue(deleteResult) })) }
+          : { update: vi.fn(() => ({ eq: vi.fn().mockResolvedValue(updateResult) })) },
+      ),
+    }) as any;
+
+  it("throws when the header could not be cancelled (the bill is still live)", async () => {
+    await expect(
+      softCancelEmptySaleHeader(clientWith({ error: null }, { error: { message: "RLS denied" } }), "sale-1", "u"),
+    ).rejects.toMatchObject({ message: "RLS denied" });
+  });
+
+  it("still cancels the header when deleting stray lines fails", async () => {
+    const client = clientWith({ error: { message: "timeout" } }, { error: null });
+    await expect(softCancelEmptySaleHeader(client, "sale-1", "u")).resolves.toBeUndefined();
+    expect(client.from).toHaveBeenCalledWith("sales");
+  });
+});
+
 describe("evaluateEmptyHeaderRollback", () => {
   it("requests rollback for a settled header with zero items", async () => {
     const client = {

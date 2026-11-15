@@ -254,6 +254,7 @@ import {
   type DeletedRefsClient,
   type LiveNameCatalogClient,
 } from "@/utils/purchaseDeletedLineProducts";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 
 const PURCHASE_LINE_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -5862,11 +5863,16 @@ const PurchaseEntry = () => {
             0
           );
           if (totalStock === 0) {
-            await supabase
-              .from("products")
-              .update({ user_cancelled_at: new Date().toISOString() })
-              .eq("id", removed.product_id)
-              .eq("organization_id", currentOrganization.id);
+            await bestEffortWrite(
+              "purchase:tag-user-cancelled",
+              () =>
+                supabase
+                  .from("products")
+                  .update({ user_cancelled_at: new Date().toISOString() })
+                  .eq("id", removed.product_id)
+                  .eq("organization_id", currentOrganization.id),
+              { organizationId: currentOrganization.id, recordId: removed.product_id },
+            );
           }
         }
       } catch (err) {
@@ -6878,10 +6884,9 @@ const PurchaseEntry = () => {
         if (editUniqueProductIds.length > 0) {
           for (let pi = 0; pi < editUniqueProductIds.length; pi += 200) {
             const chunk = editUniqueProductIds.slice(pi, pi + 200);
-            await supabase
-              .from("products")
-              .update({ user_cancelled_at: null })
-              .in("id", chunk);
+            await bestEffortWrite("purchase:clear-user-cancelled", () => supabase.from("products").update({ user_cancelled_at: null }).in("id", chunk), {
+              organizationId: currentOrganization?.id,
+            });
           }
         }
 
@@ -7313,7 +7318,11 @@ const PurchaseEntry = () => {
         const VARIANT_CHUNK = 200;
         for (let vi = 0; vi < variantIds.length; vi += VARIANT_CHUNK) {
           const chunk = variantIds.slice(vi, vi + VARIANT_CHUNK);
-          await supabase.from("product_variants").update({ is_dc_product: isDcPurchase }).in("id", chunk);
+          // Which items count as challan (DC) stock in reports: a failure is logged, the bill stays saved.
+          await bestEffortWrite("purchase:set-dc-flag", () => supabase.from("product_variants").update({ is_dc_product: isDcPurchase }).in("id", chunk), {
+            organizationId: currentOrganization?.id,
+            recordId: billDataResult.id,
+          });
         }
 
         // Clear "user cancelled" tag for products that are now actually billed
@@ -7321,10 +7330,9 @@ const PurchaseEntry = () => {
         if (billedProductIds.length > 0) {
           for (let pi = 0; pi < billedProductIds.length; pi += VARIANT_CHUNK) {
             const chunk = billedProductIds.slice(pi, pi + VARIANT_CHUNK);
-            await supabase
-              .from("products")
-              .update({ user_cancelled_at: null })
-              .in("id", chunk);
+            await bestEffortWrite("purchase:clear-user-cancelled", () => supabase.from("products").update({ user_cancelled_at: null }).in("id", chunk), {
+              organizationId: currentOrganization?.id,
+            });
           }
         }
 
@@ -7575,11 +7583,11 @@ const PurchaseEntry = () => {
   const markPurchaseItemsBarcodePrinted = async (billId: string, items: LineItem[]) => {
     const skuIds = items.map((item) => item.sku_id).filter(Boolean);
     if (skuIds.length === 0) return;
-    await supabase
-      .from("purchase_items")
-      .update({ barcode_printed: true })
-      .eq("bill_id", billId)
-      .in("sku_id", skuIds);
+    await bestEffortWrite(
+      "purchase:mark-barcode-printed",
+      () => supabase.from("purchase_items").update({ barcode_printed: true }).eq("bill_id", billId).in("sku_id", skuIds),
+      { organizationId: currentOrganization?.id, recordId: billId },
+    );
   };
 
   /** The bill's supplier code for the labels ("" when none). */
