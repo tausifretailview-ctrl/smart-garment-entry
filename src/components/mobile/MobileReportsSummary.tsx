@@ -29,7 +29,10 @@ export const MobileReportsSummary = () => {
 
   // Today's Sales
   const { data: todaysSales, isLoading: loadingToday } = useQuery({
-    queryKey: ["todays-sales", currentOrganization?.id],
+    // Own key: POS keeps today's bill LIST under ["todays-sales", org]; sharing it made one
+    // screen read the other's data (a number vs a list). The "todays-sales" prefix keeps every
+    // existing invalidation reaching this total.
+    queryKey: ["todays-sales", currentOrganization?.id, "total"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("sales")

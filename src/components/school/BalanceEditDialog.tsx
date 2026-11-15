@@ -160,7 +160,7 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
   const isIncrease = newDue > oldDue;
 
   const { data: currentYear } = useQuery({
-    queryKey: ["current-academic-year", currentOrganization?.id],
+    queryKey: ["current-academic-year", currentOrganization?.id, "id-name"],
     queryFn: async () => {
       const { data } = await supabase.from("academic_years").select("id, year_name").eq("organization_id", currentOrganization!.id).eq("is_current", true).single();
       return data;

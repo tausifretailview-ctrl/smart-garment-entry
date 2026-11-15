@@ -219,7 +219,7 @@ function CustomerPaymentForm({
 
   const trimmedCustomerSearch = customerSearchTerm.trim();
   const { data: searchedCustomers, isFetching: searchedCustomersLoading } = useQuery({
-    queryKey: ["customer-payment-picker-search", organizationId, trimmedCustomerSearch],
+    queryKey: ["customer-payment-picker-search", organizationId, trimmedCustomerSearch, "floating"],
     queryFn: () => searchCustomersForPaymentPicker(organizationId, trimmedCustomerSearch, supabase),
     enabled: !!organizationId && dialogOpen && trimmedCustomerSearch.length >= 2,
     staleTime: 30_000,

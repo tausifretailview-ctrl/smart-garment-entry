@@ -77,7 +77,7 @@ const WhatsAppInbox = () => {
 
   // Check if using shared WhatsApp number
   const { data: whatsappSettings } = useQuery({
-    queryKey: ['whatsapp-api-settings', currentOrganization?.id],
+    queryKey: ['whatsapp-api-settings', currentOrganization?.id, 'inbox'],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
       
