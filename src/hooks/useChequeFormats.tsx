@@ -335,10 +335,11 @@ export function useChequeFormats() {
   const setDefault = useMutation({
     mutationFn: async (id: string) => {
       // First remove default from all
-      await supabase
+      const { error: clearError } = await supabase
         .from("cheque_formats")
         .update({ is_default: false })
         .eq("organization_id", currentOrganization?.id);
+      if (clearError) throw clearError;
 
       // Then set the new default
       const { error } = await supabase

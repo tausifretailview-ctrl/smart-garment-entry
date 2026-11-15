@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 import { useSettings } from "@/hooks/useSettings";
@@ -78,7 +79,7 @@ import { DocGodownInline } from "@/components/godowns/DocGodownBar";
 import { useDocGodown } from "@/hooks/useDocGodown";
 import { fetchVariantGodownQty } from "@/utils/godownTransfer";
 import { useActiveStaff } from "@/lib/data/employees";
-import { replaceDocumentLines } from "@/lib/data/replaceDocumentLines";
+import { saveDocumentWithLines } from "@/lib/data/replaceDocumentLines";
 
 interface LineItem {
   id: string;
@@ -831,18 +832,14 @@ export default function DeliveryChallanEntry() {
           line_total: item.lineTotal,
           hsn_code: item.hsnCode || null,
         }));
-        // Checked replace: an unchecked failed insert used to leave the challan with no lines while
-        // saying "Challan Updated" (pending challan lines count in stock).
-        await replaceDocumentLines({
-          table: "delivery_challan_items",
-          parentColumn: "challan_id",
-          parentId: editingChallanId,
+        // Header + lines in one transaction (checked steps until the SQL is applied). Pending
+        // challan lines count in stock, so the lines and totals must never disagree.
+        await saveDocumentWithLines({
+          kind: "delivery_challan",
+          organizationId: currentOrganization!.id,
+          documentId: editingChallanId,
           rows: challanItemsData,
-        });
-
-        const { error: headerErr } = await supabase
-          .from("delivery_challans")
-          .update({
+          header: {
             challan_date: challanDate.toISOString(),
             customer_id: selectedCustomerId,
             customer_name: selectedCustomer.customer_name,
@@ -859,9 +856,8 @@ export default function DeliveryChallanEntry() {
             shipping_address: shippingAddress || null,
             notes: notes || null,
             updated_at: new Date().toISOString(),
-          })
-          .eq("id", editingChallanId);
-        if (headerErr) throw headerErr;
+          },
+        });
 
         await challanGodown.syncAfterSave(editingChallanId, true);
         toast({ title: "Challan Updated", description: "Delivery challan has been updated" });
@@ -949,6 +945,7 @@ export default function DeliveryChallanEntry() {
         await challanGodown.syncAfterSave(String(challanData.id), false);
 
         if (selectedSaleOrderId) {
+          let orderQtyNotUpdated = 0;
           for (const item of billableItems) {
             const { data: orderItem } = await supabase
               .from("sale_order_items")
@@ -958,15 +955,29 @@ export default function DeliveryChallanEntry() {
               .maybeSingle();
 
             if (orderItem) {
-              await supabase
-                .from("sale_order_items")
-                .update({
-                  fulfilled_qty: (orderItem.fulfilled_qty || 0) + item.quantity,
-                  pending_qty: Math.max(0, (orderItem.pending_qty || 0) - item.quantity),
-                })
-                .eq("order_id", selectedSaleOrderId)
-                .eq("variant_id", item.variantId);
+              const ok = await bestEffortWrite(
+                "challan:sale-order-fulfilled-qty",
+                () =>
+                  supabase
+                    .from("sale_order_items")
+                    .update({
+                      fulfilled_qty: (orderItem.fulfilled_qty || 0) + item.quantity,
+                      pending_qty: Math.max(0, (orderItem.pending_qty || 0) - item.quantity),
+                    })
+                    .eq("order_id", selectedSaleOrderId)
+                    .eq("variant_id", item.variantId),
+                { organizationId: currentOrganization?.id, recordId: selectedSaleOrderId },
+              );
+              if (!ok) orderQtyNotUpdated += 1;
             }
+          }
+          if (orderQtyNotUpdated > 0) {
+            // The challan is saved (saving again would duplicate it); only the order's counts are behind.
+            toast({
+              variant: "destructive",
+              title: "Sale order not updated",
+              description: `The challan is saved, but ${orderQtyNotUpdated} line(s) of the sale order still show as pending. Check the order before delivering again.`,
+            });
           }
         }
 

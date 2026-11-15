@@ -6,6 +6,7 @@ import { voucherSettlementCredit } from "@/utils/paymentSettlementBreakdown";
 import { syncPurchaseBillPaymentsFromVouchersBatch } from "@/utils/purchaseBillSettlement";
 import { deleteJournalEntryByReference } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { rollbackStep } from "@/lib/rollbackStep";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -97,11 +98,16 @@ export async function deleteSupplierPaymentVoucher(
       await deleteJournalEntryByReference(organizationId, "SupplierPayment", voucher.id, client);
     }
   } catch (glErr) {
-    await client
-      .from("voucher_entries")
-      .update({ deleted_at: null, deleted_by: null })
-      .eq("id", voucher.id)
-      .eq("organization_id", organizationId);
+    await rollbackStep(
+      "supplier-payment-delete:restore-voucher",
+      () =>
+        client
+          .from("voucher_entries")
+          .update({ deleted_at: null, deleted_by: null })
+          .eq("id", voucher.id)
+          .eq("organization_id", organizationId),
+      { organizationId, recordId: voucher.id },
+    );
     throw glErr;
   }
 

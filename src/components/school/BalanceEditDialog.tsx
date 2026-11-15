@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { rollbackStep } from "@/lib/rollbackStep";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -240,7 +241,10 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
           .update({ closing_fees_balance: newBalance, fees_opening_is_net: false })
           .eq("id", student.id);
         if (stErr) {
-          await supabase.from("student_balance_audit").delete().eq("id", adjustmentId);
+          await rollbackStep("student-balance:audit", () => supabase.from("student_balance_audit").delete().eq("id", adjustmentId), {
+            organizationId: currentOrganization.id,
+            recordId: adjustmentId,
+          });
           throw stErr;
         }
       }
@@ -264,13 +268,18 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
         journalStatus = jr.status === "posted" ? "posted" : "skipped";
       } catch (glErr) {
         if (!hasActiveStructures) {
-          await supabase
-            .from("students")
-            .update({
-              closing_fees_balance: prevClosing,
-              fees_opening_is_net: prevFeesOpeningIsNet,
-            })
-            .eq("id", student.id);
+          await rollbackStep(
+            "student-balance:restore",
+            () =>
+              supabase
+                .from("students")
+                .update({
+                  closing_fees_balance: prevClosing,
+                  fees_opening_is_net: prevFeesOpeningIsNet,
+                })
+                .eq("id", student.id),
+            { organizationId: currentOrganization.id, recordId: student.id },
+          );
         }
         await patchStudentBalanceAuditJournalMeta(adjustmentId, {
           journal_status: "error",

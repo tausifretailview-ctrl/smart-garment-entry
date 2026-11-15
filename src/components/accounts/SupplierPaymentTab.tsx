@@ -20,6 +20,7 @@ import { coerceToMap, safeMapGet } from "@/lib/coerceToMap";
 import { differenceInDays, format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { rollbackStep } from "@/lib/rollbackStep";
 import { toast } from "sonner";
 import {
   deleteJournalEntryByReference,
@@ -648,7 +649,7 @@ export function SupplierPaymentTab({
               } catch (glErr) {
                 for (const vid of createdSupplierVoucherIds) {
                   await deleteJournalEntryByReference(organizationId, "SupplierPayment", vid, supabase);
-                  await supabase.from("voucher_entries").delete().eq("id", vid);
+                  await rollbackStep("supplier-payment:voucher", () => supabase.from("voucher_entries").delete().eq("id", vid), { organizationId: organizationId, recordId: vid });
                 }
                 createdSupplierVoucherIds.length = 0;
                 throw glErr;
@@ -699,7 +700,7 @@ export function SupplierPaymentTab({
             );
           } catch (glErr) {
             await deleteJournalEntryByReference(organizationId, "SupplierPayment", ins.id, supabase);
-            await supabase.from("voucher_entries").delete().eq("id", ins.id);
+            await rollbackStep("supplier-payment:voucher", () => supabase.from("voucher_entries").delete().eq("id", ins.id), { organizationId: organizationId, recordId: ins.id });
             throw glErr;
           }
         }

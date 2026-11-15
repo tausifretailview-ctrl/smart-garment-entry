@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 import { cn } from "@/lib/utils";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import {
@@ -194,10 +195,11 @@ const WhatsAppInbox = () => {
       if (insertError) throw insertError;
 
       // Update conversation last_message_at
-      await supabase
-        .from('whatsapp_conversations')
-        .update({ last_message_at: new Date().toISOString() })
-        .eq('id', selectedConversation.id);
+      await bestEffortWrite(
+        'whatsapp-inbox:last-message-at',
+        () => supabase.from('whatsapp_conversations').update({ last_message_at: new Date().toISOString() }).eq('id', selectedConversation.id),
+        { recordId: selectedConversation.id },
+      );
 
       return data;
     },

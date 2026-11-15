@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { ArrowDownLeft, ArrowLeft, ArrowUpRight, Banknote, Pencil, Plus, Trash2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { rollbackStep } from "@/lib/rollbackStep";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Card } from "@/components/ui/card";
@@ -372,7 +373,7 @@ export default function ThirdPartyVoucherEntry() {
           supabase,
         );
       } catch (journalErr) {
-        await supabase.from("voucher_entries").delete().eq("id", inserted.id);
+        await rollbackStep("third-party-voucher:voucher", () => supabase.from("voucher_entries").delete().eq("id", inserted.id), { organizationId: currentOrganization.id, recordId: inserted.id });
         throw journalErr;
       }
 

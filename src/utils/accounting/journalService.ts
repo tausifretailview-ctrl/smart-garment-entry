@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { bestEffortWrite, rollbackStep } from "@/lib/rollbackStep";
 import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import {
   type JournalReferenceType,
@@ -233,7 +234,9 @@ export async function postJournalEntry(params: PostJournalEntryInput): Promise<P
 
   const { error: lineErr } = await client.from("journal_lines").insert(payload);
   if (lineErr) {
-    await client.from("journal_entries").delete().eq("id", entry.id);
+    await rollbackStep("journal:entry-without-lines", () => client.from("journal_entries").delete().eq("id", entry.id), {
+      recordId: entry.id as string,
+    });
     throw lineErr;
   }
 
@@ -917,7 +920,7 @@ async function postRefundVoucherJournalOrUndo(
     await post(client);
   } catch (err) {
     await deleteJournalEntryByReference(params.organizationId, "Payment", params.voucherId, client);
-    await client.from("voucher_entries").delete().eq("id", params.voucherId);
+    await rollbackStep("refund:voucher", () => client.from("voucher_entries").delete().eq("id", params.voucherId), { organizationId: params.organizationId, recordId: params.voucherId });
     throw err;
   }
 }
@@ -1270,19 +1273,25 @@ export function postSaleJournalInBackground(
         client,
         saleJournalDate,
       );
-      await client
-        .from("sales")
-        .update({ journal_status: "posted", journal_error: null })
-        .eq("id", saleId);
+      await bestEffortWrite(
+        "auto-journal:sale-posted",
+        () => client.from("sales").update({ journal_status: "posted", journal_error: null }).eq("id", saleId),
+        { organizationId, recordId: saleId },
+      );
     } catch (journalErr) {
       console.error("Auto-journal (sale) failed:", journalErr);
-      await client
-        .from("sales")
-        .update({
-          journal_status: "failed",
-          journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
-        })
-        .eq("id", saleId);
+      await bestEffortWrite(
+        "auto-journal:sale-failed",
+        () =>
+          client
+            .from("sales")
+            .update({
+              journal_status: "failed",
+              journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
+            })
+            .eq("id", saleId),
+        { organizationId, recordId: saleId },
+      );
     }
   })();
 }

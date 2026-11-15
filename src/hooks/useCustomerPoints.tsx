@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { useAuth } from "@/contexts/AuthContext";
@@ -135,13 +136,14 @@ export function useCustomerPoints() {
         .single();
 
       if (customer) {
-        await supabase
+        const { error: balanceError } = await supabase
           .from('customers')
           .update({
             total_points_earned: (customer.total_points_earned || 0) + pointsToAward,
             points_balance: (customer.points_balance || 0) + pointsToAward,
           })
           .eq('id', customerId);
+        if (balanceError) throw balanceError;
       }
 
       return { success: true, pointsAwarded: pointsToAward };
@@ -259,13 +261,14 @@ export function useCustomerPoints() {
         .single();
 
       if (customer) {
-        await supabase
+        const { error: balanceError } = await supabase
           .from('customers')
           .update({
             points_balance: Math.max(0, (customer.points_balance || 0) - pointsToRedeem),
             points_redeemed: (customer.points_redeemed || 0) + pointsToRedeem,
           })
           .eq('id', customerId);
+        if (balanceError) throw balanceError;
       }
 
       return { success: true, amountRedeemed };
@@ -330,10 +333,15 @@ export function useCustomerPoints() {
         .single();
       
       if (gift) {
-        await supabase
-          .from('gift_rewards')
-          .update({ stock_qty: Math.max(0, (gift.stock_qty || 0) - 1) })
-          .eq('id', giftRewardId);
+        await bestEffortWrite(
+          'gift-redeem:stock',
+          () =>
+            supabase
+              .from('gift_rewards')
+              .update({ stock_qty: Math.max(0, (gift.stock_qty || 0) - 1) })
+              .eq('id', giftRewardId),
+          { organizationId: currentOrganization.id, recordId: giftRewardId },
+        );
       }
 
       // Update customer points
@@ -344,25 +352,30 @@ export function useCustomerPoints() {
         .single();
 
       if (customer) {
-        await supabase
+        // Checked: otherwise the gift is handed over while the points stay on the customer.
+        const { error: balanceError } = await supabase
           .from('customers')
           .update({
             points_balance: Math.max(0, (customer.points_balance || 0) - pointsRequired),
             points_redeemed: (customer.points_redeemed || 0) + pointsRequired,
           })
           .eq('id', customerId);
+        if (balanceError) throw balanceError;
 
         // Insert points history for gift redemption
-        await supabase
-          .from('customer_points_history')
-          .insert({
-            organization_id: currentOrganization.id,
-            customer_id: customerId,
-            transaction_type: 'redeemed',
-            points: -pointsRequired,
-            description: 'Gift reward redeemed',
-            created_by: user?.id,
-          });
+        await bestEffortWrite(
+          'gift-redeem:points-history',
+          () =>
+            supabase.from('customer_points_history').insert({
+              organization_id: currentOrganization.id,
+              customer_id: customerId,
+              transaction_type: 'redeemed',
+              points: -pointsRequired,
+              description: 'Gift reward redeemed',
+              created_by: user?.id,
+            }),
+          { organizationId: currentOrganization.id, recordId: customerId },
+        );
       }
 
       return { success: true };

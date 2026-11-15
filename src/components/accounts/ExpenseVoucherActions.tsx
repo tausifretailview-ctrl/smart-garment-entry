@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { rollbackStep } from "@/lib/rollbackStep";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import {
@@ -200,11 +201,16 @@ export function useExpenseVoucherActions(organizationId: string | undefined, ena
       try {
         await deleteJournalEntryByReference(organizationId, "ExpenseVoucher", voucher.id, supabase);
       } catch (jErr) {
-        await supabase
-          .from("voucher_entries")
-          .update({ deleted_at: null, deleted_by: null })
-          .eq("id", voucher.id)
-          .eq("organization_id", organizationId);
+        await rollbackStep(
+          "expense-delete:restore-voucher",
+          () =>
+            supabase
+              .from("voucher_entries")
+              .update({ deleted_at: null, deleted_by: null })
+              .eq("id", voucher.id)
+              .eq("organization_id", organizationId),
+          { organizationId, recordId: voucher.id },
+        );
         throw jErr;
       }
     },

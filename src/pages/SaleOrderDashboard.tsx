@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 import { useSettings } from "@/hooks/useSettings";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card, CardHeader, CardContent, CardDescription } from "@/components/ui/card";
@@ -755,10 +756,11 @@ export default function SaleOrderDashboard() {
       );
       const newStatus = allFulfilled ? 'confirmed' : 'partial';
       
-      await supabase
-        .from('sale_orders')
-        .update({ status: newStatus })
-        .eq('id', selectedOrder.id);
+      await bestEffortWrite(
+        'sale-order-convert:status',
+        () => supabase.from('sale_orders').update({ status: newStatus }).eq('id', selectedOrder.id),
+        { organizationId: currentOrganization?.id, recordId: selectedOrder.id },
+      );
 
       toast({ title: "Success", description: `Sale Bill ${saleNumber} created from order` });
       setShowConversionDialog(false);

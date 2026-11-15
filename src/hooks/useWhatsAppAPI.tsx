@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { toast } from "sonner";
 import {
@@ -668,10 +669,9 @@ export const useWhatsAppAPI = () => {
       if (!data.success) throw new Error(data.error || 'Retry failed');
 
       // Mark original log as retried
-      await supabase
-        .from('whatsapp_logs')
-        .update({ status: 'retried' })
-        .eq('id', logId);
+      await bestEffortWrite('whatsapp-retry:mark-retried', () => supabase.from('whatsapp_logs').update({ status: 'retried' }).eq('id', logId), {
+        recordId: logId,
+      });
 
       return data;
     },

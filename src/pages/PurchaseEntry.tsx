@@ -254,7 +254,7 @@ import {
   type DeletedRefsClient,
   type LiveNameCatalogClient,
 } from "@/utils/purchaseDeletedLineProducts";
-import { bestEffortWrite } from "@/lib/rollbackStep";
+import { bestEffortWrite, rollbackStep } from "@/lib/rollbackStep";
 
 const PURCHASE_LINE_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -7471,15 +7471,22 @@ const PurchaseEntry = () => {
       if (createdBillIdForRollback && currentOrganization?.id) {
         try {
           const rollbackAt = new Date().toISOString();
-          await supabase.from("purchase_items").delete().eq("bill_id", createdBillIdForRollback);
-          await supabase.from("purchase_bills").update({
-            deleted_at: rollbackAt,
-            deleted_by: user?.id ?? null,
-            is_cancelled: true,
-            cancelled_at: rollbackAt,
-            cancelled_by: user?.id ?? null,
-            cancelled_reason: "auto-rollback: items insert failed during save",
-          }).eq("id", createdBillIdForRollback);
+          const billId = createdBillIdForRollback;
+          const ctx = { organizationId: currentOrganization.id, recordId: billId };
+          await rollbackStep("purchase:lines", () => supabase.from("purchase_items").delete().eq("bill_id", billId), ctx);
+          await rollbackStep(
+            "purchase:cancel-bill",
+            () =>
+              supabase.from("purchase_bills").update({
+                deleted_at: rollbackAt,
+                deleted_by: user?.id ?? null,
+                is_cancelled: true,
+                cancelled_at: rollbackAt,
+                cancelled_by: user?.id ?? null,
+                cancelled_reason: "auto-rollback: items insert failed during save",
+              }).eq("id", billId),
+            ctx,
+          );
           console.warn("[PurchaseEntry] Soft-cancelled orphan bill after item save failure:", createdBillIdForRollback);
         } catch (rollbackErr) {
           console.error("[PurchaseEntry] Orphan bill rollback failed:", rollbackErr);

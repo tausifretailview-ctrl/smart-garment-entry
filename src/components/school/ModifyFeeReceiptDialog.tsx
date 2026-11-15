@@ -95,7 +95,8 @@ export function ModifyFeeReceiptDialog({ open, onOpenChange, fee }: ModifyFeeRec
 
       // Update the matching voucher_entry (fix: use total_amount not amount)
       if (fee.payment_receipt_id) {
-        await supabase
+        // Checked: the receipt voucher is what the cash book and ledger read.
+        const { error: voucherError } = await supabase
           .from("voucher_entries")
           .update({
             total_amount: paidAmount,
@@ -104,16 +105,18 @@ export function ModifyFeeReceiptDialog({ open, onOpenChange, fee }: ModifyFeeRec
           })
           .eq("voucher_number", fee.payment_receipt_id)
           .eq("organization_id", currentOrganization.id);
+        if (voucherError) throw voucherError;
       }
 
       // Recalculate status for this student_fees record
       const structureAmount = fee.amount || 0;
       const newStatus = structureAmount > 0 && paidAmount >= structureAmount ? "paid" : "partial";
-      await supabase
+      const { error: statusError } = await supabase
         .from("student_fees")
         .update({ status: newStatus })
         .eq("id", fee.id)
         .eq("organization_id", currentOrganization.id);
+      if (statusError) throw statusError;
 
       // Calculate updated remaining balance for this student
       const { data: allFees } = await supabase

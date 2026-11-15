@@ -86,7 +86,7 @@ import {
   type SaleOrderVariantSearchResult,
 } from "@/utils/saleOrderProductSearch";
 import { useActiveStaff } from "@/lib/data/employees";
-import { replaceDocumentLines } from "@/lib/data/replaceDocumentLines";
+import { saveDocumentWithLines } from "@/lib/data/replaceDocumentLines";
 
 interface LineItem {
   id: string;
@@ -1301,11 +1301,7 @@ export default function SaleOrderEntry() {
       let orderId = editingOrderId;
 
       if (editingOrderId) {
-        const { error } = await supabase
-          .from('sale_orders')
-          .update(orderData)
-          .eq('id', editingOrderId);
-        if (error) throw error;
+        // Header and lines are saved together below (saveDocumentWithLines).
       } else {
         let insertError: any = null;
         for (let attempt = 0; attempt < 5; attempt++) {
@@ -1361,8 +1357,14 @@ export default function SaleOrderEntry() {
       
 
       if (editingOrderId) {
-        // Checked replace: a failed delete used to double the lines, a failed insert to empty them.
-        await replaceDocumentLines({ table: 'sale_order_items', parentColumn: 'order_id', parentId: editingOrderId, rows: orderItems });
+        // Header + lines in one transaction (checked steps until the SQL is applied).
+        await saveDocumentWithLines({
+          kind: 'sale_order',
+          organizationId: currentOrganization!.id,
+          documentId: editingOrderId,
+          header: orderData,
+          rows: orderItems,
+        });
       } else {
         const { error: itemsError } = await supabase
           .from('sale_order_items')

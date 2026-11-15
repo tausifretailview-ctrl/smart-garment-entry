@@ -22,6 +22,7 @@ import {
 } from "@/utils/supplierPaymentVoucherRows";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { rollbackStep } from "@/lib/rollbackStep";
 import {
   describeReceiptGuardError,
   newReceiptSubmissionId,
@@ -932,7 +933,7 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
       const undoInserted = async () => {
         for (const vid of insertedVoucherIds) {
           await deleteJournalEntryByReference(organizationId, "SupplierPayment", vid, supabase);
-          await supabase.from("voucher_entries").delete().eq("id", vid);
+          await rollbackStep("floating-payments:voucher", () => supabase.from("voucher_entries").delete().eq("id", vid), { organizationId: organizationId, recordId: vid });
         }
       };
       for (const row of voucherRows) {
@@ -1230,7 +1231,7 @@ function ExpenseForm({ organizationId }: { organizationId: string }) {
             categoryLedgerId
           );
         } catch (jErr) {
-          await supabase.from("voucher_entries").delete().eq("id", inserted.id);
+          await rollbackStep("floating-payments:voucher", () => supabase.from("voucher_entries").delete().eq("id", inserted.id), { organizationId: organizationId, recordId: inserted.id });
           throw jErr;
         }
       }

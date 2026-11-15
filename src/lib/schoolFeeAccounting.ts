@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { insertStudentLedgerCredit } from "@/lib/studentLedger";
 import { recordSchoolFeeReceiptJournalEntry } from "@/utils/accounting/journalService";
+import { rollbackStep } from "@/lib/rollbackStep";
 
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -232,7 +233,10 @@ export async function postSchoolFeeReceiptAccounting(
 
   const { error: viErr } = await client.from("voucher_items").insert(voucherItems);
   if (viErr) {
-    await client.from("voucher_entries").delete().eq("id", voucherId);
+    await rollbackStep("school-fee:voucher", () => client.from("voucher_entries").delete().eq("id", voucherId), {
+      organizationId,
+      recordId: voucherId,
+    });
     throw viErr;
   }
 
@@ -248,8 +252,9 @@ export async function postSchoolFeeReceiptAccounting(
         client as any
       );
     } catch (jErr) {
-      await client.from("voucher_items").delete().eq("voucher_id", voucherId);
-      await client.from("voucher_entries").delete().eq("id", voucherId);
+      const ctx = { organizationId, recordId: voucherId };
+      await rollbackStep("school-fee:voucher-items", () => client.from("voucher_items").delete().eq("voucher_id", voucherId), ctx);
+      await rollbackStep("school-fee:voucher", () => client.from("voucher_entries").delete().eq("id", voucherId), ctx);
       throw jErr;
     }
   }
