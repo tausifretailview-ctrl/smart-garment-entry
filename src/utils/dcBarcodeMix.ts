@@ -4,6 +4,16 @@
  * asks before saving such a mix (decided 24 Oct 2026); a lookup error never blocks a save.
  */
 
+/**
+ * Whether to ask about a GST / DC barcode mix before saving. Editing a bill that was already
+ * saved as DC (and stays DC) does not ask: its barcodes were tagged DC when it was first saved
+ * (shop's decision, 15 Nov 2026; DC items will get their own barcode series later). A new DC
+ * bill, a GST bill, and a GST bill switched to DC still ask.
+ */
+export function shouldAskAboutDcMix(opts: { isEditMode: boolean; billIsDc: boolean; loadedBillWasDc: boolean }): boolean {
+  return !(opts.isEditMode && opts.billIsDc && opts.loadedBillWasDc);
+}
+
 export type DcMixedBarcode = { variantId: string; barcode: string; stockQty: number };
 
 type VariantRow = {

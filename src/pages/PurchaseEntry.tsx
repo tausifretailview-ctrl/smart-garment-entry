@@ -106,7 +106,7 @@ import { prefetchProductEntryDialog } from "@/lib/productEntryDialogLoad";
 import { scheduleIdleWork } from "@/lib/chunkLoadRetry";
 import QuickEditPopover from "@/components/QuickEditPopover";
 import { fillBlankVariantColorsFromPurchaseLines } from "@/utils/purchaseVariantColorSync";
-import { dcMixConfirmMessage, findDcMixedBarcodes } from "@/utils/dcBarcodeMix";
+import { dcMixConfirmMessage, findDcMixedBarcodes, shouldAskAboutDcMix } from "@/utils/dcBarcodeMix";
 import { resolveBarcodeScanPicker } from "@/utils/barcodeMrpPicker";
 import {
   barcodeTierLookupKey,
@@ -841,6 +841,8 @@ const PurchaseEntry = () => {
   );
   const isInitializingEditRef = useRef(false);
   const loadedEditBillIdRef = useRef<string | null>(null);
+  /** The opened bill was saved as DC (no GST / DC barcode message when it is edited and stays DC). */
+  const loadedBillWasDcRef = useRef(false);
   const workRestoredRef = useRef(Boolean(initialBrowserSnapshot?.lineItems?.length));
   const draftDiscardedExternallyRef = useRef(false);
   /** Blocks debounced draft writes after a successful bill save (pending timeout race). */
@@ -2581,6 +2583,7 @@ const PurchaseEntry = () => {
       setOtherCharges(Number(existingBill.other_charges) || 0);
       setDiscountAmount(Number(existingBill.discount_amount) || 0);
       setIsDcPurchase(existingBill.is_dc_purchase === true);
+      loadedBillWasDcRef.current = existingBill.is_dc_purchase === true;
       setIsBillLocked(existingBill.is_locked === true);
 
       const itemsData = await fetchPurchaseItemsByBillId(billId);
@@ -5845,7 +5848,10 @@ const PurchaseEntry = () => {
 
     // Same barcode on a GST and a DC bill: the barcode's DC tag follows this bill, so its
     // old stock changes side too. Ask first; a lookup error never blocks the save.
-    if (currentOrganization?.id) {
+    if (
+      currentOrganization?.id &&
+      shouldAskAboutDcMix({ isEditMode, billIsDc: isDcPurchase, loadedBillWasDc: loadedBillWasDcRef.current })
+    ) {
       const dcMixed = await findDcMixedBarcodes(supabase, currentOrganization.id, saveLines, isDcPurchase);
       if (dcMixed.length > 0 && !window.confirm(dcMixConfirmMessage(dcMixed, isDcPurchase))) {
         return;

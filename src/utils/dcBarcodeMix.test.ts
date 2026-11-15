@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { dcMixConfirmMessage, findDcMixedBarcodes, pickDcMixedBarcodes } from "./dcBarcodeMix";
+import { dcMixConfirmMessage, findDcMixedBarcodes, pickDcMixedBarcodes, shouldAskAboutDcMix } from "./dcBarcodeMix";
+
+describe("shouldAskAboutDcMix", () => {
+  it("editing a bill that was saved as DC and stays DC: no message", () => {
+    expect(shouldAskAboutDcMix({ isEditMode: true, billIsDc: true, loadedBillWasDc: true })).toBe(false);
+  });
+  it("new DC bill, GST bill, or GST bill switched to DC: still asks", () => {
+    expect(shouldAskAboutDcMix({ isEditMode: false, billIsDc: true, loadedBillWasDc: false })).toBe(true);
+    expect(shouldAskAboutDcMix({ isEditMode: true, billIsDc: false, loadedBillWasDc: false })).toBe(true);
+    expect(shouldAskAboutDcMix({ isEditMode: true, billIsDc: true, loadedBillWasDc: false })).toBe(true);
+    expect(shouldAskAboutDcMix({ isEditMode: true, billIsDc: false, loadedBillWasDc: true })).toBe(true);
+  });
+});
 
 describe("dcBarcodeMix", () => {
   const rows = [
