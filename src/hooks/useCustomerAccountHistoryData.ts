@@ -10,6 +10,7 @@ import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 import { adjustmentDueDelta } from "@/lib/schoolFeeLiability";
 import { computeRefundableCreditBalance } from "@/utils/customerLedgerReconciliation";
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 
 export async function invalidateCustomerAccountHistoryQueries(
   queryClient: QueryClient,
@@ -349,12 +350,18 @@ export function useCustomerAccountHistoryData({
       const creditNoteIds = [...new Set(rows.map((r) => r.credit_note_id).filter(Boolean))] as string[];
       const cnLiveMap: Record<string, number> = {};
       if (creditNoteIds.length > 0) {
-        const { data: cnRows } = await supabase
-          .from("credit_notes")
-          .select("id, credit_amount, used_amount")
-          .eq("organization_id", organizationId)
-          .in("id", creditNoteIds);
-        (cnRows || []).forEach((cn) => {
+        // A long-time customer's returns can pass 200 credit notes: batched + paged.
+        const cnRows = await fetchInIdBatches<{ id: string; credit_amount: number | null; used_amount: number | null }>(
+          creditNoteIds,
+          (batch) =>
+            supabase
+              .from("credit_notes")
+              .select("id, credit_amount, used_amount")
+              .eq("organization_id", organizationId)
+              .in("id", batch)
+              .order("id"),
+        );
+        cnRows.forEach((cn) => {
           cnLiveMap[cn.id] = Math.max(0, Number(cn.credit_amount || 0) - Number(cn.used_amount || 0));
         });
       }

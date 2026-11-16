@@ -13,6 +13,8 @@ import { StockAnalysisSearch, StockAnalysisLoadingSkeleton } from "@/components/
 import { movementLabelKey } from "@/utils/stockSettlementMovement";
 import { fetchTransferInByVariantId, type TransferInInfo } from "@/lib/stockTransferStockReport";
 import { formatDateTimeDMY } from "@/lib/dateDisplay";
+import { fetchInIdBatches, ID_BATCH_SIZE } from "@/lib/data/fetchInIdBatches";
+import { toast } from "sonner";
 
 interface StockItem {
   id: string;
@@ -153,24 +155,35 @@ export default function StockAnalysis() {
 
       // Only fetch movements and batch if we have variants
       if (variantIds.length > 0) {
-        // Fetch movements for matched variants
-        const { data: movementsData } = await supabase
-          .from("stock_movements")
-          .select("variant_id, movement_type, quantity")
-          .in("variant_id", variantIds);
-
-        // Fetch batch stock for matched variants
-        const { data: batchData } = await supabase
-          .from("batch_stock")
-          .select(`
-            variant_id,
-            purchase_bills (
-              supplier_name,
-              supplier_invoice_no
-            )
-          `)
-          .eq("organization_id", currentOrganization.id)
-          .in("variant_id", variantIds);
+        // A broad name ("shirt") can match thousands of sizes: read 200 ids per request and page
+        // past the 1,000-row reply cap, or purchase / sales qty silently came out short or zero.
+        const orgId = currentOrganization.id;
+        const [movementsData, batchData] = await Promise.all([
+          fetchInIdBatches<{ variant_id: string; movement_type: string; quantity: number }>(
+            variantIds,
+            (batch) =>
+              supabase
+                .from("stock_movements")
+                .select("variant_id, movement_type, quantity")
+                .eq("organization_id", orgId)
+                .in("variant_id", batch)
+                .order("id"),
+          ),
+          fetchInIdBatches<any>(variantIds, (batch) =>
+            supabase
+              .from("batch_stock")
+              .select(`
+                variant_id,
+                purchase_bills (
+                  supplier_name,
+                  supplier_invoice_no
+                )
+              `)
+              .eq("organization_id", orgId)
+              .in("variant_id", batch)
+              .order("id"),
+          ),
+        ]);
 
         // Stock received from the owner's other shop: counts in Opening, that shop is the supplier.
         const transferIn = await fetchTransferInByVariantId(currentOrganization.id, variantIds);
@@ -265,28 +278,43 @@ export default function StockAnalysis() {
       // Fetch movements with search
       let formattedMovements: StockMovement[] = [];
       if (variantIds.length > 0) {
-        const { data: movementHistory } = await supabase
-          .from("stock_movements")
-          .select(`
-            id,
-            movement_type,
-            quantity,
-            notes,
-            created_at,
-            variant_id,
-            product_variants!inner (
-              size,
-              products!inner (
-                product_name,
-                product_type
-              )
-            )
-          `)
-          .eq("organization_id", currentOrganization.id)
-          .in("variant_id", variantIds)
-          .neq("product_variants.products.product_type", "service")
-          .order("created_at", { ascending: false })
-          .limit(100);
+        // Latest 100 movements across all matched sizes: newest 100 of each 200-id batch, merged.
+        const idBatches: string[][] = [];
+        for (let i = 0; i < variantIds.length; i += ID_BATCH_SIZE) {
+          idBatches.push(variantIds.slice(i, i + ID_BATCH_SIZE));
+        }
+        const historyPages = await Promise.all(
+          idBatches.map(async (batch) => {
+            const { data, error } = await supabase
+              .from("stock_movements")
+              .select(`
+                id,
+                movement_type,
+                quantity,
+                notes,
+                created_at,
+                variant_id,
+                product_variants!inner (
+                  size,
+                  products!inner (
+                    product_name,
+                    product_type
+                  )
+                )
+              `)
+              .eq("organization_id", currentOrganization.id)
+              .in("variant_id", batch)
+              .neq("product_variants.products.product_type", "service")
+              .order("created_at", { ascending: false })
+              .limit(100);
+            if (error) throw error;
+            return data || [];
+          }),
+        );
+        const movementHistory = historyPages
+          .flat()
+          .sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at)))
+          .slice(0, 100);
 
         formattedMovements = movementHistory?.map((item: any) => ({
           id: item.id,
@@ -305,48 +333,38 @@ export default function StockAnalysis() {
       // Fetch batch stock
       let formattedBatch: BatchStock[] = [];
       if (variantIds.length > 0) {
-        const allBatchStockData: any[] = [];
-        let batchOffset = 0;
-        const BATCH_PAGE = 1000;
-        let batchHasMore = true;
-        while (batchHasMore) {
-          const { data: batchPage, error: batchError } = await supabase
-            .from('batch_stock')
-            .select(`
-              *,
-              product_variants!inner (
-                size,
-                barcode,
-                deleted_at,
-                products!inner (
-                  product_name,
-                  brand,
-                  product_type,
-                  deleted_at
+        const allBatchStockData: any[] = (
+          await fetchInIdBatches<any>(variantIds, (batch) =>
+            supabase
+              .from('batch_stock')
+              .select(`
+                *,
+                product_variants!inner (
+                  size,
+                  barcode,
+                  deleted_at,
+                  products!inner (
+                    product_name,
+                    brand,
+                    product_type,
+                    deleted_at
+                  )
+                ),
+                purchase_bills (
+                  supplier_name,
+                  supplier_invoice_no
                 )
-              ),
-              purchase_bills (
-                supplier_name,
-                supplier_invoice_no
-              )
-            `)
-            .eq('organization_id', currentOrganization.id)
-            .in('variant_id', variantIds)
-            .gt('quantity', 0)
-            .is('product_variants.deleted_at', null)
-            .is('product_variants.products.deleted_at', null)
-            .neq('product_variants.products.product_type', 'service')
-            .order('purchase_date', { ascending: true })
-            .range(batchOffset, batchOffset + BATCH_PAGE - 1);
-          if (batchError) break;
-          if (batchPage && batchPage.length > 0) {
-            allBatchStockData.push(...batchPage);
-            batchOffset += BATCH_PAGE;
-            batchHasMore = batchPage.length === BATCH_PAGE;
-          } else {
-            batchHasMore = false;
-          }
-        }
+              `)
+              .eq('organization_id', currentOrganization.id)
+              .in('variant_id', batch)
+              .gt('quantity', 0)
+              .is('product_variants.deleted_at', null)
+              .is('product_variants.products.deleted_at', null)
+              .neq('product_variants.products.product_type', 'service')
+              .order('purchase_date', { ascending: true })
+              .order('id'),
+          )
+        ).sort((a, b) => String(a.purchase_date ?? "").localeCompare(String(b.purchase_date ?? "")));
 
         formattedBatch = (allBatchStockData || []).map((item: any) => ({
           id: item.id,
@@ -367,6 +385,7 @@ export default function StockAnalysis() {
 
     } catch (error) {
       console.error("Error fetching stock data:", error);
+      toast.error("Stock analysis could not load. Please try again.");
     } finally {
       setLoading(false);
     }

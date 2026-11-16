@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchSupplierBalanceSnapshot } from "@/utils/supplierBalanceUtils";
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 
 /** Warn when proposed settlement exceeds fresh payable by more than this (rupees). */
 export const SUPPLIER_OVERPAYMENT_WARN_TOLERANCE_RUPEE = 1;
@@ -19,17 +20,25 @@ export async function fetchFreshSupplierBillsPending(
 ): Promise<number> {
   if (billIds.length === 0) return 0;
 
-  const { data, error } = await client
-    .from("purchase_bills")
-    .select("id, supplier_id, net_amount, paid_amount, is_cancelled")
-    .eq("organization_id", organizationId)
-    .in("id", billIds)
-    .is("deleted_at", null);
-
-  if (error) throw error;
+  // "Select all" on a supplier with many bills: 200 ids per request so the URL is accepted.
+  const data = await fetchInIdBatches<{
+    id: string;
+    supplier_id: string | null;
+    net_amount: number | null;
+    paid_amount: number | null;
+    is_cancelled: boolean | null;
+  }>(billIds, (batch) =>
+    client
+      .from("purchase_bills")
+      .select("id, supplier_id, net_amount, paid_amount, is_cancelled")
+      .eq("organization_id", organizationId)
+      .in("id", batch)
+      .is("deleted_at", null)
+      .order("id"),
+  );
 
   let sum = 0;
-  for (const row of data || []) {
+  for (const row of data) {
     if (row.supplier_id !== supplierId) continue;
     if (row.is_cancelled) continue;
     sum += Math.max(0, Number(row.net_amount || 0) - Number(row.paid_amount || 0));
