@@ -69,3 +69,15 @@ describe("garment GST slab after discount", () => {
     expect(getGarmentSlabPrice(2625, {}, ON)).toBe(2625);
   });
 });
+
+describe("garment rule keeps luxury / imported rates", () => {
+  it("never pulls a 40% or 28% item down to 5% below the threshold", () => {
+    expect(resolveGarmentGstForLine(1500, 40, 40, ON)).toBe(40);
+    expect(resolveGarmentGstForLine(1500, 28, 28, ON)).toBe(28);
+    expect(resolveGarmentGstForLine(5000, 40, 40, ON)).toBe(40);
+  });
+
+  it("still restores an inherited 18% to the 5% slab below the threshold", () => {
+    expect(resolveGarmentGstForLine(1500, 18, 18, ON)).toBe(5);
+  });
+});
