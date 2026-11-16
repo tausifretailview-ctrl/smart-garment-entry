@@ -73,7 +73,7 @@ import { LazyFloatingCashTally } from "@/components/lazyFloatingWidgets";
 import { cashierSaleReturnRefundMode } from "@/utils/cashierSaleReturnRefunds";
 import { isNonCashSettlementReceiptMethod } from "@/utils/saleSettlement";
 
-type PeriodType = "daily" | "monthly" | "quarterly";
+type PeriodType = "daily" | "monthly" | "quarterly" | "custom";
 
 const DailyCashierReport = () => {
   const { currentOrganization } = useOrganization();
@@ -86,6 +86,17 @@ const DailyCashierReport = () => {
     return d;
   });
   const [period, setPeriod] = useState<PeriodType>("daily");
+  // Custom period: any From → To dates (both days included).
+  const [customFrom, setCustomFrom] = useState<Date>(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+  const [customTo, setCustomTo] = useState<Date>(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
   const [salesCreditOpen, setSalesCreditOpen] = useState(true);
   const [otherMoneyOpen, setOtherMoneyOpen] = useState(false);
   const [cashTallyOpen, setCashTallyOpen] = useState(false);
@@ -93,11 +104,18 @@ const DailyCashierReport = () => {
   const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.dailyCashierReport,
     currentOrganization?.id,
-    useMemo(() => ({ selectedDate, period }), [selectedDate, period]),
+    useMemo(
+      () => ({ selectedDate, period, customFrom, customTo }),
+      [selectedDate, period, customFrom, customTo],
+    ),
     (saved) => {
       restoreDashboardFilters(saved, {
         strings: [["period", (v) => setPeriod(v as PeriodType)]],
-        requiredDates: [["selectedDate", setSelectedDate]],
+        requiredDates: [
+          ["selectedDate", setSelectedDate],
+          ["customFrom", setCustomFrom],
+          ["customTo", setCustomTo],
+        ],
       });
     },
   );
@@ -111,6 +129,8 @@ const DailyCashierReport = () => {
     d.setHours(0, 0, 0, 0);
     setSelectedDate(d);
     setPeriod("daily");
+    setCustomFrom(new Date(d));
+    setCustomTo(new Date(d));
     clearPersistedFilters();
   };
 
@@ -128,6 +148,15 @@ const DailyCashierReport = () => {
         startDate = startOfQuarter(selectedDate);
         endDate = endOfQuarter(selectedDate);
         break;
+      case "custom": {
+        // A To date before From is read as the same range the other way round.
+        const [a, b] = customFrom <= customTo ? [customFrom, customTo] : [customTo, customFrom];
+        startDate = new Date(a);
+        startDate.setHours(0, 0, 0, 0);
+        endDate = new Date(b);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      }
       default: // daily
         startDate = new Date(selectedDate);
         startDate.setHours(0, 0, 0, 0);
@@ -1233,7 +1262,7 @@ const DailyCashierReport = () => {
     const ws = XLSX.utils.aoa_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Business Report");
-    XLSX.writeFile(wb, `Business_Report_${format(selectedDate, "yyyy-MM-dd")}.xlsx`);
+    XLSX.writeFile(wb, `Business_Report_${exportFileDateLabel()}.xlsx`);
   };
 
   const handleExportPDF = async () => {
@@ -1365,7 +1394,7 @@ const DailyCashierReport = () => {
     doc.setFontSize(9);
     doc.text(`Generated on ${format(new Date(), "dd/MM/yyyy HH:mm")}`, pageWidth / 2, y, { align: "center" });
 
-    doc.save(`Business_Report_${format(selectedDate, "yyyy-MM-dd")}.pdf`);
+    doc.save(`Business_Report_${exportFileDateLabel()}.pdf`);
   };
 
   const formatCurrency = (amount: number) => {
@@ -1382,9 +1411,25 @@ const DailyCashierReport = () => {
         return format(selectedDate, "MMMM yyyy");
       case "quarterly":
         return `Q${Math.ceil((selectedDate.getMonth() + 1) / 3)} ${format(selectedDate, "yyyy")}`;
+      case "custom":
+        return rangeStartYmd === rangeEndYmd
+          ? format(startDate, "dd MMM yyyy")
+          : `${format(startDate, "dd MMM yyyy")} – ${format(endDate, "dd MMM yyyy")}`;
       default:
         return format(selectedDate, "dd MMM yyyy");
     }
+  };
+
+  /** File name part: the day, or From_to_To for a custom range. */
+  function exportFileDateLabel(): string {
+    if (period === "custom" && rangeStartYmd !== rangeEndYmd) return `${rangeStartYmd}_to_${rangeEndYmd}`;
+    if (period === "custom") return rangeStartYmd;
+    return format(selectedDate, "yyyy-MM-dd");
+  }
+
+  /** Phone day buttons move one day: they leave a custom From – To range for the daily view. */
+  const leaveCustomForDay = () => {
+    if (period === "custom") setPeriod("daily");
   };
 
   const getReportTitle = () => {
@@ -1393,6 +1438,8 @@ const DailyCashierReport = () => {
         return "MONTHLY CASHIER REPORT";
       case "quarterly":
         return "QUARTERLY CASHIER REPORT";
+      case "custom":
+        return "CASHIER REPORT";
       default:
         return "DAILY CASHIER REPORT";
     }
@@ -1407,15 +1454,15 @@ const DailyCashierReport = () => {
 
         {/* Date navigator */}
         <div className="flex items-center gap-2 px-4 py-3">
-          <button onClick={() => setSelectedDate(d => subDays(d, 1))}
+          <button onClick={() => { leaveCustomForDay(); setSelectedDate(d => subDays(d, 1)); }}
             className="w-10 h-10 bg-card rounded-xl border border-border flex items-center justify-center active:scale-90 touch-manipulation">
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <button onClick={() => setSelectedDate(new Date())}
+          <button onClick={() => { leaveCustomForDay(); setSelectedDate(new Date()); }}
             className="flex-1 h-10 bg-primary/10 rounded-xl text-xs font-semibold text-primary active:scale-95 touch-manipulation">
             Today
           </button>
-          <button onClick={() => setSelectedDate(d => addDays(d, 1))}
+          <button onClick={() => { leaveCustomForDay(); setSelectedDate(d => addDays(d, 1)); }}
             className="w-10 h-10 bg-card rounded-xl border border-border flex items-center justify-center active:scale-90 touch-manipulation">
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -1677,9 +1724,59 @@ const DailyCashierReport = () => {
                 <SelectItem value="daily">Daily</SelectItem>
                 <SelectItem value="monthly">Monthly</SelectItem>
                 <SelectItem value="quarterly">Quarterly</SelectItem>
+                <SelectItem value="custom">Custom (From – To)</SelectItem>
               </SelectContent>
             </Select>
 
+            {period === "custom" ? (
+              <>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="h-9 w-[150px] justify-start text-left font-normal text-sm border-slate-200 bg-white"
+                      title="From date"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      <span className="text-muted-foreground mr-1">From</span>
+                      {format(customFrom, "dd MMM yy")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <Calendar
+                      mode="single"
+                      selected={customFrom}
+                      onSelect={(date) => date && setCustomFrom(date)}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="h-9 w-[150px] justify-start text-left font-normal text-sm border-slate-200 bg-white"
+                      title="To date"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      <span className="text-muted-foreground mr-1">To</span>
+                      {format(customTo, "dd MMM yy")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <Calendar
+                      mode="single"
+                      selected={customTo}
+                      onSelect={(date) => date && setCustomTo(date)}
+                      disabled={(date) => date < customFrom}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </>
+            ) : (
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -1702,6 +1799,7 @@ const DailyCashierReport = () => {
                 />
               </PopoverContent>
             </Popover>
+            )}
 
             <ResetPersistedFiltersButton
               visible={cashierFiltersDirty}
