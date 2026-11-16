@@ -38,6 +38,7 @@ import { totalFromShortPage } from "@/utils/dashboardShortPageCount";
 import { saleRowsForDcView } from "@/utils/dcSaleShare";
 import { filterSalesForDcView, salesSelectForDcView } from "@/utils/dcView";
 import { advanceBeyondTender, fetchSalesAdvanceAdjusted } from "@/utils/posApplyAdvance";
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 
 /** Calendar bounds for server queries from period chip + date inputs (fixes persisted single-day monthly). */
 
@@ -855,6 +856,10 @@ async function countFilteredPosSales(
   );
   const resolution =
     searchResolution ?? (await resolvePosSearch(client, filters));
+  const largeIds = largeIdRestriction(resolution);
+  if (largeIds) {
+    return (await fetchFilteredRowsForIds(client, filters, largeIds, "id, sale_date")).length;
+  }
   query = applyResolvedPosSearch(query, resolution);
   const { count, error } = await query;
   if (error) throw error;
@@ -1045,6 +1050,46 @@ async function resolvePosSearchUncached(
   return { saleTextFilter, restrictToIds: null, searchMeta };
 }
 
+
+/**
+ * A product search can match up to ~1,400 bills (400 header + 1,000 line-item hits). Sent as one
+ * `id=in.(…)` list that URL is past the gateway limit (~200 ids) and the whole search failed.
+ * Above this size the ids are read in batches with the same filters and merged in table order.
+ */
+export const POS_SEARCH_MAX_IN_IDS = 150;
+
+function largeIdRestriction(resolution: PosSearchResolution | null): string[] | null {
+  if (!resolution || resolution.restrictToCustomerId) return null;
+  const ids = resolution.restrictToIds;
+  return ids && ids.length > POS_SEARCH_MAX_IN_IDS ? ids : null;
+}
+
+/** Same order as buildPosDashboardBaseQuery: sale_date desc, then id desc. */
+function compareSaleDateDescIdDesc(a: any, b: any): number {
+  const da = String(a?.sale_date ?? "");
+  const db = String(b?.sale_date ?? "");
+  if (da !== db) return da < db ? 1 : -1;
+  const ia = String(a?.id ?? "");
+  const ib = String(b?.id ?? "");
+  return ia === ib ? 0 : ia < ib ? 1 : -1;
+}
+
+/** Rows of `ids` that pass the dashboard filters, 150 ids per request, in table order. */
+async function fetchFilteredRowsForIds(
+  client: SupabaseClient,
+  filters: PosDashboardFilters,
+  ids: string[],
+  select: string,
+): Promise<any[]> {
+  const hasOrderCols = select.includes("*") || (/\bsale_date\b/.test(select) && /\bid\b/.test(select));
+  const needed = hasOrderCols ? select : `id, sale_date, ${select}`;
+  const rows = await fetchInIdBatches<any>(
+    ids,
+    (batch) => buildPosDashboardBaseQuery(client, filters, needed).in("id", batch),
+    { size: POS_SEARCH_MAX_IN_IDS },
+  );
+  return rows.sort(compareSaleDateDescIdDesc);
+}
 
 function applyResolvedPosSearch(query: any, resolution: PosSearchResolution | null): any {
   if (!resolution) return query;
@@ -1353,7 +1398,19 @@ export async function fetchPosDashboardPage(
   };
   let totalCount: number;
   let dataResult: any;
-  if (searchResolution) {
+  const largeIds = largeIdRestriction(searchResolution);
+  if (largeIds) {
+    // Many matches: order the filtered ids first, then load only this page's rows.
+    const ordered = await fetchFilteredRowsForIds(client, filters, largeIds, "id, sale_date");
+    totalCount = ordered.length;
+    const pageIds = ordered.slice(from, to + 1).map((r) => r.id as string);
+    dataResult = {
+      data: pageIds.length
+        ? await fetchFilteredRowsForIds(client, filters, pageIds, POS_DASHBOARD_SALES_SELECT)
+        : [],
+      error: null,
+    };
+  } else if (searchResolution) {
     // Most searches fit on one page: skip the count query unless the page is full.
     dataResult = await fetchPageRows();
     if (dataResult.error) throw dataResult.error;
@@ -1439,7 +1496,12 @@ async function scanPosDashboardSummaryRows(
     "POS dashboard summary search resolution",
   );
 
-  while (true) {
+  const largeIds = largeIdRestriction(searchResolution);
+  if (largeIds) {
+    allRows.push(...((await fetchFilteredRowsForIds(client, filters, largeIds, select)) as PosDashboardSaleLike[]));
+  }
+
+  while (!largeIds) {
 
     let query: any = buildPosDashboardBaseQuery(client, filters, select).range(
       offset,
@@ -1729,7 +1791,12 @@ export async function fetchPosDashboardExportRows(
     "POS dashboard export search resolution",
   );
 
-  while (true) {
+  const largeIds = largeIdRestriction(searchResolution);
+  if (largeIds) {
+    allSales.push(...(await fetchFilteredRowsForIds(client, filters, largeIds, POS_DASHBOARD_SALES_SELECT)));
+  }
+
+  while (!largeIds) {
 
     let query: any = buildPosDashboardBaseQuery(
       client,
