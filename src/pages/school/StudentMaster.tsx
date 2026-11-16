@@ -49,6 +49,7 @@ import { FeesBalanceImportDialog } from "@/components/school/FeesBalanceImportDi
 import { StudentHistoryDialog } from "@/components/school/StudentHistoryDialog";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 import { adjustmentDueDelta, resolveLiability } from "@/lib/schoolFeeLiability";
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 
 const PAGE_SIZE = 50;
 
@@ -191,20 +192,28 @@ const StudentMaster = () => {
               .eq("academic_year_id", selectedYearId)
               .in("class_id", classIds)
           : Promise.resolve({ data: [] as any[] }),
-        supabase
-          .from("student_fees")
-          .select("student_id, paid_amount, status")
-          .eq("organization_id", currentOrganization.id)
-          .eq("academic_year_id", selectedYearId)
-          .in("student_id", studentIds)
-          .in("status", ["paid", "partial"])
-          .gt("paid_amount", 0),
-        (supabase.from("student_balance_audit" as any) as any)
-          .select("student_id, adjustment_type, change_amount, old_balance, new_balance")
-          .eq("organization_id", currentOrganization.id)
-          .eq("academic_year_id", selectedYearId)
-          .in("student_id", studentIds)
-          .not("reason_code", "in", "(receipt_deleted,receipt_modified)"),
+        // 50 students × fee heads × months can pass the 1,000-row reply cap: paged, and a
+        // failed read now shows an error instead of a wrong due.
+        fetchInIdBatches<any>(studentIds, (batch) =>
+          supabase
+            .from("student_fees")
+            .select("student_id, paid_amount, status")
+            .eq("organization_id", currentOrganization.id)
+            .eq("academic_year_id", selectedYearId)
+            .in("student_id", batch)
+            .in("status", ["paid", "partial"])
+            .gt("paid_amount", 0)
+            .order("id"),
+        ).then((data) => ({ data })),
+        fetchInIdBatches<any>(studentIds, (batch) =>
+          (supabase.from("student_balance_audit" as any) as any)
+            .select("student_id, adjustment_type, change_amount, old_balance, new_balance")
+            .eq("organization_id", currentOrganization.id)
+            .eq("academic_year_id", selectedYearId)
+            .in("student_id", batch)
+            .not("reason_code", "in", "(receipt_deleted,receipt_modified)")
+            .order("id"),
+        ).then((data) => ({ data })),
         supabase
           .from("academic_years")
           .select("id, start_date, end_date, year_name")
@@ -232,15 +241,18 @@ const StudentMaster = () => {
 
       const latePrevPaidByStudent = new Map<string, number>();
       if (prevYear?.id && studentIds.length > 0) {
-        const { data: latePrevFees } = await supabase
-          .from("student_fees")
-          .select("student_id, paid_amount")
-          .eq("organization_id", currentOrganization.id)
-          .eq("academic_year_id", prevYear.id)
-          .in("student_id", studentIds)
-          .in("status", ["paid", "partial"])
-          .gt("paid_amount", 0);
-        (latePrevFees || []).forEach((f: any) => {
+        const latePrevFees = await fetchInIdBatches<any>(studentIds, (batch) =>
+          supabase
+            .from("student_fees")
+            .select("student_id, paid_amount")
+            .eq("organization_id", currentOrganization.id)
+            .eq("academic_year_id", prevYear.id)
+            .in("student_id", batch)
+            .in("status", ["paid", "partial"])
+            .gt("paid_amount", 0)
+            .order("id"),
+        );
+        latePrevFees.forEach((f: any) => {
           latePrevPaidByStudent.set(
             f.student_id,
             (latePrevPaidByStudent.get(f.student_id) || 0) + Number(f.paid_amount || 0)
