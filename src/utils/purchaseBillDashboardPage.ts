@@ -4,6 +4,7 @@ import {
   fetchPurchaseBillIdsMatchingLineItems,
   purchaseBillDisplaySupplierName,
   purchaseBillTextSearchFilterForOrg,
+  purchaseSearchOrFilter,
 } from "@/utils/purchaseBillDashboardSearch";
 
 export type PurchaseBillDashboardRow = {
@@ -192,24 +193,9 @@ async function fetchPurchaseBillsDashboardPageClient(
     );
     const billTextFilter = await purchaseBillTextSearchFilterForOrg(organizationId, searchStr);
 
-    if (matchingBillIds.length > 0) {
-      const { data: textMatches, error } = await withAbortSignal(
-        supabase
-          .from("purchase_bills")
-          .select("id")
-          .eq("organization_id", organizationId)
-          .is("deleted_at", null)
-          .or(billTextFilter),
-        signal,
-      );
-      if (error) throw error;
-      const allMatchIds = [
-        ...new Set([...(textMatches || []).map((b: { id: string }) => b.id), ...matchingBillIds]),
-      ];
-      query = query.in("id", allMatchIds);
-    } else {
-      query = query.or(billTextFilter);
-    }
+    // Bill text OR line-item hit in one filter: the old id list (every text match + item hits)
+    // passed the ~200-id URL limit on common words and the search failed.
+    query = query.or(purchaseSearchOrFilter(billTextFilter, matchingBillIds));
   }
 
   if (params.startDate && !isBarcodeLikeSearch) {

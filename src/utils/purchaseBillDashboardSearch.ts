@@ -162,3 +162,15 @@ export function purchaseBillDisplaySupplierName(bill: {
   const master = Array.isArray(embed) ? embed[0]?.supplier_name : embed?.supplier_name;
   return master ?? bill.supplier_name ?? "";
 }
+
+/** Line-item matched bill ids sent inline in the search filter (keeps the URL under the limit). */
+export const PURCHASE_SEARCH_MAX_ITEM_IDS = 150;
+
+/**
+ * `.or()` filter for a purchase bill search: bill text match OR one of the line-item matched
+ * bills (first PURCHASE_SEARCH_MAX_ITEM_IDS). Replaces an `id=in.(…)` list of every match.
+ */
+export function purchaseSearchOrFilter(billTextFilter: string, matchingBillIds: string[]): string {
+  const ids = [...new Set(matchingBillIds.filter(Boolean))].slice(0, PURCHASE_SEARCH_MAX_ITEM_IDS);
+  return ids.length ? `${billTextFilter},id.in.(${ids.join(",")})` : billTextFilter;
+}
