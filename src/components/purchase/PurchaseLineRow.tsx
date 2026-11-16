@@ -202,6 +202,7 @@ function PurchaseLineRowInner<T extends PurchaseLineRowItem>({
               <SelectItem value="12">12%</SelectItem>
               <SelectItem value="18">18%</SelectItem>
               <SelectItem value="28">28%</SelectItem>
+              <SelectItem value="40">40%</SelectItem>
             </SelectContent>
           </Select>
         </TableCell>

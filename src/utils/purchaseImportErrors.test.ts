@@ -20,7 +20,7 @@ describe("purchaseImportErrors", () => {
         { code: "23514", message: 'new row for relation "products" violates check constraint "products_gst_per_check"' },
         { what: "product", gstPer: 3 },
       ),
-    ).toBe("GST % 3 is not allowed (use 0, 5, 12, 18, 28)");
+    ).toBe("GST % 3 is not allowed (use 0, 5, 12, 18, 28, 40)");
     expect(
       describeImportDbError({
         code: "23505",

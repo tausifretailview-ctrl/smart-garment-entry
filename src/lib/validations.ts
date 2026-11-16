@@ -57,8 +57,8 @@ export const productSchema = z.object({
     .regex(/^[0-9]*$/, "HSN code must contain only numbers")
     .optional()
     .or(z.literal("")),
-  gst_per: z.number().refine((val) => [0, 5, 12, 18, 28].includes(val), {
-    message: "GST % must be one of: 0, 5, 12, 18, 28",
+  gst_per: z.number().refine((val) => [0, 5, 12, 18, 28, 40].includes(val), {
+    message: "GST % must be one of: 0, 5, 12, 18, 28, 40",
   }),
   default_pur_price: z.number({ required_error: "Purchase Price is required" }).min(0.01, "Purchase Price must be greater than 0"),
   default_sale_price: z.number({ required_error: "Sale Price is required" }).min(0.01, "Sale Price must be greater than 0"),

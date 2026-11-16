@@ -306,6 +306,10 @@ const GSTSalePurchaseRegister = () => {
           cgst_14: breakup.cgst_14,
           sgst_14: breakup.sgst_14,
           igst_28: breakup.igst_28,
+          taxable_40: breakup.taxable_40,
+          cgst_20: breakup.cgst_20,
+          sgst_20: breakup.sgst_20,
+          igst_40: breakup.igst_40,
           invoiceValue: Number(sale.net_amount) || 0,
         };
       });
@@ -350,6 +354,10 @@ const GSTSalePurchaseRegister = () => {
           cgst_14: breakup.cgst_14,
           sgst_14: breakup.sgst_14,
           igst_28: breakup.igst_28,
+          taxable_40: breakup.taxable_40,
+          cgst_20: breakup.cgst_20,
+          sgst_20: breakup.sgst_20,
+          igst_40: breakup.igst_40,
           invoiceValue: Number(sale.net_amount) || 0,
         };
       });
@@ -417,10 +425,10 @@ const GSTSalePurchaseRegister = () => {
           isInterStateTx,
         );
 
-        const totalTaxable = breakup.taxable_0 + breakup.taxable_5 + breakup.taxable_12 + breakup.taxable_18 + breakup.taxable_28;
-        const totalCGST = breakup.cgst_2_5 + breakup.cgst_6 + breakup.cgst_9 + breakup.cgst_14;
-        const totalSGST = breakup.sgst_2_5 + breakup.sgst_6 + breakup.sgst_9 + breakup.sgst_14;
-        const totalIGST = breakup.igst_5 + breakup.igst_12 + breakup.igst_18 + breakup.igst_28;
+        const totalTaxable = breakup.taxable_0 + breakup.taxable_5 + breakup.taxable_12 + breakup.taxable_18 + breakup.taxable_28 + breakup.taxable_40;
+        const totalCGST = breakup.cgst_2_5 + breakup.cgst_6 + breakup.cgst_9 + breakup.cgst_14 + breakup.cgst_20;
+        const totalSGST = breakup.sgst_2_5 + breakup.sgst_6 + breakup.sgst_9 + breakup.sgst_14 + breakup.sgst_20;
+        const totalIGST = breakup.igst_5 + breakup.igst_12 + breakup.igst_18 + breakup.igst_28 + breakup.igst_40;
 
         return {
           sno: index + 1,
@@ -507,6 +515,10 @@ const GSTSalePurchaseRegister = () => {
           cgst_14: breakup.cgst_14,
           sgst_14: breakup.sgst_14,
           igst_28: breakup.igst_28,
+          taxable_40: breakup.taxable_40,
+          cgst_20: breakup.cgst_20,
+          sgst_20: breakup.sgst_20,
+          igst_40: breakup.igst_40,
           invoiceValue: Number(purchase.net_amount) || 0,
         };
       });
@@ -548,10 +560,10 @@ const GSTSalePurchaseRegister = () => {
           isInterStateTx
         );
 
-        const totalTaxable = breakup.taxable_0 + breakup.taxable_5 + breakup.taxable_12 + breakup.taxable_18 + breakup.taxable_28;
-        const totalCGST = breakup.cgst_2_5 + breakup.cgst_6 + breakup.cgst_9 + breakup.cgst_14;
-        const totalSGST = breakup.sgst_2_5 + breakup.sgst_6 + breakup.sgst_9 + breakup.sgst_14;
-        const totalIGST = breakup.igst_5 + breakup.igst_12 + breakup.igst_18 + breakup.igst_28;
+        const totalTaxable = breakup.taxable_0 + breakup.taxable_5 + breakup.taxable_12 + breakup.taxable_18 + breakup.taxable_28 + breakup.taxable_40;
+        const totalCGST = breakup.cgst_2_5 + breakup.cgst_6 + breakup.cgst_9 + breakup.cgst_14 + breakup.cgst_20;
+        const totalSGST = breakup.sgst_2_5 + breakup.sgst_6 + breakup.sgst_9 + breakup.sgst_14 + breakup.sgst_20;
+        const totalIGST = breakup.igst_5 + breakup.igst_12 + breakup.igst_18 + breakup.igst_28 + breakup.igst_40;
 
         return {
           sno: index + 1,
@@ -795,7 +807,7 @@ const GSTSalePurchaseRegister = () => {
                   Without GST)
                 </li>
                 <li>CGST/SGST for intra-state, IGST for inter-state</li>
-                <li>Slabs: 0%, 5%, 12%, 18%, 28%</li>
+                <li>Slabs: 0%, 5%, 12%, 18%, 28%, 40%</li>
               </ul>
             </div>
             <div>

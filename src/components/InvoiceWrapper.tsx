@@ -548,7 +548,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       gstBreakup.taxable_5 +
       gstBreakup.taxable_12 +
       gstBreakup.taxable_18 +
-      gstBreakup.taxable_28;
+      gstBreakup.taxable_28 +
+      gstBreakup.taxable_40;
     const totalTax =
       gstBreakup.cgst_2_5 +
       gstBreakup.sgst_2_5 +
@@ -561,14 +562,17 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       gstBreakup.igst_18 +
       gstBreakup.cgst_14 +
       gstBreakup.sgst_14 +
-      gstBreakup.igst_28;
+      gstBreakup.igst_28 +
+      gstBreakup.cgst_20 +
+      gstBreakup.sgst_20 +
+      gstBreakup.igst_40;
 
     const cgstAmount =
-      gstBreakup.cgst_2_5 + gstBreakup.cgst_6 + gstBreakup.cgst_9 + gstBreakup.cgst_14;
+      gstBreakup.cgst_2_5 + gstBreakup.cgst_6 + gstBreakup.cgst_9 + gstBreakup.cgst_14 + gstBreakup.cgst_20;
     const sgstAmount =
-      gstBreakup.sgst_2_5 + gstBreakup.sgst_6 + gstBreakup.sgst_9 + gstBreakup.sgst_14;
+      gstBreakup.sgst_2_5 + gstBreakup.sgst_6 + gstBreakup.sgst_9 + gstBreakup.sgst_14 + gstBreakup.sgst_20;
     const igstAmount =
-      gstBreakup.igst_5 + gstBreakup.igst_12 + gstBreakup.igst_18 + gstBreakup.igst_28;
+      gstBreakup.igst_5 + gstBreakup.igst_12 + gstBreakup.igst_18 + gstBreakup.igst_28 + gstBreakup.igst_40;
     // Use direct prop if available, otherwise calculate as fallback
     // Fallback accounts for discount, sale return, and points redemption to avoid double-counting
     const roundOff = props.roundOff ?? 

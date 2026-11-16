@@ -31,7 +31,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { Loader2 } from "lucide-react";
 
-const GST_OPTIONS = [0, 5, 12, 18, 28];
+const GST_OPTIONS = [0, 5, 12, 18, 28, 40];
 
 const UPDATE_TYPES: { value: UpdateType; label: string }[] = [
   { value: "find_replace", label: "Find & Replace" },

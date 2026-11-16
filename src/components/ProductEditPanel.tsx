@@ -102,7 +102,7 @@ interface ProductData {
 }
 
 const MARGIN_CHIPS = [10, 15, 20, 25, 30, 50];
-const GST_RATES = [0, 5, 12, 18, 28];
+const GST_RATES = [0, 5, 12, 18, 28, 40];
 
 const ProductEditPanel = ({
   open, onClose, lineItems, currentIndex, onIndexChange, onProductUpdated, focusField, mobileErpMode,
