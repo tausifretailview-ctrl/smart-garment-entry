@@ -3,6 +3,7 @@
  * paid_amount / payment_status, receipt vouchers, advance FIFO, CN availability, pre-save checks.
  */
 
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 import { posSaveMark } from "@/lib/posSaveTiming";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { applyPosCredit, newPosCreditIdempotencyKey, posCreditChunkKey } from "@/utils/applyPosCredit";
@@ -693,14 +694,17 @@ export async function getAvailableCN(
   ];
   const cnById = new Map<string, CreditNoteLiveRow>();
   if (cnIds.length > 0) {
-    const { data: cnRows, error: cnErr } = await supabase
-      .from("credit_notes")
-      .select("id, credit_amount, used_amount")
-      .eq("organization_id", organizationId)
-      .in("id", cnIds)
-      .is("deleted_at", null);
-    if (cnErr) throw cnErr;
-    for (const c of cnRows || []) {
+    // A long-time customer can pass 200 credit notes: batched so the URL is accepted.
+    const cnRows = await fetchInIdBatches<CreditNoteLiveRow & { id: string }>(cnIds, (batch) =>
+      supabase
+        .from("credit_notes")
+        .select("id, credit_amount, used_amount")
+        .eq("organization_id", organizationId)
+        .in("id", batch)
+        .is("deleted_at", null)
+        .order("id"),
+    );
+    for (const c of cnRows) {
       cnById.set((c as { id: string }).id, c as CreditNoteLiveRow);
     }
   }
