@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-11-15",
-  "count": 942,
-  "fileCount": 960,
+  "generatedAt": "2026-11-16",
+  "count": 943,
+  "fileCount": 961,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -945,7 +945,8 @@
     "20270424120000",
     "20270425120000",
     "20270426120000",
-    "20270427120000"
+    "20270427120000",
+    "20270428120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1907,7 +1908,8 @@
     "20270424120000_line_same_shop_guard.sql",
     "20270425120000_definer_id_array_readers_shop_scope.sql",
     "20270426120000_save_document_with_lines.sql",
-    "20270427120000_generate_next_barcodes_batch.sql"
+    "20270427120000_generate_next_barcodes_batch.sql",
+    "20270428120000_products_gst_per_allow_40.sql"
   ],
   "duplicateVersions": [
     {

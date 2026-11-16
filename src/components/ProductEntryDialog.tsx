@@ -3451,7 +3451,7 @@ export const ProductEntryDialog = ({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className={purchaseTypography.selectContent}>
-                      {[0, 5, 12, 18, 28].map((rate) => (
+                      {[0, 5, 12, 18, 28, 40].map((rate) => (
                         <SelectItem key={rate} value={rate.toString()}>{rate}%</SelectItem>
                       ))}
                     </SelectContent>
@@ -3495,7 +3495,7 @@ export const ProductEntryDialog = ({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className={purchaseTypography.selectContent}>
-                      {[0, 5, 12, 18, 28].map((rate) => (
+                      {[0, 5, 12, 18, 28, 40].map((rate) => (
                         <SelectItem key={rate} value={rate.toString()}>{rate}%</SelectItem>
                       ))}
                     </SelectContent>

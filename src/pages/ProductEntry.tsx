@@ -2597,7 +2597,7 @@ const ProductEntry = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {[0, 5, 12, 18, 28].map((rate) => (
+                    {[0, 5, 12, 18, 28, 40].map((rate) => (
                       <SelectItem key={rate} value={rate.toString()}>
                         {rate}%
                       </SelectItem>
@@ -2631,7 +2631,7 @@ const ProductEntry = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {[0, 5, 12, 18, 28].map((rate) => (
+                    {[0, 5, 12, 18, 28, 40].map((rate) => (
                       <SelectItem key={rate} value={rate.toString()}>
                         {rate}%
                       </SelectItem>

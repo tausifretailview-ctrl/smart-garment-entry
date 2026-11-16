@@ -13,7 +13,7 @@ export type ImportRowFailure = {
 
 type DbErrorLike = { message?: string; code?: string; details?: string; hint?: string } | null | undefined;
 
-const ALLOWED_GST = [0, 5, 12, 18, 28];
+const ALLOWED_GST = [0, 5, 12, 18, 28, 40];
 
 /**
  * GST % from an Excel cell. Percent-formatted cells can arrive as fractions

@@ -27,6 +27,7 @@ const GST_OPTIONS = [
   { value: "12", label: "12%" },
   { value: "18", label: "18%" },
   { value: "28", label: "28%" },
+  { value: "40", label: "40%" },
 ];
 
 export const QuickAddProductDialog = ({ 

@@ -6,7 +6,7 @@ const loadXlsx = (): Promise<typeof XLSX> => (xlsxModulePromise ??= import('xlsx
 import { format } from 'date-fns';
 
 // GST Slabs supported
-export const GST_SLABS = [0, 5, 12, 18, 28] as const;
+export const GST_SLABS = [0, 5, 12, 18, 28, 40] as const;
 export type GSTSlab = typeof GST_SLABS[number];
 
 export interface GSTBreakup {
@@ -15,6 +15,8 @@ export interface GSTBreakup {
   taxable_12: number; cgst_6: number; sgst_6: number; igst_12: number;
   taxable_18: number; cgst_9: number; sgst_9: number; igst_18: number;
   taxable_28: number; cgst_14: number; sgst_14: number; igst_28: number;
+  /** 40% slab (luxury / imported goods). */
+  taxable_40: number; cgst_20: number; sgst_20: number; igst_40: number;
 }
 
 // FIX G9: Add IGST columns to SalesRegisterRow
@@ -41,6 +43,10 @@ export interface SalesRegisterRow {
   cgst_14: number;
   sgst_14: number;
   igst_28: number;
+  taxable_40: number;
+  cgst_20: number;
+  sgst_20: number;
+  igst_40: number;
   invoiceValue: number;
 }
 
@@ -80,6 +86,10 @@ export interface PurchaseRegisterRow {
   cgst_14: number;
   sgst_14: number;
   igst_28: number;
+  taxable_40: number;
+  cgst_20: number;
+  sgst_20: number;
+  igst_40: number;
   invoiceValue: number;
 }
 
@@ -336,6 +346,7 @@ export const calculateGSTBreakup = (
     taxable_12: 0, cgst_6: 0, sgst_6: 0, igst_12: 0,
     taxable_18: 0, cgst_9: 0, sgst_9: 0, igst_18: 0,
     taxable_28: 0, cgst_14: 0, sgst_14: 0, igst_28: 0,
+    taxable_40: 0, cgst_20: 0, sgst_20: 0, igst_40: 0,
   };
 
   // Bill of Supply / Without GST: taxable = line totals, all tax components zero.
@@ -406,6 +417,15 @@ export const calculateGSTBreakup = (
           breakup.sgst_14 += gstAmount / 2;
         }
         break;
+      case 40:
+        breakup.taxable_40 += taxableAmount;
+        if (isInterStateTransaction) {
+          breakup.igst_40 += gstAmount;
+        } else {
+          breakup.cgst_20 += gstAmount / 2;
+          breakup.sgst_20 += gstAmount / 2;
+        }
+        break;
     }
   });
 
@@ -419,10 +439,10 @@ export const calculateGSTBreakup = (
 
 // Calculate total invoice value from breakup
 export const calculateInvoiceValue = (breakup: GSTBreakup): number => {
-  const taxable = breakup.taxable_0 + breakup.taxable_5 + breakup.taxable_12 + breakup.taxable_18 + breakup.taxable_28;
-  const cgst = breakup.cgst_2_5 + breakup.cgst_6 + breakup.cgst_9 + breakup.cgst_14;
-  const sgst = breakup.sgst_2_5 + breakup.sgst_6 + breakup.sgst_9 + breakup.sgst_14;
-  const igst = breakup.igst_5 + breakup.igst_12 + breakup.igst_18 + breakup.igst_28;
+  const taxable = breakup.taxable_0 + breakup.taxable_5 + breakup.taxable_12 + breakup.taxable_18 + breakup.taxable_28 + breakup.taxable_40;
+  const cgst = breakup.cgst_2_5 + breakup.cgst_6 + breakup.cgst_9 + breakup.cgst_14 + breakup.cgst_20;
+  const sgst = breakup.sgst_2_5 + breakup.sgst_6 + breakup.sgst_9 + breakup.sgst_14 + breakup.sgst_20;
+  const igst = breakup.igst_5 + breakup.igst_12 + breakup.igst_18 + breakup.igst_28 + breakup.igst_40;
   return Math.round((taxable + cgst + sgst + igst) * 100) / 100;
 };
 
@@ -460,6 +480,7 @@ export const generateGSTRegisterExcel = async (
     'Taxable 12%', 'CGST 6%', 'SGST 6%', 'IGST 12%',
     'Taxable 18%', 'CGST 9%', 'SGST 9%', 'IGST 18%',
     'Taxable 28%', 'CGST 14%', 'SGST 14%', 'IGST 28%',
+    'Taxable 40%', 'CGST 20%', 'SGST 20%', 'IGST 40%',
     'Invoice Value'
   ];
 
@@ -471,6 +492,7 @@ export const generateGSTRegisterExcel = async (
     row.taxable_12, row.cgst_6, row.sgst_6, row.igst_12,
     row.taxable_18, row.cgst_9, row.sgst_9, row.igst_18,
     row.taxable_28, row.cgst_14, row.sgst_14, row.igst_28,
+    row.taxable_40, row.cgst_20, row.sgst_20, row.igst_40,
     row.invoiceValue
   ]);
 
@@ -482,12 +504,13 @@ export const generateGSTRegisterExcel = async (
     salesTotals.taxable_12, salesTotals.cgst_6, salesTotals.sgst_6, salesTotals.igst_12,
     salesTotals.taxable_18, salesTotals.cgst_9, salesTotals.sgst_9, salesTotals.igst_18,
     salesTotals.taxable_28, salesTotals.cgst_14, salesTotals.sgst_14, salesTotals.igst_28,
+    salesTotals.taxable_40, salesTotals.cgst_20, salesTotals.sgst_20, salesTotals.igst_40,
     salesTotals.invoiceValue
   ]);
 
   const salesSheetData = [...createHeader('SALES REGISTER'), salesHeaders, ...salesRows];
   const salesSheet = XLSX.utils.aoa_to_sheet(salesSheetData);
-  setColumnWidths(salesSheet, [5, 15, 12, 25, 18, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 14]);
+  setColumnWidths(salesSheet, [5, 15, 12, 25, 18, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 14]);
   XLSX.utils.book_append_sheet(workbook, salesSheet, 'Sales Register');
 
   // ===== Sale Return Register Sheet =====
@@ -520,6 +543,7 @@ export const generateGSTRegisterExcel = async (
     'Taxable 12%', 'CGST 6%', 'SGST 6%', 'IGST 12%',
     'Taxable 18%', 'CGST 9%', 'SGST 9%', 'IGST 18%',
     'Taxable 28%', 'CGST 14%', 'SGST 14%', 'IGST 28%',
+    'Taxable 40%', 'CGST 20%', 'SGST 20%', 'IGST 40%',
     'Invoice Value'
   ];
 
@@ -529,6 +553,7 @@ export const generateGSTRegisterExcel = async (
     row.taxable_12, row.cgst_6, row.sgst_6, row.igst_12,
     row.taxable_18, row.cgst_9, row.sgst_9, row.igst_18,
     row.taxable_28, row.cgst_14, row.sgst_14, row.igst_28,
+    row.taxable_40, row.cgst_20, row.sgst_20, row.igst_40,
     row.invoiceValue
   ]);
 
@@ -539,12 +564,13 @@ export const generateGSTRegisterExcel = async (
     purchaseTotals.taxable_12, purchaseTotals.cgst_6, purchaseTotals.sgst_6, purchaseTotals.igst_12,
     purchaseTotals.taxable_18, purchaseTotals.cgst_9, purchaseTotals.sgst_9, purchaseTotals.igst_18,
     purchaseTotals.taxable_28, purchaseTotals.cgst_14, purchaseTotals.sgst_14, purchaseTotals.igst_28,
+    purchaseTotals.taxable_40, purchaseTotals.cgst_20, purchaseTotals.sgst_20, purchaseTotals.igst_40,
     purchaseTotals.invoiceValue
   ]);
 
   const purchaseSheetData = [...createHeader('PURCHASE REGISTER'), purchaseHeaders, ...purchaseRows];
   const purchaseSheet = XLSX.utils.aoa_to_sheet(purchaseSheetData);
-  setColumnWidths(purchaseSheet, [5, 15, 12, 25, 18, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 14]);
+  setColumnWidths(purchaseSheet, [5, 15, 12, 25, 18, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 14]);
   XLSX.utils.book_append_sheet(workbook, purchaseSheet, 'Purchase Register');
 
   // ===== Purchase Return Register Sheet =====
@@ -579,6 +605,7 @@ export const generateGSTRegisterExcel = async (
       row.taxable_12, row.cgst_6, row.sgst_6, row.igst_12,
       row.taxable_18, row.cgst_9, row.sgst_9, row.igst_18,
       row.taxable_28, row.cgst_14, row.sgst_14, row.igst_28,
+    row.taxable_40, row.cgst_20, row.sgst_20, row.igst_40,
       row.invoiceValue
     ]);
 
@@ -590,12 +617,13 @@ export const generateGSTRegisterExcel = async (
       posSalesTotals.taxable_12, posSalesTotals.cgst_6, posSalesTotals.sgst_6, posSalesTotals.igst_12,
       posSalesTotals.taxable_18, posSalesTotals.cgst_9, posSalesTotals.sgst_9, posSalesTotals.igst_18,
       posSalesTotals.taxable_28, posSalesTotals.cgst_14, posSalesTotals.sgst_14, posSalesTotals.igst_28,
+    posSalesTotals.taxable_40, posSalesTotals.cgst_20, posSalesTotals.sgst_20, posSalesTotals.igst_40,
       posSalesTotals.invoiceValue
     ]);
 
     const posSalesSheetData = [...createHeader('POS SALES REGISTER'), salesHeaders, ...posSalesRows];
     const posSalesSheet = XLSX.utils.aoa_to_sheet(posSalesSheetData);
-    setColumnWidths(posSalesSheet, [5, 15, 12, 25, 18, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 14]);
+    setColumnWidths(posSalesSheet, [5, 15, 12, 25, 18, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 14]);
     XLSX.utils.book_append_sheet(workbook, posSalesSheet, 'POS Sales Register');
   }
 
@@ -626,6 +654,10 @@ const calculateSalesTotals = (data: SalesRegisterRow[]) => ({
   cgst_14: round(data.reduce((sum, r) => sum + r.cgst_14, 0)),
   sgst_14: round(data.reduce((sum, r) => sum + r.sgst_14, 0)),
   igst_28: round(data.reduce((sum, r) => sum + r.igst_28, 0)),
+  taxable_40: round(data.reduce((sum, r) => sum + r.taxable_40, 0)),
+  cgst_20: round(data.reduce((sum, r) => sum + r.cgst_20, 0)),
+  sgst_20: round(data.reduce((sum, r) => sum + r.sgst_20, 0)),
+  igst_40: round(data.reduce((sum, r) => sum + r.igst_40, 0)),
   invoiceValue: round(data.reduce((sum, r) => sum + r.invoiceValue, 0)),
 });
 
@@ -648,6 +680,10 @@ const calculatePurchaseTotals = (data: PurchaseRegisterRow[]) => ({
   cgst_14: round(data.reduce((sum, r) => sum + r.cgst_14, 0)),
   sgst_14: round(data.reduce((sum, r) => sum + r.sgst_14, 0)),
   igst_28: round(data.reduce((sum, r) => sum + r.igst_28, 0)),
+  taxable_40: round(data.reduce((sum, r) => sum + r.taxable_40, 0)),
+  cgst_20: round(data.reduce((sum, r) => sum + r.cgst_20, 0)),
+  sgst_20: round(data.reduce((sum, r) => sum + r.sgst_20, 0)),
+  igst_40: round(data.reduce((sum, r) => sum + r.igst_40, 0)),
   invoiceValue: round(data.reduce((sum, r) => sum + r.invoiceValue, 0)),
 });
 
