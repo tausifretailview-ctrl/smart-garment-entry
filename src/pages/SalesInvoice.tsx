@@ -2850,6 +2850,12 @@ export default function SalesInvoice() {
     }
   };
 
+  /** HSN on this bill's line only (saved to the sale line; the product master is unchanged). */
+  const updateHsnCode = (id: string, hsnCode: string) => {
+    const clean = String(hsnCode ?? "").replace(/\D/g, "").slice(0, 8);
+    setLineItems((prev) => prev.map((item) => (item.id === id ? { ...item, hsnCode: clean } : item)));
+  };
+
   const updateBox = (id: string, box: string) => {
     setLineItems(prev => prev.map(item =>
       item.id === id ? { ...item, box } : item
@@ -3007,6 +3013,7 @@ export default function SalesInvoice() {
         prev.map((li) => {
           if (li.id !== id) return li;
           if (colKey === "box") return { ...li, box: String(previousValue) };
+          if (colKey === "hsn") return { ...li, hsnCode: String(previousValue ?? "") };
           if (colKey === "mrp") return calculateLineTotal({ ...li, mrp: Number(previousValue) || 0 });
           if (colKey === "price") return calculateLineTotal({ ...li, salePrice: Number(previousValue) || 0 });
           if (colKey === "disc_percent") {
@@ -3043,12 +3050,14 @@ export default function SalesInvoice() {
       else if (colKey === "disc_percent") updateDiscountPercent(itemId, parseFloat(seed) || 0);
       else if (colKey === "disc_amount") updateDiscountAmount(itemId, parseFloat(seed) || 0);
       else if (colKey === "box") updateBox(itemId, seed);
+      else if (colKey === "hsn") updateHsnCode(itemId, seed);
     },
     getCellEditValue: (itemId, colKey) => {
       const item = lineItems.find((li) => li.id === itemId);
       if (!item) return 0;
       if (colKey === "qty") return item.quantity;
       if (colKey === "box") return item.box || "";
+      if (colKey === "hsn") return item.hsnCode || "";
       if (colKey === "mrp") return item.mrp;
       if (colKey === "price") return item.salePrice;
       if (colKey === "disc_percent") return item.discountPercent;
@@ -5523,6 +5532,7 @@ Thank you for choosing us!`;
                   const qtyEditing = lineGrid.isCellEditing(displayIndex, "qty");
                   const priceEditing = lineGrid.isCellEditing(displayIndex, "price");
                   const boxEditing = lineGrid.isCellEditing(displayIndex, "box");
+                  const hsnEditing = lineGrid.isCellEditing(displayIndex, "hsn");
                   const mrpEditing = lineGrid.isCellEditing(displayIndex, "mrp");
                   const discPctEditing = lineGrid.isCellEditing(displayIndex, "disc_percent");
                   const discAmtEditing = lineGrid.isCellEditing(displayIndex, "disc_amount");
@@ -5581,8 +5591,28 @@ Thank you for choosing us!`;
                         <span className="font-mono text-[15px] font-semibold text-blue-600">{item.barcode || <span className="text-slate-300 font-normal">—</span>}</span>
                       </td>
                       {showCol.hsn && (
-                        <td {...lineGrid.getCellProps(displayIndex, "hsn", { baseClassName: "text-center text-[15px] font-semibold text-slate-900 dark:text-slate-100 px-3 py-2.5" })}>
-                          {item.hsnCode || <span className="text-slate-300">—</span>}
+                        <td
+                          {...lineGrid.getCellProps(displayIndex, "hsn", {
+                            baseClassName: "text-center text-[15px] font-semibold text-slate-900 dark:text-slate-100 px-1.5 py-1",
+                            onActivateEdit: () => lineGrid.beginEditWithSnapshot(item.hsnCode || ""),
+                          })}
+                          title="Click to change the HSN on this bill"
+                        >
+                          {hsnEditing ? (
+                            <Input
+                              ref={lineGrid.editInputRef}
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={8}
+                              value={item.hsnCode || ""}
+                              onChange={(e) => updateHsnCode(item.id, e.target.value)}
+                              className="w-full h-9 text-center text-[15px] bg-white border-0 shadow-none focus-visible:ring-0 mx-auto rounded-none"
+                            />
+                          ) : (
+                            <span className="block h-10 leading-10">
+                              {item.hsnCode || <span className="text-slate-300">—</span>}
+                            </span>
+                          )}
                         </td>
                       )}
                       <td

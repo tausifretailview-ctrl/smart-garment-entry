@@ -35,7 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2, Barcode, RefreshCw, Eye, Edit, ShoppingCart, History, Ban, Merge, Boxes, Tags, TrendingDown, TrendingUp, AlertTriangle, Columns3, Globe } from "lucide-react";
+import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2, Barcode, RefreshCw, Eye, Edit, ShoppingCart, History, Ban, Merge, Boxes, Tags, TrendingDown, TrendingUp, AlertTriangle, Columns3, Globe, Receipt } from "lucide-react";
 import { useIndustrialMode } from "@/hooks/useIndustrialMode";
 import { ReorderLevelDialog } from "@/components/products/ReorderLevelDialog";
 import { cn } from "@/lib/utils";
@@ -64,6 +64,7 @@ import { ProductImageGallery, ProductImage } from "@/components/ProductImageGall
 import { ProductImageViewer } from "@/components/ProductImageViewer";
 import { ProductImageUploader } from "@/components/ProductImageUploader";
 import { MergeProductsDialog } from "@/components/MergeProductsDialog";
+import { BulkHsnGstDialog } from "@/components/products/BulkHsnGstDialog";
 import { useSettings, useProductFieldSettings } from "@/hooks/useSettings";
 import { useDcVisibility } from "@/hooks/useDcVisibility";
 import { dcViewKey, filterVariantsForDcView } from "@/utils/dcView";
@@ -315,6 +316,7 @@ const ProductDashboard = () => {
   }>({ productId: "", productName: "", images: [] });
   const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
   const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [showHsnGstDialog, setShowHsnGstDialog] = useState(false);
 
   type ProductCatalogPage = { rows: ProductRow[]; totalCount: number };
 
@@ -2248,6 +2250,16 @@ const ProductDashboard = () => {
                       Send to website
                     </Button>
                   )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowHsnGstDialog(true)}
+                    className="gap-2"
+                    title="Set HSN code and / or GST % on the selected products"
+                  >
+                    <Receipt className="h-4 w-4" />
+                    Edit HSN / GST
+                  </Button>
                   {selectedProducts.size === 2 && (
                     <Button
                       variant="outline"
@@ -2457,6 +2469,22 @@ const ProductDashboard = () => {
         productName={selectedProductImages.productName}
         existingImages={selectedProductImages.images}
         onImagesUpdated={handleImagesUpdated}
+      />
+
+      <BulkHsnGstDialog
+        open={showHsnGstDialog}
+        onOpenChange={setShowHsnGstDialog}
+        organizationId={currentOrganization?.id}
+        productIds={Array.from(selectedProducts)}
+        onUpdated={(count) => {
+          toast({
+            title: "HSN / GST updated",
+            description: `${count} product${count === 1 ? "" : "s"} updated. New bills use the new values.`,
+          });
+          setSelectedProducts(new Set());
+          void refreshProductDashboard();
+        }}
+        onError={(message) => toast({ title: "Could not update", description: message, variant: "destructive" })}
       />
 
       {/* Merge Products Dialog */}
