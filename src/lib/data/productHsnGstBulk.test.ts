@@ -2,12 +2,21 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const updates: Array<{ cols: Record<string, unknown>; ids: string[]; org: string | null }> = [];
+type Call = {
+  table: string;
+  cols: Record<string, unknown> | null;
+  ids: string[];
+  inCol: string;
+  org: string | null;
+};
+const updates: Call[] = [];
+/** product_variants rows served to reads. */
+let variantRows: Array<{ id: string; product_id: string; color: string | null }> = [];
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    from() {
-      const call = { cols: {} as Record<string, unknown>, ids: [] as string[], org: null as string | null };
+    from(table: string) {
+      const call: Call = { table, cols: null, ids: [], inCol: "", org: null };
       const q: Record<string, unknown> = {};
       q.update = (cols: Record<string, unknown>) => {
         call.cols = cols;
@@ -17,14 +26,26 @@ vi.mock("@/integrations/supabase/client", () => ({
         if (col === "organization_id") call.org = v;
         return q;
       };
-      q.in = (_c: string, ids: string[]) => {
+      q.in = (col: string, ids: string[]) => {
+        call.inCol = col;
         call.ids = ids;
         return q;
       };
-      q.is = () => q;
+      for (const m of ["is", "not", "order"]) q[m] = () => q;
       q.select = () => {
-        updates.push(call);
-        return Promise.resolve({ data: call.ids.map((id) => ({ id })), error: null });
+        if (call.cols) {
+          updates.push(call);
+          return Promise.resolve({ data: call.ids.map((id) => ({ id })), error: null });
+        }
+        return q;
+      };
+      q.range = (a: number, b: number) => {
+        const rows = variantRows.filter((r) => call.ids.includes(r.product_id));
+        return Promise.resolve({ data: rows.slice(a, b + 1), error: null });
+      };
+      q.then = (resolve: (v: unknown) => void) => {
+        if (call.cols) updates.push(call);
+        resolve({ data: null, error: null });
       };
       return q;
     },
@@ -35,12 +56,15 @@ import {
   isValidHsn,
   normalizeHsnInput,
   productHsnGstColumns,
+  replaceColorText,
+  replaceVariantColors,
   updateProductsHsnGst,
 } from "./productHsnGstBulk";
 
 describe("product HSN / GST bulk edit", () => {
   beforeEach(() => {
     updates.length = 0;
+    variantRows = [];
   });
 
   it("writes the sale and purchase GST together with gst_per (bills read those first)", () => {
@@ -63,7 +87,7 @@ describe("product HSN / GST bulk edit", () => {
 
   it("updates the selected products of this shop only, 200 per request", async () => {
     const ids = Array.from({ length: 450 }, (_, i) => `p${i}`);
-    const count = await updateProductsHsnGst({
+    const { updated: count } = await updateProductsHsnGst({
       organizationId: "org-1",
       productIds: [...ids, "p1"],
       patch: { hsn: "6109", gstPercent: 5 },
@@ -72,6 +96,49 @@ describe("product HSN / GST bulk edit", () => {
     expect(updates.map((u) => u.ids.length)).toEqual([200, 200, 50]);
     expect(updates.every((u) => u.org === "org-1")).toBe(true);
     expect(updates[0].cols).toEqual({ hsn_code: "6109", gst_per: 5, sale_gst_percent: 5, purchase_gst_percent: 5 });
+  });
+
+  it("sets a colour on the product and every size, skipping products sold in several colours", async () => {
+    variantRows = [
+      { id: "v1", product_id: "p1", color: "RED" },
+      { id: "v2", product_id: "p1", color: "RED" },
+      { id: "v3", product_id: "p2", color: null },
+      { id: "v4", product_id: "p3", color: "RED" },
+      { id: "v5", product_id: "p3", color: "BLUE" },
+    ];
+    const result = await updateProductsHsnGst({
+      organizationId: "org-1",
+      productIds: ["p1", "p2", "p3"],
+      patch: { color: "NAVY" },
+    });
+    expect(result).toEqual({ updated: 2, colorSkipped: 1 });
+    const variantUpdate = updates.find((u) => u.table === "product_variants");
+    expect(variantUpdate?.cols).toEqual({ color: "NAVY" });
+    expect(variantUpdate?.inCol).toBe("product_id");
+    expect(variantUpdate?.ids).toEqual(["p1", "p2"]);
+    const productUpdate = updates.find((u) => u.table === "products");
+    expect(productUpdate?.cols).toEqual({ color: "NAVY" });
+    expect(productUpdate?.ids).toEqual(["p1", "p2"]);
+  });
+
+  it("find & replace on colour changes the sizes too, with special characters taken literally", async () => {
+    expect(replaceColorText("RED (DARK)", "(dark)", "MAROON", false)).toBe("RED MAROON");
+    expect(replaceColorText("RED", "RE", "X", true)).toBeNull();
+    variantRows = [
+      { id: "v1", product_id: "p1", color: "LIGHT RED" },
+      { id: "v2", product_id: "p1", color: "BLUE" },
+      { id: "v3", product_id: "p2", color: "RED" },
+    ];
+    const changed = await replaceVariantColors({
+      organizationId: "org-1",
+      productIds: ["p1", "p2"],
+      find: "red",
+      replace: "MAROON",
+      exactMatch: false,
+    });
+    expect(changed).toBe(2);
+    const byColor = Object.fromEntries(updates.map((u) => [String(u.cols?.color), u.ids]));
+    expect(byColor).toEqual({ "LIGHT MAROON": ["v1"], MAROON: ["v3"] });
   });
 
   it("refuses a bad HSN or a rate that is not a product GST rate, and does nothing", async () => {
@@ -108,5 +175,25 @@ describe("where HSN / GST can be changed", () => {
     const page = read("src/pages/SalesInvoice.tsx");
     expect(page).toContain('onChange={(e) => updateHsnCode(item.id, e.target.value)}');
     expect(page).toContain("hsn_code: item.hsnCode || null");
+  });
+});
+
+describe("where colour can be changed", () => {
+  const read = (rel: string) => readFileSync(join(process.cwd(), rel), "utf8");
+
+  it("Product Entry and the purchase line edit no longer lock colour after a sale", () => {
+    expect(read("src/pages/ProductEntry.tsx")).not.toContain("Cannot Change Color");
+    expect(read("src/components/ProductEditPanel.tsx")).not.toContain("Cannot change color");
+    expect(read("src/pages/ProductEntry.tsx")).toContain("Cannot Change Barcode");
+  });
+
+  it("Bulk Product Update colour reaches the sizes", () => {
+    const hook = read("src/hooks/useBulkProductUpdate.tsx");
+    expect(hook).toContain('if (ufConfig.field === "color")');
+    expect(hook).toContain("await replaceVariantColors({");
+  });
+
+  it("Product Dashboard bulk edit offers colour", () => {
+    expect(read("src/components/products/BulkHsnGstDialog.tsx")).toContain("Change colour");
   });
 });

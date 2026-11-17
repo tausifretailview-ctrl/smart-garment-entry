@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { productHsnGstColumns } from "@/lib/data/productHsnGstBulk";
+import { productHsnGstColumns, replaceColorText, replaceVariantColors, updateProductsHsnGst } from "@/lib/data/productHsnGstBulk";
 import { supabase } from "@/integrations/supabase/client";
 import { bestEffortWrite } from "@/lib/rollbackStep";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -209,7 +209,9 @@ export const useBulkProductUpdate = () => {
           } else {
             matches = currentValue.toLowerCase().includes(frConfig.find.toLowerCase());
             if (matches) {
-              newValue = currentValue.replace(new RegExp(frConfig.find, "gi"), frConfig.replace);
+              // Escaped: "(" or "." in the text to find used to break or over-match.
+              newValue =
+                replaceColorText(currentValue, frConfig.find, frConfig.replace, false) ?? currentValue;
             }
           }
 
@@ -468,14 +470,39 @@ export const useBulkProductUpdate = () => {
             await batchUpdateProducts(groupIds, { [frConfig.field]: val });
             await batchCascade(frConfig.field, val, groupIds);
           }
+          if (frConfig.field === "color") {
+            // Sizes carry their own colour (shown first on bills / labels / stock): replace there too.
+            await replaceVariantColors({
+              organizationId: currentOrganization.id,
+              productIds: productItems.map((i) => i.id),
+              find: frConfig.find,
+              replace: frConfig.replace,
+              exactMatch: frConfig.exactMatch,
+            });
+          }
         } else if (updateType === "update_field") {
           const ufConfig = config as UpdateFieldConfig;
+          if (ufConfig.field === "color") {
+            // Product + every size / barcode colour (bills read the size colour first).
+            const color = String(ufConfig.value ?? "").trim().toUpperCase();
+            const { colorSkipped } = await updateProductsHsnGst({
+              organizationId: currentOrganization.id,
+              productIds: ids,
+              patch: { color },
+            });
+            if (colorSkipped > 0) {
+              toast.info(`${colorSkipped} product(s) kept their colours`, {
+                description: "Their sizes have more than one colour — change those per size in Product Entry.",
+              });
+            }
+          } else {
           const update =
             ufConfig.field === "gst_per"
               ? productHsnGstColumns({ gstPercent: Number(ufConfig.value) })
               : { [ufConfig.field]: ufConfig.value };
           await batchUpdateProducts(ids, update);
           await batchCascade(ufConfig.field, ufConfig.value, ids);
+          }
         } else if (updateType === "update_gst") {
           const gstConfig = config as GSTConfig;
           // POS / Sales / Purchase read sale_gst_percent / purchase_gst_percent first:

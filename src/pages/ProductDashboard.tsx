@@ -2255,10 +2255,10 @@ const ProductDashboard = () => {
                     size="sm"
                     onClick={() => setShowHsnGstDialog(true)}
                     className="gap-2"
-                    title="Set HSN code and / or GST % on the selected products"
+                    title="Set HSN code, GST % and / or colour on the selected products"
                   >
                     <Receipt className="h-4 w-4" />
-                    Edit HSN / GST
+                    Edit HSN / GST / Colour
                   </Button>
                   {selectedProducts.size === 2 && (
                     <Button
@@ -2476,10 +2476,14 @@ const ProductDashboard = () => {
         onOpenChange={setShowHsnGstDialog}
         organizationId={currentOrganization?.id}
         productIds={Array.from(selectedProducts)}
-        onUpdated={(count) => {
+        onUpdated={({ updated, colorSkipped }) => {
           toast({
-            title: "HSN / GST updated",
-            description: `${count} product${count === 1 ? "" : "s"} updated. New bills use the new values.`,
+            title: "Products updated",
+            description:
+              `${updated} product${updated === 1 ? "" : "s"} updated. New bills use the new values.` +
+              (colorSkipped > 0
+                ? ` ${colorSkipped} kept their colours (more than one colour) — change those per size in Product Entry.`
+                : ""),
           });
           setSelectedProducts(new Set());
           void refreshProductDashboard();
