@@ -260,6 +260,9 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       }
 
       setOrganizations(orgs || []);
+      // A slow first answer (no cached shops on a new login) may land after the 20s timeout
+      // already flagged an error: the real list wins, so clear it.
+      setFetchError(false);
 
       if (orgs && orgs.length > 0) {
         cacheOrgs(user.id, orgs.map(o => ({ id: o.id, slug: o.slug, name: o.name })));

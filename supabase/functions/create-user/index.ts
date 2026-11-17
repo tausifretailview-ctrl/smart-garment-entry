@@ -33,7 +33,11 @@ Deno.serve(async (req) => {
       .eq("role", "platform_admin")
     if (!roles?.length) throw new Error("Not a platform admin")
 
-    const { email, password, orgId, role, applyPosPreset } = await req.json()
+    const body = await req.json()
+    const { password, orgId, role, applyPosPreset } = body
+    // Auth stores e-mails in lower case; the org-assign lookup must use the same form
+    // ("Lagnee@gmail.com" typed by the admin used to find no user and leave the login shop-less).
+    const email = String(body.email ?? "").trim().toLowerCase()
 
     if (!email || !password || !orgId || !role) {
       return new Response(
@@ -66,7 +70,12 @@ Deno.serve(async (req) => {
       p_role: effectiveRole,
       p_caller_id: caller.id,
     })
-    if (assignErr) throw assignErr
+    if (assignErr) {
+      // Never leave a login that belongs to no shop: it signs in to "Workspace could not be
+      // prepared" and blocks creating it again ("already registered").
+      await supabaseAdmin.auth.admin.deleteUser(userId).catch(() => {})
+      throw new Error(`Could not add the user to the organization: ${assignErr.message}`)
+    }
 
     let posPermissionsApplied = false
     if (applyPosPreset === true || role === "pos") {
