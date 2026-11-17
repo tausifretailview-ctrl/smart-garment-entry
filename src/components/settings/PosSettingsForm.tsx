@@ -37,6 +37,8 @@ type SaleSlice = {
   default_discount?: number;
   default_discount_in_rupees?: boolean;
   pos_allow_date_change?: boolean;
+  /** Ask for the customer's mobile after the payment mode is chosen. Default false. */
+  pos_require_customer_mobile?: boolean;
   allow_pos_edit_unit_price?: boolean;
   pos_unit_price_override_confirm_pct?: number;
   pos_quick_price_code?: boolean;
@@ -221,6 +223,20 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
               active={sale.pos_allow_date_change === true ? "on" : "off"}
               on="Cashiers can backdate the POS invoice date."
               off="Invoice date stays today; no date picker on POS."
+            />
+          </SettingsToggle>
+
+          <SettingsToggle
+            id="pos_require_customer_mobile"
+            label="Mobile number compulsory"
+            checked={sale.pos_require_customer_mobile === true}
+            onCheckedChange={(checked) => patchSale({ pos_require_customer_mobile: checked })}
+          >
+            <SettingOnOffHint
+              compact
+              active={sale.pos_require_customer_mobile === true ? "on" : "off"}
+              on="After the payment mode is chosen, POS asks for the customer's 10-digit mobile before saving."
+              off="Bills save without a mobile number."
             />
           </SettingsToggle>
 

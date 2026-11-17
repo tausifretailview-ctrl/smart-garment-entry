@@ -1,4 +1,6 @@
 import { posSaveBegin, posSaveMark } from "@/lib/posSaveTiming";
+import { PosMobileRequiredDialog } from "@/components/pos/PosMobileRequiredDialog";
+import { isPosMobileRequired, isValidPosMobile } from "@/utils/posRequiredMobile";
 import { reportIfFails } from "@/lib/reportIfFails";
 import { PosActionBar } from "@/components/pos/PosActionBar";
 import { PosShortcutBar } from "@/components/pos/PosShortcutBar";
@@ -793,6 +795,12 @@ async function resolvePosInvoiceAccountFacets(opts: {
 }
 
 const PERF_PATH = "pos-sales";
+
+/** What to run again once the required mobile is entered. */
+type PosMobileIntent =
+  | { kind: "pay"; method: "cash" | "card" | "upi" | "pay_later"; opts?: { creditConfirmed?: boolean } }
+  | { kind: "save"; forcePaymentMethod?: "cash" | "card" | "upi" | "multiple" | "pay_later" }
+  | { kind: "mix" };
 
 export default function POSSales() {
   useNavPerfPage(PERF_PATH);
@@ -1962,6 +1970,18 @@ export default function POSSales() {
 
   // Optional POS invoice-date override (admin-gated). When OFF, POS silently uses today.
   const posAllowDateChange = (settingsData as any)?.sale_settings?.pos_allow_date_change === true;
+
+  // Settings → POS "Mobile number compulsory" (default off): ask for the customer's mobile
+  // after a payment mode is chosen, then save the bill with it.
+  const posMobileRequired = isPosMobileRequired((settingsData as any)?.sale_settings);
+  const [mobilePromptIntent, setMobilePromptIntent] = useState<PosMobileIntent | null>(null);
+  const [mobileRetryIntent, setMobileRetryIntent] = useState<PosMobileIntent | null>(null);
+  /** False (and opens the mobile box) when the setting is on and the bill has no valid mobile. */
+  const ensurePosMobile = (intent: PosMobileIntent): boolean => {
+    if (!posMobileRequired || isValidPosMobile(customerPhone)) return true;
+    setMobilePromptIntent(intent);
+    return false;
+  };
 
   /** Master switch — default off. Existing orgs unchanged until explicitly enabled. */
   const allowPosEditUnitPrice =
@@ -5297,6 +5317,7 @@ export default function POSSales() {
       toast.error("No Items", { description: "Please add items to the cart before saving" });
       return;
     }
+    if (!ensurePosMobile({ kind: "save", forcePaymentMethod })) return;
 
     // Validate no items have 0 or negative quantity
     const zeroQtyItems = items.filter(item => !item.quantity || item.quantity <= 0);
@@ -5492,6 +5513,14 @@ export default function POSSales() {
       setCreditConfirm({ customer: customerName.trim(), billAmount: finalAmount, due: posTenderDue });
       return;
     }
+    if (
+      items.length > 0 &&
+      !paymentLockRef.current &&
+      !isSaving &&
+      !ensurePosMobile({ kind: "pay", method, opts })
+    ) {
+      return;
+    }
     // Ref-based lock prevents duplicate saves from rapid keyboard + click combos
     // (isSaving is React state and only updates on next render — too slow for rapid inputs)
     if (paymentLockRef.current || isSaving) {
@@ -5645,6 +5674,7 @@ export default function POSSales() {
       return;
     }
     if (blockUnbackedSaleReturnAdjust()) return;
+    if (!ensurePosMobile({ kind: "mix" })) return;
     // Auto-set refund if final amount is negative (same-bill exchange excess)
     // (Threshold `< 0` kept as it was here; the amount is the shared rule.)
     if (finalAmount < 0 || exchangeRefundDue > 0.005) {
@@ -7279,6 +7309,31 @@ export default function POSSales() {
     </AlertDialog>
   );
 
+  // After the mobile is entered: the phone state is set first, then the same save runs again
+  // (this render's handlers read the new number).
+  useEffect(() => {
+    if (!mobileRetryIntent || !isValidPosMobile(customerPhone)) return;
+    const intent = mobileRetryIntent;
+    setMobileRetryIntent(null);
+    if (intent.kind === "pay") reportIfFails(handlePaymentAndPrint(intent.method, intent.opts), "save the bill");
+    else if (intent.kind === "save") reportIfFails(handleSaveSale(intent.forcePaymentMethod), "save the bill");
+    else handleMixPayment();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs the save once with the new phone
+  }, [mobileRetryIntent, customerPhone]);
+
+  const mobileRequiredDialog = (
+    <PosMobileRequiredDialog
+      open={mobilePromptIntent != null}
+      initialPhone={customerPhone}
+      onCancel={() => setMobilePromptIntent(null)}
+      onSubmit={(mobile) => {
+        setCustomerPhone(mobile);
+        setMobileRetryIntent(mobilePromptIntent);
+        setMobilePromptIntent(null);
+      }}
+    />
+  );
+
   const creditCustomerRequiredDialog = (
     <AlertDialog open={showCreditCustomerRequiredDialog} onOpenChange={setShowCreditCustomerRequiredDialog}>
       <AlertDialogContent>
@@ -7489,6 +7544,7 @@ export default function POSSales() {
 
         {creditCustomerRequiredDialog}
         {creditConfirmDialog}
+        {mobileRequiredDialog}
         {manualSrDialog}
         {unitPriceConfirmDialog}
       </>
@@ -7656,6 +7712,7 @@ export default function POSSales() {
         </Dialog>
         {creditCustomerRequiredDialog}
         {creditConfirmDialog}
+        {mobileRequiredDialog}
         {manualSrDialog}
         {unitPriceConfirmDialog}
 
@@ -8822,6 +8879,7 @@ export default function POSSales() {
         </Dialog>
         {creditCustomerRequiredDialog}
         {creditConfirmDialog}
+        {mobileRequiredDialog}
         {manualSrDialog}
         {unitPriceConfirmDialog}
 
