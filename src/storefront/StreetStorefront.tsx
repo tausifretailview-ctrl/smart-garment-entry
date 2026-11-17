@@ -34,6 +34,7 @@ import { submitStorefrontEnquiry } from "./storefrontClient";
 import { storefrontLocationLine } from "./storefrontTheme";
 import {
   buildStreetBannerSlides,
+  streetTargetFor,
   buildStreetNav,
   buildStreetTiles,
   parseStreetWishlist,
@@ -49,6 +50,7 @@ import {
   type StreetBannerSlide,
   type StreetNavItem,
 } from "./streetStore";
+import { StreetVideoRail } from "./StreetVideoRail";
 import { streetSampleCatalogue, streetSampleImage, streetSampleKind } from "./streetSamples";
 import "./ella-storefront.css";
 import "./street-storefront.css";
@@ -616,11 +618,14 @@ export function StreetStorefront({
   menus = [],
   initialProductId,
   banners = [],
+  videos = [],
 }: {
   shop: PublicStorefrontShop;
   orgSlug: string;
   /** Banner images from Website → Theme; empty shows the sample banners. */
   banners?: PublicStorefrontPayload["banners"];
+  /** Shop videos from Website → Theme ("Watch & shop" row); none hides the row. */
+  videos?: PublicStorefrontPayload["videos"];
   products: PublicStorefrontProduct[];
   sections?: PublicStorefrontSection[];
   menus?: PublicStorefrontMenu[];
@@ -649,6 +654,14 @@ export function StreetStorefront({
   const nav = useMemo(() => buildStreetNav(menus, sections, items), [menus, sections, items]);
   const tiles = useMemo(() => buildStreetTiles(nav, items), [nav, items]);
   const slides = useMemo(() => buildStreetBannerSlides(banners || [], nav, items), [banners, nav, items]);
+  const reels = useMemo(
+    () =>
+      (videos || []).map((v) => {
+        const target = streetTargetFor(v.target, nav, `video:${v.id}`);
+        return { id: v.id, video_url: v.video_url, caption: v.caption, shopLabel: target ? target.label : null, target };
+      }),
+    [videos, nav],
+  );
   const newArrivals = useMemo(() => streetNewArrivals(items), [items]);
 
   const [view, setView] = useState<View>(() => {
@@ -1106,6 +1119,15 @@ export function StreetStorefront({
                 ) : null}
               </div>
             ) : null}
+
+            <StreetVideoRail
+              title="Watch & shop"
+              videos={reels}
+              onShop={(video) => {
+                const reel = reels.find((r) => r.id === video.id);
+                goCollection(reel?.target ?? null, reel?.target?.label || "All products");
+              }}
+            />
 
             {tiles.length > 1 ? (
               <section className="st-section">

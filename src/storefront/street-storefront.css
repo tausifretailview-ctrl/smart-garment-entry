@@ -1165,3 +1165,96 @@
   .street-store .st-link { font-size: 15px; }
   .street-store .st-announce { font-size: 13px; }
 }
+
+/* "Watch & shop": sideways row of portrait shop videos (Website → Theme → Home page videos). */
+.street-store .st-reel-arrows { display: flex; gap: 8px; }
+.ella-store.street-store button.st-reel-arrow,
+.street-store button.st-reel-arrow {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--st-line);
+  border-radius: 999px;
+  color: var(--st-ink);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 22px;
+  height: 38px;
+  justify-content: center;
+  line-height: 1;
+  width: 38px;
+}
+.ella-store.street-store button.st-reel-arrow:hover,
+.street-store button.st-reel-arrow:hover { border-color: var(--st-ink); }
+.street-store .st-reel-rail {
+  display: grid;
+  gap: 12px;
+  grid-auto-columns: 44%;
+  grid-auto-flow: column;
+  margin: 0 calc(var(--st-gutter) * -1);
+  overflow-x: auto;
+  padding: 0 var(--st-gutter) 6px;
+  scroll-padding-left: var(--st-gutter);
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.street-store .st-reel-rail::-webkit-scrollbar { display: none; }
+.street-store .st-reel {
+  aspect-ratio: 9 / 16;
+  background: var(--st-soft);
+  border-radius: 14px;
+  overflow: hidden;
+  position: relative;
+  scroll-snap-align: start;
+}
+.street-store .st-reel video {
+  cursor: pointer;
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+.ella-store.street-store button.st-reel-play,
+.street-store .st-reel-play {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.45);
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  height: 52px;
+  justify-content: center;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 52px;
+}
+.street-store .st-reel-play svg { height: 26px; width: 26px; }
+.street-store .st-reel-foot {
+  align-items: flex-start;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0));
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  left: 0;
+  padding: 36px 12px 12px;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+}
+.street-store .st-reel-caption {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.street-store .st-reel-shop { pointer-events: auto; }
+
+@media (min-width: 700px) {
+  .street-store .st-reel-rail { grid-auto-columns: 30%; }
+}
+@media (min-width: 1024px) {
+  .street-store .st-reel-rail { grid-auto-columns: calc((100% - 48px) / 4.6); margin: 0; padding: 0 0 6px; }
+}

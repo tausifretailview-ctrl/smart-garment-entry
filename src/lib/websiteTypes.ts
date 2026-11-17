@@ -131,6 +131,8 @@ export type PublicStorefrontPayload = {
   theme?: string | null;
   /** Home-page banners saved in Website → Theme (see storefrontBanners.ts). */
   banners?: Array<{ id: string; image_url: string; heading: string; subheading: string; target: string }>;
+  /** Home-page videos saved in Website → Theme (see storefrontVideos.ts). */
+  videos?: Array<{ id: string; video_url: string; caption: string; target: string }>;
   shop?: PublicStorefrontShop;
   products?: PublicStorefrontProduct[];
   menus?: PublicStorefrontMenuFlat[];

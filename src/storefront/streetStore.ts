@@ -161,6 +161,13 @@ function takePhotos(list: EllaStorefrontProduct[], used: Set<string>, max: numbe
  * Home-page banners. The shop's uploaded banners when it has any; otherwise three
  * sample banners built from its own products, so a new store never opens on an empty hero.
  */
+/** The menu link a banner / video target points to (by section slug or category), or a plain filter. */
+export function streetTargetFor(target: string, nav: StreetNavItem[], idForFallback: string): StreetNavItem | null {
+  if (!target) return null;
+  const link = flattenNav(nav).find((item) => item.chips.some((chip) => key(chip) === key(target)));
+  return link || { id: idForFallback, label: target, chips: [target], sort: "featured", children: [] };
+}
+
 export function buildStreetBannerSlides(
   banners: Array<{ id: string; image_url: string; heading: string; subheading: string; target: string }>,
   nav: StreetNavItem[],
@@ -170,10 +177,7 @@ export function buildStreetBannerSlides(
 
   if (banners.length > 0) {
     return banners.map((banner) => {
-      const link = banner.target ? links.find((item) => item.chips.some((chip) => key(chip) === key(banner.target))) : null;
-      const target: StreetNavItem | null = banner.target
-        ? link || { id: `banner:${banner.id}`, label: banner.target, chips: [banner.target], sort: "featured", children: [] }
-        : null;
+      const target = streetTargetFor(banner.target, nav, `banner:${banner.id}`);
       return {
         id: banner.id,
         kind: "image",

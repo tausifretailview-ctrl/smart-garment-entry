@@ -175,6 +175,7 @@ export function StorefrontApp() {
     return (
       <StreetStorefront
         banners={payload.banners || []}
+        videos={payload.videos || []}
         shop={payload.shop!}
         orgSlug={canonicalSlug}
         products={products}

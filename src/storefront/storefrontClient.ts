@@ -4,6 +4,7 @@ import { attachSectionsToPublicPayload } from "@/lib/websiteSectionStore";
 import { applyWebsiteProductDetails } from "@/lib/websiteProductDetails";
 import { parseStorefrontTheme } from "@/lib/storefrontThemes";
 import { parseStorefrontBanners } from "@/lib/storefrontBanners";
+import { parseStorefrontVideos } from "@/lib/storefrontVideos";
 import { enrichPublicStorefrontShop, type OrgPublicInfoSlice } from "./storefrontTheme";
 import { offerFromRpc, perksFromRpc, type StorefrontOffer, type StorefrontPerks } from "./ellaPerks";
 
@@ -44,6 +45,7 @@ export async function loadPublicStorefront(slug: string): Promise<PublicStorefro
 
   payload.theme = parseStorefrontTheme(orgInfo?.settings);
   payload.banners = parseStorefrontBanners(orgInfo?.settings);
+  payload.videos = parseStorefrontVideos(orgInfo?.settings);
 
   return attachSectionsToPublicPayload(payload, orgInfo?.settings);
 }

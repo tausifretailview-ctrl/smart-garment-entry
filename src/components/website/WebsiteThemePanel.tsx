@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Check, ExternalLink, ImagePlus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ExternalLink, ImagePlus, Trash2, Video } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -11,7 +11,9 @@ import {
   loadStorefrontLook,
   saveStorefrontBanners,
   saveStorefrontTheme,
+  saveStorefrontVideos,
   uploadStorefrontBannerImage,
+  uploadStorefrontVideo,
   type StorefrontLook,
 } from "@/lib/storefrontThemeIo";
 import {
@@ -19,6 +21,12 @@ import {
   moveStorefrontBanner,
   type StorefrontBanner,
 } from "@/lib/storefrontBanners";
+import {
+  STOREFRONT_VIDEOS_MAX,
+  STOREFRONT_VIDEO_MAX_MB,
+  moveStorefrontVideo,
+  type StorefrontVideo,
+} from "@/lib/storefrontVideos";
 import { useWebsiteSections } from "@/hooks/useWebsiteSections";
 import { activeWebsiteSections } from "@/lib/websiteSections";
 import {
@@ -116,6 +124,7 @@ export function WebsiteThemePanel({
     onSuccess: () => {
       queryClient.setQueryData<StorefrontLook>(["website_theme", orgId], (prev) => ({
         banners: prev?.banners ?? [],
+        videos: prev?.videos ?? [],
         theme: choice,
       }));
       toast.success("Store theme saved. Reload the store to see it.");
@@ -222,7 +231,21 @@ export function WebsiteThemePanel({
             onSaved={(banners) =>
               queryClient.setQueryData<StorefrontLook>(["website_theme", orgId], (prev) => ({
                 theme: prev?.theme ?? null,
+                videos: prev?.videos ?? [],
                 banners,
+              }))
+            }
+          />
+
+          <StoreVideos
+            orgId={orgId}
+            saved={themeQuery.data?.videos}
+            ready={themeQuery.isSuccess}
+            onSaved={(videos) =>
+              queryClient.setQueryData<StorefrontLook>(["website_theme", orgId], (prev) => ({
+                theme: prev?.theme ?? null,
+                banners: prev?.banners ?? [],
+                videos,
               }))
             }
           />
@@ -407,6 +430,184 @@ function StoreBanners({
                   className="h-9 w-9 text-destructive"
                   aria-label="Remove banner"
                   onClick={() => change(banners.filter((b) => b.id !== banner.id))}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Street theme "Watch & shop" row: short portrait shop videos, played muted in a sideways row. */
+function StoreVideos({
+  orgId,
+  saved,
+  ready,
+  onSaved,
+}: {
+  orgId?: string;
+  saved?: StorefrontVideo[];
+  ready: boolean;
+  onSaved: (videos: StorefrontVideo[]) => void;
+}) {
+  const sectionsQuery = useWebsiteSections(orgId);
+  const sections = activeWebsiteSections(sectionsQuery.data?.sections ?? []);
+  const [videos, setVideos] = useState<StorefrontVideo[]>([]);
+  const [dirty, setDirty] = useState(false);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (ready && !dirty) setVideos(saved ?? []);
+  }, [ready, saved, dirty]);
+
+  const change = (next: StorefrontVideo[]) => {
+    setVideos(next);
+    setDirty(true);
+  };
+  const patch = (id: string, values: Partial<StorefrontVideo>) =>
+    change(videos.map((v) => (v.id === id ? { ...v, ...values } : v)));
+
+  const save = useMutation({
+    mutationFn: () => saveStorefrontVideos(orgId!, videos),
+    onSuccess: () => {
+      setDirty(false);
+      onSaved(videos);
+      toast.success("Videos saved. Reload the store to see them.");
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Could not save the videos");
+    },
+  });
+
+  const onFiles = async (files: FileList | null) => {
+    if (!orgId || !files || files.length === 0) return;
+    const room = STOREFRONT_VIDEOS_MAX - videos.length;
+    const picked = Array.from(files).slice(0, room);
+    const added: StorefrontVideo[] = [];
+    try {
+      for (const [i, file] of picked.entries()) {
+        setUploading(`Uploading ${i + 1} of ${picked.length}…`);
+        const video_url = await uploadStorefrontVideo(orgId, file);
+        added.push({ id: `video-${Date.now()}-${added.length}`, video_url, caption: "", target: "" });
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      if (added.length > 0) {
+        change([...videos, ...added]);
+        toast.success(`${added.length} video${added.length === 1 ? "" : "s"} uploaded. Press Save videos to publish.`);
+      }
+      setUploading(null);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const full = videos.length >= STOREFRONT_VIDEOS_MAX;
+
+  return (
+    <div className="space-y-3 border-t border-slate-200 pt-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">Home page videos — Watch &amp; shop (Street theme)</h3>
+          <p className="text-sm text-muted-foreground">
+            Short portrait clips (reels) of your shop, shown in a sideways row under the banners. They play without
+            sound. Use MP4, 9:16, 15–40 seconds, up to {STOREFRONT_VIDEO_MAX_MB} MB each.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.m4v"
+            multiple
+            className="hidden"
+            onChange={(e) => void onFiles(e.target.files)}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9"
+            disabled={!orgId || !ready || !!uploading || full}
+            onClick={() => fileRef.current?.click()}
+          >
+            <Video className="mr-1 h-4 w-4" />
+            {uploading ?? (full ? `Maximum ${STOREFRONT_VIDEOS_MAX}` : "Add video")}
+          </Button>
+          <Button size="sm" className="h-9" disabled={!orgId || !dirty || save.isPending} onClick={() => save.mutate()}>
+            {save.isPending ? "Saving…" : "Save videos"}
+          </Button>
+        </div>
+      </div>
+
+      {videos.length === 0 ? (
+        <p className="rounded-md border border-dashed border-slate-300 px-3 py-4 text-sm text-slate-600">
+          No videos yet. The Watch &amp; shop row is hidden until you add one.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {videos.map((video, index) => (
+            <li key={video.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-2">
+              <video
+                src={video.video_url}
+                muted
+                playsInline
+                preload="metadata"
+                className="h-24 w-[54px] shrink-0 rounded border border-slate-200 bg-slate-100 object-cover"
+              />
+              <div className="grid min-w-[16rem] flex-1 gap-2 sm:grid-cols-2">
+                <Input
+                  value={video.caption}
+                  maxLength={80}
+                  placeholder="Caption (optional)"
+                  aria-label={`Video ${index + 1} caption`}
+                  onChange={(e) => patch(video.id, { caption: e.target.value })}
+                />
+                <select
+                  value={video.target}
+                  aria-label={`Video ${index + 1} Shop now opens`}
+                  onChange={(e) => patch(video.id, { target: e.target.value })}
+                  className="h-10 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                >
+                  <option value="">No Shop now button</option>
+                  {sections.map((section) => (
+                    <option key={section.id} value={section.slug}>
+                      Shop now opens: {section.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex shrink-0 gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  aria-label="Move up"
+                  disabled={index === 0}
+                  onClick={() => change(moveStorefrontVideo(videos, index, -1))}
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  aria-label="Move down"
+                  disabled={index === videos.length - 1}
+                  onClick={() => change(moveStorefrontVideo(videos, index, 1))}
+                >
+                  <ArrowDown className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 text-destructive"
+                  aria-label="Remove video"
+                  onClick={() => change(videos.filter((v) => v.id !== video.id))}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
