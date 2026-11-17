@@ -178,7 +178,7 @@ const ProductEntry = () => {
   const [originalPrices, setOriginalPrices] = useState<
     Map<string, { pur_price: number; sale_price: number; mrp: number | null }>
   >(new Map());
-  /** Variant ids with net sold qty > 0 — barcode/size/color locked. */
+  /** Variant ids with net sold qty > 0 — barcode/size locked (colour stays editable). */
   const [soldLockedVariants, setSoldLockedVariants] = useState<Set<string>>(new Set());
   const [soldQtyByVariant, setSoldQtyByVariant] = useState<Map<string, number>>(new Map());
   /** Legacy: any-transaction protection (kept for delete/other UX, not identity freeze). */
@@ -1453,7 +1453,6 @@ const ProductEntry = () => {
               const sold = soldQtyByVariant.get(v.id) || 0;
               const originalBarcode = originalBarcodes.get(v.id);
               const originalSize = originalSizes.get(v.id);
-              const originalColor = originalColors.get(v.id);
               if (originalBarcode && originalBarcode !== v.barcode) {
                 toast({
                   title: "Cannot Change Barcode",
@@ -1467,15 +1466,6 @@ const ProductEntry = () => {
                 toast({
                   title: "Cannot Change Size",
                   description: `${sold} units already sold — size is locked because past sales reference this identity.`,
-                  variant: "destructive",
-                });
-                setLoading(false);
-                return;
-              }
-              if (originalColor != null && originalColor !== (v.color || "")) {
-                toast({
-                  title: "Cannot Change Color",
-                  description: `${sold} units already sold — color is locked because past sales reference this identity.`,
                   variant: "destructive",
                 });
                 setLoading(false);
@@ -3126,14 +3116,7 @@ const ProductEntry = () => {
                             <TableRow key={index} className="text-xs hover:bg-violet-50/30 transition-colors">
                               {formData.product_type !== 'service' && (
                                 <TableCell className="py-1.5 px-1.5">
-                                  {variant.id && soldLockedVariants.has(variant.id) ? (
-                                    <div className="flex items-center gap-1">
-                                      <Lock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                                      <span className="text-xs text-muted-foreground truncate uppercase" title="Color locked — units already sold">
-                                        {variant.color || "-"}
-                                      </span>
-                                    </div>
-                                  ) : (
+                                  {/* Colour stays editable after sales: saved bills keep their own colour copy. */}
                                   <Input
                                     list="color-suggestions"
                                     value={variant.color || ''}
@@ -3151,7 +3134,6 @@ const ProductEntry = () => {
                                       }
                                     }}
                                   />
-                                  )}
                                 </TableCell>
                               )}
                               <TableCell className="py-1.5">

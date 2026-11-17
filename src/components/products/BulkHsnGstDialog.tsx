@@ -8,9 +8,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   isValidHsn,
+  normalizeColorInput,
   normalizeHsnInput,
   PRODUCT_GST_RATES,
   updateProductsHsnGst,
+  type ProductHsnGstResult,
 } from "@/lib/data/productHsnGstBulk";
 
 type Props = {
@@ -18,17 +20,19 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   organizationId: string | null | undefined;
   productIds: string[];
-  /** Called after a successful update with how many products changed. */
-  onUpdated: (count: number) => void;
+  /** Called after a successful update (how many changed, how many kept their colours). */
+  onUpdated: (result: ProductHsnGstResult) => void;
   onError: (message: string) => void;
 };
 
-/** Product Dashboard: set HSN and / or GST % on the selected products in one go. */
+/** Product Dashboard: set HSN, GST % and / or colour on the selected products in one go. */
 export function BulkHsnGstDialog({ open, onOpenChange, organizationId, productIds, onUpdated, onError }: Props) {
   const [changeHsn, setChangeHsn] = useState(false);
   const [hsn, setHsn] = useState("");
   const [changeGst, setChangeGst] = useState(false);
   const [gst, setGst] = useState("5");
+  const [changeColor, setChangeColor] = useState(false);
+  const [color, setColor] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -37,27 +41,38 @@ export function BulkHsnGstDialog({ open, onOpenChange, organizationId, productId
     setHsn("");
     setChangeGst(false);
     setGst("5");
+    setChangeColor(false);
+    setColor("");
   }, [open]);
 
   const hsnError = changeHsn && !isValidHsn(hsn) ? "Enter 2 to 8 digits." : null;
-  const canSave = !!organizationId && productIds.length > 0 && (changeHsn || changeGst) && !hsnError && !saving;
+  const colorValue = normalizeColorInput(color);
+  const colorError = changeColor && !colorValue ? "Enter a colour." : null;
+  const canSave =
+    !!organizationId &&
+    productIds.length > 0 &&
+    (changeHsn || changeGst || changeColor) &&
+    !hsnError &&
+    !colorError &&
+    !saving;
 
   const save = async () => {
     if (!canSave || !organizationId) return;
     setSaving(true);
     try {
-      const count = await updateProductsHsnGst({
+      const result = await updateProductsHsnGst({
         organizationId,
         productIds,
         patch: {
           ...(changeHsn ? { hsn } : {}),
           ...(changeGst ? { gstPercent: Number(gst) } : {}),
+          ...(changeColor ? { color: colorValue } : {}),
         },
       });
-      onUpdated(count);
+      onUpdated(result);
       onOpenChange(false);
     } catch (error) {
-      onError(error instanceof Error ? error.message : "Could not update HSN / GST.");
+      onError(error instanceof Error ? error.message : "Could not update the products.");
     } finally {
       setSaving(false);
     }
@@ -69,10 +84,10 @@ export function BulkHsnGstDialog({ open, onOpenChange, organizationId, productId
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Receipt className="h-5 w-5 text-primary" />
-            Edit HSN / GST
+            Edit HSN / GST / Colour
           </DialogTitle>
           <DialogDescription>
-            {productIds.length} product{productIds.length === 1 ? "" : "s"} selected. New bills use the new HSN / GST;
+            {productIds.length} product{productIds.length === 1 ? "" : "s"} selected. New bills use the new values;
             bills already saved keep theirs.
           </DialogDescription>
         </DialogHeader>
@@ -110,6 +125,25 @@ export function BulkHsnGstDialog({ open, onOpenChange, organizationId, productId
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">Sets the product, sale and purchase GST % together.</p>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Checkbox id="bulk-color-on" checked={changeColor} onCheckedChange={(c) => setChangeColor(!!c)} />
+              <Label htmlFor="bulk-color-on" className="font-medium">Change colour</Label>
+            </div>
+            <Input
+              placeholder="e.g. NAVY BLUE"
+              value={color}
+              disabled={!changeColor}
+              onChange={(e) => setColor(e.target.value.toUpperCase())}
+              aria-invalid={!!colorError}
+            />
+            {colorError && <p className="text-xs text-destructive">{colorError}</p>}
+            <p className="text-xs text-muted-foreground">
+              Sets the colour on every size / barcode. Products sold in more than one colour are left as they are
+              — change those per size in Product Entry.
+            </p>
           </div>
         </div>
 

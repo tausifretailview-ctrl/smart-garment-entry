@@ -349,15 +349,6 @@ const ProductEditPanel = ({
 
     setSaving(true);
     try {
-      if (soldUnits > 0 && modifiedFields.has("color")) {
-        toast({
-          title: "Cannot change color",
-          description: `${soldUnits} units already sold — color is locked because past sales reference this identity.`,
-          variant: "destructive",
-        });
-        setSaving(false);
-        return;
-      }
 
       // One product per name: renaming to a name another product already has
       // (capitals, spaces and - _ . / ignored) would split its stock — use Merge instead.
@@ -649,7 +640,7 @@ const ProductEditPanel = ({
                       </p>
                       {soldUnits > 0 && (
                         <p className="text-[10px] text-amber-600 leading-snug">
-                          Colour locked: {soldUnits} unit{soldUnits === 1 ? "" : "s"} sold for this barcode.
+                          {soldUnits} unit{soldUnits === 1 ? "" : "s"} already sold: those bills keep the old colour.
                         </p>
                       )}
                     </div>

@@ -9,7 +9,7 @@ import { AppBootSplash } from "@/components/AppBootSplash";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { OutletLoadFallback } from "@/components/OutletLoadFallback";
 import { LazyChunkGate } from "@/components/LazyChunkGate";
-import { storeOrgSlug } from "@/lib/orgSlug";
+import { normalizeOrgSlug, storeOrgSlug } from "@/lib/orgSlug";
 import { applyOrgPwaManifest } from "@/lib/orgPwaManifest";
 import { hideAppBootSplash } from "@/lib/appBootSplash";
 import { supabase } from "@/integrations/supabase/client";
@@ -152,7 +152,10 @@ function OrgAuthChunk() {
 }
 
 export const OrgLayout = () => {
-  const { orgSlug } = useParams<{ orgSlug: string }>();
+  const { orgSlug: rawOrgSlug } = useParams<{ orgSlug: string }>();
+  // Slugs are stored lower-case and the login page accepts any case; compare the same way here,
+  // or "/Lagnee-Sarees" signed a member out with "Access denied for this organization URL".
+  const orgSlug = rawOrgSlug ? normalizeOrgSlug(rawOrgSlug) : rawOrgSlug;
   const { user, loading: authLoading } = useAuth();
   const {
     currentOrganization,
@@ -859,6 +862,38 @@ export const OrgLayout = () => {
 
   // Never render a half-initialized tenant shell. Offer an explicit retry when the
   // authoritative organization request fails instead of exposing a blank workspace.
+  // Signed in, list loaded, but this login is a member of no shop: not a connection problem.
+  // Retry cannot fix it — say so and let them sign out (Platform Admin must add the login).
+  if (!isOrgSynced && !orgFetchError && hasResolvedOrganizations && organizations.length === 0) {
+    return (
+      <div className="fixed inset-0 z-[99998] flex items-center justify-center bg-background p-6">
+        <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+          <AlertCircle className="h-9 w-9 text-destructive" />
+          <div className="space-y-1">
+            <h1 className="text-lg font-semibold text-foreground">This login is not added to any shop</h1>
+            <p className="text-sm text-muted-foreground">
+              {user?.email ? `${user.email} signed in, but it` : "It"} is not a member of this organization yet.
+              Ask your administrator to add this login to the shop, then sign in again.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={refetchOrganizations} className="gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </Button>
+            <Button
+              onClick={() => {
+                void supabase.auth.signOut({ scope: "local" }).catch(() => {});
+              }}
+            >
+              Sign out
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!isOrgSynced && (orgFetchError || (hasResolvedOrganizations && organizations.length === 0))) {
     return (
       <div className="fixed inset-0 z-[99998] flex items-center justify-center bg-background p-6">
