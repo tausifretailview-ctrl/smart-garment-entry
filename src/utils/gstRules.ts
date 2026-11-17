@@ -167,8 +167,9 @@ export function resolveGarmentGstForLine(
   }
 
   // At/below threshold: an 18% rate (usually inherited from a purchase entry)
-  // must fall back to the configured slab rate (default 5%).
-  if (price > 0 && price <= threshold && subThresholdGst >= GARMENT_BUMPED_GST) {
+  // must fall back to the configured slab rate (default 5%). Only 18% — the rate this
+  // rule bumps to. 28% / 40% (luxury, imported stock) are never garment slabs and stay.
+  if (price > 0 && price <= threshold && subThresholdGst === GARMENT_BUMPED_GST) {
     return getGarmentGstBelowRate(settings);
   }
 

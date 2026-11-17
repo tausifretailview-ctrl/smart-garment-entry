@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { productHsnGstColumns } from "@/lib/data/productHsnGstBulk";
 import { supabase } from "@/integrations/supabase/client";
 import { bestEffortWrite } from "@/lib/rollbackStep";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -329,13 +330,13 @@ export const useBulkProductUpdate = () => {
     brand: "brand",
     style: "style",
     hsn_code: "hsn_code",
-    gst_per: "gst_per",
   };
 
+  // GST % is NOT copied onto saved bills: a sale / purchase line keeps the rate it was billed at
+  // (its tax and totals were worked out with it, and it may already be in a filed return).
   const saleItemsFieldMap: Record<string, string> = {
     product_name: "product_name",
     hsn_code: "hsn_code",
-    gst_per: "gst_percent",
   };
 
   const cascadeToTransactionItems = async (
@@ -411,6 +412,7 @@ export const useBulkProductUpdate = () => {
       const { error } = await supabase
         .from("products")
         .update(updateData as never)
+        .eq("organization_id", currentOrganization!.id)
         .in("id", batch);
       if (error) throw error;
     }
@@ -468,12 +470,17 @@ export const useBulkProductUpdate = () => {
           }
         } else if (updateType === "update_field") {
           const ufConfig = config as UpdateFieldConfig;
-          await batchUpdateProducts(ids, { [ufConfig.field]: ufConfig.value });
+          const update =
+            ufConfig.field === "gst_per"
+              ? productHsnGstColumns({ gstPercent: Number(ufConfig.value) })
+              : { [ufConfig.field]: ufConfig.value };
+          await batchUpdateProducts(ids, update);
           await batchCascade(ufConfig.field, ufConfig.value, ids);
         } else if (updateType === "update_gst") {
           const gstConfig = config as GSTConfig;
-          await batchUpdateProducts(ids, { gst_per: gstConfig.newGst });
-          await batchCascade("gst_per", gstConfig.newGst, ids);
+          // POS / Sales / Purchase read sale_gst_percent / purchase_gst_percent first:
+          // setting only gst_per left new bills on the old rate.
+          await batchUpdateProducts(ids, productHsnGstColumns({ gstPercent: gstConfig.newGst }));
         }
       }
 

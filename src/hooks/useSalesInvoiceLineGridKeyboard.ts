@@ -91,8 +91,14 @@ function isColumnVisible(col: SaleLineGridColKey, showCol: SaleLineGridShowCol):
   return true;
 }
 
+/**
+ * Text cells edited with a click / Enter but left out of the Tab / arrow order, so the fast
+ * Qty → Price → Disc flow is unchanged. HSN: change the code on this bill's line.
+ */
+const CLICK_EDIT_TEXT_COLS = new Set<SaleLineGridColKey>(["hsn"]);
+
 function isEditableCol(col: SaleLineGridColKey): boolean {
-  return EDITABLE_COLS.includes(col);
+  return EDITABLE_COLS.includes(col) || CLICK_EDIT_TEXT_COLS.has(col);
 }
 
 function cellKey(rowIndex: number, colKey: SaleLineGridColKey): string {
@@ -206,7 +212,7 @@ export function useSalesInvoiceLineGridKeyboard({
     if (snap && itemId) {
       if (snap.colKey === "qty") {
         onRevertQty(itemId, Number(snap.value) || 0);
-      } else if (snap.colKey === "box") {
+      } else if (snap.colKey === "box" || CLICK_EDIT_TEXT_COLS.has(snap.colKey)) {
         onRevertNumeric(itemId, snap.colKey, snap.value as string | number);
       } else if (NUMERIC_EDIT_COLS.has(snap.colKey)) {
         onRevertNumeric(itemId, snap.colKey, Number(snap.value) || 0);
