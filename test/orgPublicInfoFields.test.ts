@@ -3,6 +3,8 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { STOREFRONT_BANNERS_KEY } from "@/lib/storefrontBanners";
 import { STOREFRONT_THEME_KEY } from "@/lib/storefrontThemes";
+import { STOREFRONT_VIDEOS_KEY } from "@/lib/storefrontVideos";
+import { STOREFRONT_SHOWCASE_KEY } from "@/lib/storefrontShowcase";
 import { STOREFRONT_PRODUCT_SECTIONS_KEY, STOREFRONT_SECTIONS_KEY } from "@/lib/websiteSectionStore";
 
 /**
@@ -45,6 +47,9 @@ describe("get_org_public_info returns what its public readers need, and only tha
       STOREFRONT_BANNERS_KEY,
       STOREFRONT_SECTIONS_KEY,
       STOREFRONT_PRODUCT_SECTIONS_KEY,
+      // Missing from the function at first: saved videos never reached the store (Nov 2026).
+      STOREFRONT_VIDEOS_KEY,
+      STOREFRONT_SHOWCASE_KEY,
     ];
     expect(storeReads).toEqual(expect.arrayContaining(["address", "mobile_number"]));
     for (const key of storeReads) expect(settingsPart).toContain(`'${key}'`);
