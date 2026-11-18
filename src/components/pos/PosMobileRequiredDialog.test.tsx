@@ -98,4 +98,16 @@ describe("POS asks for the mobile on every save path", () => {
     expect(pos).toContain('if (!ensurePosMobile({ kind: "mix" })) return;');
     expect(pos.match(/\{mobileRequiredDialog\}/g)?.length).toBe(3);
   });
+
+  it("also asks on the phone billing screen, then saves with the payment mode already chosen", () => {
+    const phone = readFileSync(join(process.cwd(), "src/pages/mobile/MobilePosBilling.tsx"), "utf8");
+    // Every payment (one-tap, payment sheet, mix) goes through runSave, which checks first.
+    const runSave = phone.slice(phone.indexOf("const runSave = async ("), phone.indexOf("const toggleFastPicks"));
+    expect(runSave).toContain("posBillNeedsMobile(saleSettings as { pos_require_customer_mobile?: boolean }, billPhone)");
+    expect(runSave.indexOf("posBillNeedsMobile(")).toBeLessThan(runSave.indexOf("saveLockRef.current = true;"));
+    // The typed mobile is what the bill is saved with.
+    expect(runSave).toContain("customerPhone: billPhone,");
+    expect(phone).toContain("if (waiting) void runSave(waiting.method, waiting.breakdown, mobile);");
+    expect(phone).toContain("<PosMobileRequiredDialog");
+  });
 });

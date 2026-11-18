@@ -1,3 +1,4 @@
+import { vouchersWithReceiptsForDcView } from "@/utils/dcReceiptShare";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format, isToday, parseISO, subDays } from "date-fns";
@@ -117,7 +118,7 @@ export default function DailyAccountTally() {
   });
 
   const vouchersQ = useQuery({
-    queryKey: ["daily-tally-vouchers", orgId, dateStr],
+    queryKey: ["daily-tally-vouchers", orgId, dateStr, hideDc, onlyDc],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("voucher_entries")
@@ -126,7 +127,8 @@ export default function DailyAccountTally() {
         .is("deleted_at", null)
         .eq("voucher_date", dateStr);
       if (error) throw error;
-      return data || [];
+      // Payments on old bills follow the DC view, like the bills themselves.
+      return vouchersWithReceiptsForDcView(supabase, data || [], { hideDc, onlyDc });
     },
     enabled: !!orgId,
     ...REPORT_CACHE,

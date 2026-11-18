@@ -1,3 +1,5 @@
+import { useDcVisibility } from "@/hooks/useDcVisibility";
+import { vouchersWithReceiptsForDcView } from "@/utils/dcReceiptShare";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -71,17 +73,21 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
   const dateStr = format(selectedDate, "yyyy-MM-dd");
   const { startIso, endIso } = localDayBounds(dateStr, dateStr);
 
+  // DC (No GST) view: the tally counts what this login is shown elsewhere. DC hidden leaves DC
+  // bills (and the DC part of mixed bills) out; a DC User sees only the DC part.
+  const { hideDc, onlyDc } = useDcVisibility();
+
   const { data: salesData, refetch: refetchSales } = useQuery({
-    queryKey: ["daily-tally-sales", orgId, dateStr],
+    queryKey: ["daily-tally-sales", orgId, dateStr, hideDc, onlyDc],
     queryFn: async () => {
       const { fetchAllSalesWithFilters } = await import("@/utils/fetchAllRows");
-      return fetchAllSalesWithFilters(orgId!, { startDate: startIso, endDate: endIso });
+      return fetchAllSalesWithFilters(orgId!, { startDate: startIso, endDate: endIso, hideDc, onlyDc });
     },
     enabled: !!orgId && open,
   });
 
   const { data: vouchersData, refetch: refetchVouchers } = useQuery({
-    queryKey: ["daily-tally-vouchers", orgId, dateStr, "floating"],
+    queryKey: ["daily-tally-vouchers", orgId, dateStr, "floating", hideDc, onlyDc],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("voucher_entries")
@@ -91,7 +97,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
         .gte("voucher_date", dateStr)
         .lte("voucher_date", dateStr);
       if (error) throw error;
-      return data || [];
+      return vouchersWithReceiptsForDcView(supabase, data || [], { hideDc, onlyDc });
     },
     enabled: !!orgId && open,
   });

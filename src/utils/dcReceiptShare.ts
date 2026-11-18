@@ -53,3 +53,20 @@ export async function receiptsForDcView<T extends ReceiptLike>(
   }
   return out;
 }
+
+/**
+ * A day's vouchers of every type for this screen's DC view: receipts go through
+ * {@link receiptsForDcView}; payments, expenses and the rest are left as they are (they are not
+ * tied to DC or GST bills).
+ */
+export async function vouchersWithReceiptsForDcView<T extends ReceiptLike & { voucher_type?: string | null }>(
+  client: unknown,
+  vouchers: readonly T[],
+  view: DcViewFlags,
+): Promise<T[]> {
+  if (!view.hideDc && !view.onlyDc) return vouchers as T[];
+  const receipts = vouchers.filter((v) => v.voucher_type === "receipt");
+  if (receipts.length === 0) return vouchers as T[];
+  const kept = await receiptsForDcView(client, receipts, view);
+  return [...vouchers.filter((v) => v.voucher_type !== "receipt"), ...kept];
+}

@@ -1,3 +1,7 @@
+import { useDcVisibility } from "@/hooks/useDcVisibility";
+import { vouchersWithReceiptsForDcView } from "@/utils/dcReceiptShare";
+import { saleRowsForDcView } from "@/utils/dcSaleShare";
+import { filterSalesForDcView, salesSelectForDcView } from "@/utils/dcView";
 import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
@@ -90,24 +94,35 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
   const reportDate = parseLocalYmd(selectedDate) ?? new Date();
   const selectedDateSafe = format(reportDate, "yyyy-MM-dd");
 
+  // DC (No GST) view: this report counts what the login is shown elsewhere (same as the
+  // Business Report page). DC hidden leaves DC bills out; a DC User sees only the DC part.
+  const { hideDc, onlyDc } = useDcVisibility();
+
   // Fetch sales for selected date
   const { data: salesData, isLoading } = useQuery({
-    queryKey: ["floating-cashier-report-sales", currentOrganization?.id, selectedDateSafe],
+    queryKey: ["floating-cashier-report-sales", currentOrganization?.id, selectedDateSafe, hideDc, onlyDc],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
 
       const { startIso, endIso } = localDayBounds(selectedDateSafe, selectedDateSafe);
 
-      const { data, error } = await supabase
+      let query = supabase
         .from("sales")
-        .select("id, sale_number, sale_date, customer_id, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, net_amount, paid_amount, refund_amount, payment_method, cash_amount, card_amount, upi_amount, payment_status, sale_return_adjust, is_cancelled")
+        .select(
+          salesSelectForDcView(
+            "id, sale_number, sale_date, customer_id, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, net_amount, paid_amount, refund_amount, payment_method, cash_amount, card_amount, upi_amount, payment_status, sale_return_adjust, is_cancelled",
+            { onlyDc },
+          ),
+        )
         .eq("organization_id", currentOrganization.id)
         .gte("sale_date", startIso)
         .lte("sale_date", endIso)
         .is("deleted_at", null);
-      
+      query = filterSalesForDcView(query, { hideDc, onlyDc });
+
+      const { data, error } = await query;
       if (error) throw error;
-      return data;
+      return saleRowsForDcView(supabase, data || [], { hideDc, onlyDc });
     },
     enabled: !!currentOrganization?.id && open,
     staleTime: 30_000,
@@ -115,7 +130,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
   });
 
   const { data: voucherData } = useQuery({
-    queryKey: ["cashier-report-vouchers", currentOrganization?.id, selectedDateSafe],
+    queryKey: ["cashier-report-vouchers", currentOrganization?.id, selectedDateSafe, hideDc, onlyDc],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       const { data } = await supabase
@@ -124,7 +139,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
         .eq("organization_id", currentOrganization.id)
         .eq("voucher_date", selectedDateSafe)
         .is("deleted_at", null);
-      return data || [];
+      return vouchersWithReceiptsForDcView(supabase, data || [], { hideDc, onlyDc });
     },
     enabled: !!currentOrganization?.id && open,
   });
