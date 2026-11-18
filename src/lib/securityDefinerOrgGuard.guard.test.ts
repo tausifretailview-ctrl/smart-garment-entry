@@ -29,6 +29,8 @@ const PUBLIC_BY_DESIGN = new Set([
   // waits for the shop's approval. Rate limited per bill.
   "get_public_review_form",
   "submit_public_product_review",
+  // Reserve & try / tell me when it's back: scoped by store slug, writes one Website enquiry row.
+  "submit_public_storefront_request",
 ]);
 
 const ID_PARAM =

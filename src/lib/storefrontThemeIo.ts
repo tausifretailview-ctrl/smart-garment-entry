@@ -19,6 +19,11 @@ import {
 import { STOREFRONT_SHOWCASE_KEY, parseStorefrontShowcase } from "@/lib/storefrontShowcase";
 import { STOREFRONT_SIGNALS_KEY, parseStorefrontSignalsEnabled } from "@/lib/storefrontSignals";
 import {
+  STOREFRONT_REQUESTS_KEY,
+  parseStorefrontRequestSwitches,
+  type StorefrontRequests,
+} from "@/lib/storefrontRequests";
+import {
   STOREFRONT_SIZE_HELPER_KEY,
   parseStorefrontSizeHelper,
   serializeStorefrontSizeHelper,
@@ -98,6 +103,19 @@ export async function loadStorefrontSignalsEnabled(orgId: string): Promise<boole
 
 export async function saveStorefrontSignalsEnabled(orgId: string, enabled: boolean): Promise<void> {
   await patchOrgSettings(orgId, { [STOREFRONT_SIGNALS_KEY]: { enabled } }, "the live shop signals setting");
+}
+
+/** "Reserve & try in store" and "Tell me when it's back" switches (Website → Theme). */
+export async function loadStorefrontRequestSwitches(orgId: string): Promise<StorefrontRequests> {
+  return parseStorefrontRequestSwitches(await readOrgSettings(orgId));
+}
+
+export async function saveStorefrontRequestSwitches(orgId: string, switches: StorefrontRequests): Promise<void> {
+  await patchOrgSettings(
+    orgId,
+    { [STOREFRONT_REQUESTS_KEY]: { reserve: switches.reserve, restock: switches.restock } },
+    "the store request settings",
+  );
 }
 
 /** "Find my size" switch and size chart (Website → Theme). */

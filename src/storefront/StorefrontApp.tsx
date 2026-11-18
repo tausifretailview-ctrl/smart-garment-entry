@@ -180,6 +180,7 @@ export function StorefrontApp() {
         reviews={payload.reviews}
         sizeHelper={payload.sizeHelper}
         signals={payload.signals}
+        requests={payload.requests}
         shop={payload.shop!}
         orgSlug={canonicalSlug}
         products={products}

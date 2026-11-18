@@ -35,6 +35,8 @@ import { StreetRatingLine, StreetReviewsContext, StreetReviewsSection } from "./
 import { StreetSizeHelper, useStreetSizeProfile, useStreetSizeSuggestion } from "./StreetSizeHelper";
 import { StreetSpinViewer } from "./StreetSpinViewer";
 import { StreetSignalsContext } from "./StreetSignals";
+import { StreetRequestPanel } from "./StreetRequestPanel";
+import { NO_STOREFRONT_REQUESTS, type StorefrontRequestKind } from "@/lib/storefrontRequests";
 import {
   EMPTY_STOREFRONT_SIGNALS,
   arrivedLabel,
@@ -408,6 +410,7 @@ function StreetProductPage({
   wishlist,
   sizeHelper,
   look,
+  requests,
   onBack,
   onAdd,
   onWish,
@@ -418,6 +421,8 @@ function StreetProductPage({
   product: EllaStorefrontProduct;
   /** "Find my size" settings; undefined or switched off hides the helper. */
   sizeHelper?: PublicStorefrontPayload["sizeHelper"];
+  /** Which of "Reserve & try in store" / "Tell me when it's back" the store may offer. */
+  requests: { reserve: boolean; restock: boolean };
   /** "Complete the look": products most often billed together with this one at the shop. */
   look: EllaStorefrontProduct[];
   orgSlug: string;
@@ -438,6 +443,7 @@ function StreetProductPage({
   const [qty, setQty] = useState(1);
   const [open, setOpen] = useState<"description" | "details" | "help" | null>("description");
   const [copied, setCopied] = useState(false);
+  const [requestKind, setRequestKind] = useState<StorefrontRequestKind | null>(null);
 
   // "Find my size": a shopper who has given their details gets their size picked on every product.
   const [sizeProfile, saveSizeProfile] = useStreetSizeProfile();
@@ -453,6 +459,7 @@ function StreetProductPage({
     setQty(1);
     setOpen("description");
     setCopied(false);
+    setRequestKind(null);
   }, [product.productId, product.defaultSize]);
 
   const size = useMemo(
@@ -463,6 +470,8 @@ function StreetProductPage({
   const maxQty = size && size.availableKnown ? Math.max(1, size.available) : 5;
   const inBag = cart.find((line) => line.key === ellaCartLineKey(product.productId, size?.label ?? null))?.qty ?? 0;
   const anyInStock = product.sizes.some((s) => s.inStock);
+  const canReserve = requests.reserve && canBuy && Boolean(size?.variantId);
+  const canRestock = requests.restock && !!size && !size.inStock && Boolean(size.variantId);
   const oneSize = product.sizes.length === 1 && product.sizes[0].label === "FS";
 
   useEffect(() => {
@@ -588,8 +597,12 @@ function StreetProductPage({
                     type="button"
                     className={`st-size${option.label === size?.label ? " st-on" : ""}${option.inStock ? "" : " st-out"}`}
                     aria-pressed={option.label === size?.label}
-                    disabled={!option.inStock}
-                    onClick={() => setSizeLabel(option.label)}
+                    // A sold-out size can be picked only to ask to be told when it is back.
+                    disabled={!option.inStock && !(requests.restock && option.variantId)}
+                    onClick={() => {
+                      setSizeLabel(option.label);
+                      setRequestKind(null);
+                    }}
                   >
                     {option.label}
                   </button>
@@ -634,9 +647,20 @@ function StreetProductPage({
                 </button>
               </>
             ) : (
-              <button type="button" className="st-btn st-btn-solid" onClick={() => onEnquire(product)}>
-                Ask the shop about this style
-              </button>
+              <>
+                {canRestock ? (
+                  <button type="button" className="st-btn st-btn-solid st-btn-wide" onClick={() => setRequestKind("restock")}>
+                    Tell me when it's back
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className={`st-btn${canRestock ? "" : " st-btn-solid"}`}
+                  onClick={() => onEnquire(product)}
+                >
+                  Ask the shop about this style
+                </button>
+              </>
             )}
             <button
               type="button"
@@ -649,7 +673,25 @@ function StreetProductPage({
             </button>
           </div>
 
+          {requestKind && size?.variantId ? (
+            <StreetRequestPanel
+              key={`${requestKind}-${size.variantId}`}
+              kind={requestKind}
+              slug={orgSlug}
+              productId={product.productId}
+              variantId={size.variantId}
+              sizeLabel={oneSize ? "this piece" : size.label}
+              shopName={shopName}
+              onClose={() => setRequestKind(null)}
+            />
+          ) : null}
+
           <div className="st-pdp-links">
+            {canReserve ? (
+              <button type="button" className="st-link" onClick={() => setRequestKind("reserve")}>
+                Reserve &amp; try in store
+              </button>
+            ) : null}
             <button type="button" className="st-link" onClick={share}>
               {copied ? "Link copied" : "Share"}
             </button>
@@ -758,6 +800,7 @@ export function StreetStorefront({
   reviews,
   sizeHelper,
   signals,
+  requests,
 }: {
   shop: PublicStorefrontShop;
   orgSlug: string;
@@ -767,6 +810,8 @@ export function StreetStorefront({
   videos?: PublicStorefrontPayload["videos"];
   /** Product slideshow on the home page (Website → Theme); false hides it. */
   showcase?: boolean;
+  /** "Reserve & try in store" / "Tell me when it's back"; undefined offers neither. */
+  requests?: PublicStorefrontPayload["requests"];
   /** Best sellers, selling fast, just arrived and bought together, from the shop's own bills. */
   signals?: PublicStorefrontPayload["signals"];
   /** "Find my size" on product pages (Website → Theme); undefined or switched off hides it. */
@@ -1532,6 +1577,7 @@ export function StreetStorefront({
             wishlist={wishlist}
             sizeHelper={sizeHelper}
             look={lookFor(view.product)}
+            requests={sampleMode || !requests ? NO_STOREFRONT_REQUESTS : requests}
             related={streetRelatedProducts(items, view.product)}
             onBack={backFromProduct}
             onAdd={addToBag}
