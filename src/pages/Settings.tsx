@@ -3041,6 +3041,22 @@ export default function Settings() {
                     />
 
                     <SettingsToggle
+                      label="Ask quantity after selecting a product"
+                      description="Sales Invoice: after a product is picked or scanned, a Qty window opens (like service products) before it is added. Off = added with Qty 1."
+                      id="sale_goods_ask_qty_dialog"
+                      checked={(settings.sale_settings as any)?.sale_goods_ask_qty_dialog === true}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            sale_goods_ask_qty_dialog: checked,
+                          } as any,
+                        })
+                      }
+                    />
+
+                    <SettingsToggle
                       label="Ask Price When Last Purchase Differs"
                       description="Show price selection dialog when last purchase price differs from master price during billing"
                       id="ask_price_on_scan"
