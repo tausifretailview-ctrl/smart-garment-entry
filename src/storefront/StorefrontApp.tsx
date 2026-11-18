@@ -179,6 +179,7 @@ export function StorefrontApp() {
         showcase={payload.showcase !== false}
         reviews={payload.reviews}
         sizeHelper={payload.sizeHelper}
+        signals={payload.signals}
         shop={payload.shop!}
         orgSlug={canonicalSlug}
         products={products}

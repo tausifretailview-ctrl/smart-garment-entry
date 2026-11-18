@@ -6,7 +6,7 @@
  * live size stock, reward points and offer codes reuse the same modules as the
  * Ella'Noor theme; only the page around them is new.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent } from "react";
 import { parseStorefrontPath, storefrontHomePath, storefrontProductPath, storefrontProductUrl } from "@/lib/storefrontPath";
 import { whatsappShareUrl } from "@/lib/storefrontShare";
 import { validateEnquiryInput } from "@/lib/storefrontEnquiry";
@@ -34,6 +34,13 @@ import { submitStorefrontEnquiry } from "./storefrontClient";
 import { StreetRatingLine, StreetReviewsContext, StreetReviewsSection } from "./StreetReviews";
 import { StreetSizeHelper, useStreetSizeProfile, useStreetSizeSuggestion } from "./StreetSizeHelper";
 import { StreetSpinViewer } from "./StreetSpinViewer";
+import { StreetSignalsContext } from "./StreetSignals";
+import {
+  EMPTY_STOREFRONT_SIGNALS,
+  arrivedLabel,
+  indexStorefrontSignals,
+  storefrontSignalFlag,
+} from "@/lib/storefrontSignals";
 import { hasProductSpin } from "@/lib/productSpin";
 import { storefrontLocationLine } from "./storefrontTheme";
 import {
@@ -162,6 +169,11 @@ const PlusIcon = () => (
   </Icon>
 );
 
+/** In stock (or stock not disclosed): live rows never push a product that cannot be bought. */
+function isBuyable(product: EllaStorefrontProduct): boolean {
+  return product.available > 0 || !product.availableKnown;
+}
+
 /* --- product card --------------------------------------------------------- */
 
 function StreetCard({
@@ -170,14 +182,28 @@ function StreetCard({
   onOpen,
   onWish,
   onQuickAdd,
+  everyRank = false,
+  arrivedText,
 }: {
   product: EllaStorefrontProduct;
   wished: boolean;
   onOpen: (product: EllaStorefrontProduct) => void;
   onWish: (product: EllaStorefrontProduct) => void;
   onQuickAdd: (product: EllaStorefrontProduct) => void;
+  /** Best-seller row: show the rank on every card, not only the top three. */
+  everyRank?: boolean;
+  /** Just-arrived row: "Arrived today" instead of the usual live flag. */
+  arrivedText?: string | null;
 }) {
   const flag = streetCardFlag(product);
+  const signals = useContext(StreetSignalsContext);
+  // Stock comes first: a sold-out or nearly gone product says that, not "Selling fast".
+  const live =
+    flag === "sold-out" || flag === "few-left"
+      ? null
+      : arrivedText
+        ? ({ kind: "arrived", text: arrivedText } as const)
+        : storefrontSignalFlag(product.productId, signals, everyRank);
   const [photo, alt] = product.images;
   const sizes = product.sizes.filter((s) => s.inStock && s.label !== "FS").map((s) => s.label);
   return (
@@ -191,7 +217,8 @@ function StreetCard({
           )}
           {alt ? <img className="st-card-img st-card-alt" src={alt} alt="" loading="lazy" decoding="async" aria-hidden="true" /> : null}
         </button>
-        {flag === "new" ? <span className="st-flag st-flag-new">New</span> : null}
+        {live ? <span className={`st-flag st-flag-${live.kind}`}>{live.text}</span> : null}
+        {!live && flag === "new" ? <span className="st-flag st-flag-new">New</span> : null}
         {flag === "few-left" ? <span className="st-flag">Few left</span> : null}
         {flag === "sold-out" ? <span className="st-flag st-flag-out">Sold out</span> : null}
         <button
@@ -380,6 +407,7 @@ function StreetProductPage({
   related,
   wishlist,
   sizeHelper,
+  look,
   onBack,
   onAdd,
   onWish,
@@ -390,6 +418,8 @@ function StreetProductPage({
   product: EllaStorefrontProduct;
   /** "Find my size" settings; undefined or switched off hides the helper. */
   sizeHelper?: PublicStorefrontPayload["sizeHelper"];
+  /** "Complete the look": products most often billed together with this one at the shop. */
+  look: EllaStorefrontProduct[];
   orgSlug: string;
   shopName: string;
   shopWhatsApp: string | null;
@@ -438,6 +468,17 @@ function StreetProductPage({
   useEffect(() => {
     setQty((current) => Math.min(Math.max(1, current), maxQty));
   }, [maxQty]);
+
+  // Live notes from the shop's own bills and purchases (only while it can still be bought).
+  const signals = useContext(StreetSignalsContext);
+  const liveNotes: Array<{ kind: "best" | "fast" | "arrived"; text: string }> = [];
+  if (anyInStock) {
+    const rank = signals.rank.get(product.productId);
+    if (rank) liveNotes.push({ kind: "best", text: `#${rank} best seller this week` });
+    if (signals.fast.has(product.productId)) liveNotes.push({ kind: "fast", text: "Selling fast" });
+    const arrived = signals.arrived.has(product.productId) ? arrivedLabel(signals.arrived.get(product.productId) ?? null) : null;
+    if (arrived) liveNotes.push({ kind: "arrived", text: arrived });
+  }
 
   // 360° view: shown first in the gallery when the shop uploaded enough photos around the product.
   const spin = hasProductSpin(product.spin);
@@ -527,6 +568,15 @@ function StreetProductPage({
             onClick={() => document.getElementById("st-reviews")?.scrollIntoView({ behavior: "smooth", block: "start" })}
           />
           <div className="st-pdp-price">{product.priceLabel || "Price on request"}</div>
+          {liveNotes.length > 0 ? (
+            <div className="st-pdp-live">
+              {liveNotes.map((note) => (
+                <span key={note.text} className={`st-pdp-live-chip st-flag-${note.kind}`}>
+                  {note.text}
+                </span>
+              ))}
+            </div>
+          ) : null}
 
           {!oneSize ? (
             <>
@@ -645,6 +695,29 @@ function StreetProductPage({
         </div>
       </div>
 
+      {look.length > 0 ? (
+        <section className="st-section st-look">
+          <div className="st-section-head">
+            <div>
+              <h2 className="st-h2">Complete the look</h2>
+              <p className="st-section-sub">Often bought together at the shop</p>
+            </div>
+          </div>
+          <div className="st-rail">
+            {look.map((p) => (
+              <StreetCard
+                key={p.productId}
+                product={p}
+                wished={wishlist.includes(p.productId)}
+                onOpen={onOpen}
+                onWish={onWish}
+                onQuickAdd={onQuickAdd}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <StreetReviewsSection productId={product.productId} />
 
       {related.length > 0 ? (
@@ -684,6 +757,7 @@ export function StreetStorefront({
   showcase = true,
   reviews,
   sizeHelper,
+  signals,
 }: {
   shop: PublicStorefrontShop;
   orgSlug: string;
@@ -693,6 +767,8 @@ export function StreetStorefront({
   videos?: PublicStorefrontPayload["videos"];
   /** Product slideshow on the home page (Website → Theme); false hides it. */
   showcase?: boolean;
+  /** Best sellers, selling fast, just arrived and bought together, from the shop's own bills. */
+  signals?: PublicStorefrontPayload["signals"];
   /** "Find my size" on product pages (Website → Theme); undefined or switched off hides it. */
   sizeHelper?: PublicStorefrontPayload["sizeHelper"];
   /** Stars and shop-approved customer reviews by product id; none hides every rating. */
@@ -767,6 +843,28 @@ export function StreetStorefront({
     [videos, nav, findById],
   );
   const newArrivals = useMemo(() => streetNewArrivals(items), [items]);
+  // Live signals never apply to the sample catalogue.
+  const liveSignals = sampleMode || !signals ? EMPTY_STOREFRONT_SIGNALS : signals;
+  const signalIndex = useMemo(() => indexStorefrontSignals(liveSignals), [liveSignals]);
+  // Best sellers this week: a row only when at least three are still in stock.
+  const bestSellers = useMemo(() => {
+    const list = liveSignals.bestSellers.map((id) => findById(id)).filter((p): p is EllaStorefrontProduct => !!p && isBuyable(p));
+    return list.length >= 3 ? list : [];
+  }, [liveSignals, findById]);
+  // Just arrived: stock from purchase bills entered this week, newest first.
+  const justArrived = useMemo(() => {
+    const list = liveSignals.justArrived
+      .map((a) => ({ product: findById(a.productId), at: a.at }))
+      .filter((a): a is { product: EllaStorefrontProduct; at: string | null } => !!a.product && isBuyable(a.product));
+    return list.length >= 2 ? list : [];
+  }, [liveSignals, findById]);
+  const lookFor = useCallback(
+    (product: EllaStorefrontProduct) =>
+      (liveSignals.boughtTogether[product.productId] || [])
+        .map((id) => findById(id))
+        .filter((p): p is EllaStorefrontProduct => !!p && p.productId !== product.productId && isBuyable(p)),
+    [liveSignals, findById],
+  );
 
   const [view, setView] = useState<View>(() => {
     const first = findById(initialProductId);
@@ -1064,6 +1162,7 @@ export function StreetStorefront({
 
   return (
     <StreetReviewsContext.Provider value={reviewMap}>
+    <StreetSignalsContext.Provider value={signalIndex}>
     <div className="ella-store street-store">
       <div className="st-announce" aria-hidden="true">
         <div className="st-marquee">
@@ -1268,7 +1367,45 @@ export function StreetStorefront({
               </section>
             ) : null}
 
-            {newArrivals.length > 0 && !allAreNew ? (
+            {justArrived.length > 0 ? (
+              <section className="st-section st-arrived">
+                <div className="st-section-head">
+                  <div>
+                    <h2 className="st-h2">Just arrived</h2>
+                    <p className="st-section-sub">New stock that reached the shop this week</p>
+                  </div>
+                </div>
+                <div className="st-rail">
+                  {justArrived.map(({ product: p, at }) => (
+                    <StreetCard
+                      key={p.productId}
+                      product={p}
+                      wished={wishlist.includes(p.productId)}
+                      arrivedText={arrivedLabel(at) ?? "Just in"}
+                      {...cardProps}
+                    />
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {bestSellers.length > 0 ? (
+              <section className="st-section st-best">
+                <div className="st-section-head">
+                  <div>
+                    <h2 className="st-h2">Best sellers this week</h2>
+                    <p className="st-section-sub">Ranked from the shop's own bills</p>
+                  </div>
+                </div>
+                <div className="st-rail">
+                  {bestSellers.map((p) => (
+                    <StreetCard key={p.productId} product={p} wished={wishlist.includes(p.productId)} everyRank {...cardProps} />
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {newArrivals.length > 0 && !allAreNew && justArrived.length === 0 ? (
               <section className="st-section">
                 <div className="st-section-head">
                   <h2 className="st-h2">New arrivals</h2>
@@ -1394,6 +1531,7 @@ export function StreetStorefront({
             wished={wishlist.includes(view.product.productId)}
             wishlist={wishlist}
             sizeHelper={sizeHelper}
+            look={lookFor(view.product)}
             related={streetRelatedProducts(items, view.product)}
             onBack={backFromProduct}
             onAdd={addToBag}
@@ -1644,6 +1782,7 @@ export function StreetStorefront({
         </div>
       ) : null}
     </div>
+    </StreetSignalsContext.Provider>
     </StreetReviewsContext.Provider>
   );
 }
