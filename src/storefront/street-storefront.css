@@ -1557,3 +1557,59 @@
   .street-store .st-card-rating { font-size: 13px; }
 }
 .ella-store.street-store button.st-reviews-photo[hidden] { display: none; }
+
+/* --- size helper ("Find my size" on the product page) --------------------- */
+.street-store .st-fit { margin-top: 10px; }
+.street-store .st-fit-bar { align-items: center; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.street-store .st-fit-result { font-size: 13px; }
+.street-store .st-fit-result strong { font-size: 15px; }
+.street-store .st-fit-result.st-fit-warn { color: #b45309; }
+.street-store .st-fit-panel {
+  background: #f6f6f6;
+  border-radius: 12px;
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 14px;
+}
+.street-store .st-fit-row { align-items: center; display: grid; gap: 10px; grid-template-columns: 92px minmax(0, 1fr); }
+.street-store .st-fit-label { font-size: 13px; font-weight: 600; }
+.street-store .st-fit-inline { align-items: center; display: flex; gap: 8px; }
+.street-store .st-fit-inline select,
+.street-store .st-fit-inline input {
+  background: #ffffff;
+  border: 1px solid var(--st-line);
+  border-radius: 8px;
+  color: var(--st-ink);
+  font: inherit;
+  font-size: 15px;
+  height: 42px;
+  min-width: 0;
+  padding: 0 10px;
+}
+.street-store .st-fit-inline input { width: 96px; }
+.street-store .st-fit-unit { color: var(--st-muted); font-size: 13px; }
+.street-store .st-fit-seg { display: flex; gap: 6px; }
+.ella-store.street-store button.st-fit-seg-btn {
+  background: #ffffff;
+  border: 1px solid var(--st-line);
+  border-radius: 8px;
+  color: var(--st-ink);
+  cursor: pointer;
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  height: 40px;
+  padding: 0 8px;
+}
+.ella-store.street-store button.st-fit-seg-btn.st-on { background: var(--st-ink); border-color: var(--st-ink); color: #ffffff; }
+.street-store .st-fit-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 14px; }
+.street-store .st-fit-error { color: #b91c1c; font-size: 13px; margin: 0; }
+.street-store .st-fit-note { color: var(--st-muted); font-size: 12px; line-height: 1.5; margin: 0; }
+.street-store .st-fit-guide { border-collapse: collapse; font-size: 13px; margin-top: 10px; width: 100%; }
+.street-store .st-fit-guide caption { color: var(--st-muted); font-size: 12px; padding-bottom: 6px; text-align: left; }
+.street-store .st-fit-guide th,
+.street-store .st-fit-guide td { border: 1px solid var(--st-line); padding: 7px 10px; text-align: center; }
+.street-store .st-fit-guide thead th { background: #f6f6f6; font-weight: 700; }
+.street-store .st-fit-guide tr.st-on th,
+.street-store .st-fit-guide tr.st-on td { background: var(--st-ink); color: #ffffff; }

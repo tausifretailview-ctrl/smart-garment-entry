@@ -32,6 +32,7 @@ import { findSize, type EllaSizeOption } from "./ellaVariants";
 import { ellaWhatsAppNumber } from "./ellaWhatsApp";
 import { submitStorefrontEnquiry } from "./storefrontClient";
 import { StreetRatingLine, StreetReviewsContext, StreetReviewsSection } from "./StreetReviews";
+import { StreetSizeHelper, useStreetSizeProfile, useStreetSizeSuggestion } from "./StreetSizeHelper";
 import { storefrontLocationLine } from "./storefrontTheme";
 import {
   buildStreetBannerSlides,
@@ -376,6 +377,7 @@ function StreetProductPage({
   wished,
   related,
   wishlist,
+  sizeHelper,
   onBack,
   onAdd,
   onWish,
@@ -384,6 +386,8 @@ function StreetProductPage({
   onQuickAdd,
 }: {
   product: EllaStorefrontProduct;
+  /** "Find my size" settings; undefined or switched off hides the helper. */
+  sizeHelper?: PublicStorefrontPayload["sizeHelper"];
   orgSlug: string;
   shopName: string;
   shopWhatsApp: string | null;
@@ -403,8 +407,17 @@ function StreetProductPage({
   const [open, setOpen] = useState<"description" | "details" | "help" | null>("description");
   const [copied, setCopied] = useState(false);
 
+  // "Find my size": a shopper who has given their details gets their size picked on every product.
+  const [sizeProfile, saveSizeProfile] = useStreetSizeProfile();
+  const { scale: sizeScale, suggestion: sizeSuggestion } = useStreetSizeSuggestion(product, sizeHelper, sizeProfile);
+  const suggestedLabel = useRef<string | null>(null);
+  suggestedLabel.current =
+    sizeSuggestion && !sizeSuggestion.beyondRange && product.sizes.some((s) => s.label === sizeSuggestion.label && s.inStock)
+      ? sizeSuggestion.label
+      : null;
+
   useEffect(() => {
-    setSizeLabel(product.defaultSize?.label ?? null);
+    setSizeLabel(suggestedLabel.current ?? product.defaultSize?.label ?? null);
     setQty(1);
     setOpen("description");
     setCopied(false);
@@ -506,6 +519,18 @@ function StreetProductPage({
                   </button>
                 ))}
               </div>
+              {sizeScale && sizeHelper ? (
+                <StreetSizeHelper
+                  key={product.productId}
+                  sizes={product.sizes}
+                  scale={sizeScale}
+                  suggestion={sizeSuggestion}
+                  config={sizeHelper}
+                  profile={sizeProfile}
+                  onSaveProfile={saveSizeProfile}
+                  onPick={setSizeLabel}
+                />
+              ) : null}
             </>
           ) : null}
           <div className={`st-stock${canBuy && !size?.low ? "" : " st-stock-warn"}`}>{stockLine}</div>
@@ -632,6 +657,7 @@ export function StreetStorefront({
   videos = [],
   showcase = true,
   reviews,
+  sizeHelper,
 }: {
   shop: PublicStorefrontShop;
   orgSlug: string;
@@ -641,6 +667,8 @@ export function StreetStorefront({
   videos?: PublicStorefrontPayload["videos"];
   /** Product slideshow on the home page (Website → Theme); false hides it. */
   showcase?: boolean;
+  /** "Find my size" on product pages (Website → Theme); undefined or switched off hides it. */
+  sizeHelper?: PublicStorefrontPayload["sizeHelper"];
   /** Stars and shop-approved customer reviews by product id; none hides every rating. */
   reviews?: PublicStorefrontPayload["reviews"];
   products: PublicStorefrontProduct[];
@@ -1337,6 +1365,7 @@ export function StreetStorefront({
             cart={cart}
             wished={wishlist.includes(view.product.productId)}
             wishlist={wishlist}
+            sizeHelper={sizeHelper}
             related={streetRelatedProducts(items, view.product)}
             onBack={backFromProduct}
             onAdd={addToBag}

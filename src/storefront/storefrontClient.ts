@@ -7,6 +7,7 @@ import { parseStorefrontBanners } from "@/lib/storefrontBanners";
 import { parseStorefrontVideos } from "@/lib/storefrontVideos";
 import { parseStorefrontShowcase } from "@/lib/storefrontShowcase";
 import { parsePublicProductReviews } from "@/lib/productReviewsPublic";
+import { parseStorefrontSizeHelper } from "@/lib/sizeHelper";
 import { enrichPublicStorefrontShop, type OrgPublicInfoSlice } from "./storefrontTheme";
 import { offerFromRpc, perksFromRpc, type StorefrontOffer, type StorefrontPerks } from "./ellaPerks";
 
@@ -53,6 +54,7 @@ export async function loadPublicStorefront(slug: string): Promise<PublicStorefro
   payload.banners = parseStorefrontBanners(orgInfo?.settings);
   payload.videos = parseStorefrontVideos(orgInfo?.settings);
   payload.showcase = parseStorefrontShowcase(orgInfo?.settings);
+  payload.sizeHelper = parseStorefrontSizeHelper(orgInfo?.settings);
   payload.reviews = parsePublicProductReviews(reviewsRes.error ? null : reviewsRes.data);
 
   return attachSectionsToPublicPayload(payload, orgInfo?.settings);

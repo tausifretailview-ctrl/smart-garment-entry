@@ -1,4 +1,5 @@
 import type { PublicProductReviews } from "@/lib/productReviewsPublic";
+import type { StorefrontSizeHelper } from "@/lib/sizeHelper";
 export type WebsiteStockStatus = "in_stock" | "low_stock" | "out_of_stock";
 
 export type WebsiteSettings = {
@@ -136,6 +137,8 @@ export type PublicStorefrontPayload = {
   videos?: Array<{ id: string; video_url: string; caption: string; target: string; product_ids?: string[] }>;
   /** Product slideshow on the home page (Website → Theme); false hides it. */
   showcase?: boolean;
+  /** "Find my size" switch and size chart (see sizeHelper.ts). */
+  sizeHelper?: StorefrontSizeHelper;
   /** Stars and shop-approved customer reviews by product id (see productReviewsPublic.ts). */
   reviews?: Record<string, PublicProductReviews>;
   shop?: PublicStorefrontShop;

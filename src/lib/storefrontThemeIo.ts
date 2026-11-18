@@ -18,6 +18,12 @@ import {
 } from "@/lib/storefrontVideos";
 import { STOREFRONT_SHOWCASE_KEY, parseStorefrontShowcase } from "@/lib/storefrontShowcase";
 import {
+  STOREFRONT_SIZE_HELPER_KEY,
+  parseStorefrontSizeHelper,
+  serializeStorefrontSizeHelper,
+  type StorefrontSizeHelper,
+} from "@/lib/sizeHelper";
+import {
   STOREFRONT_THEME_KEY,
   parseStorefrontTheme,
   type StorefrontThemeId,
@@ -82,6 +88,19 @@ export async function saveStorefrontBanners(orgId: string, banners: StorefrontBa
 
 export async function saveStorefrontShowcase(orgId: string, enabled: boolean): Promise<void> {
   await patchOrgSettings(orgId, { [STOREFRONT_SHOWCASE_KEY]: enabled }, "the product slideshow");
+}
+
+/** "Find my size" switch and size chart (Website → Theme). */
+export async function loadStorefrontSizeHelper(orgId: string): Promise<StorefrontSizeHelper> {
+  return parseStorefrontSizeHelper(await readOrgSettings(orgId));
+}
+
+export async function saveStorefrontSizeHelper(orgId: string, helper: StorefrontSizeHelper): Promise<void> {
+  await patchOrgSettings(
+    orgId,
+    { [STOREFRONT_SIZE_HELPER_KEY]: serializeStorefrontSizeHelper(helper) },
+    "the size helper",
+  );
 }
 
 export async function saveStorefrontVideos(orgId: string, videos: StorefrontVideo[]): Promise<void> {
