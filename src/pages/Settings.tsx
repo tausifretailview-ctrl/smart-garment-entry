@@ -3041,6 +3041,22 @@ export default function Settings() {
                     />
 
                     <SettingsToggle
+                      label="Cursor to Qty after adding a product"
+                      description="Sales Invoice: after a product is added, the cursor goes to its Qty (ready to type, no window). Type the quantity and press Enter to go back to the search bar."
+                      id="sale_focus_qty_after_add"
+                      checked={(settings.sale_settings as any)?.sale_focus_qty_after_add === true}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            sale_focus_qty_after_add: checked,
+                          } as any,
+                        })
+                      }
+                    />
+
+                    <SettingsToggle
                       label="Ask quantity after selecting a product"
                       description="Sales Invoice: after a product is picked or scanned, a Qty window opens (like service products) before it is added. Off = added with Qty 1."
                       id="sale_goods_ask_qty_dialog"

@@ -1,5 +1,9 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
-import { isSaleGoodsAskQtyDialogEnabled, saleGoodsQtyDialogOverride } from "@/utils/posGoodsAskQtyDialog";
+import {
+  isSaleFocusQtyAfterAddEnabled,
+  isSaleGoodsAskQtyDialogEnabled,
+  saleGoodsQtyDialogOverride,
+} from "@/utils/posGoodsAskQtyDialog";
 import { reportIfFails } from "@/lib/reportIfFails";
 import { formatInvoicePaymentModeFallback } from "@/utils/invoicePaymentModeDisplay";
 import { SalesInvoiceCustomerPicker } from "@/components/sales-invoice/SalesInvoiceCustomerPicker";
@@ -3140,6 +3144,12 @@ export default function SalesInvoice() {
       if (colKey === "disc_amount") return item.discountAmount;
       return 0;
     },
+    // Settings → Sale "Cursor to Qty after adding a product" (the Qty window, when also on,
+    // already took the quantity).
+    editQtyOnAdd:
+      isSaleFocusQtyAfterAddEnabled((settingsData as any)?.sale_settings) &&
+      !isSaleGoodsAskQtyDialogEnabled((settingsData as any)?.sale_settings),
+    onReturnToSearch: () => setTimeout(() => barcodeInputRef.current?.focus(), 0),
   });
 
   scheduleGridFocusRef.current = lineGrid.scheduleFocusOnItem;

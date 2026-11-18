@@ -38,3 +38,13 @@ export function saleGoodsQtyDialogOverride(
   if (entered <= 0 || Math.abs(entered - (Number(defaultPrice) || 0)) < 0.005) return undefined;
   return { sale_price: entered, mrp: Math.max(entered, Number(masterMrp) || 0) };
 }
+
+/**
+ * Settings → Sale → after a product is added on the Sales Invoice, put the cursor in its Qty
+ * (ready to type); Enter sends it back to the search bar. Default off.
+ */
+export function isSaleFocusQtyAfterAddEnabled(
+  saleSettings?: { sale_focus_qty_after_add?: boolean | null } | null,
+): boolean {
+  return saleSettings?.sale_focus_qty_after_add === true;
+}
