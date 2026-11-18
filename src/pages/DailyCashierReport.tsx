@@ -1,4 +1,5 @@
 ﻿import { useState, useMemo } from "react";
+import { receiptsForDcView } from "@/utils/dcReceiptShare";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
@@ -204,7 +205,7 @@ const DailyCashierReport = () => {
 
   // Fetch payment receipts (RCP) for selected period using range pagination
   const { data: receiptData, isLoading: receiptsLoading } = useQuery({
-    queryKey: ["cashier-report-receipts", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period],
+    queryKey: ["cashier-report-receipts", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period, hideDc, onlyDc],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
 
@@ -217,8 +218,9 @@ const DailyCashierReport = () => {
         endDate: endDateStr,
         voucherType: "receipt",
       });
-      
-      return allReceipts;
+      // Old-bill payments follow the DC view like the bills: a payment on a DC bill shows only
+      // for the DC User (and is left out while DC is hidden); mixed bills count their share.
+      return receiptsForDcView(supabase, allReceipts, { hideDc, onlyDc });
     },
     enabled: !!currentOrganization?.id,
   });
