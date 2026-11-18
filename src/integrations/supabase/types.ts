@@ -12961,6 +12961,13 @@ export type Database = {
         Args: { p_id: string; p_table: unknown }
         Returns: undefined
       }
+      _caller_org_scope: {
+        Args: never
+        Returns: {
+          all_orgs: boolean
+          org_ids: string[]
+        }[]
+      }
       _customer_advance_applied_from_vouchers: {
         Args: {
           p_customer_id: string
@@ -13200,6 +13207,10 @@ export type Database = {
       _product_is_orphan: {
         Args: { p_organization_id: string; p_product_id: string }
         Returns: boolean
+      }
+      _raise_if_other_shop: {
+        Args: { p_actual: string; p_expected: string; p_what: string }
+        Returns: undefined
       }
       _sale_counter_tender_settled: {
         Args: {
@@ -13672,6 +13683,10 @@ export type Database = {
       generate_next_barcode: {
         Args: { p_organization_id: string }
         Returns: string
+      }
+      generate_next_barcodes: {
+        Args: { p_count: number; p_organization_id: string }
+        Returns: string[]
       }
       generate_pos_number: {
         Args: { p_organization_id: string }
@@ -15322,6 +15337,16 @@ export type Database = {
         Returns: number
       }
       sale_settlement_tolerance: { Args: never; Returns: number }
+      save_document_with_lines: {
+        Args: {
+          p_document_id: string
+          p_header: Json
+          p_kind: string
+          p_lines: Json
+          p_organization_id: string
+        }
+        Returns: Json
+      }
       save_payment_gateway_secrets: {
         Args: {
           p_org_id: string
