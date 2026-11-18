@@ -9,6 +9,7 @@ import { parseStorefrontShowcase } from "@/lib/storefrontShowcase";
 import { parsePublicProductReviews } from "@/lib/productReviewsPublic";
 import { parseStorefrontSizeHelper } from "@/lib/sizeHelper";
 import { applyProductSpins } from "@/lib/productSpin";
+import { parseStorefrontSignals } from "@/lib/storefrontSignals";
 import { enrichPublicStorefrontShop, type OrgPublicInfoSlice } from "./storefrontTheme";
 import { offerFromRpc, perksFromRpc, type StorefrontOffer, type StorefrontPerks } from "./ellaPerks";
 
@@ -25,11 +26,15 @@ const storefrontClient = createClient(
 );
 
 export async function loadPublicStorefront(slug: string): Promise<PublicStorefrontPayload> {
-  const [storeRes, orgRes, reviewsRes] = await Promise.all([
+  const [storeRes, orgRes, reviewsRes, signalsRes] = await Promise.all([
     storefrontClient.rpc("get_public_storefront" as never, { p_slug: slug } as never),
     storefrontClient.rpc("get_org_public_info" as never, { p_slug: slug } as never),
     // Stars + approved reviews. Any failure (including the function not existing yet) = no reviews.
     Promise.resolve(storefrontClient.rpc("get_public_product_reviews" as never, { p_slug: slug } as never)).catch(
+      () => ({ data: null, error: true }),
+    ),
+    // Best sellers / selling fast / just arrived / bought together. Any failure = none.
+    Promise.resolve(storefrontClient.rpc("get_public_storefront_signals" as never, { p_slug: slug } as never)).catch(
       () => ({ data: null, error: true }),
     ),
   ]);
@@ -57,6 +62,7 @@ export async function loadPublicStorefront(slug: string): Promise<PublicStorefro
   payload.videos = parseStorefrontVideos(orgInfo?.settings);
   payload.showcase = parseStorefrontShowcase(orgInfo?.settings);
   payload.sizeHelper = parseStorefrontSizeHelper(orgInfo?.settings);
+  payload.signals = parseStorefrontSignals(signalsRes.error ? null : signalsRes.data);
   payload.reviews = parsePublicProductReviews(reviewsRes.error ? null : reviewsRes.data);
 
   return attachSectionsToPublicPayload(payload, orgInfo?.settings);

@@ -34,6 +34,7 @@ import {
 } from "@/lib/storefrontVideos";
 import { useWebsiteSections } from "@/hooks/useWebsiteSections";
 import { StoreSizeHelperSettings } from "@/components/website/StoreSizeHelperSettings";
+import { StoreSignalsSettings } from "@/components/website/StoreSignalsSettings";
 import { activeWebsiteSections } from "@/lib/websiteSections";
 import {
   STOREFRONT_THEMES,
@@ -299,6 +300,8 @@ export function WebsiteThemePanel({
           </div>
 
           <StoreSizeHelperSettings orgId={orgId} />
+
+          <StoreSignalsSettings orgId={orgId} />
         </div>
       </InsightsPanel>
     </div>

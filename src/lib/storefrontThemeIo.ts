@@ -17,6 +17,7 @@ import {
   type StorefrontVideo,
 } from "@/lib/storefrontVideos";
 import { STOREFRONT_SHOWCASE_KEY, parseStorefrontShowcase } from "@/lib/storefrontShowcase";
+import { STOREFRONT_SIGNALS_KEY, parseStorefrontSignalsEnabled } from "@/lib/storefrontSignals";
 import {
   STOREFRONT_SIZE_HELPER_KEY,
   parseStorefrontSizeHelper,
@@ -88,6 +89,15 @@ export async function saveStorefrontBanners(orgId: string, banners: StorefrontBa
 
 export async function saveStorefrontShowcase(orgId: string, enabled: boolean): Promise<void> {
   await patchOrgSettings(orgId, { [STOREFRONT_SHOWCASE_KEY]: enabled }, "the product slideshow");
+}
+
+/** Live shop signals switch (best sellers, selling fast, just arrived, complete the look). */
+export async function loadStorefrontSignalsEnabled(orgId: string): Promise<boolean> {
+  return parseStorefrontSignalsEnabled(await readOrgSettings(orgId));
+}
+
+export async function saveStorefrontSignalsEnabled(orgId: string, enabled: boolean): Promise<void> {
+  await patchOrgSettings(orgId, { [STOREFRONT_SIGNALS_KEY]: { enabled } }, "the live shop signals setting");
 }
 
 /** "Find my size" switch and size chart (Website → Theme). */

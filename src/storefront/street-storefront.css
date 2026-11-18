@@ -1664,3 +1664,17 @@
   /* Desktop shows the photos in a grid beside the spin, so there is nothing to jump to. */
   .ella-store.street-store button.st-spin-more { display: none; }
 }
+
+/* --- live shop signals (best sellers, selling fast, just arrived) --------- */
+.street-store .st-flag-best { background: #f5a623; color: #0b0b0b; }
+.street-store .st-flag-fast { background: #d92d20; color: #ffffff; }
+.street-store .st-flag-arrived { background: var(--st-accent); color: #ffffff; }
+.street-store .st-section-sub { color: var(--st-muted); font-size: 13px; margin: 4px 0 0; }
+.street-store .st-pdp-live { display: flex; flex-wrap: wrap; gap: 6px; margin: -10px 0 18px; }
+.street-store .st-pdp-live-chip {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 5px 9px;
+  text-transform: uppercase;
+}
