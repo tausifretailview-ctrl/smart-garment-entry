@@ -36,6 +36,15 @@ import { StreetSizeHelper, useStreetSizeProfile, useStreetSizeSuggestion } from 
 import { StreetSpinViewer } from "./StreetSpinViewer";
 import { StreetSignalsContext } from "./StreetSignals";
 import { StreetRequestPanel } from "./StreetRequestPanel";
+import { StreetCurrencyPicker, StreetNoticeSlider, StreetRunningStrip } from "./StreetStrips";
+import {
+  CURRENCY_STORAGE_KEY,
+  formatShopperPrice,
+  isCurrencyCode,
+  parseStorefrontCurrency,
+  resolveStorefrontStrips,
+  type CurrencyCode,
+} from "@/lib/storefrontStrips";
 import { NO_STOREFRONT_REQUESTS, type StorefrontRequestKind } from "@/lib/storefrontRequests";
 import {
   EMPTY_STOREFRONT_SIGNALS,
@@ -801,6 +810,8 @@ export function StreetStorefront({
   sizeHelper,
   signals,
   requests,
+  strips,
+  currency,
 }: {
   shop: PublicStorefrontShop;
   orgSlug: string;
@@ -810,6 +821,10 @@ export function StreetStorefront({
   videos?: PublicStorefrontPayload["videos"];
   /** Product slideshow on the home page (Website → Theme); false hides it. */
   showcase?: boolean;
+  /** Notice strips saved in Website → Theme; a strip never set uses lines from the shop's details. */
+  strips?: PublicStorefrontPayload["strips"];
+  /** Currency picker (bottom left) and the shop's rates; undefined = on with the starting rates. */
+  currency?: PublicStorefrontPayload["currency"];
   /** "Reserve & try in store" / "Tell me when it's back"; undefined offers neither. */
   requests?: PublicStorefrontPayload["requests"];
   /** Best sellers, selling fast, just arrived and bought together, from the shop's own bills. */
@@ -825,11 +840,27 @@ export function StreetStorefront({
 }) {
   // A store with nothing published shows a sample catalogue so the theme can be seen working.
   const sampleMode = products.length === 0;
+  // Shopper's currency (bottom-left picker). Rupees unless they chose another; remembered here.
+  const currencyConfig = useMemo(() => currency ?? parseStorefrontCurrency(null), [currency]);
+  const [shopperCurrency, setShopperCurrency] = useState<CurrencyCode>(() => {
+    const saved = readStorage("local", CURRENCY_STORAGE_KEY);
+    return isCurrencyCode(saved) ? saved : "INR";
+  });
+  const activeCurrency: CurrencyCode = currencyConfig.enabled ? shopperCurrency : "INR";
+  const chooseCurrency = (code: CurrencyCode) => {
+    setShopperCurrency(code);
+    writeStorage("local", CURRENCY_STORAGE_KEY, code);
+  };
   const reviewMap = useMemo(() => (sampleMode ? {} : reviews || {}), [reviews, sampleMode]);
   const items = useMemo(
     () =>
       (sampleMode ? streetSampleCatalogue() : products).map((raw) => {
-        const product = toEllaStorefrontProduct(raw);
+        const converted = toEllaStorefrontProduct(raw);
+        // Another currency changes only the label; the bag and checkout stay in rupees.
+        const product =
+          activeCurrency === "INR"
+            ? converted
+            : { ...converted, priceLabel: formatShopperPrice(converted.price, activeCurrency, currencyConfig) };
         // No photo yet: the first 360° frame if there is one, else a drawn sample picture
         // (captioned as such) instead of an empty box.
         if (product.images.length === 0 && hasProductSpin(product.spin)) return { ...product, images: [product.spin[0]] };
@@ -840,14 +871,14 @@ export function StreetStorefront({
               images: [streetSampleImage(streetSampleKind(product.name, product.sourceCategory), product.productId)],
             };
       }),
-    [products, sampleMode],
+    [products, sampleMode, activeCurrency, currencyConfig],
   );
   const findById = useCallback(
     (id: string | null) => (id ? items.find((p) => p.productId === id || p.id === id) || null : null),
     [items],
   );
   const nav = useMemo(() => buildStreetNav(menus, sections, items), [menus, sections, items]);
-  const tiles = useMemo(() => buildStreetTiles(nav, items), [nav, items]);
+  const tiles = useMemo(() => buildStreetTiles(nav, items, 12), [nav, items]);
   const slides = useMemo(() => buildStreetBannerSlides(banners || [], nav, items), [banners, nav, items]);
   // Slideshow: in-stock products that have a photo, newest first, a couple of dozen at most.
   const showcaseItems = useMemo(
@@ -1104,13 +1135,11 @@ export function StreetStorefront({
   );
 
   const location = storefrontLocationLine(shop.address);
-  const announcements = [
-    "New styles added regularly",
-    "Sizes and stock shown live from the store",
-    shop.upi_id ? "Order online · pay by UPI" : null,
-    shopWa ? "Questions? Chat with us on WhatsApp" : null,
-    location ? `Visit us · ${location}` : null,
-  ].filter((line): line is string => Boolean(line));
+  const stripLines = resolveStorefrontStrips(strips ?? { top: null, after_banner: null, footer: null }, {
+    upi: Boolean(shop.upi_id),
+    whatsapp: Boolean(shopWa),
+    location,
+  });
 
   const onHeroTouchStart = (e: TouchEvent<HTMLDivElement>) => {
     touchXRef.current = e.touches[0].clientX;
@@ -1209,17 +1238,7 @@ export function StreetStorefront({
     <StreetReviewsContext.Provider value={reviewMap}>
     <StreetSignalsContext.Provider value={signalIndex}>
     <div className="ella-store street-store">
-      <div className="st-announce" aria-hidden="true">
-        <div className="st-marquee">
-          {[0, 1].map((copy) => (
-            <span className="st-marquee-group" key={copy}>
-              {announcements.map((line) => (
-                <span key={line}>{line}</span>
-              ))}
-            </span>
-          ))}
-        </div>
-      </div>
+      <StreetNoticeSlider lines={stripLines.top} />
 
       <header className="st-header">
         <div className="st-header-row">
@@ -1369,6 +1388,8 @@ export function StreetStorefront({
               </div>
             ) : null}
 
+            <StreetRunningStrip lines={stripLines.after_banner} label="Shop updates" />
+
             <StreetVideoRail
               title="Watch & shop"
               videos={reels}
@@ -1382,6 +1403,25 @@ export function StreetStorefront({
               }}
             />
 
+            {tiles.length > 1 ? (
+              <section className="st-section st-cats" aria-label="Shop by category">
+                <div className="st-section-head st-cats-head">
+                  <h2 className="st-h2">Shop by category</h2>
+                </div>
+                <div className="st-cats-rail">
+                  {tiles.map((tile) => (
+                    <button key={tile.item.id} type="button" className="st-cat" onClick={() => goCollection(tile.item)}>
+                      <span className="st-cat-photo">
+                        {tile.photo ? <img src={tile.photo} alt="" loading="lazy" decoding="async" /> : null}
+                      </span>
+                      <span className="st-cat-name">{tile.item.label}</span>
+                      <span className="st-cat-go">Shop now +</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
             {showcaseItems.length >= 3 ? (
               <StreetShowcase
                 title="Featured styles"
@@ -1393,24 +1433,6 @@ export function StreetStorefront({
               />
             ) : null}
 
-            {tiles.length > 1 ? (
-              <section className="st-section">
-                <div className="st-section-head">
-                  <h2 className="st-h2">Shop by category</h2>
-                </div>
-                <div className="st-tiles">
-                  {tiles.map((tile) => (
-                    <button key={tile.item.id} type="button" className="st-tile" onClick={() => goCollection(tile.item)}>
-                      {tile.photo ? <img src={tile.photo} alt="" loading="lazy" decoding="async" /> : null}
-                      <span className="st-tile-label">
-                        {tile.item.label}
-                        <small>{tile.count} {tile.count === 1 ? "style" : "styles"}</small>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ) : null}
 
             {justArrived.length > 0 ? (
               <section className="st-section st-arrived">
@@ -1589,6 +1611,8 @@ export function StreetStorefront({
         ) : null}
       </main>
 
+      <StreetRunningStrip lines={stripLines.footer} label="Payment and delivery" tone="soft" />
+
       <footer className="st-footer">
         <div className="st-footer-grid">
           <div>
@@ -1632,6 +1656,8 @@ export function StreetStorefront({
           © {new Date().getFullYear()} {shopName} · Stock synced live from Ezzy ERP
         </div>
       </footer>
+
+      {currencyConfig.enabled ? <StreetCurrencyPicker value={activeCurrency} onChange={chooseCurrency} /> : null}
 
       <nav className="st-tabbar" aria-label="Store">
         <button type="button" className={view.kind === "home" ? "st-on" : ""} onClick={goHome}>

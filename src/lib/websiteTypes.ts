@@ -2,6 +2,7 @@ import type { PublicProductReviews } from "@/lib/productReviewsPublic";
 import type { StorefrontSizeHelper } from "@/lib/sizeHelper";
 import type { StorefrontSignals } from "@/lib/storefrontSignals";
 import type { StorefrontRequests } from "@/lib/storefrontRequests";
+import type { StorefrontCurrency, StripId } from "@/lib/storefrontStrips";
 export type WebsiteStockStatus = "in_stock" | "low_stock" | "out_of_stock";
 
 export type WebsiteSettings = {
@@ -145,6 +146,10 @@ export type PublicStorefrontPayload = {
   videos?: Array<{ id: string; video_url: string; caption: string; target: string; product_ids?: string[] }>;
   /** Product slideshow on the home page (Website → Theme); false hides it. */
   showcase?: boolean;
+  /** Notice strips as saved (null = never set; see storefrontStrips.ts). */
+  strips?: Record<StripId, string[] | null>;
+  /** Currency picker switch and the shop's rates (see storefrontStrips.ts). */
+  currency?: StorefrontCurrency;
   /** "Reserve & try in store" / "Tell me when it's back" availability (see storefrontRequests.ts). */
   requests?: StorefrontRequests;
   /** Best sellers, selling fast, just arrived, bought together (see storefrontSignals.ts). */
