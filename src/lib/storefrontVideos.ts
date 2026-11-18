@@ -7,6 +7,8 @@ export const STOREFRONT_VIDEOS_KEY = "storefront_videos";
 export const STOREFRONT_VIDEOS_MAX = 12;
 /** Upload limit per clip. Short reels (15–40 s, 720p) are usually 3–15 MB. */
 export const STOREFRONT_VIDEO_MAX_MB = 40;
+/** Most products tagged on one clip ("Shop the look"). */
+export const STOREFRONT_VIDEO_PRODUCTS_MAX = 4;
 
 export type StorefrontVideo = {
   id: string;
@@ -15,7 +17,23 @@ export type StorefrontVideo = {
   caption: string;
   /** Section slug or category the "Shop now" button opens; empty shows no button. */
   target: string;
+  /**
+   * Products seen in the clip (ERP product ids), shown as "Shop the look" on the video.
+   * Ones no longer published are skipped by the store.
+   */
+  product_ids: string[];
 };
+
+function productIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const ids: string[] = [];
+  for (const item of value) {
+    const id = text(item, 80);
+    if (id && /^[A-Za-z0-9-]+$/.test(id) && !ids.includes(id)) ids.push(id);
+    if (ids.length >= STOREFRONT_VIDEO_PRODUCTS_MAX) break;
+  }
+  return ids;
+}
 
 function text(value: unknown, max: number): string {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -41,6 +59,7 @@ export function parseStorefrontVideos(orgSettings: unknown): StorefrontVideo[] {
       video_url,
       caption: text(row.caption, 80),
       target: text(row.target, 120),
+      product_ids: productIds(row.product_ids),
     });
     if (videos.length >= STOREFRONT_VIDEOS_MAX) break;
   }

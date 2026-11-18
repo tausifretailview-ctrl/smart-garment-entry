@@ -681,9 +681,21 @@ export function StreetStorefront({
     () =>
       (videos || []).map((v) => {
         const target = streetTargetFor(v.target, nav, `video:${v.id}`);
-        return { id: v.id, video_url: v.video_url, caption: v.caption, shopLabel: target ? target.label : null, target };
+        // "Shop the look": tagged products that are still published.
+        const products = (v.product_ids || [])
+          .map((id) => findById(id))
+          .filter((p): p is NonNullable<typeof p> => !!p)
+          .map((p) => ({ id: p.productId, name: p.name, priceLabel: p.priceLabel, image: p.images[0] ?? null }));
+        return {
+          id: v.id,
+          video_url: v.video_url,
+          caption: v.caption,
+          shopLabel: target ? target.label : null,
+          target,
+          products,
+        };
       }),
-    [videos, nav],
+    [videos, nav, findById],
   );
   const newArrivals = useMemo(() => streetNewArrivals(items), [items]);
 
@@ -1149,6 +1161,10 @@ export function StreetStorefront({
               onShop={(video) => {
                 const reel = reels.find((r) => r.id === video.id);
                 goCollection(reel?.target ?? null, reel?.target?.label || "All products");
+              }}
+              onOpenProduct={(id) => {
+                const product = findById(id);
+                if (product) openProduct(product);
               }}
             />
 

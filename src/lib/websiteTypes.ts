@@ -132,7 +132,7 @@ export type PublicStorefrontPayload = {
   /** Home-page banners saved in Website → Theme (see storefrontBanners.ts). */
   banners?: Array<{ id: string; image_url: string; heading: string; subheading: string; target: string }>;
   /** Home-page videos saved in Website → Theme (see storefrontVideos.ts). */
-  videos?: Array<{ id: string; video_url: string; caption: string; target: string }>;
+  videos?: Array<{ id: string; video_url: string; caption: string; target: string; product_ids?: string[] }>;
   /** Product slideshow on the home page (Website → Theme); false hides it. */
   showcase?: boolean;
   shop?: PublicStorefrontShop;
