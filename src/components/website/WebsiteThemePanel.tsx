@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import {
   loadStorefrontLook,
   saveStorefrontBanners,
+  saveStorefrontShowcase,
   saveStorefrontTheme,
   saveStorefrontVideos,
   uploadStorefrontBannerImage,
@@ -125,12 +126,29 @@ export function WebsiteThemePanel({
       queryClient.setQueryData<StorefrontLook>(["website_theme", orgId], (prev) => ({
         banners: prev?.banners ?? [],
         videos: prev?.videos ?? [],
+        showcase: prev?.showcase ?? true,
         theme: choice,
       }));
       toast.success("Store theme saved. Reload the store to see it.");
     },
     onError: (err: unknown) => {
       toast.error(err instanceof Error ? err.message : "Could not save the theme");
+    },
+  });
+
+  const showcaseSave = useMutation({
+    mutationFn: (enabled: boolean) => saveStorefrontShowcase(orgId!, enabled),
+    onSuccess: (_data, enabled) => {
+      queryClient.setQueryData<StorefrontLook>(["website_theme", orgId], (prev) => ({
+        theme: prev?.theme ?? null,
+        banners: prev?.banners ?? [],
+        videos: prev?.videos ?? [],
+        showcase: enabled,
+      }));
+      toast.success(enabled ? "Product slideshow is on. Reload the store to see it." : "Product slideshow is off.");
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Could not save the slideshow setting");
     },
   });
 
@@ -232,6 +250,7 @@ export function WebsiteThemePanel({
               queryClient.setQueryData<StorefrontLook>(["website_theme", orgId], (prev) => ({
                 theme: prev?.theme ?? null,
                 videos: prev?.videos ?? [],
+                showcase: prev?.showcase ?? true,
                 banners,
               }))
             }
@@ -245,10 +264,34 @@ export function WebsiteThemePanel({
               queryClient.setQueryData<StorefrontLook>(["website_theme", orgId], (prev) => ({
                 theme: prev?.theme ?? null,
                 banners: prev?.banners ?? [],
+                showcase: prev?.showcase ?? true,
                 videos,
               }))
             }
           />
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900">Product slideshow (Street theme)</h3>
+              <p className="text-sm text-muted-foreground">
+                Shows your products one by one in a 3D slideshow on the home page, under the videos. It uses
+                in-stock products that have a photo, newest first.
+              </p>
+            </div>
+            <Button
+              variant={themeQuery.data?.showcase === false ? "outline" : "default"}
+              size="sm"
+              className="h-9"
+              disabled={!orgId || !themeQuery.isSuccess || showcaseSave.isPending}
+              onClick={() => showcaseSave.mutate(themeQuery.data?.showcase === false)}
+            >
+              {showcaseSave.isPending
+                ? "Saving…"
+                : themeQuery.data?.showcase === false
+                  ? "Slideshow is off — turn on"
+                  : "Slideshow is on — turn off"}
+            </Button>
+          </div>
         </div>
       </InsightsPanel>
     </div>

@@ -51,6 +51,8 @@ import {
   type StreetNavItem,
 } from "./streetStore";
 import { StreetVideoRail } from "./StreetVideoRail";
+import { StreetShowcase } from "./StreetShowcase";
+import { STOREFRONT_SHOWCASE_MAX } from "@/lib/storefrontShowcase";
 import { streetSampleCatalogue, streetSampleImage, streetSampleKind } from "./streetSamples";
 import "./ella-storefront.css";
 import "./street-storefront.css";
@@ -619,6 +621,7 @@ export function StreetStorefront({
   initialProductId,
   banners = [],
   videos = [],
+  showcase = true,
 }: {
   shop: PublicStorefrontShop;
   orgSlug: string;
@@ -626,6 +629,8 @@ export function StreetStorefront({
   banners?: PublicStorefrontPayload["banners"];
   /** Shop videos from Website → Theme ("Watch & shop" row); none hides the row. */
   videos?: PublicStorefrontPayload["videos"];
+  /** Product slideshow on the home page (Website → Theme); false hides it. */
+  showcase?: boolean;
   products: PublicStorefrontProduct[];
   sections?: PublicStorefrontSection[];
   menus?: PublicStorefrontMenu[];
@@ -654,6 +659,24 @@ export function StreetStorefront({
   const nav = useMemo(() => buildStreetNav(menus, sections, items), [menus, sections, items]);
   const tiles = useMemo(() => buildStreetTiles(nav, items), [nav, items]);
   const slides = useMemo(() => buildStreetBannerSlides(banners || [], nav, items), [banners, nav, items]);
+  // Slideshow: in-stock products that have a photo, newest first, a couple of dozen at most.
+  const showcaseItems = useMemo(
+    () =>
+      showcase
+        ? [...items]
+            .filter((p) => p.images.length > 0 && (p.available > 0 || !p.availableKnown || p.madeToOrder))
+            .sort((a, b) => b.displayOrder - a.displayOrder)
+            .slice(0, STOREFRONT_SHOWCASE_MAX)
+            .map((p) => ({
+              id: p.productId,
+              name: p.name,
+              priceLabel: p.priceLabel,
+              image: p.images[0],
+              flag: streetCardFlag(p) === "new" ? "New" : null,
+            }))
+        : [],
+    [items, showcase],
+  );
   const reels = useMemo(
     () =>
       (videos || []).map((v) => {
@@ -1128,6 +1151,17 @@ export function StreetStorefront({
                 goCollection(reel?.target ?? null, reel?.target?.label || "All products");
               }}
             />
+
+            {showcaseItems.length >= 3 ? (
+              <StreetShowcase
+                title="Featured styles"
+                items={showcaseItems}
+                onOpen={(id) => {
+                  const product = findById(id);
+                  if (product) openProduct(product);
+                }}
+              />
+            ) : null}
 
             {tiles.length > 1 ? (
               <section className="st-section">

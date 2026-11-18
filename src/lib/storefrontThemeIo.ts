@@ -14,6 +14,7 @@ import {
   storefrontVideoFileProblem,
   type StorefrontVideo,
 } from "@/lib/storefrontVideos";
+import { STOREFRONT_SHOWCASE_KEY, parseStorefrontShowcase } from "@/lib/storefrontShowcase";
 import {
   STOREFRONT_THEME_KEY,
   parseStorefrontTheme,
@@ -51,6 +52,8 @@ export type StorefrontLook = {
   theme: StorefrontThemeId | null;
   banners: StorefrontBanner[];
   videos: StorefrontVideo[];
+  /** Product slideshow on the home page; on unless switched off. */
+  showcase: boolean;
 };
 
 export async function loadStorefrontLook(orgId: string): Promise<StorefrontLook> {
@@ -59,6 +62,7 @@ export async function loadStorefrontLook(orgId: string): Promise<StorefrontLook>
     theme: parseStorefrontTheme(settings),
     banners: parseStorefrontBanners(settings),
     videos: parseStorefrontVideos(settings),
+    showcase: parseStorefrontShowcase(settings),
   };
 }
 
@@ -72,6 +76,10 @@ export async function saveStorefrontBanners(orgId: string, banners: StorefrontBa
     { [STOREFRONT_BANNERS_KEY]: banners.slice(0, STOREFRONT_BANNERS_MAX) },
     "the store banners",
   );
+}
+
+export async function saveStorefrontShowcase(orgId: string, enabled: boolean): Promise<void> {
+  await patchOrgSettings(orgId, { [STOREFRONT_SHOWCASE_KEY]: enabled }, "the product slideshow");
 }
 
 export async function saveStorefrontVideos(orgId: string, videos: StorefrontVideo[]): Promise<void> {
