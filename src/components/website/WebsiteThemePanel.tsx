@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Check, ExternalLink, ImagePlus, Trash2, Video } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ExternalLink, ImagePlus, Tag, Trash2, Video } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,7 @@ import { STALE_SETTINGS } from "@/lib/queryStaleTimes";
 import { Input } from "@/components/ui/input";
 import {
   loadStorefrontLook,
+  loadVideoTagChoices,
   saveStorefrontBanners,
   saveStorefrontShowcase,
   saveStorefrontTheme,
@@ -16,7 +17,9 @@ import {
   uploadStorefrontBannerImage,
   uploadStorefrontVideo,
   type StorefrontLook,
+  type VideoTagChoice,
 } from "@/lib/storefrontThemeIo";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   STOREFRONT_BANNERS_MAX,
   moveStorefrontBanner,
@@ -25,6 +28,7 @@ import {
 import {
   STOREFRONT_VIDEOS_MAX,
   STOREFRONT_VIDEO_MAX_MB,
+  STOREFRONT_VIDEO_PRODUCTS_MAX,
   moveStorefrontVideo,
   type StorefrontVideo,
 } from "@/lib/storefrontVideos";
@@ -536,7 +540,7 @@ function StoreVideos({
       for (const [i, file] of picked.entries()) {
         setUploading(`Uploading ${i + 1} of ${picked.length}…`);
         const video_url = await uploadStorefrontVideo(orgId, file);
-        added.push({ id: `video-${Date.now()}-${added.length}`, video_url, caption: "", target: "" });
+        added.push({ id: `video-${Date.now()}-${added.length}`, video_url, caption: "", target: "", product_ids: [] });
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
@@ -551,6 +555,13 @@ function StoreVideos({
   };
 
   const full = videos.length >= STOREFRONT_VIDEOS_MAX;
+  // Published products for "Tag products" (loaded once a video exists).
+  const tagChoicesQuery = useQuery({
+    queryKey: ["website_video_tag_choices", orgId],
+    enabled: !!orgId && videos.length > 0,
+    staleTime: STALE_SETTINGS,
+    queryFn: () => loadVideoTagChoices(orgId!),
+  });
 
   return (
     <div className="space-y-3 border-t border-slate-200 pt-4">
@@ -623,6 +634,13 @@ function StoreVideos({
                     </option>
                   ))}
                 </select>
+                <VideoProductTags
+                  index={index}
+                  selected={video.product_ids}
+                  choices={tagChoicesQuery.data ?? []}
+                  loading={tagChoicesQuery.isLoading}
+                  onChange={(product_ids) => patch(video.id, { product_ids })}
+                />
               </div>
               <div className="flex shrink-0 gap-1">
                 <Button
@@ -659,6 +677,101 @@ function StoreVideos({
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+/** "Shop the look": pick up to four published products that appear in a video. */
+function VideoProductTags({
+  index,
+  selected,
+  choices,
+  loading,
+  onChange,
+}: {
+  index: number;
+  selected: string[];
+  choices: VideoTagChoice[];
+  loading: boolean;
+  onChange: (productIds: string[]) => void;
+}) {
+  const [filter, setFilter] = useState("");
+  const term = filter.trim().toLowerCase();
+  const shown = (term ? choices.filter((c) => c.name.toLowerCase().includes(term)) : choices).slice(0, 60);
+  const full = selected.length >= STOREFRONT_VIDEO_PRODUCTS_MAX;
+  const toggle = (id: string) => {
+    if (selected.includes(id)) onChange(selected.filter((s) => s !== id));
+    else if (!full) onChange([...selected, id]);
+  };
+  const names = selected.map((id) => choices.find((c) => c.productId === id)?.name).filter(Boolean);
+
+  return (
+    <div className="sm:col-span-2">
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 max-w-full justify-start gap-2"
+            aria-label={`Video ${index + 1} tag products`}
+          >
+            <Tag className="h-4 w-4 shrink-0" />
+            <span className="truncate">
+              {selected.length === 0
+                ? "Tag products (Shop the look)"
+                : `${selected.length} tagged${names.length ? `: ${names.join(", ")}` : ""}`}
+            </span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 p-2" align="start">
+          <p className="px-1 pb-2 text-xs text-muted-foreground">
+            Pick up to {STOREFRONT_VIDEO_PRODUCTS_MAX} products shown in this video. Customers tap “Shop the look” on
+            the video to open them.
+          </p>
+          <Input
+            value={filter}
+            placeholder="Search product…"
+            className="mb-2 h-9"
+            onChange={(e) => setFilter(e.target.value)}
+          />
+          <ul className="max-h-64 space-y-1 overflow-y-auto">
+            {loading ? (
+              <li className="px-2 py-3 text-sm text-muted-foreground">Loading products…</li>
+            ) : shown.length === 0 ? (
+              <li className="px-2 py-3 text-sm text-muted-foreground">
+                {choices.length === 0 ? "No published products yet. Add products in Catalogue first." : "No match."}
+              </li>
+            ) : (
+              shown.map((choice) => {
+                const on = selected.includes(choice.productId);
+                return (
+                  <li key={choice.productId}>
+                    <button
+                      type="button"
+                      disabled={!on && full}
+                      onClick={() => toggle(choice.productId)}
+                      className={cn(
+                        "flex w-full items-center gap-2 rounded-md border px-2 py-1.5 text-left text-sm",
+                        on ? "border-teal-500 bg-teal-50" : "border-transparent hover:bg-slate-50",
+                        !on && full && "opacity-40",
+                      )}
+                    >
+                      {choice.photo ? (
+                        <img src={choice.photo} alt="" className="h-9 w-7 shrink-0 rounded object-cover" />
+                      ) : (
+                        <span className="h-9 w-7 shrink-0 rounded bg-slate-200" />
+                      )}
+                      <span className="min-w-0 flex-1 truncate">{choice.name}</span>
+                      {on ? <Check className="h-4 w-4 shrink-0 text-teal-600" /> : null}
+                    </button>
+                  </li>
+                );
+              })
+            )}
+          </ul>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

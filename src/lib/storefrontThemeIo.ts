@@ -1,6 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { compressImageFile } from "@/lib/compressImage";
+import { fetchAllRows, fetchInIdBatches, type RangeQuery } from "@/lib/data/fetchInIdBatches";
+import { websiteFrom } from "@/lib/websiteDb";
 import {
   STOREFRONT_BANNERS_KEY,
   STOREFRONT_BANNERS_MAX,
@@ -116,4 +118,52 @@ export async function uploadStorefrontBannerImage(orgId: string, file: File): Pr
   });
   if (error) throw error;
   return supabase.storage.from("website-photos").getPublicUrl(path).data.publicUrl;
+}
+
+/** A published product the shop can tag on a home-page video. */
+export type VideoTagChoice = { productId: string; name: string; photo: string | null };
+
+/** Published (active) website products with their names, for the "Tag products" picker. */
+export async function loadVideoTagChoices(orgId: string): Promise<VideoTagChoice[]> {
+  const listings = await fetchAllRows<{
+    product_id: string;
+    display_name: string | null;
+    photo_urls: string[] | null;
+  }>(
+    () =>
+      websiteFrom("website_products")
+        .select("product_id, display_name, photo_urls, display_order, id")
+        .eq("organization_id", orgId)
+        .eq("is_active", true)
+        .order("display_order", { ascending: true })
+        .order("id") as unknown as RangeQuery<{
+        product_id: string;
+        display_name: string | null;
+        photo_urls: string[] | null;
+      }>,
+  );
+  const names = await fetchInIdBatches<{ id: string; product_name: string | null; image_url: string | null }>(
+    listings.map((l) => l.product_id),
+    (batch) =>
+      supabase
+        .from("products")
+        .select("id, product_name, image_url")
+        .eq("organization_id", orgId)
+        .in("id", batch)
+        .order("id"),
+  );
+  const byId = new Map(names.map((p) => [p.id, p]));
+  const seen = new Set<string>();
+  const choices: VideoTagChoice[] = [];
+  for (const l of listings) {
+    if (seen.has(l.product_id)) continue;
+    seen.add(l.product_id);
+    const product = byId.get(l.product_id);
+    choices.push({
+      productId: l.product_id,
+      name: l.display_name?.trim() || product?.product_name || "Product",
+      photo: (Array.isArray(l.photo_urls) ? l.photo_urls[0] : null) || product?.image_url || null,
+    });
+  }
+  return choices;
 }

@@ -6,6 +6,15 @@ export type StreetVideoItem = {
   caption: string;
   /** Label of what "Shop now" opens; null hides the button. */
   shopLabel: string | null;
+  /** Products tagged on the clip ("Shop the look"); empty = none. */
+  products?: StreetVideoProduct[];
+};
+
+export type StreetVideoProduct = {
+  id: string;
+  name: string;
+  priceLabel: string;
+  image: string | null;
 };
 
 /** True when the visitor asked the system to reduce motion: clips then wait for a tap. */
@@ -21,7 +30,17 @@ function prefersReducedMotion(): boolean {
  * One portrait clip. The file is only fetched once the card comes near the screen, plays muted
  * on loop while visible and pauses when scrolled away, so a row of clips stays light.
  */
-function StreetVideoCard({ item, onShop }: { item: StreetVideoItem; onShop: () => void }) {
+function StreetVideoCard({
+  item,
+  onShop,
+  onOpenProduct,
+}: {
+  item: StreetVideoItem;
+  onShop: () => void;
+  onOpenProduct: (productId: string) => void;
+}) {
+  const tagged = item.products ?? [];
+  const [lookOpen, setLookOpen] = useState(false);
   const ref = useRef<HTMLVideoElement | null>(null);
   const [src, setSrc] = useState<string | null>(null);
   const [paused, setPaused] = useState(true);
@@ -94,14 +113,54 @@ function StreetVideoCard({ item, onShop }: { item: StreetVideoItem; onShop: () =
           </svg>
         </button>
       ) : null}
-      {item.caption || item.shopLabel ? (
+      {(item.caption || item.shopLabel || tagged.length > 0) && !lookOpen ? (
         <div className="st-reel-foot">
           {item.caption ? <span className="st-reel-caption">{item.caption}</span> : null}
-          {item.shopLabel ? (
+          {tagged.length > 0 ? (
+            <button
+              type="button"
+              className="st-reel-look"
+              aria-label={`Shop the look: ${tagged.length} product${tagged.length === 1 ? "" : "s"}`}
+              onClick={() => setLookOpen(true)}
+            >
+              <span className="st-reel-look-thumbs" aria-hidden="true">
+                {tagged.slice(0, 3).map((p) =>
+                  p.image ? <img key={p.id} src={p.image} alt="" loading="lazy" decoding="async" /> : null,
+                )}
+              </span>
+              <span className="st-reel-look-text">Shop the look</span>
+            </button>
+          ) : item.shopLabel ? (
             <button type="button" className="st-btn st-btn-light st-reel-shop" onClick={onShop}>
               Shop now
             </button>
           ) : null}
+        </div>
+      ) : null}
+      {lookOpen ? (
+        <div className="st-reel-tray" role="dialog" aria-label="Products in this video">
+          <div className="st-reel-tray-head">
+            <span>In this video</span>
+            <button type="button" className="st-reel-tray-close" aria-label="Close" onClick={() => setLookOpen(false)}>
+              ×
+            </button>
+          </div>
+          <ul className="st-reel-tray-list">
+            {tagged.map((p) => (
+              <li key={p.id}>
+                <button type="button" className="st-reel-tray-item" onClick={() => onOpenProduct(p.id)}>
+                  {p.image ? <img src={p.image} alt="" loading="lazy" decoding="async" /> : <span className="st-reel-tray-noimg" />}
+                  <span className="st-reel-tray-copy">
+                    <span className="st-reel-tray-name">{p.name}</span>
+                    <span className="st-reel-tray-price">{p.priceLabel || "Price on request"}</span>
+                  </span>
+                  <span className="st-reel-tray-go" aria-hidden="true">
+                    ›
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
     </div>
@@ -113,10 +172,13 @@ export function StreetVideoRail({
   title,
   videos,
   onShop,
+  onOpenProduct = () => {},
 }: {
   title: string;
   videos: StreetVideoItem[];
   onShop: (video: StreetVideoItem) => void;
+  /** Opens a product tagged on a clip. */
+  onOpenProduct?: (productId: string) => void;
 }) {
   const railRef = useRef<HTMLDivElement | null>(null);
   if (videos.length === 0) return null;
@@ -144,7 +206,7 @@ export function StreetVideoRail({
       </div>
       <div className="st-reel-rail" ref={railRef}>
         {videos.map((video) => (
-          <StreetVideoCard key={video.id} item={video} onShop={() => onShop(video)} />
+          <StreetVideoCard key={video.id} item={video} onShop={() => onShop(video)} onOpenProduct={onOpenProduct} />
         ))}
       </div>
     </section>
