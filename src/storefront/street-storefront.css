@@ -1678,3 +1678,46 @@
   padding: 5px 9px;
   text-transform: uppercase;
 }
+
+/* --- reserve & try / tell me when it's back (product page panel) ---------- */
+.street-store .st-req {
+  background: #f6f6f6;
+  border-radius: 12px;
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 4px;
+  padding: 14px;
+}
+.street-store .st-req-head { align-items: center; display: flex; justify-content: space-between; }
+.street-store .st-req strong { font-size: 14px; }
+.street-store .st-req p { color: var(--st-muted); font-size: 13px; line-height: 1.5; margin: 0; }
+.street-store .st-req label { display: grid; gap: 4px; }
+.street-store .st-req label span { font-size: 12px; font-weight: 600; }
+.street-store .st-req input {
+  background: #ffffff;
+  border: 1px solid var(--st-line);
+  border-radius: 8px;
+  color: var(--st-ink);
+  font: inherit;
+  font-size: 15px;
+  height: 42px;
+  padding: 0 10px;
+  text-transform: none;
+  width: 100%;
+}
+.street-store .st-req p.st-req-error { color: #b91c1c; }
+.street-store .st-req .st-btn { justify-self: start; }
+.street-store .st-req-done { border: 1px solid #b7e1c7; background: #effaf3; }
+.street-store .st-req-done p { color: var(--st-ink); }
+.ella-store.street-store button.st-req-close {
+  background: none;
+  border: 0;
+  color: var(--st-ink);
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  padding: 0 4px;
+}
+.street-store .st-size.st-out:not(:disabled) { cursor: pointer; }
+/* "Tell me when it's back" takes its own row; the other two buttons sit under it. */
+.street-store .st-pdp-actions .st-btn.st-btn-wide:not(.st-btn-icon) { flex: 1 0 100%; }

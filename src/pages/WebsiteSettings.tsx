@@ -41,6 +41,9 @@ import {
 } from "@/components/business-insights/insightsLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
+import { enquiryKindNote, enquiryKindOf, restockMessage, type EnquiryKind } from "@/lib/storefrontRequests";
+import { storefrontProductUrl } from "@/lib/storefrontPath";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { POS_WEBSITE_ENQUIRY_PARAM } from "@/lib/websiteEnquiryBill";
 import { compressImageFile } from "@/lib/compressImage";
@@ -329,7 +332,9 @@ export default function WebsiteSettingsPage() {
           </TabsContent>
 
           <TabsContent value="enquiries" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
-            {shouldMountTab("enquiries") ? <EnquiryInbox orgId={orgId} /> : null}
+            {shouldMountTab("enquiries") ? (
+              <EnquiryInbox orgId={orgId} orgSlug={orgSlug} shopName={currentOrganization?.name || "our shop"} />
+            ) : null}
           </TabsContent>
         </Tabs>
       </div>
@@ -1602,10 +1607,25 @@ function SortableListingRow({
   );
 }
 
-function EnquiryInbox({ orgId }: { orgId?: string }) {
+const ENQUIRY_KIND_FILTERS: Array<{ id: EnquiryKind | "all"; label: string }> = [
+  { id: "all", label: "All types" },
+  { id: "enquiry", label: "Enquiries" },
+  { id: "reserve", label: "Reserve & try" },
+  { id: "restock", label: "Waiting for stock" },
+];
+
+const ENQUIRY_NOTE_TONE: Record<"amber" | "slate" | "emerald" | "sky", string> = {
+  amber: "bg-amber-50 text-amber-800",
+  slate: "bg-slate-100 text-slate-600",
+  emerald: "bg-emerald-50 text-emerald-800",
+  sky: "bg-sky-50 text-sky-800",
+};
+
+function EnquiryInbox({ orgId, orgSlug, shopName }: { orgId?: string; orgSlug: string; shopName: string }) {
   const queryClient = useQueryClient();
   const { orgNavigate } = useOrgNavigation();
   const [statusFilter, setStatusFilter] = useState<WebsiteEnquiryStatus | "all">("all");
+  const [kindFilter, setKindFilter] = useState<EnquiryKind | "all">("all");
 
   const enquiriesQuery = useQuery({
     queryKey: ["website_enquiries", orgId, statusFilter],
@@ -1624,7 +1644,33 @@ function EnquiryInbox({ orgId }: { orgId?: string }) {
     },
   });
 
-  const rows = coerceToArray<WebsiteEnquiry>(enquiriesQuery.data);
+  const allRows = coerceToArray<WebsiteEnquiry>(enquiriesQuery.data);
+  const rows = kindFilter === "all" ? allRows : allRows.filter((row) => enquiryKindOf(row) === kindFilter);
+  // "Tell me when it's back" rows: the size's stock now, to say when the customer can be told.
+  const waitingVariantIds = [
+    ...new Set(
+      allRows
+        .filter((row) => enquiryKindOf(row) === "restock" && row.status === "new" && row.variant_id)
+        .map((row) => row.variant_id as string),
+    ),
+  ];
+  const waitingStockQuery = useQuery({
+    queryKey: ["website_enquiry_waiting_stock", orgId, waitingVariantIds.join(",")],
+    enabled: !!orgId && waitingVariantIds.length > 0,
+    staleTime: STALE_LIVE,
+    queryFn: async () => {
+      const found = await fetchInIdBatches<{ id: string; stock_qty: number | null }>(waitingVariantIds, (batch) =>
+        supabase
+          .from("product_variants")
+          .select("id, stock_qty")
+          .eq("organization_id", orgId!)
+          .in("id", batch)
+          .is("deleted_at", null)
+          .order("id"),
+      );
+      return Object.fromEntries(found.map((v) => [v.id, Number(v.stock_qty ?? 0)]));
+    },
+  });
   const productIds = [...new Set(rows.map((e) => e.product_id).filter(Boolean))] as string[];
   const bookedVariantIds = [
     ...new Set(rows.flatMap((row) => bookedVariantIdsFromMessage(row.message))),
@@ -1707,18 +1753,32 @@ function EnquiryInbox({ orgId }: { orgId?: string }) {
         onValueChange={(v) => setStatusFilter(v as WebsiteEnquiryStatus | "all")}
         className="flex flex-col flex-1 min-h-0 gap-2"
       >
-        <TabsList className={INSIGHTS_SUB_TAB_LIST}>
-          {statusTabs.map(({ id, label }) => (
-            <TabsTrigger key={id} value={id} className={INSIGHTS_SUB_TAB_TRIGGER}>
-              {label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <div className="flex flex-wrap items-center gap-2">
+          <TabsList className={INSIGHTS_SUB_TAB_LIST}>
+            {statusTabs.map(({ id, label }) => (
+              <TabsTrigger key={id} value={id} className={INSIGHTS_SUB_TAB_TRIGGER}>
+                {label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <select
+            aria-label="Type of request"
+            className="h-9 rounded-md border border-slate-200 bg-white px-2 text-sm"
+            value={kindFilter}
+            onChange={(e) => setKindFilter(e.target.value as EnquiryKind | "all")}
+          >
+            {ENQUIRY_KIND_FILTERS.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+        </div>
 
         <TabsContent value={statusFilter} className="mt-0 flex flex-1 min-h-0 flex-col focus-visible:outline-none">
           <InsightsPanel
             title="Customer enquiries"
-            subtitle="Size and barcode of the piece that was booked, with the customer's message"
+            subtitle="Enquiries, pieces reserved to try in store, and customers waiting for a size to come back"
             className="flex-1 min-h-0"
             footer={
               <span className="text-xs text-muted-foreground">
@@ -1741,10 +1801,48 @@ function EnquiryInbox({ orgId }: { orgId?: string }) {
                 {rows.map((row) => {
                   const pieces = enquiryDisplayPieces(row, piecesQuery.data ?? []);
                   const message = enquiryMessageForDisplay(row.message);
+                  const productName = (row.product_id && lookupMap<string>(namesQuery.data, row.product_id)) || "";
+                  const stockNow = row.variant_id ? lookupMap<number>(waitingStockQuery.data, row.variant_id) : undefined;
+                  const note = enquiryKindNote(row, stockNow);
+                  const backInStock = note?.tone === "emerald";
                   return (
                   <TableRow key={row.id} className={cn(INSIGHTS_BODY_ROW, "align-top")}>
                     <TableCell className={INSIGHTS_BODY_CELL}>
                       <div className="font-semibold text-slate-900">{row.customer_name}</div>
+                      {note ? (
+                        <div
+                          className={cn(
+                            "mt-1 inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold",
+                            ENQUIRY_NOTE_TONE[note.tone],
+                          )}
+                        >
+                          {note.text}
+                        </div>
+                      ) : null}
+                      {backInStock ? (
+                        <div>
+                          <a
+                            className="mt-1 inline-flex h-7 items-center rounded-md bg-emerald-600 px-2 text-xs font-semibold text-white"
+                            href={whatsappShareUrl(
+                              restockMessage({
+                                customerName: row.customer_name,
+                                productName: productName || "The product you asked about",
+                                size: row.size,
+                                shopName,
+                                productUrl: row.product_id && orgSlug ? storefrontProductUrl(orgSlug, row.product_id) : null,
+                              }),
+                              row.customer_phone,
+                            )}
+                            target="_blank"
+                            rel="noreferrer"
+                            // Sending the message is the follow-up: the row leaves the waiting list.
+                            onClick={() => void setStatus(row.id, "contacted")}
+                          >
+                            <MessageCircle className="mr-1 h-3 w-3" />
+                            Tell on WhatsApp: back in stock
+                          </a>
+                        </div>
+                      ) : null}
                       <div className="mt-1 flex flex-wrap gap-2">
                         <a className="inline-flex items-center text-xs text-primary" href={`tel:${row.customer_phone}`}>
                           <Phone className="mr-1 h-3 w-3" />

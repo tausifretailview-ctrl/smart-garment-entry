@@ -1,6 +1,7 @@
 import type { PublicProductReviews } from "@/lib/productReviewsPublic";
 import type { StorefrontSizeHelper } from "@/lib/sizeHelper";
 import type { StorefrontSignals } from "@/lib/storefrontSignals";
+import type { StorefrontRequests } from "@/lib/storefrontRequests";
 export type WebsiteStockStatus = "in_stock" | "low_stock" | "out_of_stock";
 
 export type WebsiteSettings = {
@@ -57,6 +58,10 @@ export type WebsiteEnquiry = {
   message: string | null;
   status: WebsiteEnquiryStatus;
   created_at: string;
+  /** enquiry (default), reserve or restock (see storefrontRequests.ts); absent on older databases. */
+  kind?: string | null;
+  /** Reserve & try: keep the piece aside until this time. */
+  hold_until?: string | null;
 };
 
 export type PublicStorefrontShop = {
@@ -140,6 +145,8 @@ export type PublicStorefrontPayload = {
   videos?: Array<{ id: string; video_url: string; caption: string; target: string; product_ids?: string[] }>;
   /** Product slideshow on the home page (Website → Theme); false hides it. */
   showcase?: boolean;
+  /** "Reserve & try in store" / "Tell me when it's back" availability (see storefrontRequests.ts). */
+  requests?: StorefrontRequests;
   /** Best sellers, selling fast, just arrived, bought together (see storefrontSignals.ts). */
   signals?: StorefrontSignals;
   /** "Find my size" switch and size chart (see sizeHelper.ts). */

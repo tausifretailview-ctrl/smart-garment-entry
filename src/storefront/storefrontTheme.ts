@@ -6,6 +6,8 @@ import { ELLA_NOOR_SLUG } from "@/lib/storefrontThemes";
 
 export type OrgPublicInfoSlice = {
   id?: string;
+  /** What the database can do for the store (see storefrontRequests.ts). */
+  store_features?: unknown;
   name?: string;
   business_name?: string | null;
   settings?: Record<string, unknown> | null;

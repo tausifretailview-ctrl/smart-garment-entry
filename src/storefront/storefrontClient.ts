@@ -10,6 +10,7 @@ import { parsePublicProductReviews } from "@/lib/productReviewsPublic";
 import { parseStorefrontSizeHelper } from "@/lib/sizeHelper";
 import { applyProductSpins } from "@/lib/productSpin";
 import { parseStorefrontSignals } from "@/lib/storefrontSignals";
+import { parseStorefrontRequests, type StorefrontRequestKind } from "@/lib/storefrontRequests";
 import { enrichPublicStorefrontShop, type OrgPublicInfoSlice } from "./storefrontTheme";
 import { offerFromRpc, perksFromRpc, type StorefrontOffer, type StorefrontPerks } from "./ellaPerks";
 
@@ -62,6 +63,7 @@ export async function loadPublicStorefront(slug: string): Promise<PublicStorefro
   payload.videos = parseStorefrontVideos(orgInfo?.settings);
   payload.showcase = parseStorefrontShowcase(orgInfo?.settings);
   payload.sizeHelper = parseStorefrontSizeHelper(orgInfo?.settings);
+  payload.requests = parseStorefrontRequests(orgInfo);
   payload.signals = parseStorefrontSignals(signalsRes.error ? null : signalsRes.data);
   payload.reviews = parsePublicProductReviews(reviewsRes.error ? null : reviewsRes.data);
 
@@ -109,6 +111,32 @@ async function loadWebsiteProductSpins(orgId: string): Promise<Array<{ id: strin
   } catch {
     return [];
   }
+}
+
+/** "Reserve & try in store" / "Tell me when it's back" for one size; lands in Website → Enquiries. */
+export async function submitStorefrontRequest(payload: {
+  slug: string;
+  kind: StorefrontRequestKind;
+  customerName: string;
+  customerPhone: string;
+  productId: string;
+  variantId: string;
+}): Promise<{ ok: boolean; error?: string; holdUntil: string | null }> {
+  const { data, error } = await storefrontClient.rpc("submit_public_storefront_request" as never, {
+    p_slug: payload.slug,
+    p_kind: payload.kind,
+    p_customer_name: payload.customerName,
+    p_customer_phone: payload.customerPhone,
+    p_product_id: payload.productId,
+    p_variant_id: payload.variantId,
+  } as never);
+  if (error) return { ok: false, error: "This is not available right now. Please message the shop.", holdUntil: null };
+  const res = (data ?? {}) as { ok?: boolean; error?: string; hold_until?: string | null };
+  return {
+    ok: res.ok === true,
+    error: typeof res.error === "string" ? res.error : undefined,
+    holdUntil: typeof res.hold_until === "string" ? res.hold_until : null,
+  };
 }
 
 export async function submitStorefrontEnquiry(payload: {
