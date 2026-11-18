@@ -971,6 +971,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               thermalPaper={thermalPaper}
               showMrp={props.showMRP ?? true}
               showLineDiscount={showDiscountOnRate}
+              qrCodeUrl={qrCodeUrl}
+              upiId={upiId}
               settingsOverride={settings as Record<string, unknown>}
             />
           );

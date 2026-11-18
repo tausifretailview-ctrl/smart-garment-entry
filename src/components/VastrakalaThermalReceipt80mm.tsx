@@ -57,6 +57,9 @@ interface VastrakalaThermalReceipt80mmProps {
   showMrp?: boolean;
   /** Settings → show discount on rate. Prints a per-item "DISC x% (-amt)" line under discounted items. */
   showLineDiscount?: boolean;
+  /** UPI payment QR (Settings → Bill & Barcode → UPI ID). */
+  qrCodeUrl?: string;
+  upiId?: string;
 }
 
 const VASTRAKALA_DEFAULT_TERMS = [
@@ -580,6 +583,14 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
           ))}
         </div>
       </div>
+
+      {props.qrCodeUrl ? (
+        <div className="vk-upi-qr" style={{ textAlign: "center", marginTop: layout.sectionGap }}>
+          <div style={{ fontSize: layout.subFont, fontWeight: 700 }}>SCAN &amp; PAY (UPI)</div>
+          <img src={props.qrCodeUrl} alt="UPI QR" style={{ width: "30mm", height: "30mm", display: "block", margin: "1mm auto" }} />
+          {props.upiId ? <div style={{ fontSize: layout.subFont }}>{props.upiId}</div> : null}
+        </div>
+      ) : null}
 
       <div
         className="vk-footer-thanks"
