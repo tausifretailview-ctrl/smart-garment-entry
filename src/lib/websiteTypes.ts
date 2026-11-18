@@ -1,3 +1,5 @@
+import type { PublicProductReviews } from "@/lib/productReviewsPublic";
+import type { StorefrontSizeHelper } from "@/lib/sizeHelper";
 export type WebsiteStockStatus = "in_stock" | "low_stock" | "out_of_stock";
 
 export type WebsiteSettings = {
@@ -87,6 +89,8 @@ export type PublicStorefrontProduct = {
   name: string;
   /** ERP product name when a website name replaced `name`. */
   erp_name?: string | null;
+  /** 360° spin frames in shooting order (see productSpin.ts); absent when the listing has none. */
+  spin_urls?: string[];
   description?: string | null;
   brand: string | null;
   category: string | null;
@@ -135,6 +139,10 @@ export type PublicStorefrontPayload = {
   videos?: Array<{ id: string; video_url: string; caption: string; target: string; product_ids?: string[] }>;
   /** Product slideshow on the home page (Website → Theme); false hides it. */
   showcase?: boolean;
+  /** "Find my size" switch and size chart (see sizeHelper.ts). */
+  sizeHelper?: StorefrontSizeHelper;
+  /** Stars and shop-approved customer reviews by product id (see productReviewsPublic.ts). */
+  reviews?: Record<string, PublicProductReviews>;
   shop?: PublicStorefrontShop;
   products?: PublicStorefrontProduct[];
   menus?: PublicStorefrontMenuFlat[];

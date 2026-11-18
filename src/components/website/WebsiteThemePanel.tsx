@@ -33,6 +33,7 @@ import {
   type StorefrontVideo,
 } from "@/lib/storefrontVideos";
 import { useWebsiteSections } from "@/hooks/useWebsiteSections";
+import { StoreSizeHelperSettings } from "@/components/website/StoreSizeHelperSettings";
 import { activeWebsiteSections } from "@/lib/websiteSections";
 import {
   STOREFRONT_THEMES,
@@ -296,6 +297,8 @@ export function WebsiteThemePanel({
                   : "Slideshow is on — turn off"}
             </Button>
           </div>
+
+          <StoreSizeHelperSettings orgId={orgId} />
         </div>
       </InsightsPanel>
     </div>

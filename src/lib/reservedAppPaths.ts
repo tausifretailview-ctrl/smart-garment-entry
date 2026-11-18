@@ -9,6 +9,7 @@ export const RESERVED_APP_PATH_SEGMENTS = [
   "organization-setup",
   "platform-admin",
   "invoice",
+  "review",
   "pay",
   "payment-status",
   "oauth",

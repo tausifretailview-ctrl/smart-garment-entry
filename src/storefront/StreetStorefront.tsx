@@ -31,6 +31,10 @@ import {
 import { findSize, type EllaSizeOption } from "./ellaVariants";
 import { ellaWhatsAppNumber } from "./ellaWhatsApp";
 import { submitStorefrontEnquiry } from "./storefrontClient";
+import { StreetRatingLine, StreetReviewsContext, StreetReviewsSection } from "./StreetReviews";
+import { StreetSizeHelper, useStreetSizeProfile, useStreetSizeSuggestion } from "./StreetSizeHelper";
+import { StreetSpinViewer } from "./StreetSpinViewer";
+import { hasProductSpin } from "@/lib/productSpin";
 import { storefrontLocationLine } from "./storefrontTheme";
 import {
   buildStreetBannerSlides,
@@ -208,6 +212,7 @@ function StreetCard({
       <button type="button" className="st-card-body" onClick={() => onOpen(product)}>
         <span className="st-card-name">{product.name}</span>
         <span className="st-card-price">{product.priceLabel || "Price on request"}</span>
+        <StreetRatingLine productId={product.productId} />
         {sizes.length > 0 ? <span className="st-card-sizes">{sizes.slice(0, 7).join(" · ")}</span> : null}
       </button>
     </article>
@@ -374,6 +379,7 @@ function StreetProductPage({
   wished,
   related,
   wishlist,
+  sizeHelper,
   onBack,
   onAdd,
   onWish,
@@ -382,6 +388,8 @@ function StreetProductPage({
   onQuickAdd,
 }: {
   product: EllaStorefrontProduct;
+  /** "Find my size" settings; undefined or switched off hides the helper. */
+  sizeHelper?: PublicStorefrontPayload["sizeHelper"];
   orgSlug: string;
   shopName: string;
   shopWhatsApp: string | null;
@@ -401,8 +409,17 @@ function StreetProductPage({
   const [open, setOpen] = useState<"description" | "details" | "help" | null>("description");
   const [copied, setCopied] = useState(false);
 
+  // "Find my size": a shopper who has given their details gets their size picked on every product.
+  const [sizeProfile, saveSizeProfile] = useStreetSizeProfile();
+  const { scale: sizeScale, suggestion: sizeSuggestion } = useStreetSizeSuggestion(product, sizeHelper, sizeProfile);
+  const suggestedLabel = useRef<string | null>(null);
+  suggestedLabel.current =
+    sizeSuggestion && !sizeSuggestion.beyondRange && product.sizes.some((s) => s.label === sizeSuggestion.label && s.inStock)
+      ? sizeSuggestion.label
+      : null;
+
   useEffect(() => {
-    setSizeLabel(product.defaultSize?.label ?? null);
+    setSizeLabel(suggestedLabel.current ?? product.defaultSize?.label ?? null);
     setQty(1);
     setOpen("description");
     setCopied(false);
@@ -421,6 +438,12 @@ function StreetProductPage({
   useEffect(() => {
     setQty((current) => Math.min(Math.max(1, current), maxQty));
   }, [maxQty]);
+
+  // 360° view: shown first in the gallery when the shop uploaded enough photos around the product.
+  const spin = hasProductSpin(product.spin);
+  // A listing with a spin but no photo uses the first frame on its card; do not repeat it here.
+  const photos = spin ? product.images.filter((src) => src !== product.spin[0]) : product.images;
+  const galleryRef = useRef<HTMLDivElement | null>(null);
 
   const url = storefrontProductUrl(orgSlug, product.productId);
   const share = async () => {
@@ -463,14 +486,32 @@ function StreetProductPage({
         ← Back
       </button>
       <div className="st-pdp">
-        <div className={`st-gallery${product.images.length > 1 ? " st-gallery-multi" : ""}`}>
-          {product.images.length > 0 ? (
-            product.images.slice(0, 6).map((src, i) => (
+        <div
+          className={`st-gallery${photos.length + (spin ? 1 : 0) > 1 ? " st-gallery-multi" : ""}`}
+          ref={galleryRef}
+        >
+          {spin ? (
+            <StreetSpinViewer
+              key={product.productId}
+              frames={product.spin}
+              name={product.name}
+              onMorePhotos={
+                photos.length > 0
+                  ? () => {
+                      const el = galleryRef.current;
+                      el?.scrollBy({ left: el.clientWidth * 0.86, behavior: "smooth" });
+                    }
+                  : undefined
+              }
+            />
+          ) : null}
+          {photos.length > 0 ? (
+            photos.slice(0, 6).map((src, i) => (
               <div className="st-gallery-item" key={src}>
-                <img src={src} alt={i === 0 ? product.name : ""} loading={i === 0 ? "eager" : "lazy"} decoding="async" />
+                <img src={src} alt={i === 0 ? product.name : ""} loading={i === 0 && !spin ? "eager" : "lazy"} decoding="async" />
               </div>
             ))
-          ) : (
+          ) : spin ? null : (
             <div className="st-gallery-item st-gallery-empty">Photo coming soon</div>
           )}
         </div>
@@ -480,6 +521,11 @@ function StreetProductPage({
             <span className="st-eyebrow">{product.sectionLabel || product.sourceCategory}</span>
           ) : null}
           <h1 className="st-pdp-name">{product.name}</h1>
+          <StreetRatingLine
+            productId={product.productId}
+            detailed
+            onClick={() => document.getElementById("st-reviews")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          />
           <div className="st-pdp-price">{product.priceLabel || "Price on request"}</div>
 
           {!oneSize ? (
@@ -499,6 +545,18 @@ function StreetProductPage({
                   </button>
                 ))}
               </div>
+              {sizeScale && sizeHelper ? (
+                <StreetSizeHelper
+                  key={product.productId}
+                  sizes={product.sizes}
+                  scale={sizeScale}
+                  suggestion={sizeSuggestion}
+                  config={sizeHelper}
+                  profile={sizeProfile}
+                  onSaveProfile={saveSizeProfile}
+                  onPick={setSizeLabel}
+                />
+              ) : null}
             </>
           ) : null}
           <div className={`st-stock${canBuy && !size?.low ? "" : " st-stock-warn"}`}>{stockLine}</div>
@@ -587,6 +645,8 @@ function StreetProductPage({
         </div>
       </div>
 
+      <StreetReviewsSection productId={product.productId} />
+
       {related.length > 0 ? (
         <section className="st-section">
           <div className="st-section-head">
@@ -622,6 +682,8 @@ export function StreetStorefront({
   banners = [],
   videos = [],
   showcase = true,
+  reviews,
+  sizeHelper,
 }: {
   shop: PublicStorefrontShop;
   orgSlug: string;
@@ -631,6 +693,10 @@ export function StreetStorefront({
   videos?: PublicStorefrontPayload["videos"];
   /** Product slideshow on the home page (Website → Theme); false hides it. */
   showcase?: boolean;
+  /** "Find my size" on product pages (Website → Theme); undefined or switched off hides it. */
+  sizeHelper?: PublicStorefrontPayload["sizeHelper"];
+  /** Stars and shop-approved customer reviews by product id; none hides every rating. */
+  reviews?: PublicStorefrontPayload["reviews"];
   products: PublicStorefrontProduct[];
   sections?: PublicStorefrontSection[];
   menus?: PublicStorefrontMenu[];
@@ -638,11 +704,14 @@ export function StreetStorefront({
 }) {
   // A store with nothing published shows a sample catalogue so the theme can be seen working.
   const sampleMode = products.length === 0;
+  const reviewMap = useMemo(() => (sampleMode ? {} : reviews || {}), [reviews, sampleMode]);
   const items = useMemo(
     () =>
       (sampleMode ? streetSampleCatalogue() : products).map((raw) => {
         const product = toEllaStorefrontProduct(raw);
-        // No photo yet: a drawn sample picture (captioned as such) instead of an empty box.
+        // No photo yet: the first 360° frame if there is one, else a drawn sample picture
+        // (captioned as such) instead of an empty box.
+        if (product.images.length === 0 && hasProductSpin(product.spin)) return { ...product, images: [product.spin[0]] };
         return product.images.length > 0
           ? product
           : {
@@ -994,6 +1063,7 @@ export function StreetStorefront({
   );
 
   return (
+    <StreetReviewsContext.Provider value={reviewMap}>
     <div className="ella-store street-store">
       <div className="st-announce" aria-hidden="true">
         <div className="st-marquee">
@@ -1323,6 +1393,7 @@ export function StreetStorefront({
             cart={cart}
             wished={wishlist.includes(view.product.productId)}
             wishlist={wishlist}
+            sizeHelper={sizeHelper}
             related={streetRelatedProducts(items, view.product)}
             onBack={backFromProduct}
             onAdd={addToBag}
@@ -1573,6 +1644,7 @@ export function StreetStorefront({
         </div>
       ) : null}
     </div>
+    </StreetReviewsContext.Provider>
   );
 }
 

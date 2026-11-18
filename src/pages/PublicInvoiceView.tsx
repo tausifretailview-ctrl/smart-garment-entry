@@ -2,7 +2,8 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Printer, Download, FileX } from "lucide-react";
+import { Loader2, Printer, Download, FileX, Star } from "lucide-react";
+import { loadReviewForm } from "@/lib/productReviews";
 import { format } from "date-fns";
 import { useRef, useEffect, useState, useLayoutEffect } from "react";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
@@ -83,6 +84,17 @@ export default function PublicInvoiceView() {
     refetchOnMount: 'always',
     retry: 2,
   });
+
+  // "Rate your products" shows only when the review form opens for this bill (products on it,
+  // and the shop's database has reviews set up), so customers never land on an error page.
+  const reviewFormQuery = useQuery({
+    queryKey: ["public-review-form", saleId],
+    enabled: !!saleId && !!data?.sale,
+    retry: false,
+    staleTime: 60_000,
+    queryFn: () => loadReviewForm(saleId!),
+  });
+  const canReview = (reviewFormQuery.data?.items.length ?? 0) > 0;
 
   const sale = data?.sale;
   const settings = data?.settings;
@@ -458,7 +470,7 @@ export default function PublicInvoiceView() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-2 sm:p-4 md:p-8">
       <div className={formatParam === 'thermal' ? 'max-w-[80mm] mx-auto' : 'max-w-4xl mx-auto'}>
-        <div className="flex justify-center gap-4 mb-6 print:hidden">
+        <div className="flex flex-wrap justify-center gap-3 mb-6 print:hidden">
           <Button onClick={() => handlePrint()} className="gap-2">
             <Printer className="h-4 w-4" />
             Print Invoice
@@ -467,6 +479,14 @@ export default function PublicInvoiceView() {
             <Download className="h-4 w-4" />
             Download PDF
           </Button>
+          {canReview ? (
+            <Button asChild variant="outline" className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50">
+              <a href={`/review/${saleId}`}>
+                <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                Rate your products
+              </a>
+            </Button>
+          ) : null}
         </div>
 
         <style>{`

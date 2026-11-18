@@ -17,6 +17,8 @@ import {
   type RatingFilter,
 } from "@/utils/customerReviewStats";
 import { reviewSourceLabel } from "@/lib/customerReviewAlert";
+import { ProductReviewsDialog } from "@/components/reviews/ProductReviewsDialog";
+import { useAuth } from "@/contexts/AuthContext";
 
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
 const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
@@ -76,6 +78,8 @@ export default function CustomerReviews() {
   const [rating, setRating] = useState<RatingFilter>("all");
   const [salesman, setSalesman] = useState("all");
   const [search, setSearch] = useState("");
+  const [productReviewsOpen, setProductReviewsOpen] = useState(false);
+  const { user } = useAuth();
 
   const { data: reviews = [], isLoading, error } = useQuery({
     queryKey: ["customer-reviews", orgId, fromDate, toDate],
@@ -119,7 +123,17 @@ export default function CustomerReviews() {
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 p-3 text-[15px]">
       <div className="flex flex-wrap items-end gap-3">
-        <h1 className="mr-auto text-xl font-bold">Customer Reviews</h1>
+        <h1 className="text-xl font-bold">Customer Reviews</h1>
+        <Button variant="outline" size="sm" className="mr-auto h-9" onClick={() => setProductReviewsOpen(true)}>
+          <Star className="mr-1 h-4 w-4 fill-amber-400 text-amber-400" />
+          Product reviews (website)
+        </Button>
+        <ProductReviewsDialog
+          open={productReviewsOpen}
+          onOpenChange={setProductReviewsOpen}
+          orgId={orgId}
+          userId={user?.id}
+        />
         <div>
           <Label className="text-xs">From</Label>
           <Input type="date" className="h-9 w-[150px]" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />

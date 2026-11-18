@@ -1,3 +1,4 @@
+import { cleanSpinUrls } from "@/lib/productSpin";
 import type { PublicStorefrontProduct } from "@/lib/websiteTypes";
 import { formatStorefrontPrice } from "@/lib/storefrontStock";
 import { ellaCopy, type EllaChipCategory } from "./storefrontTheme";
@@ -29,6 +30,8 @@ export type EllaStorefrontProduct = {
   price: number | null;
   priceLabel: string;
   images: string[];
+  /** 360° spin frames in shooting order; empty when the listing has none. */
+  spin: string[];
   fabric: string;
   leadTimeWeeks: number | null;
   available: number;
@@ -112,6 +115,7 @@ export function toEllaStorefrontProduct(product: PublicStorefrontProduct): EllaS
     price,
     priceLabel: formatStorefrontPrice(price),
     images: Array.isArray(product.photo_urls) ? product.photo_urls.filter(Boolean) : [],
+    spin: cleanSpinUrls(product.spin_urls),
     fabric,
     leadTimeWeeks,
     available,

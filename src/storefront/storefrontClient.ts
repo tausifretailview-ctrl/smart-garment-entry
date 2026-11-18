@@ -6,6 +6,9 @@ import { parseStorefrontTheme } from "@/lib/storefrontThemes";
 import { parseStorefrontBanners } from "@/lib/storefrontBanners";
 import { parseStorefrontVideos } from "@/lib/storefrontVideos";
 import { parseStorefrontShowcase } from "@/lib/storefrontShowcase";
+import { parsePublicProductReviews } from "@/lib/productReviewsPublic";
+import { parseStorefrontSizeHelper } from "@/lib/sizeHelper";
+import { applyProductSpins } from "@/lib/productSpin";
 import { enrichPublicStorefrontShop, type OrgPublicInfoSlice } from "./storefrontTheme";
 import { offerFromRpc, perksFromRpc, type StorefrontOffer, type StorefrontPerks } from "./ellaPerks";
 
@@ -22,9 +25,13 @@ const storefrontClient = createClient(
 );
 
 export async function loadPublicStorefront(slug: string): Promise<PublicStorefrontPayload> {
-  const [storeRes, orgRes] = await Promise.all([
+  const [storeRes, orgRes, reviewsRes] = await Promise.all([
     storefrontClient.rpc("get_public_storefront" as never, { p_slug: slug } as never),
     storefrontClient.rpc("get_org_public_info" as never, { p_slug: slug } as never),
+    // Stars + approved reviews. Any failure (including the function not existing yet) = no reviews.
+    Promise.resolve(storefrontClient.rpc("get_public_product_reviews" as never, { p_slug: slug } as never)).catch(
+      () => ({ data: null, error: true }),
+    ),
   ]);
   if (storeRes.error) throw storeRes.error;
   const data = storeRes.data;
@@ -38,16 +45,19 @@ export async function loadPublicStorefront(slug: string): Promise<PublicStorefro
   }
 
   if (orgInfo?.id && payload.products?.length) {
-    payload.products = applyWebsiteProductDetails(
-      payload.products,
-      await loadWebsiteProductDetails(orgInfo.id),
-    );
+    const [details, spins] = await Promise.all([
+      loadWebsiteProductDetails(orgInfo.id),
+      loadWebsiteProductSpins(orgInfo.id),
+    ]);
+    payload.products = applyProductSpins(applyWebsiteProductDetails(payload.products, details), spins);
   }
 
   payload.theme = parseStorefrontTheme(orgInfo?.settings);
   payload.banners = parseStorefrontBanners(orgInfo?.settings);
   payload.videos = parseStorefrontVideos(orgInfo?.settings);
   payload.showcase = parseStorefrontShowcase(orgInfo?.settings);
+  payload.sizeHelper = parseStorefrontSizeHelper(orgInfo?.settings);
+  payload.reviews = parsePublicProductReviews(reviewsRes.error ? null : reviewsRes.data);
 
   return attachSectionsToPublicPayload(payload, orgInfo?.settings);
 }
@@ -70,6 +80,26 @@ async function loadWebsiteProductDetails(
       .or("display_name.not.is.null,description.not.is.null");
     if (error || !Array.isArray(data)) return [];
     return data as Array<{ id: string; display_name: string | null; description: string | null }>;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 360° spin frames per listing, read the same way as the website details. A separate request on
+ * purpose: if the spin_urls column has not been added yet, only the spin is missing and the
+ * store's names and descriptions still load.
+ */
+async function loadWebsiteProductSpins(orgId: string): Promise<Array<{ id: string; spin_urls: unknown }>> {
+  try {
+    const { data, error } = await storefrontClient
+      .from("website_products" as never)
+      .select("id, spin_urls")
+      .eq("organization_id", orgId)
+      .eq("is_active", true)
+      .not("spin_urls", "eq", "{}");
+    if (error || !Array.isArray(data)) return [];
+    return data as Array<{ id: string; spin_urls: unknown }>;
   } catch {
     return [];
   }

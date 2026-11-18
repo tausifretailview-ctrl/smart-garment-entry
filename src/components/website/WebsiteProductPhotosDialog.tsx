@@ -12,6 +12,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { compressImageFile } from "@/lib/compressImage";
 import { websiteFrom } from "@/lib/websiteDb";
+import { WebsiteProductSpinSection } from "@/components/website/WebsiteProductSpinSection";
 import {
   WEBSITE_PHOTOS_BUCKET,
   WEBSITE_PHOTOS_MAX,
@@ -129,7 +130,7 @@ export function WebsiteProductPhotosDialog({
           }}
         />
 
-        <div className="grid max-h-[60vh] grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
+        <div className="grid max-h-[46vh] grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
           {photoUrls.map((url, index) => (
             <div key={url} className="rounded-lg border border-slate-200 p-2">
               <div className="relative aspect-[3/4] overflow-hidden rounded bg-slate-100">
@@ -199,6 +200,8 @@ export function WebsiteProductPhotosDialog({
             </button>
           ) : null}
         </div>
+
+        <WebsiteProductSpinSection orgId={orgId} listingId={listingId} />
       </DialogContent>
     </Dialog>
   );

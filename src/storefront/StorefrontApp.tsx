@@ -177,6 +177,8 @@ export function StorefrontApp() {
         banners={payload.banners || []}
         videos={payload.videos || []}
         showcase={payload.showcase !== false}
+        reviews={payload.reviews}
+        sizeHelper={payload.sizeHelper}
         shop={payload.shop!}
         orgSlug={canonicalSlug}
         products={products}
