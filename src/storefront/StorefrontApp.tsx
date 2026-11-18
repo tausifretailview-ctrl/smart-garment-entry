@@ -181,6 +181,8 @@ export function StorefrontApp() {
         sizeHelper={payload.sizeHelper}
         signals={payload.signals}
         requests={payload.requests}
+        strips={payload.strips}
+        currency={payload.currency}
         shop={payload.shop!}
         orgSlug={canonicalSlug}
         products={products}

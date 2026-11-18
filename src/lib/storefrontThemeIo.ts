@@ -19,6 +19,14 @@ import {
 import { STOREFRONT_SHOWCASE_KEY, parseStorefrontShowcase } from "@/lib/storefrontShowcase";
 import { STOREFRONT_SIGNALS_KEY, parseStorefrontSignalsEnabled } from "@/lib/storefrontSignals";
 import {
+  STOREFRONT_CURRENCY_KEY,
+  STOREFRONT_STRIPS_KEY,
+  parseStorefrontCurrency,
+  parseStorefrontStrips,
+  type StorefrontCurrency,
+  type StripId,
+} from "@/lib/storefrontStrips";
+import {
   STOREFRONT_REQUESTS_KEY,
   parseStorefrontRequestSwitches,
   type StorefrontRequests,
@@ -103,6 +111,29 @@ export async function loadStorefrontSignalsEnabled(orgId: string): Promise<boole
 
 export async function saveStorefrontSignalsEnabled(orgId: string, enabled: boolean): Promise<void> {
   await patchOrgSettings(orgId, { [STOREFRONT_SIGNALS_KEY]: { enabled } }, "the live shop signals setting");
+}
+
+/** Notice strips and currency picker (Website → Theme → Notices & currency). */
+export async function loadStorefrontStripsAndCurrency(
+  orgId: string,
+): Promise<{ strips: Record<StripId, string[] | null>; currency: StorefrontCurrency }> {
+  const settings = await readOrgSettings(orgId);
+  return { strips: parseStorefrontStrips(settings), currency: parseStorefrontCurrency(settings) };
+}
+
+export async function saveStorefrontStripsAndCurrency(
+  orgId: string,
+  strips: Record<StripId, string[]>,
+  currency: StorefrontCurrency,
+): Promise<void> {
+  await patchOrgSettings(
+    orgId,
+    {
+      [STOREFRONT_STRIPS_KEY]: strips,
+      [STOREFRONT_CURRENCY_KEY]: { enabled: currency.enabled, rates: currency.rates },
+    },
+    "the notices and currency settings",
+  );
 }
 
 /** "Reserve & try in store" and "Tell me when it's back" switches (Website → Theme). */

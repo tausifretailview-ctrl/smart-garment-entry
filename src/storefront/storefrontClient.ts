@@ -11,6 +11,7 @@ import { parseStorefrontSizeHelper } from "@/lib/sizeHelper";
 import { applyProductSpins } from "@/lib/productSpin";
 import { parseStorefrontSignals } from "@/lib/storefrontSignals";
 import { parseStorefrontRequests, type StorefrontRequestKind } from "@/lib/storefrontRequests";
+import { parseStorefrontCurrency, parseStorefrontStrips } from "@/lib/storefrontStrips";
 import { enrichPublicStorefrontShop, type OrgPublicInfoSlice } from "./storefrontTheme";
 import { offerFromRpc, perksFromRpc, type StorefrontOffer, type StorefrontPerks } from "./ellaPerks";
 
@@ -64,6 +65,8 @@ export async function loadPublicStorefront(slug: string): Promise<PublicStorefro
   payload.showcase = parseStorefrontShowcase(orgInfo?.settings);
   payload.sizeHelper = parseStorefrontSizeHelper(orgInfo?.settings);
   payload.requests = parseStorefrontRequests(orgInfo);
+  payload.strips = parseStorefrontStrips(orgInfo?.settings);
+  payload.currency = parseStorefrontCurrency(orgInfo?.settings);
   payload.signals = parseStorefrontSignals(signalsRes.error ? null : signalsRes.data);
   payload.reviews = parsePublicProductReviews(reviewsRes.error ? null : reviewsRes.data);
 

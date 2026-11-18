@@ -66,7 +66,9 @@ describe("Street product slideshow", () => {
     const street = readFileSync(join(process.cwd(), "src/storefront/StreetStorefront.tsx"), "utf8");
     expect(street.indexOf("<StreetVideoRail")).toBeGreaterThan(-1);
     expect(street.indexOf("<StreetShowcase")).toBeGreaterThan(street.indexOf("<StreetVideoRail"));
-    expect(street.indexOf("<StreetShowcase")).toBeLessThan(street.indexOf("Shop by category"));
+    // Home order: videos, then shop by category (oval cards), then the slideshow.
+    expect(street.indexOf('className="st-section st-cats"')).toBeGreaterThan(street.indexOf("<StreetVideoRail"));
+    expect(street.indexOf("<StreetShowcase")).toBeGreaterThan(street.indexOf('className="st-section st-cats"'));
     expect(readFileSync(join(process.cwd(), "src/components/website/WebsiteThemePanel.tsx"), "utf8")).toContain(
       "saveStorefrontShowcase",
     );

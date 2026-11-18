@@ -1721,3 +1721,192 @@
 .street-store .st-size.st-out:not(:disabled) { cursor: pointer; }
 /* "Tell me when it's back" takes its own row; the other two buttons sit under it. */
 .street-store .st-pdp-actions .st-btn.st-btn-wide:not(.st-btn-icon) { flex: 1 0 100%; }
+
+/* --- notice strips (Website → Theme → Notices) ----------------------------- */
+.street-store .st-notice {
+  align-items: center;
+  background: var(--st-ink);
+  color: #ffffff;
+  display: flex;
+  gap: 4px;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 4px 6px;
+}
+.street-store .st-notice-text {
+  animation: st-notice-in 0.35s ease both;
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  line-height: 1.45;
+  margin: 0;
+  overflow-wrap: anywhere;
+  text-align: center;
+  text-transform: uppercase;
+}
+@keyframes st-notice-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.ella-store.street-store button.st-notice-arrow {
+  background: none;
+  border: 0;
+  color: #ffffff;
+  cursor: pointer;
+  flex: 0 0 36px;
+  font-size: 24px;
+  height: 36px;
+  line-height: 1;
+}
+.street-store .st-running {
+  background: var(--st-ink);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  height: 46px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.street-store .st-running .st-marquee { animation-duration: 40s; }
+.street-store .st-visually-hidden {
+  clip: rect(0 0 0 0);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .street-store .st-notice-text { animation: none; }
+  .street-store .st-running .st-marquee { animation: none; }
+}
+@media (min-width: 1024px) {
+  .street-store .st-notice { min-height: 46px; padding: 4px 24px; }
+  .street-store .st-notice-text { font-size: 13px; }
+  .street-store .st-running { font-size: 15px; height: 50px; }
+}
+
+/* --- currency picker (bottom left) ----------------------------------------- */
+.street-store .st-currency {
+  bottom: calc(var(--st-tabbar-h) + env(safe-area-inset-bottom, 0px) + 12px);
+  left: 12px;
+  position: fixed;
+  z-index: 45;
+}
+.ella-store.street-store button.st-currency-btn {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid var(--st-line);
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
+  color: var(--st-ink);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 600;
+  gap: 8px;
+  height: 42px;
+  padding: 0 12px;
+}
+.street-store .st-currency-flag { font-size: 18px; line-height: 1; }
+.street-store .st-currency-caret { color: var(--st-muted); font-size: 11px; }
+.street-store .st-currency-menu {
+  background: #ffffff;
+  border: 1px solid var(--st-line);
+  border-radius: 12px;
+  bottom: 50px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  left: 0;
+  max-height: 60vh;
+  overflow-y: auto;
+  position: absolute;
+  width: min(280px, calc(100vw - 24px));
+}
+.ella-store.street-store button.st-currency-option {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--st-line);
+  color: var(--st-ink);
+  cursor: pointer;
+  display: flex;
+  font-size: 14px;
+  gap: 10px;
+  padding: 12px 14px;
+  text-align: left;
+  width: 100%;
+}
+.ella-store.street-store button.st-currency-option.st-on { background: #f4f4f4; font-weight: 700; }
+.street-store .st-currency-note { color: var(--st-muted); font-size: 12px; line-height: 1.4; margin: 0; padding: 10px 14px; }
+@media (min-width: 1024px) {
+  .street-store .st-currency { bottom: 20px; left: 20px; }
+}
+
+/* --- shop by category: oval photo cards ------------------------------------ */
+.street-store .st-cats-head { justify-content: center; }
+.street-store .st-cats-head .st-h2 { letter-spacing: 0.14em; text-align: center; }
+.street-store .st-cats-rail {
+  display: grid;
+  gap: 14px;
+  grid-auto-columns: 62%;
+  grid-auto-flow: column;
+  overflow-x: auto;
+  padding: 0 var(--st-gutter) 6px;
+  margin: 0 calc(var(--st-gutter) * -1);
+  scroll-padding: 0 var(--st-gutter);
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.street-store .st-cats-rail::-webkit-scrollbar { display: none; }
+.ella-store.street-store button.st-cat {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: var(--st-ink);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
+  scroll-snap-align: center;
+}
+.street-store .st-cat-photo {
+  aspect-ratio: 3 / 5;
+  background: var(--st-soft, #f2f2f2);
+  border-radius: 50%;
+  display: block;
+  overflow: hidden;
+  width: 100%;
+}
+.street-store .st-cat-photo img { height: 100%; object-fit: cover; transition: transform 0.4s ease; width: 100%; }
+.street-store .st-cat-name { font-size: 15px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
+.street-store .st-cat-go { border-bottom: 1px solid var(--st-ink); font-size: 13px; padding-bottom: 2px; text-transform: uppercase; }
+@media (min-width: 700px) {
+  .street-store .st-cats-rail { grid-auto-columns: 32%; }
+}
+@media (min-width: 1024px) {
+  .street-store .st-cats-rail { grid-auto-columns: calc((100% - 56px) / 4.4); margin: 0; padding: 0 0 6px; }
+  .ella-store.street-store button.st-cat:hover .st-cat-photo img { transform: scale(1.05); }
+}
+
+/* --- home banner a little taller; video wording medium weight --------------- */
+.street-store .st-hero-images { aspect-ratio: 2 / 1; }
+@media (min-width: 1024px) {
+  .street-store .st-hero,
+  .street-store .st-hero-images { height: clamp(460px, 68vh, 680px); }
+}
+.street-store .st-reel-caption { font-size: 13px; font-weight: 500; letter-spacing: 0.02em; text-transform: none; }
+.ella-store.street-store .st-reel-foot .st-btn.st-reel-shop {
+  font-size: 11px;
+  font-weight: 500;
+  height: 32px;
+  letter-spacing: 0.06em;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+/* The payment & delivery strip sits on top of the footer, with space above it. */
+.street-store .st-running:has(+ .st-footer) { margin-top: 48px; }
+.street-store .st-running + .st-footer { margin-top: 0; }
+.street-store .st-running-soft { background: #fde8e8; border-top: 1px solid #f5c2c2; color: var(--st-ink); }

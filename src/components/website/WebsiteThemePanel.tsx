@@ -36,6 +36,7 @@ import { useWebsiteSections } from "@/hooks/useWebsiteSections";
 import { StoreSizeHelperSettings } from "@/components/website/StoreSizeHelperSettings";
 import { StoreSignalsSettings } from "@/components/website/StoreSignalsSettings";
 import { StoreRequestsSettings } from "@/components/website/StoreRequestsSettings";
+import { StoreStripsSettings } from "@/components/website/StoreStripsSettings";
 import { activeWebsiteSections } from "@/lib/websiteSections";
 import {
   STOREFRONT_THEMES,
@@ -299,6 +300,8 @@ export function WebsiteThemePanel({
                   : "Slideshow is on — turn off"}
             </Button>
           </div>
+
+          <StoreStripsSettings orgId={orgId} />
 
           <StoreSizeHelperSettings orgId={orgId} />
 
