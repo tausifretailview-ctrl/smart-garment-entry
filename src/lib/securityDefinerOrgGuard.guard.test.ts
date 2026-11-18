@@ -24,6 +24,11 @@ const PUBLIC_BY_DESIGN = new Set([
   "submit_public_storefront_enquiry",
   "get_public_storefront_customer_perks",
   "check_public_storefront_offer_code",
+  // Customer review page: the unguessable bill id in the link is the key (as for the online
+  // invoice). They show only that bill's shop name and product names, and save a review that
+  // waits for the shop's approval. Rate limited per bill.
+  "get_public_review_form",
+  "submit_public_product_review",
 ]);
 
 const ID_PARAM =

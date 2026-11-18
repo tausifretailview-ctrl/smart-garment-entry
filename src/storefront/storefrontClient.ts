@@ -6,6 +6,7 @@ import { parseStorefrontTheme } from "@/lib/storefrontThemes";
 import { parseStorefrontBanners } from "@/lib/storefrontBanners";
 import { parseStorefrontVideos } from "@/lib/storefrontVideos";
 import { parseStorefrontShowcase } from "@/lib/storefrontShowcase";
+import { parsePublicProductReviews } from "@/lib/productReviewsPublic";
 import { enrichPublicStorefrontShop, type OrgPublicInfoSlice } from "./storefrontTheme";
 import { offerFromRpc, perksFromRpc, type StorefrontOffer, type StorefrontPerks } from "./ellaPerks";
 
@@ -22,9 +23,13 @@ const storefrontClient = createClient(
 );
 
 export async function loadPublicStorefront(slug: string): Promise<PublicStorefrontPayload> {
-  const [storeRes, orgRes] = await Promise.all([
+  const [storeRes, orgRes, reviewsRes] = await Promise.all([
     storefrontClient.rpc("get_public_storefront" as never, { p_slug: slug } as never),
     storefrontClient.rpc("get_org_public_info" as never, { p_slug: slug } as never),
+    // Stars + approved reviews. Any failure (including the function not existing yet) = no reviews.
+    Promise.resolve(storefrontClient.rpc("get_public_product_reviews" as never, { p_slug: slug } as never)).catch(
+      () => ({ data: null, error: true }),
+    ),
   ]);
   if (storeRes.error) throw storeRes.error;
   const data = storeRes.data;
@@ -48,6 +53,7 @@ export async function loadPublicStorefront(slug: string): Promise<PublicStorefro
   payload.banners = parseStorefrontBanners(orgInfo?.settings);
   payload.videos = parseStorefrontVideos(orgInfo?.settings);
   payload.showcase = parseStorefrontShowcase(orgInfo?.settings);
+  payload.reviews = parsePublicProductReviews(reviewsRes.error ? null : reviewsRes.data);
 
   return attachSectionsToPublicPayload(payload, orgInfo?.settings);
 }

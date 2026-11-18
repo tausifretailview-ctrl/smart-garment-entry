@@ -62,6 +62,7 @@ export const NotFound = lazyWithRetry(() => import("@/pages/NotFound"));
 export const PlatformAdmin = lazyWithRetry(() => import("@/pages/PlatformAdmin"));
 export const PlatformDataIntegrity = lazyWithRetry(() => import("@/pages/PlatformDataIntegrity"));
 export const PublicInvoiceView = lazyWithRetry(() => import("@/pages/PublicInvoiceView"));
+export const PublicProductReview = lazyWithRetry(() => import("@/pages/PublicProductReview"));
 export const OwnerAlertBill = lazyWithRetry(() =>
   import("@/pages/OwnerAlertView").then((m) => ({ default: m.OwnerAlertBill })),
 );

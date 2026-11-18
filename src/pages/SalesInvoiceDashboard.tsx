@@ -45,7 +45,8 @@ import { SkeletonMobileListRows, SkeletonTableRows } from "@/components/skeleton
 import { SALES_INVOICE_TABLE_SKELETON_COLUMNS } from "@/components/skeletons/dashboardSkeletonPresets";
 import { QuietRefreshBar, useQuietRefreshActive } from "@/components/QuietRefreshBar";
 
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap, FileDown, Lock, X, Plus, RefreshCw, Copy, Ban, Eye, MoreHorizontal, FileSpreadsheet, User, Phone, AlertTriangle, Receipt, Truck } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap, FileDown, Lock, X, Plus, RefreshCw, Copy, Ban, Eye, MoreHorizontal, FileSpreadsheet, User, Phone, AlertTriangle, Receipt, Truck, Star } from "lucide-react";
+import { openReviewLinkOnWhatsApp } from "@/lib/productReviews";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
@@ -629,6 +630,18 @@ export default function SalesInvoiceDashboard() {
         label: "Copy Invoice Link",
         icon: Link2,
         onClick: () => copyInvoiceLink(invoice),
+      },
+      {
+        // Website reviews: WhatsApp opens with the "rate your products" link ready to send.
+        label: "Send review link (WhatsApp)",
+        icon: Star,
+        onClick: () =>
+          openReviewLinkOnWhatsApp({
+            saleId: invoice.id,
+            shopName: currentOrganization?.name || "our shop",
+            customerName: invoice.customer_name,
+            customerPhone: invoice.customer_phone,
+          }),
       },
       { label: "", separator: true, onClick: () => {} },
       {
@@ -4744,6 +4757,18 @@ export default function SalesInvoiceDashboard() {
                                         <Link2 className="h-4 w-4 mr-2 text-blue-600" /> Copy Invoice Link
                                       </DropdownMenuItem>
                                     )}
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        openReviewLinkOnWhatsApp({
+                                          saleId: invoice.id,
+                                          shopName: currentOrganization?.name || "our shop",
+                                          customerName: invoice.customer_name,
+                                          customerPhone: invoice.customer_phone,
+                                        })
+                                      }
+                                    >
+                                      <Star className="h-4 w-4 mr-2 text-amber-500" /> Send review link (WhatsApp)
+                                    </DropdownMenuItem>
                                     {isEInvoiceEnabled && canEInvoice(invoice) && (
                                       <>
                                         <DropdownMenuSeparator />

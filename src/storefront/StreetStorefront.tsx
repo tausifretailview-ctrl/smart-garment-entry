@@ -31,6 +31,7 @@ import {
 import { findSize, type EllaSizeOption } from "./ellaVariants";
 import { ellaWhatsAppNumber } from "./ellaWhatsApp";
 import { submitStorefrontEnquiry } from "./storefrontClient";
+import { StreetRatingLine, StreetReviewsContext, StreetReviewsSection } from "./StreetReviews";
 import { storefrontLocationLine } from "./storefrontTheme";
 import {
   buildStreetBannerSlides,
@@ -208,6 +209,7 @@ function StreetCard({
       <button type="button" className="st-card-body" onClick={() => onOpen(product)}>
         <span className="st-card-name">{product.name}</span>
         <span className="st-card-price">{product.priceLabel || "Price on request"}</span>
+        <StreetRatingLine productId={product.productId} />
         {sizes.length > 0 ? <span className="st-card-sizes">{sizes.slice(0, 7).join(" · ")}</span> : null}
       </button>
     </article>
@@ -480,6 +482,11 @@ function StreetProductPage({
             <span className="st-eyebrow">{product.sectionLabel || product.sourceCategory}</span>
           ) : null}
           <h1 className="st-pdp-name">{product.name}</h1>
+          <StreetRatingLine
+            productId={product.productId}
+            detailed
+            onClick={() => document.getElementById("st-reviews")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          />
           <div className="st-pdp-price">{product.priceLabel || "Price on request"}</div>
 
           {!oneSize ? (
@@ -587,6 +594,8 @@ function StreetProductPage({
         </div>
       </div>
 
+      <StreetReviewsSection productId={product.productId} />
+
       {related.length > 0 ? (
         <section className="st-section">
           <div className="st-section-head">
@@ -622,6 +631,7 @@ export function StreetStorefront({
   banners = [],
   videos = [],
   showcase = true,
+  reviews,
 }: {
   shop: PublicStorefrontShop;
   orgSlug: string;
@@ -631,6 +641,8 @@ export function StreetStorefront({
   videos?: PublicStorefrontPayload["videos"];
   /** Product slideshow on the home page (Website → Theme); false hides it. */
   showcase?: boolean;
+  /** Stars and shop-approved customer reviews by product id; none hides every rating. */
+  reviews?: PublicStorefrontPayload["reviews"];
   products: PublicStorefrontProduct[];
   sections?: PublicStorefrontSection[];
   menus?: PublicStorefrontMenu[];
@@ -638,6 +650,7 @@ export function StreetStorefront({
 }) {
   // A store with nothing published shows a sample catalogue so the theme can be seen working.
   const sampleMode = products.length === 0;
+  const reviewMap = useMemo(() => (sampleMode ? {} : reviews || {}), [reviews, sampleMode]);
   const items = useMemo(
     () =>
       (sampleMode ? streetSampleCatalogue() : products).map((raw) => {
@@ -994,6 +1007,7 @@ export function StreetStorefront({
   );
 
   return (
+    <StreetReviewsContext.Provider value={reviewMap}>
     <div className="ella-store street-store">
       <div className="st-announce" aria-hidden="true">
         <div className="st-marquee">
@@ -1573,6 +1587,7 @@ export function StreetStorefront({
         </div>
       ) : null}
     </div>
+    </StreetReviewsContext.Provider>
   );
 }
 

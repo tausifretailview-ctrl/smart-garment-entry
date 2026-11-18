@@ -63,7 +63,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send, CheckCircle2, Clock, RefreshCcw, ShoppingCart, Pause, FileText, Lock, FileSpreadsheet, FileCheck, XCircle, Download, FileDown, Ban, Home } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send, CheckCircle2, Clock, RefreshCcw, ShoppingCart, Pause, FileText, Lock, FileSpreadsheet, FileCheck, XCircle, Download, FileDown, Ban, Home, Star } from "lucide-react";
+import { openReviewLinkOnWhatsApp } from "@/lib/productReviews";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import type * as XLSXType from "xlsx";
@@ -748,6 +749,19 @@ const POSDashboard = () => {
           void handleCopyLink(sale, noopEvent);
         },
         hidden: !columnSettings.copyLink,
+      },
+      {
+        // Website reviews: WhatsApp opens with the "rate your products" link ready to send.
+        label: "Send review link (WhatsApp)",
+        icon: Star,
+        onClick: () =>
+          openReviewLinkOnWhatsApp({
+            saleId: sale.id,
+            shopName: currentOrganization?.name || "our shop",
+            customerName: sale.customer_name,
+            customerPhone: sale.customer_phone,
+          }),
+        hidden: sale.payment_status === "hold" || sale.is_cancelled === true,
       },
       {
         label: "Preview Invoice",

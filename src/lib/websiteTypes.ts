@@ -1,3 +1,4 @@
+import type { PublicProductReviews } from "@/lib/productReviewsPublic";
 export type WebsiteStockStatus = "in_stock" | "low_stock" | "out_of_stock";
 
 export type WebsiteSettings = {
@@ -135,6 +136,8 @@ export type PublicStorefrontPayload = {
   videos?: Array<{ id: string; video_url: string; caption: string; target: string; product_ids?: string[] }>;
   /** Product slideshow on the home page (Website → Theme); false hides it. */
   showcase?: boolean;
+  /** Stars and shop-approved customer reviews by product id (see productReviewsPublic.ts). */
+  reviews?: Record<string, PublicProductReviews>;
   shop?: PublicStorefrontShop;
   products?: PublicStorefrontProduct[];
   menus?: PublicStorefrontMenuFlat[];
