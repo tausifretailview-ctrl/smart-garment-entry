@@ -1,4 +1,9 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import {
+  isSaleFocusQtyAfterAddEnabled,
+  isSaleGoodsAskQtyDialogEnabled,
+  saleGoodsQtyDialogOverride,
+} from "@/utils/posGoodsAskQtyDialog";
 import { reportIfFails } from "@/lib/reportIfFails";
 import { formatInvoicePaymentModeFallback } from "@/utils/invoicePaymentModeDisplay";
 import { SalesInvoiceCustomerPicker } from "@/components/sales-invoice/SalesInvoiceCustomerPicker";
@@ -730,6 +735,8 @@ export default function SalesInvoice() {
   const [quickServiceProductForAdd, setQuickServiceProductForAdd] = useState<{
     product: any;
     variant: any;
+    /** Regular goods (Settings → Sale "Ask quantity…"), not a service. */
+    goods?: boolean;
   } | null>(null);
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
@@ -2219,7 +2226,7 @@ export default function SalesInvoice() {
     product: any,
     variant: any,
     overridePrice?: { sale_price: number; mrp: number },
-    options?: { skipSizeGrid?: boolean; quantity?: number; description?: string },
+    options?: { skipSizeGrid?: boolean; quantity?: number; description?: string; skipQtyDialog?: boolean },
   ) => {
     if (editingInvoiceId && recordedReceiptAmount > 0.005 && !paidLineEditAcknowledgedRef.current) {
       pendingPaidLineEditRef.current = () => {
@@ -2295,6 +2302,25 @@ export default function SalesInvoice() {
       return;
     }
 
+    // Settings → Sale "Ask quantity after selecting a product": same Qty window as services.
+    // Metre / roll goods and IMEI handsets keep their own flow.
+    if (
+      !isServiceProduct &&
+      !isMtrProduct &&
+      !overridePrice &&
+      !options?.skipQtyDialog &&
+      options?.quantity == null &&
+      product?.requires_imei !== true &&
+      isSaleGoodsAskQtyDialogEnabled((settingsData as any)?.sale_settings)
+    ) {
+      setQuickServiceCode(variant.barcode || product.product_name || "");
+      setQuickServiceProductForAdd({ product, variant, goods: true });
+      setShowQuickServiceDialog(true);
+      setOpenProductSearch(false);
+      setSearchInput("");
+      return;
+    }
+
     // In edit mode, calculate freed stock from original invoice for this variant
     const freedQty = editFreedQty(variant.id);
 
@@ -2303,7 +2329,10 @@ export default function SalesInvoice() {
     let stockReservation: { variantId: string; previousQty: number } | null = null;
     if (isStockTrackedInvoiceProduct(product)) {
       const alreadyStaged = stagedQtyByVariantRef.current.get(variant.id) || 0;
-      const requestedQty = alreadyStaged + 1;
+      // Qty from the Qty window counts in full (it used to check stock for one piece only).
+      const addingQty =
+        options?.quantity && options.quantity > 0 && !isServiceProduct ? Math.max(1, Math.floor(options.quantity)) : 1;
+      const requestedQty = alreadyStaged + addingQty;
       stagedQtyByVariantRef.current.set(variant.id, requestedQty);
       stockReservation = { variantId: variant.id, previousQty: alreadyStaged };
       const stockCheck = await checkStock(variant.id, requestedQty, freedQty);
@@ -2381,6 +2410,8 @@ export default function SalesInvoice() {
         setPendingPriceSelection({
           product,
           variant,
+          // Keep the Qty-window quantity / note when the price choice re-adds the product.
+          addOptions: options,
           masterPrice: { sale_price: masterSalePrice, mrp: masterMrp },
           lastPurchasePrice: hasLastPurchaseDiff ? {
             sale_price: lastPurchaseSalePrice!,
@@ -2850,6 +2881,55 @@ export default function SalesInvoice() {
     }
   };
 
+  // Qty window: services (price asked) or regular goods (Settings → Sale "Ask quantity…").
+  const quickQtyIsGoods = quickServiceProductForAdd?.goods === true;
+  const quickQtyGoodsDefaultPrice = quickQtyIsGoods
+    ? parseFloat(String(quickServiceProductForAdd?.variant?.sale_price || 0)) ||
+      parseFloat(String(quickServiceProductForAdd?.variant?.mrp || 0)) ||
+      0
+    : 0;
+  const quickQtyDialogValues = {
+    defaultQuantity: quickQtyIsGoods ? 1 : serviceDefaultQty,
+    allowDecimalQty: !quickQtyIsGoods,
+    defaultMrp: quickServiceProductForAdd?.variant
+      ? quickQtyIsGoods
+        ? quickQtyGoodsDefaultPrice
+        : resolveServiceVariantDefaultMrp(quickServiceProductForAdd.variant)
+      : undefined,
+  };
+  const handleQuickQtyDialogAdd = ({
+    quantity,
+    mrp,
+    description,
+  }: {
+    quantity: number;
+    mrp: number;
+    description?: string;
+  }) => {
+    const pending = quickServiceProductForAdd;
+    if (!pending) return;
+    setShowQuickServiceDialog(false);
+    setQuickServiceProductForAdd(null);
+    setQuickServiceCode("");
+    if (pending.goods) {
+      const masterMrp = parseFloat(String(pending.variant?.mrp || 0)) || 0;
+      void addProductToInvoice(
+        pending.product,
+        pending.variant,
+        saleGoodsQtyDialogOverride(mrp, quickQtyGoodsDefaultPrice, masterMrp),
+        { skipSizeGrid: true, quantity, description, skipQtyDialog: true },
+      );
+    } else {
+      void addProductToInvoice(
+        pending.product,
+        pending.variant,
+        { sale_price: mrp, mrp },
+        { skipSizeGrid: true, quantity, description },
+      );
+    }
+    setTimeout(() => barcodeInputRef.current?.focus(), 100);
+  };
+
   /** HSN on this bill's line only (saved to the sale line; the product master is unchanged). */
   const updateHsnCode = (id: string, hsnCode: string) => {
     const clean = String(hsnCode ?? "").replace(/\D/g, "").slice(0, 8);
@@ -3064,6 +3144,12 @@ export default function SalesInvoice() {
       if (colKey === "disc_amount") return item.discountAmount;
       return 0;
     },
+    // Settings → Sale "Cursor to Qty after adding a product" (the Qty window, when also on,
+    // already took the quantity).
+    editQtyOnAdd:
+      isSaleFocusQtyAfterAddEnabled((settingsData as any)?.sale_settings) &&
+      !isSaleGoodsAskQtyDialogEnabled((settingsData as any)?.sale_settings),
+    onReturnToSearch: () => setTimeout(() => barcodeInputRef.current?.focus(), 0),
   });
 
   scheduleGridFocusRef.current = lineGrid.scheduleFocusOnItem;
@@ -4825,7 +4911,7 @@ Thank you for choosing us!`;
           ) : <div ref={printRef} />}
         </div>
         {historyProduct && currentOrganization && <ProductHistoryDialog isOpen={!!historyProduct} onClose={() => setHistoryProduct(null)} productId={historyProduct.id} productName={historyProduct.name} organizationId={currentOrganization.id} />}
-        {pendingPriceSelection && <PriceSelectionDialog open={showPriceSelectionDialog} onOpenChange={(open) => { setShowPriceSelectionDialog(open); if (!open) setPendingPriceSelection(null); }} productName={pendingPriceSelection.product?.product_name || ''} size={pendingPriceSelection.variant?.size || ''} masterPrice={pendingPriceSelection.masterPrice} lastPurchasePrice={pendingPriceSelection.lastPurchasePrice} customerPrice={pendingPriceSelection.customerPrice} onSelect={(source, prices) => { const { product, variant } = pendingPriceSelection; setShowPriceSelectionDialog(false); setPendingPriceSelection(null); addProductToInvoice(product, variant, prices); }} />}
+        {pendingPriceSelection && <PriceSelectionDialog open={showPriceSelectionDialog} onOpenChange={(open) => { setShowPriceSelectionDialog(open); if (!open) setPendingPriceSelection(null); }} productName={pendingPriceSelection.product?.product_name || ''} size={pendingPriceSelection.variant?.size || ''} masterPrice={pendingPriceSelection.masterPrice} lastPurchasePrice={pendingPriceSelection.lastPurchasePrice} customerPrice={pendingPriceSelection.customerPrice} onSelect={(source, prices) => { const { product, variant, addOptions } = pendingPriceSelection; setShowPriceSelectionDialog(false); setPendingPriceSelection(null); addProductToInvoice(product, variant, prices, addOptions); }} />}
         <QuickServiceProductDialog
           open={showQuickServiceDialog}
           onOpenChange={(open) => {
@@ -4838,27 +4924,8 @@ Thank you for choosing us!`;
           }}
           serviceCode={quickServiceCode}
           productName={quickServiceProductForAdd?.product?.product_name}
-          defaultQuantity={serviceDefaultQty}
-          allowDecimalQty
-          defaultMrp={
-            quickServiceProductForAdd?.variant
-              ? resolveServiceVariantDefaultMrp(quickServiceProductForAdd.variant)
-              : undefined
-          }
-          onAdd={({ quantity, mrp, description }) => {
-            const pending = quickServiceProductForAdd;
-            if (!pending) return;
-            setShowQuickServiceDialog(false);
-            setQuickServiceProductForAdd(null);
-            setQuickServiceCode("");
-            void addProductToInvoice(
-              pending.product,
-              pending.variant,
-              { sale_price: mrp, mrp },
-              { skipSizeGrid: true, quantity, description },
-            );
-            setTimeout(() => barcodeInputRef.current?.focus(), 100);
-          }}
+          {...quickQtyDialogValues}
+          onAdd={handleQuickQtyDialogAdd}
         />
         <StockIssueAlertDialog
           open={showStockIssueDialog}
@@ -6292,10 +6359,10 @@ Thank you for choosing us!`;
           lastPurchasePrice={pendingPriceSelection.lastPurchasePrice}
           customerPrice={pendingPriceSelection.customerPrice}
           onSelect={(source, prices) => {
-            const { product, variant } = pendingPriceSelection;
+            const { product, variant, addOptions } = pendingPriceSelection;
             setShowPriceSelectionDialog(false);
             setPendingPriceSelection(null);
-            addProductToInvoice(product, variant, prices);
+            addProductToInvoice(product, variant, prices, addOptions);
           }}
         />
       )}
@@ -6312,31 +6379,8 @@ Thank you for choosing us!`;
         }}
         serviceCode={quickServiceCode}
         productName={quickServiceProductForAdd?.product?.product_name}
-        defaultQuantity={serviceDefaultQty}
-        allowDecimalQty
-        defaultMrp={
-          quickServiceProductForAdd?.variant
-            ? resolveServiceVariantDefaultMrp(quickServiceProductForAdd.variant)
-            : undefined
-        }
-        onAdd={({ quantity, mrp, description }) => {
-          const pending = quickServiceProductForAdd;
-          if (!pending) return;
-          setShowQuickServiceDialog(false);
-          setQuickServiceProductForAdd(null);
-          setQuickServiceCode("");
-          void addProductToInvoice(
-            pending.product,
-            pending.variant,
-            { sale_price: mrp, mrp },
-            {
-              skipSizeGrid: true,
-              quantity,
-              description,
-            },
-          );
-          setTimeout(() => barcodeInputRef.current?.focus(), 100);
-        }}
+        {...quickQtyDialogValues}
+        onAdd={handleQuickQtyDialogAdd}
       />
 
       <StockIssueAlertDialog

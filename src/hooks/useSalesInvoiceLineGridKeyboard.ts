@@ -120,6 +120,12 @@ export interface UseSalesInvoiceLineGridKeyboardOptions {
   ) => void;
   onEditSeed?: (itemId: string, colKey: SaleLineGridColKey, seed: string) => void;
   getCellEditValue?: (itemId: string, colKey: SaleLineGridColKey) => string | number;
+  /**
+   * Settings → Sale "Cursor to Qty after adding a product": the added line's Qty opens for
+   * typing (value selected); Enter (or Esc) then sends the cursor back to the search bar.
+   */
+  editQtyOnAdd?: boolean;
+  onReturnToSearch?: () => void;
 }
 
 export function useSalesInvoiceLineGridKeyboard({
@@ -133,6 +139,8 @@ export function useSalesInvoiceLineGridKeyboard({
   onRevertNumeric,
   onEditSeed,
   getCellEditValue,
+  editQtyOnAdd = false,
+  onReturnToSearch,
 }: UseSalesInvoiceLineGridKeyboardOptions) {
   const allColumns = useMemo(() => buildAllColumnKeys(showCol), [showCol]);
   const editableColumns = useMemo(() => buildEditableColumnKeys(showCol), [showCol]);
@@ -142,6 +150,8 @@ export function useSalesInvoiceLineGridKeyboard({
   const [editSeed, setEditSeed] = useState<string | null>(null);
 
   const pendingFocusItemIdRef = useRef<string | null>(null);
+  /** The Qty being typed came from "cursor to Qty after add": Enter / Esc go back to search. */
+  const returnToSearchRef = useRef(false);
   const editSnapshotRef = useRef<{ colKey: SaleLineGridColKey; value: string | number } | null>(
     null,
   );
@@ -320,18 +330,28 @@ export function useSalesInvoiceLineGridKeyboard({
           e.preventDefault();
           e.stopPropagation();
           cancelEdit();
+          if (returnToSearchRef.current) {
+            returnToSearchRef.current = false;
+            onReturnToSearch?.();
+          }
           return;
         }
         if (e.key === "Enter") {
           e.preventDefault();
           e.stopPropagation();
           commitEdit();
+          if (returnToSearchRef.current && focus.colKey === "qty") {
+            returnToSearchRef.current = false;
+            onReturnToSearch?.();
+            return;
+          }
           moveVertical(1);
           return;
         }
         if (e.key === "Tab") {
           e.preventDefault();
           e.stopPropagation();
+          returnToSearchRef.current = false;
           commitEdit();
           moveTab(e.shiftKey);
           return;
@@ -397,6 +417,7 @@ export function useSalesInvoiceLineGridKeyboard({
       enterEditMode,
       moveTab,
       onRemoveRow,
+      onReturnToSearch,
       snapshotCurrentEditValue,
     ],
   );
@@ -416,11 +437,17 @@ export function useSalesInvoiceLineGridKeyboard({
     for (let row = 0; row < displayRowCount; row++) {
       if (getItemIdForRow(row) === pendingId) {
         pendingFocusItemIdRef.current = null;
-        focusCell(row, "qty");
+        if (editQtyOnAdd && isColumnVisible("qty", showCol)) {
+          editSnapshotRef.current = { colKey: "qty", value: getCellEditValue?.(pendingId, "qty") ?? 1 };
+          focusCell(row, "qty", { editing: true });
+          returnToSearchRef.current = true;
+        } else {
+          focusCell(row, "qty");
+        }
         break;
       }
     }
-  }, [displayRowCount, focusCell, getItemIdForRow]);
+  }, [displayRowCount, focusCell, getItemIdForRow, editQtyOnAdd, showCol, getCellEditValue]);
 
   useLayoutEffect(() => {
     if (!focus || isEditing) return;
