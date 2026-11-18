@@ -1,3 +1,4 @@
+import { vouchersWithReceiptsForDcView } from "@/utils/dcReceiptShare";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
@@ -144,7 +145,7 @@ const DailyTally = () => {
 
   // Voucher entries (all types for the date)
   const { data: vouchersData, isLoading: vouchersLoading, refetch: refetchVouchers } = useQuery({
-    queryKey: ["daily-tally-vouchers", orgId, dateStr],
+    queryKey: ["daily-tally-vouchers", orgId, dateStr, hideDc, onlyDc],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("voucher_entries")
@@ -154,7 +155,8 @@ const DailyTally = () => {
         .gte("voucher_date", dateStr)
         .lte("voucher_date", dateStr);
       if (error) throw error;
-      return data || [];
+      // Payments on old bills follow the DC view, like the bills themselves.
+      return vouchersWithReceiptsForDcView(supabase, data || [], { hideDc, onlyDc });
     },
     enabled: !!orgId,
     ...REPORT_CACHE,

@@ -1,3 +1,4 @@
+import { PlatformTargetOrgNote, platformTargetOrgButtonLabel } from "@/components/platform/PlatformTargetOrgNote";
 import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -721,10 +722,11 @@ export default function PlatformAdmin() {
       return data;
     },
     onSuccess: () => {
+      const shop = organizations.find((o) => o.id === userOrgId)?.name;
       toast.success(
         userRole === "pos"
-          ? "POS-only user created — Saleem-style menu rights applied"
-          : "User created successfully",
+          ? `POS-only user created${shop ? ` in ${shop}` : ""} — Saleem-style menu rights applied`
+          : `User created${shop ? ` in ${shop}` : " successfully"}`,
       );
       setCreateUserOpen(false);
       setUserEmail("");
@@ -907,6 +909,10 @@ export default function PlatformAdmin() {
     }
     createOrgMutation.mutate();
   };
+
+  // The shop each dialog is about to add a login to, shown large so the wrong shop is not picked.
+  const createTargetOrg = organizations.find((o) => o.id === userOrgId) ?? null;
+  const assignTargetOrg = organizations.find((o) => o.id === assignOrgId) ?? null;
 
   const handleCreateUser = () => {
     if (!userEmail || !userPassword || !userOrgId) {
@@ -1551,6 +1557,7 @@ export default function PlatformAdmin() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <PlatformTargetOrgNote org={createTargetOrg} />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="userRole">Role *</Label>
@@ -1572,7 +1579,7 @@ export default function PlatformAdmin() {
                       Cancel
                     </Button>
                     <Button onClick={handleCreateUser} disabled={createUserMutation.isPending}>
-                      {createUserMutation.isPending ? "Creating..." : "Create User"}
+                      {createUserMutation.isPending ? "Creating..." : platformTargetOrgButtonLabel("Create user", createTargetOrg)}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -1683,6 +1690,7 @@ export default function PlatformAdmin() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
+              <PlatformTargetOrgNote org={assignTargetOrg} />
               <div className="space-y-2">
                 <Label htmlFor="assignEmail">User Email *</Label>
                 <Input
@@ -1718,7 +1726,7 @@ export default function PlatformAdmin() {
                 Cancel
               </Button>
               <Button onClick={handleSubmitAssignUser} disabled={assignUserMutation.isPending}>
-                {assignUserMutation.isPending ? "Assigning..." : "Assign User"}
+                {assignUserMutation.isPending ? "Assigning..." : platformTargetOrgButtonLabel("Add user", assignTargetOrg)}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -76,6 +76,8 @@ import { PosFastPicks, type FastPick } from "@/components/mobile/premium/PosFast
 import { PosKeypad, type KeypadMode } from "@/components/mobile/premium/PosKeypad";
 import { PosPayRow } from "@/components/mobile/premium/PosPayRow";
 import { useActiveStaff } from "@/lib/data/employees";
+import { PosMobileRequiredDialog } from "@/components/pos/PosMobileRequiredDialog";
+import { posBillNeedsMobile } from "@/utils/posRequiredMobile";
 
 /** Display-only — no arithmetic on money. */
 function formatInr(amount: number): string {
@@ -239,6 +241,11 @@ export default function MobilePosBilling() {
   const [kpMode, setKpMode] = useState<KeypadMode>("qty");
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [mixOpen, setMixOpen] = useState(false);
+  /** The payment that is waiting for the customer's mobile (Settings → POS "Mobile number compulsory"). */
+  const [mobilePrompt, setMobilePrompt] = useState<{
+    method: "cash" | "card" | "upi" | "multiple" | "pay_later";
+    breakdown?: { cashAmount: number; cardAmount: number; upiAmount: number; totalPaid: number; refundAmount: number };
+  } | null>(null);
   const [success, setSuccess] = useState<SaveSuccess | null>(null);
   const [waPhoneDraft, setWaPhoneDraft] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -491,10 +498,20 @@ export default function MobilePosBilling() {
       totalPaid: number;
       refundAmount: number;
     },
+    /** Mobile typed into the "Enter mobile number" box for this bill. */
+    billMobile?: string,
   ) => {
     if (saveLockRef.current || saving) return;
     if (items.length === 0) {
       toast.error("Cart is empty");
+      return;
+    }
+    // Settings → POS "Mobile number compulsory": ask for it once a payment mode is chosen.
+    const billPhone = selectedCustomer?.phone?.trim() || billMobile || null;
+    if (posBillNeedsMobile(saleSettings as { pos_require_customer_mobile?: boolean }, billPhone)) {
+      setPaymentOpen(false);
+      setMixOpen(false);
+      setMobilePrompt({ method, breakdown });
       return;
     }
     saveLockRef.current = true;
@@ -509,7 +526,7 @@ export default function MobilePosBilling() {
       const saleData = buildSaleData({
         customerName,
         customerId: selectedCustomer?.id ?? null,
-        customerPhone: selectedCustomer?.phone?.trim() || null,
+        customerPhone: billPhone,
         salesman: salesmanName || null,
         notes: saleNotes.trim() || null,
       });
@@ -543,11 +560,11 @@ export default function MobilePosBilling() {
         saleNumber: result.sale_number || "",
         saleId: result.id,
         netAmount: Number(result.net_amount) || totals.finalAmount,
-        customerPhone: selectedCustomer?.phone?.trim() || null,
+        customerPhone: billPhone,
         paymentLabel: formatMobilePosPaymentLabel(paymentMethod, breakdown ?? null),
         invoiceDateLabel: formatMobilePosInvoiceDate(),
       });
-      setWaPhoneDraft(selectedCustomer?.phone?.trim() || "");
+      setWaPhoneDraft(billPhone || "");
       setSelectedCustomer(null);
       setCustomerSearchTerm("");
     } catch (err) {
@@ -945,6 +962,18 @@ export default function MobilePosBilling() {
           saving={saving}
           onPay={(m) => void runSave(m)}
           onMix={() => setMixOpen(true)}
+        />
+
+        <PosMobileRequiredDialog
+          open={mobilePrompt != null}
+          initialPhone={selectedCustomer?.phone ?? ""}
+          onCancel={() => setMobilePrompt(null)}
+          onSubmit={(mobile) => {
+            const waiting = mobilePrompt;
+            setMobilePrompt(null);
+            // Save with the payment mode that was already chosen.
+            if (waiting) void runSave(waiting.method, waiting.breakdown, mobile);
+          }}
         />
 
         {/* ── BILL OPTIONS SHEET ── */}

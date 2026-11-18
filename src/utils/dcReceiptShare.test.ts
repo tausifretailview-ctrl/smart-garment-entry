@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { receiptsForDcView } from "./dcReceiptShare";
+import { receiptsForDcView, vouchersWithReceiptsForDcView } from "./dcReceiptShare";
 
 /** sale_items: s-dc = all DC, s-mix = half DC (by net), s-gst = no DC line. */
 const lines = [
@@ -71,3 +71,57 @@ describe("Business Report: old payment receipts follow the DC view", () => {
     expect(src).toContain('"cashier-report-receipts", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period, hideDc, onlyDc');
   });
 });
+
+describe("Cash tally and POS cashier report follow the DC view", () => {
+  const day = [
+    { id: "p1", voucher_type: "payment", reference_type: "supplier", reference_id: "x", total_amount: 500 },
+    { id: "r1", voucher_type: "receipt", reference_type: "sale", reference_id: "s-dc", total_amount: 1000 },
+    { id: "r2", voucher_type: "receipt", reference_type: "sale", reference_id: "s-mix", total_amount: 400 },
+    { id: "r4", voucher_type: "receipt", reference_type: "customer", reference_id: "c1", total_amount: 300 },
+    { id: "e1", voucher_type: "expense", total_amount: 50 },
+  ];
+
+  it("leaves the day's vouchers alone when DC is neither hidden nor DC-only", async () => {
+    expect(await vouchersWithReceiptsForDcView(client, day, {})).toBe(day);
+  });
+
+  it("DC hidden: only receipts change; payments and expenses stay whole", async () => {
+    const out = await vouchersWithReceiptsForDcView(client, day, { hideDc: true });
+    expect(out.map((v) => [v.id, v.total_amount])).toEqual([
+      ["p1", 500],
+      ["e1", 50],
+      ["r2", 200],
+      ["r4", 300],
+    ]);
+  });
+
+  it("DC User: receipts on DC bills only, payments and expenses stay", async () => {
+    const out = await vouchersWithReceiptsForDcView(client, day, { onlyDc: true });
+    expect(out.map((v) => [v.id, v.total_amount])).toEqual([
+      ["p1", 500],
+      ["e1", 50],
+      ["r1", 1000],
+      ["r2", 200],
+    ]);
+  });
+
+  it("every tally and cashier screen reads sales and receipts through the DC view", () => {
+    const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
+    const tally = read("src/components/FloatingCashTally.tsx");
+    expect(tally).toContain("fetchAllSalesWithFilters(orgId!, { startDate: startIso, endDate: endIso, hideDc, onlyDc })");
+    expect(tally).toContain('["daily-tally-vouchers", orgId, dateStr, "floating", hideDc, onlyDc]');
+    const quick = read("src/components/FloatingPOSReports.tsx");
+    expect(quick).toContain("query = filterSalesForDcView(query, { hideDc, onlyDc });");
+    expect(quick).toContain("return saleRowsForDcView(supabase, data || [], { hideDc, onlyDc });");
+    expect(quick).toContain('["floating-cashier-report-sales", currentOrganization?.id, selectedDateSafe, hideDc, onlyDc]');
+    for (const path of [
+      "src/components/FloatingCashTally.tsx",
+      "src/components/FloatingPOSReports.tsx",
+      "src/pages/DailyTally.tsx",
+      "src/pages/DailyAccountTally.tsx",
+    ]) {
+      expect(read(path)).toContain("return vouchersWithReceiptsForDcView(supabase, data || [], { hideDc, onlyDc });");
+    }
+  });
+});
+
