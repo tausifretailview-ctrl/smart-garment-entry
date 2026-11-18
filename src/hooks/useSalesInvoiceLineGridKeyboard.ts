@@ -431,23 +431,30 @@ export function useSalesInvoiceLineGridKeyboard({
     [enterEditMode, focus],
   );
 
-  useLayoutEffect(() => {
-    const pendingId = pendingFocusItemIdRef.current;
-    if (!pendingId || displayRowCount === 0) return;
-    for (let row = 0; row < displayRowCount; row++) {
-      if (getItemIdForRow(row) === pendingId) {
-        pendingFocusItemIdRef.current = null;
+  /** Put the cursor on this line's Qty (open for typing when editQtyOnAdd). False if not on screen. */
+  const focusItemQty = useCallback(
+    (itemId: string): boolean => {
+      for (let row = 0; row < displayRowCount; row++) {
+        if (getItemIdForRow(row) !== itemId) continue;
         if (editQtyOnAdd && isColumnVisible("qty", showCol)) {
-          editSnapshotRef.current = { colKey: "qty", value: getCellEditValue?.(pendingId, "qty") ?? 1 };
+          editSnapshotRef.current = { colKey: "qty", value: getCellEditValue?.(itemId, "qty") ?? 1 };
           focusCell(row, "qty", { editing: true });
           returnToSearchRef.current = true;
         } else {
           focusCell(row, "qty");
         }
-        break;
+        return true;
       }
-    }
-  }, [displayRowCount, focusCell, getItemIdForRow, editQtyOnAdd, showCol, getCellEditValue]);
+      return false;
+    },
+    [displayRowCount, focusCell, getItemIdForRow, editQtyOnAdd, showCol, getCellEditValue],
+  );
+
+  useLayoutEffect(() => {
+    const pendingId = pendingFocusItemIdRef.current;
+    if (!pendingId || displayRowCount === 0) return;
+    if (focusItemQty(pendingId)) pendingFocusItemIdRef.current = null;
+  }, [displayRowCount, focusItemQty]);
 
   useLayoutEffect(() => {
     if (!focus || isEditing) return;
@@ -552,6 +559,7 @@ export function useSalesInvoiceLineGridKeyboard({
     isCellFocused,
     isCellEditing,
     scheduleFocusOnItem,
+    focusItemQty,
     beginEditWithSnapshot,
     allColumns,
     editableColumns,
