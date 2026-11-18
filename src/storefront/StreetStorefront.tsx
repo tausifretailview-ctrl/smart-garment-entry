@@ -33,6 +33,8 @@ import { ellaWhatsAppNumber } from "./ellaWhatsApp";
 import { submitStorefrontEnquiry } from "./storefrontClient";
 import { StreetRatingLine, StreetReviewsContext, StreetReviewsSection } from "./StreetReviews";
 import { StreetSizeHelper, useStreetSizeProfile, useStreetSizeSuggestion } from "./StreetSizeHelper";
+import { StreetSpinViewer } from "./StreetSpinViewer";
+import { hasProductSpin } from "@/lib/productSpin";
 import { storefrontLocationLine } from "./storefrontTheme";
 import {
   buildStreetBannerSlides,
@@ -437,6 +439,12 @@ function StreetProductPage({
     setQty((current) => Math.min(Math.max(1, current), maxQty));
   }, [maxQty]);
 
+  // 360° view: shown first in the gallery when the shop uploaded enough photos around the product.
+  const spin = hasProductSpin(product.spin);
+  // A listing with a spin but no photo uses the first frame on its card; do not repeat it here.
+  const photos = spin ? product.images.filter((src) => src !== product.spin[0]) : product.images;
+  const galleryRef = useRef<HTMLDivElement | null>(null);
+
   const url = storefrontProductUrl(orgSlug, product.productId);
   const share = async () => {
     try {
@@ -478,14 +486,32 @@ function StreetProductPage({
         ← Back
       </button>
       <div className="st-pdp">
-        <div className={`st-gallery${product.images.length > 1 ? " st-gallery-multi" : ""}`}>
-          {product.images.length > 0 ? (
-            product.images.slice(0, 6).map((src, i) => (
+        <div
+          className={`st-gallery${photos.length + (spin ? 1 : 0) > 1 ? " st-gallery-multi" : ""}`}
+          ref={galleryRef}
+        >
+          {spin ? (
+            <StreetSpinViewer
+              key={product.productId}
+              frames={product.spin}
+              name={product.name}
+              onMorePhotos={
+                photos.length > 0
+                  ? () => {
+                      const el = galleryRef.current;
+                      el?.scrollBy({ left: el.clientWidth * 0.86, behavior: "smooth" });
+                    }
+                  : undefined
+              }
+            />
+          ) : null}
+          {photos.length > 0 ? (
+            photos.slice(0, 6).map((src, i) => (
               <div className="st-gallery-item" key={src}>
-                <img src={src} alt={i === 0 ? product.name : ""} loading={i === 0 ? "eager" : "lazy"} decoding="async" />
+                <img src={src} alt={i === 0 ? product.name : ""} loading={i === 0 && !spin ? "eager" : "lazy"} decoding="async" />
               </div>
             ))
-          ) : (
+          ) : spin ? null : (
             <div className="st-gallery-item st-gallery-empty">Photo coming soon</div>
           )}
         </div>
@@ -683,7 +709,9 @@ export function StreetStorefront({
     () =>
       (sampleMode ? streetSampleCatalogue() : products).map((raw) => {
         const product = toEllaStorefrontProduct(raw);
-        // No photo yet: a drawn sample picture (captioned as such) instead of an empty box.
+        // No photo yet: the first 360° frame if there is one, else a drawn sample picture
+        // (captioned as such) instead of an empty box.
+        if (product.images.length === 0 && hasProductSpin(product.spin)) return { ...product, images: [product.spin[0]] };
         return product.images.length > 0
           ? product
           : {

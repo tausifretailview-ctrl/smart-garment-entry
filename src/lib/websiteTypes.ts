@@ -89,6 +89,8 @@ export type PublicStorefrontProduct = {
   name: string;
   /** ERP product name when a website name replaced `name`. */
   erp_name?: string | null;
+  /** 360° spin frames in shooting order (see productSpin.ts); absent when the listing has none. */
+  spin_urls?: string[];
   description?: string | null;
   brand: string | null;
   category: string | null;
