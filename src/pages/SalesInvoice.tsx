@@ -732,6 +732,10 @@ export default function SalesInvoice() {
   } | null>(null);
   const [showQuickServiceDialog, setShowQuickServiceDialog] = useState(false);
   const [quickServiceCode, setQuickServiceCode] = useState("");
+  /** Line to put the cursor on once the add has rendered (see the effect after lineGrid). */
+  const pendingGridFocusRef = useRef<{ id: string | null } | null>(null);
+  /** The last product came from the Browse products list (not the barcode box). */
+  const lastAddFromBrowseRef = useRef(false);
   const [quickServiceProductForAdd, setQuickServiceProductForAdd] = useState<{
     product: any;
     variant: any;
@@ -1017,6 +1021,11 @@ export default function SalesInvoice() {
   // Fetch settings (centralized, cached 5min)
   const { data: settingsData, isFetched: settingsFetched } = useSettings();
   const serviceDefaultQty = useMemo(() => resolveServiceDefaultQty(settingsData as Record<string, any> | null), [settingsData]);
+  // Settings → Sale "Cursor to Qty after adding a product" (the Qty window, when also on,
+  // already took the quantity).
+  const saleEditQtyOnAdd =
+    isSaleFocusQtyAfterAddEnabled((settingsData as any)?.sale_settings) &&
+    !isSaleGoodsAskQtyDialogEnabled((settingsData as any)?.sale_settings);
 
   // Lines restored from a saved bill, draft or duplicate carry no product type, so a
   // service line couldn't take 0.5 qty. Look the type up once per product and fill it in.
@@ -2011,6 +2020,7 @@ export default function SalesInvoice() {
   const searchAndAddProduct = useCallback(async (searchTerm: string) => {
     const normalizedSearchTerm = searchTerm.trim().toLowerCase();
     if (!normalizedSearchTerm) return;
+    lastAddFromBrowseRef.current = false;
 
     let foundVariant: any = null;
     let foundProduct: any = null;
@@ -2454,7 +2464,8 @@ export default function SalesInvoice() {
 
     // Use functional update with duplicate check INSIDE to prevent stale state during rapid barcode scans
     hasManuallyAddedNewItemRef.current = true;
-    let touchedItemId: string | null = null;
+    // Filled in by the update below when React runs it; read by the grid-focus effect.
+    const gridFocusRequest: { id: string | null } = { id: null };
     setLineItems(prev => {
       // Service: merge only same variant + same price (different MRP = separate line, like POS).
       const existingIndex = prev.findIndex((item) => {
@@ -2474,7 +2485,7 @@ export default function SalesInvoice() {
           ...updatedItems[existingIndex],
           quantity: Math.round((updatedItems[existingIndex].quantity + addQty) * 1000) / 1000,
         });
-        touchedItemId = updatedItems[existingIndex].id;
+        gridFocusRequest.id = updatedItems[existingIndex].id;
         next = updatedItems;
       } else {
         // New item: find empty row or append
@@ -2508,7 +2519,7 @@ export default function SalesInvoice() {
             ...newItemBase,
             id: `row-${prev.length}`,
           });
-          touchedItemId = newItem.id;
+          gridFocusRequest.id = newItem.id;
           next = [...prev, newItem];
         } else {
           const updatedItems = [...prev];
@@ -2516,7 +2527,7 @@ export default function SalesInvoice() {
             ...newItemBase,
             id: updatedItems[emptyRowIndex].id,
           });
-          touchedItemId = updatedItems[emptyRowIndex].id;
+          gridFocusRequest.id = updatedItems[emptyRowIndex].id;
           next = updatedItems;
         }
       }
@@ -2540,9 +2551,9 @@ export default function SalesInvoice() {
       tableContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 100);
 
-    if (touchedItemId) {
-      scheduleGridFocusRef.current(touchedItemId);
-    }
+    // The line is created when React runs the update (after this function), so the cursor is
+    // placed from an effect once it exists — reading touchedItemId here was always too early.
+    pendingGridFocusRef.current = gridFocusRequest;
     
     // Toast removed - was interrupting workflow
   };
@@ -3146,13 +3157,33 @@ export default function SalesInvoice() {
     },
     // Settings → Sale "Cursor to Qty after adding a product" (the Qty window, when also on,
     // already took the quantity).
-    editQtyOnAdd:
-      isSaleFocusQtyAfterAddEnabled((settingsData as any)?.sale_settings) &&
-      !isSaleGoodsAskQtyDialogEnabled((settingsData as any)?.sale_settings),
-    onReturnToSearch: () => setTimeout(() => barcodeInputRef.current?.focus(), 0),
+    editQtyOnAdd: saleEditQtyOnAdd,
+    // Back to where the product was picked: the Browse list reopens, else the barcode box.
+    onReturnToSearch: () => {
+      if (lastAddFromBrowseRef.current) {
+        lastAddFromBrowseRef.current = false;
+        setOpenProductSearch(true);
+        return;
+      }
+      setTimeout(() => barcodeInputRef.current?.focus(), 0);
+    },
   });
 
   scheduleGridFocusRef.current = lineGrid.scheduleFocusOnItem;
+
+  // After an add has rendered: cursor to that line's Qty (open for typing with "Cursor to Qty
+  // after adding a product").
+  useEffect(() => {
+    const request = pendingGridFocusRef.current;
+    if (!request?.id) return;
+    // Setting off: the cursor stays in the search / barcode box, as it always has (moving it to
+    // the grid would send the next scan into the line instead of the barcode box).
+    if (!saleEditQtyOnAdd) {
+      pendingGridFocusRef.current = null;
+      return;
+    }
+    if (lineGrid.focusItemQty(request.id)) pendingGridFocusRef.current = null;
+  }, [lineItems, lineGrid, saleEditQtyOnAdd]);
 
   const handleSelectExistingCustomerFromAddDialog = useCallback((customer: CustomerPhoneLookupRow) => {
     setSelectedCustomerId(customer.id);
@@ -5443,7 +5474,15 @@ Thank you for choosing us!`;
                   />
                 </div>
               </PopoverTrigger>
-              <PopoverContent className="w-[600px] p-0 z-50" align="start">
+              <PopoverContent
+                className="w-[600px] p-0 z-50"
+                align="start"
+                // Closing the list put the cursor back on its box, stealing it from the Qty that
+                // "Cursor to Qty after adding a product" had just opened.
+                onCloseAutoFocus={(e) => {
+                  if (saleEditQtyOnAdd) e.preventDefault();
+                }}
+              >
                 <Command shouldFilter={false}>
                   <CommandInput placeholder="Search by name, barcode, brand, style..." value={searchInput} onValueChange={setSearchInput} />
                   <CommandList className="max-h-[400px]">
@@ -5480,7 +5519,10 @@ Thank you for choosing us!`;
                           <CommandItem
                             key={variant.id}
                             value={variant.id}
-                            onSelect={() => addProductToInvoice(product, variant)}
+                            onSelect={() => {
+                              lastAddFromBrowseRef.current = true;
+                              void addProductToInvoice(product, variant);
+                            }}
                             className="cursor-pointer py-2 group"
                           >
                             <div className="flex flex-col w-full gap-1">
