@@ -126,11 +126,12 @@ const CUSTOMER_RECEIPT_REFERENCE_TYPES = new Set(
   CUSTOMER_RECEIPT_REFERENCE_TYPE_VALUES.map((v) => v.toLowerCase()),
 );
 
-/** True for customer RCP rows; excludes supplier/employee/expense receipts. */
+/** True for customer RCP rows; excludes supplier/employee/expense/third-party (incl. capital) receipts. */
 export function isCustomerReceiptVoucher(v: PaymentVoucherRow): boolean {
   if (String(v.voucher_type || "").toLowerCase() !== "receipt") return false;
   const refType = String(v.reference_type || "").toLowerCase();
-  if (refType === "supplier" || refType === "employee" || refType === "expense") {
+  // Third-party pay/receive and owner capital (reference_type "third_party") are not customers.
+  if (refType === "supplier" || refType === "employee" || refType === "expense" || refType === "third_party") {
     return false;
   }
   if (CUSTOMER_RECEIPT_REFERENCE_TYPES.has(refType)) return true;

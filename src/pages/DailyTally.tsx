@@ -49,6 +49,7 @@ const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import DailyTallyReport from "@/components/DailyTallyReport";
 import { classifyDailyTallyPaymentOutflow } from "@/utils/accounting/thirdPartyVoucherCash";
+import { resolveCashTallyPaymentMode } from "@/utils/cashTallyExpectedDrawer";
 import { fetchAllSalesWithFilters } from "@/utils/fetchAllRows";
 import {
   ResponsiveContainer,
@@ -65,6 +66,8 @@ import {
 } from "recharts";
 
 // ─── helpers ───────────────────────────────────────────────────────────
+/** voucher_entries.payment_method values that say for sure how the money moved. */
+const KNOWN_VOUCHER_PAYMENT_METHODS = new Set(["cash", "upi", "card", "bank", "bank_transfer", "cheque", "neft", "rtgs"]);
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2 }).format(n);
 
@@ -382,7 +385,11 @@ const DailyTally = () => {
     // Process vouchers — FIX 8: strict voucher_type check only for expenses
     (vouchersData || []).forEach((v: any) => {
       const rawAmt = Number(v.total_amount) || 0;
-      const mode = parsePaymentMode(v.description);
+      // Stored payment method first (as Account Tally / Cash Tally do), so a bank or UPI
+      // receipt is not counted as cash; old rows without one fall back to the description.
+      const mode = KNOWN_VOUCHER_PAYMENT_METHODS.has(String(v.payment_method || "").toLowerCase().trim())
+        ? resolveCashTallyPaymentMode(v.payment_method, "")
+        : parsePaymentMode(v.description);
       const addToMode = (b: PaymentBreakdown, amt: number) => {
         b[mode as keyof PaymentBreakdown] = (b[mode as keyof PaymentBreakdown] as number) + amt;
         b.total += amt;

@@ -295,6 +295,11 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
     layout: "layout",
     roles: ["admin", "manager"],
   },
+  "capital-investment": {
+    loader: () => import("@/pages/accounts/CapitalInvestment"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
   "third-party-balances": {
     loader: () => import("@/pages/accounts/ThirdPartyBalancesPage"),
     layout: "layout",

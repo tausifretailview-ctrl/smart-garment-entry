@@ -49,6 +49,7 @@ export const ChartOfAccounts = lazyWithRetry(() => import("@/pages/accounts/Char
 export const JournalVouchers = lazyWithRetry(() => import("@/pages/accounts/JournalVouchers"));
 export const ManualJournalEntry = lazyWithRetry(() => import("@/pages/accounts/ManualJournalEntry"));
 export const ThirdPartyVoucherEntry = lazyWithRetry(() => import("@/pages/accounts/ThirdPartyVoucherEntry"));
+export const CapitalInvestment = lazyWithRetry(() => import("@/pages/accounts/CapitalInvestment"));
 export const ThirdPartyBalancesPage = lazyWithRetry(() => import("@/pages/accounts/ThirdPartyBalancesPage"));
 export const BankStatementPage = lazyWithRetry(() => import("@/pages/accounts/BankStatementPage"));
 export const LedgerOpeningBalances = lazyWithRetry(() => import("@/pages/accounts/LedgerOpeningBalances"));

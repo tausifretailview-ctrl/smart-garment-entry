@@ -58,6 +58,7 @@ import {
   type ThirdPartyHistoryVoucher,
 } from "@/utils/accounting/thirdPartyVoucherHistory";
 import { calculateGlAccountLedger } from "@/utils/accountingReportUtils";
+import { filterCapitalLedgers } from "@/utils/accounting/capitalAccounts";
 
 type Direction = "paid_out" | "received";
 type MasterAccountType = "Asset" | "Liability";
@@ -274,7 +275,9 @@ export default function ThirdPartyVoucherEntry() {
   });
 
   const historyRows = useMemo(() => {
-    const rows = historyQuery.data || [];
+    // Owner capital entries are shown on Capital & Investment, not here.
+    const capitalIds = new Set(filterCapitalLedgers(accounts).map((a) => a.id));
+    const rows = (historyQuery.data || []).filter((v) => !v.reference_id || !capitalIds.has(v.reference_id));
     const q = historySearch.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((v) => {
@@ -285,7 +288,7 @@ export default function ThirdPartyVoucherEntry() {
         partyName.toLowerCase().includes(q)
       );
     });
-  }, [historyQuery.data, historySearch, partyAccounts]);
+  }, [historyQuery.data, historySearch, partyAccounts, accounts]);
 
   const postMutation = useMutation({
     mutationFn: async () => {
