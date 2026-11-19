@@ -7,10 +7,38 @@ interface CeilingResult {
   maxAllowed?: number;
 }
 
+/** Transfer states whose stock has left the sending shop (a rejected/cancelled one went back). */
+export const TRANSFER_OUT_STATUSES = ["pending", "accepted"] as const;
+/** Transfer state whose stock has arrived in the receiving shop. */
+export const TRANSFER_IN_STATUS = "accepted";
+
+/**
+ * Most stock a variant can hold: what came in (opening, purchases, stock transfers received)
+ * minus what went back out without a sale (purchase returns, stock transfers sent).
+ * Same formula as the database trigger check_stock_ceiling_on_sale_return.
+ */
+export function stockCeilingMax(parts: {
+  opening: number;
+  purchased: number;
+  purchaseReturned: number;
+  transferredIn?: number;
+  transferredOut?: number;
+}): number {
+  const n = (v: unknown) => Number(v) || 0;
+  return (
+    n(parts.opening) +
+    n(parts.purchased) -
+    n(parts.purchaseReturned) +
+    n(parts.transferredIn) -
+    n(parts.transferredOut)
+  );
+}
+
 /**
  * Stock Ceiling Validation
  * Ensures stock_qty + proposed addition never exceeds
- * total purchased - total purchase-returned for a variant.
+ * total purchased - total purchase-returned for a variant, counting stock transfers
+ * between sibling shops (an item that arrived by transfer was never purchased there).
  *
  * @param supabase  - Supabase client
  * @param variantId - product_variants.id (sku_id)
@@ -70,8 +98,34 @@ export const validateStockCeiling = async (
       0
     );
 
-    // 4. Ceiling = opening + purchased - purchase-returned
-    const maxAllowed = openingQty + totalPurchased - totalPurchaseReturned;
+    // 4. Stock transfers: received here (accepted) and sent from here (not rejected/cancelled)
+    const sumQty = (rows: Array<{ qty: unknown }> | null) =>
+      (rows ?? []).reduce((sum, r) => sum + (Number(r.qty) || 0), 0);
+    const [inRes, outRes] = await Promise.all([
+      supabase
+        .from("stock_transfer_items")
+        .select("qty, stock_transfers!inner(status)")
+        .eq("to_variant_id", variantId)
+        .eq("stock_transfers.status", TRANSFER_IN_STATUS),
+      supabase
+        .from("stock_transfer_items")
+        .select("qty, stock_transfers!inner(status)")
+        .eq("from_variant_id", variantId)
+        .in("stock_transfers.status", [...TRANSFER_OUT_STATUSES]),
+    ]);
+    if (inRes.error) throw inRes.error;
+    if (outRes.error) throw outRes.error;
+    const transferredIn = sumQty(inRes.data as Array<{ qty: unknown }> | null);
+    const transferredOut = sumQty(outRes.data as Array<{ qty: unknown }> | null);
+
+    // 5. Ceiling = opening + purchased - purchase-returned + transferred in - transferred out
+    const maxAllowed = stockCeilingMax({
+      opening: openingQty,
+      purchased: totalPurchased,
+      purchaseReturned: totalPurchaseReturned,
+      transferredIn,
+      transferredOut,
+    });
     const projectedStock = currentStock + qtyToAdd;
 
     if (projectedStock > maxAllowed) {
@@ -83,7 +137,8 @@ export const validateStockCeiling = async (
           `[${operation}] Stock ceiling exceeded. ` +
           `Current: ${currentStock}, Adding: +${qtyToAdd}, ` +
           `Projected: ${projectedStock}, Max allowed: ${maxAllowed} ` +
-          `(Opening: ${openingQty}, Purchased: ${totalPurchased}, Returned: ${totalPurchaseReturned})`,
+          `(Opening: ${openingQty}, Purchased: ${totalPurchased}, Returned: ${totalPurchaseReturned}` +
+          `${transferredIn || transferredOut ? `, Transfer in: ${transferredIn}, Transfer out: ${transferredOut}` : ""})`,
       };
     }
 

@@ -1887,15 +1887,26 @@
   .street-store .st-cats-rail { grid-auto-columns: 32%; }
 }
 @media (min-width: 1024px) {
-  .street-store .st-cats-rail { grid-auto-columns: calc((100% - 56px) / 4.4); margin: 0; padding: 0 0 6px; }
+  /* Few categories: centred under the centred heading; many still scroll from the left. */
+  .street-store .st-cats-rail { grid-auto-columns: calc((100% - 56px) / 4.4); justify-content: safe center; margin: 0; padding: 0 0 6px; }
   .ella-store.street-store button.st-cat:hover .st-cat-photo img { transform: scale(1.05); }
 }
 
 /* --- home banner a little taller; video wording medium weight --------------- */
 .street-store .st-hero-images { aspect-ratio: 2 / 1; }
 @media (min-width: 1024px) {
+  /* Desktop: the banner spans the full screen width. The phone 2:1 shape must not
+     carry over — with a fixed height it pinned the width to 2 × height (1360px),
+     leaving a blank band on wider screens. Height follows the width (recommended
+     upload 1920 × 800), within 460–780px and the window height. */
   .street-store .st-hero,
-  .street-store .st-hero-images { height: clamp(460px, 68vh, 680px); }
+  .street-store .st-hero-images {
+    aspect-ratio: auto;
+    height: clamp(460px, min(42vw, 78vh), 780px);
+    width: 100%;
+  }
+  /* Keep faces in frame when a taller photo is cropped to the wide banner. */
+  .street-store .st-slide-image .st-slide-photo { object-position: center 30%; }
 }
 .street-store .st-reel-caption { font-size: 13px; font-weight: 500; letter-spacing: 0.02em; text-transform: none; }
 .ella-store.street-store .st-reel-foot .st-btn.st-reel-shop {
