@@ -76,6 +76,7 @@ const BACK_MAP: Record<string, string> = {
   // Masters
   "customers":                "/",
   "suppliers":                "/",
+  "transporters":             "/",
   "employees":                "/",
   // Settings / Tools → Dashboard
   "settings":                 "/",

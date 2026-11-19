@@ -52,9 +52,9 @@ describe("layout-crossing audit", () => {
     const by = pathsByLayout();
     expect(by.pos).toEqual(["pos-sales"]);
     expect(by["pos-dc"]).toEqual(["pos-delivery-challan"]);
-    expect(by.fullscreen).toHaveLength(16);
+    expect(by.fullscreen).toHaveLength(17); // + transporters (Transport Master)
     expect(by.layout).toHaveLength(76);
-    expect(uniqueRegistryPaths()).toHaveLength(94);
+    expect(uniqueRegistryPaths()).toHaveLength(95);
   });
 
   it("only purchase-entry gets the 6s cacheable-entry remount", () => {

@@ -31,6 +31,7 @@ export const PAGE_TITLE_CONFIG: Record<string, { label: string; icon: string }> 
   customers: { label: "Customers", icon: "Users" },
   "accounting/customer": { label: "Customer Account", icon: "Users" },
   suppliers: { label: "Suppliers", icon: "Building2" },
+  transporters: { label: "Transport Master", icon: "Truck" },
   employees: { label: "Employees", icon: "UserCheck" },
   "salesman-commission": { label: "Commission", icon: "UserCheck" },
   "bulk-product-update": { label: "Bulk Update", icon: "Layers" },

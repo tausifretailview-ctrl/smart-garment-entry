@@ -47,6 +47,7 @@ import {
   CustomerMaster,
   CustomerAccountPage,
   SupplierMaster,
+  TransportMaster,
   EmployeeMaster,
   PurchaseReportBySupplier,
   SalesReportByCustomer,
@@ -1113,6 +1114,18 @@ export function AppRoutes() {
               <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                 <FullScreenLayout>
                   <SupplierMaster />
+                </FullScreenLayout>
+              </RoleProtectedRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="transporters"
+          element={
+            <ProtectedRoute>
+              <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                <FullScreenLayout>
+                  <TransportMaster />
                 </FullScreenLayout>
               </RoleProtectedRoute>
             </ProtectedRoute>
