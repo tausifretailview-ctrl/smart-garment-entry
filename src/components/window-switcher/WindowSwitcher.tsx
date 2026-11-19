@@ -8,7 +8,9 @@ import {
   lastUsedLabel,
   stepIndex,
   windowDetail,
+  withCurrentFirst,
 } from "@/lib/windowSwitcher";
+import { resolveTabCachePath } from "@/lib/tabPageRegistry";
 import "./window-switcher.css";
 
 type Held = "Alt" | "Control" | null;
@@ -91,7 +93,9 @@ export function WindowSwitcher() {
   const [selected, setSelected] = useState(0);
   const [visible, setVisible] = useState(false);
   const held = useRef<Held>(null);
-  const windows = windowsByRecent;
+  // The page on screen, read from the address (the tab state can be a render behind it).
+  const currentPath = resolveTabCachePath(window.location.pathname.split("/").filter(Boolean).slice(1).join("/"));
+  const windows = withCurrentFirst(windowsByRecent, currentPath);
   const count = windows.length;
   const listRef = useRef(windows);
   listRef.current = windows;
@@ -110,13 +114,16 @@ export function WindowSwitcher() {
     (index?: number) => {
       const target = listRef.current[index ?? selectedRef.current];
       close();
-      if (target && target.path !== activeWindow) switchWindow(target.path);
+      const here = resolveTabCachePath(window.location.pathname.split("/").filter(Boolean).slice(1).join("/"));
+      if (target && target.path !== here) switchWindow(target.path);
     },
-    [activeWindow, close, switchWindow],
+    [close, switchWindow],
   );
 
   const openSwitcher = useCallback(
     (by: Held) => {
+      const here = resolveTabCachePath(window.location.pathname.split("/").filter(Boolean).slice(1).join("/"));
+      listRef.current = withCurrentFirst(listRef.current, here);
       if (listRef.current.length === 0) return;
       held.current = by;
       setSelected(initialSelection(listRef.current.length));
@@ -241,7 +248,7 @@ export function WindowSwitcher() {
             const Icon = getTabIcon(w.icon);
             const [from, to] = PALETTE[w.icon] ?? ["#6366f1", "#0ea5e9"];
             const isSel = i === selected;
-            const isActive = w.path === activeWindow;
+            const isActive = w.path === currentPath || (!currentPath && w.path === activeWindow);
             const detail = windowDetail(w.path, w.search);
             const used = isActive ? "Current window" : lastUsedLabel(lastUsedAt[w.path], now) || "Open";
             return (

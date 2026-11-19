@@ -171,7 +171,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
-import { useDraftSave } from "@/hooks/useDraftSave";
+import { isExplicitEntryOpen, useDraftSave, useResumeEntryOnReturn } from "@/hooks/useDraftSave";
 import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
@@ -764,6 +764,7 @@ export default function SalesInvoice() {
     updateCurrentData,
     startAutoSave,
     stopAutoSave,
+    takeResumeCopy,
   } = useDraftSave('sale_invoice');
 
   // Load draft data
@@ -793,6 +794,9 @@ export default function SalesInvoice() {
     setRoundOff(data.roundOff || 0);
     // Silent restore - no toast to avoid disturbing user
   }, [toast, rebuildStagedQtyByVariantRef]);
+
+  // Back on this page after switching window (Alt+W, tab, menu): the same unsaved bill again.
+  useResumeEntryOnReturn(takeResumeCopy, loadDraftData, isExplicitEntryOpen(location.state, location.search));
 
   // Check for draft on mount (only if not in edit mode)
   const initialDraftCheckDone = useRef(false);
@@ -848,6 +852,9 @@ export default function SalesInvoice() {
     const filledItems = lineItems.filter(item => item.productId !== '');
     if (!editingInvoiceId && filledItems.length > 0) {
       updateCurrentData(buildDraftSnapshot());
+    } else if (!editingInvoiceId) {
+      // Every line removed: nothing to keep, so leaving the page must not bring an old bill back.
+      updateCurrentData(null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoiceDate, dueDate, lineItems, selectedCustomerId, selectedCustomer, paymentTerm, termsConditions, notes, shippingAddress, shippingInstructions, taxType, salesman, flatDiscountPercent, flatDiscountRupees, otherCharges, roundOff, b2bForm, editingInvoiceId, updateCurrentData]);
@@ -4417,6 +4424,9 @@ Thank you for choosing us!`;
   
   // Points redemption
   const pointsRedemptionValue = calculateRedemptionValue(pointsToRedeem);
+  /** Points + Redeem live in the footer after Round Off; the mini stats make room for them. */
+  const showFooterPoints = !!selectedCustomerId && isPointsEnabled;
+  const footerSepCls = cn("w-px h-8 bg-slate-600 shrink-0", showFooterPoints ? "mx-2" : "mx-3");
   const netBeforeRoundOff = (taxType === "inclusive" ? amountAfterDiscount : amountAfterDiscount + totalGST) - pointsRedemptionValue;
   
   // Auto-calculate round-off to make final amount a whole number
@@ -5287,51 +5297,6 @@ Thank you for choosing us!`;
                 ) : null}
               </div>
             )}
-            {/* CRM Loyalty Points */}
-            {selectedCustomerId && isPointsEnabled && (
-              <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                {/* Points Balance Badge */}
-                <div className="flex items-center gap-1.5 bg-amber-500 text-white px-2.5 py-1 rounded-lg text-xs font-semibold">
-                  <Coins className="h-3.5 w-3.5" />
-                  <span>{customerPointsData?.balance || 0} pts</span>
-                  {lineItems.filter(i => i.productId).length > 0 && (
-                    <span className="text-amber-100 text-xs">
-                      +{calculatePoints(lineItems.reduce((s, i) => s + i.lineTotal, 0))} earn
-                    </span>
-                  )}
-                </div>
-
-                {/* Redeem Input */}
-                {isRedemptionEnabled &&
-                 (customerPointsData?.balance || 0) >= (pointsSettings?.min_points_for_redemption || 10) && (
-                  <div className="flex items-center gap-1.5 bg-green-600 px-2.5 py-1 rounded-lg">
-                    <span className="text-white text-xs font-medium">Redeem:</span>
-                    <Input
-                      type="number"
-                      className="w-16 h-7 bg-white text-green-700 text-center text-xs font-semibold rounded border-0"
-                      value={pointsToRedeem || ""}
-                      placeholder="0"
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value) || 0;
-                        const max = calculateMaxRedeemablePoints(
-                          grossAmount - lineItemDiscount - flatDiscountAmount,
-                          customerPointsData?.balance || 0
-                        );
-                        setPointsToRedeem(Math.min(Math.max(0, val), max));
-                      }}
-                      min={0}
-                      max={calculateMaxRedeemablePoints(
-                        grossAmount - lineItemDiscount - flatDiscountAmount,
-                        customerPointsData?.balance || 0
-                      )}
-                    />
-                    <span className="text-white text-xs whitespace-nowrap">
-                      pts = ₹{calculateRedemptionValue(pointsToRedeem).toFixed(0)}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
             {selectedCustomer?.transport_details && (
               <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <span className="font-medium">Transport:</span>
@@ -6028,7 +5993,7 @@ Thank you for choosing us!`;
         {/* Top Row: Inputs + Stats + Net Amount — single line */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white border-t-2 border-blue-600 w-full">
           <div className="flex items-center justify-between px-4 py-3 gap-4 w-full min-w-0">
-            <div className="flex items-center gap-0 shrink-0 overflow-x-auto">
+            <div className={cn("flex items-center gap-0 overflow-x-auto", showFooterPoints ? "min-w-0" : "shrink-0")}>
             {/* FLAT DISC % */}
             <span className="text-[15px] font-extrabold uppercase tracking-wider text-slate-200 mr-2 whitespace-nowrap">Flat Disc %</span>
             <Input
@@ -6040,7 +6005,7 @@ Thank you for choosing us!`;
               className="w-[80px] h-10 text-[17px] text-right bg-white text-slate-900 font-extrabold font-mono border-0 rounded-sm"
             />
 
-            <div className="w-px h-8 bg-slate-600 mx-3 shrink-0" />
+            <div className={footerSepCls} />
 
             {/* FLAT DISC ₹ */}
             <span className="text-[15px] font-extrabold uppercase tracking-wider text-slate-200 mr-2 whitespace-nowrap">Flat Disc ₹</span>
@@ -6053,7 +6018,7 @@ Thank you for choosing us!`;
               className="w-[90px] h-10 text-[17px] text-right bg-white text-slate-900 font-extrabold font-mono border-0 rounded-sm"
             />
 
-            <div className="w-px h-8 bg-slate-600 mx-3 shrink-0" />
+            <div className={footerSepCls} />
 
             {/* Other Charges */}
             <span className="text-[15px] font-extrabold uppercase tracking-wider text-slate-200 mr-2 whitespace-nowrap">Charges</span>
@@ -6066,7 +6031,7 @@ Thank you for choosing us!`;
               className="w-[90px] h-10 text-[17px] text-right bg-white text-slate-900 font-extrabold font-mono border-0 rounded-sm"
             />
 
-            <div className="w-px h-8 bg-slate-600 mx-3 shrink-0" />
+            <div className={footerSepCls} />
 
             {/* Round Off */}
             <span className="text-[15px] font-extrabold uppercase tracking-wider text-slate-200 mr-2 whitespace-nowrap">Round</span>
@@ -6082,21 +6047,76 @@ Thank you for choosing us!`;
               className="w-[110px] h-10 text-[17px] text-right bg-white text-slate-900 font-extrabold font-mono border-0 rounded-sm"
             />
 
-            {pointsToRedeem > 0 && (
+            {/* Loyalty points + redeem (after Round Off) */}
+            {showFooterPoints ? (
               <>
-                <div className="w-px h-8 bg-slate-600 mx-3 shrink-0" />
+                <div className={footerSepCls} />
+                <div className="flex items-center gap-2 shrink-0" data-testid="sale-points-redeem">
+                  <div
+                    className="flex flex-col justify-center leading-tight rounded-md bg-amber-500/15 ring-1 ring-amber-400/40 px-2 py-1"
+                    title="Customer loyalty points"
+                  >
+                    <span className="flex items-center gap-1 text-[14px] font-extrabold text-amber-300 whitespace-nowrap tabular-nums">
+                      <Coins className="h-3.5 w-3.5" />
+                      {customerPointsData?.balance || 0} pts
+                    </span>
+                    {lineItems.some(i => i.productId) && (
+                      <span className="text-[11px] font-bold text-amber-200/80 whitespace-nowrap tabular-nums">
+                        +{calculatePoints(lineItems.reduce((s, i) => s + i.lineTotal, 0))} earn
+                      </span>
+                    )}
+                  </div>
+                  {isRedemptionEnabled &&
+                   (customerPointsData?.balance || 0) >= (pointsSettings?.min_points_for_redemption || 10) ? (
+                    <>
+                      <span className="text-[15px] font-extrabold uppercase tracking-wider text-slate-200 whitespace-nowrap">Redeem</span>
+                      <Input
+                        type="number"
+                        aria-label="Redeem points"
+                        className="w-[80px] h-10 text-[17px] text-right bg-white text-slate-900 font-extrabold font-mono border-0 rounded-sm"
+                        value={pointsToRedeem || ""}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 0;
+                          const max = calculateMaxRedeemablePoints(
+                            grossAmount - lineItemDiscount - flatDiscountAmount,
+                            customerPointsData?.balance || 0
+                          );
+                          setPointsToRedeem(Math.min(Math.max(0, val), max));
+                        }}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                        min={0}
+                        max={calculateMaxRedeemablePoints(
+                          grossAmount - lineItemDiscount - flatDiscountAmount,
+                          customerPointsData?.balance || 0
+                        )}
+                      />
+                      <span className="text-[15px] text-amber-300 font-extrabold whitespace-nowrap tabular-nums">
+                        -₹{calculateRedemptionValue(pointsToRedeem).toFixed(0)}
+                      </span>
+                    </>
+                  ) : pointsToRedeem > 0 ? (
+                    <span className="text-[15px] text-amber-300 font-extrabold whitespace-nowrap tabular-nums">
+                      Pts: -₹{pointsRedemptionValue.toFixed(0)}
+                    </span>
+                  ) : null}
+                </div>
+              </>
+            ) : pointsToRedeem > 0 ? (
+              <>
+                <div className={footerSepCls} />
                 <span className="text-[15px] text-amber-300 font-extrabold flex items-center gap-1 whitespace-nowrap">
                   <Coins className="h-4 w-4" />
                   Pts: -₹{pointsRedemptionValue.toFixed(0)}
                 </span>
               </>
-            )}
+            ) : null}
             </div>
 
             {/* Right-pinned Net Amount */}
             {/* Mini stats block: Items / Qty / Gross / Discount */}
             <div className="flex items-center gap-4 shrink-0">
-              <div className="hidden md:flex flex-col gap-0.5 pl-4 border-l border-slate-600">
+              <div className={cn("hidden flex-col gap-0.5 pl-4 border-l border-slate-600", showFooterPoints ? "min-[1880px]:flex" : "md:flex")}>
                 <div className="flex items-center justify-between gap-3 min-w-[120px]">
                   <span className="text-[12px] uppercase tracking-wider text-slate-300 font-extrabold">Items</span>
                   <span className="text-[16px] font-extrabold text-white tabular-nums">
@@ -6110,7 +6130,7 @@ Thank you for choosing us!`;
                   </span>
                 </div>
               </div>
-              <div className="hidden lg:flex flex-col gap-0.5 pl-4 border-l border-slate-600">
+              <div className={cn("hidden flex-col gap-0.5 pl-4 border-l border-slate-600", showFooterPoints ? "min-[1700px]:flex" : "lg:flex")}>
                 <div className="flex items-center justify-between gap-3 min-w-[140px]">
                   <span className="text-[12px] uppercase tracking-wider text-slate-300 font-extrabold">Gross</span>
                   <span className="text-[16px] font-extrabold text-slate-100 tabular-nums">₹{grossAmount.toFixed(0)}</span>
