@@ -1,3 +1,5 @@
+import { SaleLineStockBadge } from "@/components/sales/SaleLineStockBadge";
+import { LIVE_STOCK_REFRESH_MS, fetchVariantStock, qtyByVariant, saleLineLiveStock } from "@/lib/saleLineLiveStock";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import {
   isSaleFocusQtyAfterAddEnabled,
@@ -3125,6 +3127,34 @@ export default function SalesInvoice() {
     [displayLineItems],
   );
 
+  // Live stock of the bill's barcodes, shown under each line's barcode (screen only, not printed).
+  // Reads only the barcodes on this bill, again every 20 s while the window is in front.
+  const liveStockVariantKey = useMemo(
+    () =>
+      [...new Set(lineItems.map((l) => l.variantId).filter((id): id is string => Boolean(id)))]
+        .sort()
+        .join(","),
+    [lineItems],
+  );
+  const { data: liveStockById } = useQuery({
+    queryKey: ["sale-invoice-live-stock", currentOrganization?.id, liveStockVariantKey],
+    enabled: Boolean(currentOrganization?.id && liveStockVariantKey),
+    staleTime: 10_000,
+    refetchInterval: LIVE_STOCK_REFRESH_MS,
+    refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
+    queryFn: () => fetchVariantStock(supabase, currentOrganization!.id, liveStockVariantKey.split(",")),
+  });
+  const billQtyByVariant = useMemo(() => qtyByVariant(lineItems), [lineItems]);
+  const liveStockFor = (item: LineItem) =>
+    saleLineLiveStock({
+      productType: item.productType,
+      variantId: item.variantId,
+      stockNow: item.variantId ? liveStockById?.[item.variantId] : undefined,
+      freedByEdit: editFreedQty(item.variantId),
+      onBill: item.variantId ? billQtyByVariant.get(item.variantId) ?? 0 : 0,
+    });
+
   const lineGrid = useSalesInvoiceLineGridKeyboard({
     showCol,
     displayRowCount: displayLineItems.length,
@@ -4862,6 +4892,7 @@ Thank you for choosing us!`;
                         <p className="text-[11px] text-muted-foreground">
                           {item.size ? `${item.size} · ` : ""}{item.color || ""} × ₹{Math.round(item.salePrice || item.mrp || 0)}
                         </p>
+                        <SaleLineStockBadge view={liveStockFor(item)} />
                         <div className="flex items-center gap-2 mt-1">
                           <button onClick={() => {
                             const updated = [...lineItems];
@@ -5698,6 +5729,11 @@ Thank you for choosing us!`;
                       )}
                       <td {...lineGrid.getCellProps(displayIndex, "barcode", { baseClassName: "text-center px-3 py-2" })}>
                         <span className="font-mono text-[15px] font-semibold text-blue-600">{item.barcode || <span className="text-slate-300 font-normal">—</span>}</span>
+                        {item.productId ? (
+                          <span className="block">
+                            <SaleLineStockBadge view={liveStockFor(item)} />
+                          </span>
+                        ) : null}
                       </td>
                       {showCol.hsn && (
                         <td

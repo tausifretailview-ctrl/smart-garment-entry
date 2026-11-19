@@ -1,3 +1,4 @@
+import { takeEscBackTarget } from "@/lib/escapeHistory";
 import { posSaveBegin, posSaveMark } from "@/lib/posSaveTiming";
 import { PosMobileRequiredDialog } from "@/components/pos/PosMobileRequiredDialog";
 import { isPosMobileRequired, isValidPosMobile } from "@/utils/posRequiredMobile";
@@ -2233,7 +2234,9 @@ export default function POSSales() {
       if (hasItems) {
         handleClearAll();
       } else {
-        orgNavigatePOS('/pos-dashboard');
+        // Empty cart: back to the page visited before POS (POS Dashboard if none).
+        const slug = window.location.pathname.split("/").filter(Boolean)[0] || "";
+        orgNavigatePOS(takeEscBackTarget(slug, window.location.pathname) ?? '/pos-dashboard');
       }
     }
     // Ctrl+P - Print saved invoice
