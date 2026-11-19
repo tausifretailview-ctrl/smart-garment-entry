@@ -22,7 +22,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
-import { Check, Save, Trash2, Download, RefreshCw, Edit, Printer, Plus, Loader2, ChevronDown, ChevronLeft, Search, Package, History, Maximize2 } from "lucide-react";
+import { Check, Save, Trash2, Download, RefreshCw, Edit, Printer, Plus, Loader2, ChevronDown, ChevronLeft, Search, Package, History, Maximize2, LayoutGrid } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   encodePurchasePriceForLabel,
@@ -151,6 +151,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { cn } from "@/lib/utils";
 import { useBarcodeLabelSettings, SizeSortOrder } from "@/hooks/useBarcodeLabelSettings";
 import { BarTenderLabelDesigner } from "@/components/BarTenderLabelDesigner";
+import { FullPageSheetDesigner } from "@/components/barcode/FullPageSheetDesigner";
 import { FootwearPanelDesigner } from "@/components/labels/FootwearPanelDesigner";
 import { DirectPrintDialog } from "@/components/DirectPrintDialog";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -350,6 +351,8 @@ export default function BarcodePrinting() {
   // Start Label Position (Standard A4 only) — skips already-used slots on a
   // partially-used sheet. 1 = normal behavior. Ephemeral, not persisted.
   const [startPosition, setStartPosition] = useState(1);
+  /** Standard A4 sheets: label designer next to the whole A4 page (Full Page Designer). */
+  const [showFullPageDesigner, setShowFullPageDesigner] = useState(false);
   const [bottomOffset, setBottomOffset] = useState(0);
   const [rightOffset, setRightOffset] = useState(0);
   const [businessName, setBusinessName] = useState("SMART INVENTORY");
@@ -5245,6 +5248,18 @@ export default function BarcodePrinting() {
                   {showCustomizeFields ? "Hide" : "Show"} Designer
                 </Button>
 
+                {isA4SheetType() && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowFullPageDesigner(true)}
+                    title="Design with the whole A4 sheet in view"
+                  >
+                    <LayoutGrid className="h-4 w-4 mr-1" />
+                    Full Page Designer
+                  </Button>
+                )}
+
                 <Dialog open={isLabelTemplateSaveDialogOpen} onOpenChange={setIsLabelTemplateSaveDialogOpen}>
                   <DialogTrigger asChild>
                     <Button 
@@ -5997,6 +6012,78 @@ export default function BarcodePrinting() {
       {/* Independent, full-screen Label Designer — same component and save
           logic as the embedded panel above, just given proper room to work
           instead of a cramped in-page panel. */}
+      {showFullPageDesigner && (() => {
+        const dims = getA4SheetDimensions();
+        const margins = getSheetPageMargins();
+        const standardDesigner = (
+          <BarTenderLabelDesigner
+            labelConfig={labelConfig}
+            setLabelConfig={setStandardLabelConfig}
+            businessName={businessName}
+            sampleItem={labelItems.length > 0 ? labelItems[0] : null}
+            labelWidth={sheetType === 'custom' ? customWidth : parseFloat(sheetPresets[sheetType].width)}
+            labelHeight={sheetType === 'custom' ? customHeight : parseFloat(sheetPresets[sheetType].height)}
+            columns={sheetType === 'custom' ? customCols : sheetPresets[sheetType].cols}
+            savedTemplates={dbLabelTemplates}
+            selectedTemplateName={selectedLabelTemplate}
+            onSaveTemplate={saveTemplateToDb}
+            onUpdateTemplate={persistSelectedLabelTemplate}
+            onDeleteTemplate={deleteTemplateFromDb}
+            productFieldSettings={productFieldSettings}
+          />
+        );
+        return (
+          <FullPageSheetDesigner
+            open={showFullPageDesigner}
+            onOpenChange={setShowFullPageDesigner}
+            designer={standardDesigner}
+            items={labelItems}
+            labelHtml={(item) => getLabelHTML(item, designFormat)}
+            designKey={JSON.stringify([labelConfig, designFormat, businessName])}
+            absoluteLayout={hasAbsolutePositioning(labelConfig)}
+            sheet={{
+              cols: dims.cols,
+              rows: dims.rows,
+              widthMm: dims.width,
+              heightMm: dims.height,
+              gapMm: dims.gap,
+              marginTopMm: margins.marginTop,
+              marginLeftMm: margins.marginLeft,
+            }}
+            sheetType={sheetType}
+            sheetOptions={Object.entries(sheetPresetLabels)
+              .filter(([key]) => key === "custom" || isStandardA4SheetType(key))
+              .map(([value, meta]) => ({ value, label: meta.label, description: meta.description }))}
+            onSheetTypeChange={(v) => {
+              setSheetType(v as SheetType);
+              setSelectedPreset("");
+            }}
+            customSize={
+              sheetType === "custom"
+                ? { width: customWidth, height: customHeight, cols: customCols, rows: customRows, gap: customGap }
+                : null
+            }
+            onCustomSizeChange={(patch) => {
+              if (patch.width !== undefined) setCustomWidth(patch.width);
+              if (patch.height !== undefined) setCustomHeight(patch.height);
+              if (patch.cols !== undefined) setCustomCols(patch.cols);
+              if (patch.rows !== undefined) setCustomRows(patch.rows);
+              if (patch.gap !== undefined) setCustomGap(patch.gap);
+            }}
+            offsets={{ top: topOffset, left: leftOffset, bottom: bottomOffset, right: rightOffset }}
+            onOffsetsChange={(patch) => {
+              if (patch.top !== undefined) setTopOffset(patch.top);
+              if (patch.left !== undefined) setLeftOffset(patch.left);
+              if (patch.bottom !== undefined) setBottomOffset(patch.bottom);
+              if (patch.right !== undefined) setRightOffset(patch.right);
+            }}
+            startPosition={startPosition}
+            onStartPositionChange={setStartPosition}
+            onSaveDefault={handleSaveAsDefault}
+          />
+        );
+      })()}
+
       <Dialog open={showFullscreenDesigner} onOpenChange={setShowFullscreenDesigner}>
         <DialogContent className="max-w-[98vw] w-full h-[95vh] max-h-[95vh] flex flex-col p-4">
           <DialogHeader className="shrink-0">
