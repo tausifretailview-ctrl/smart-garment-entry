@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { initialSelection, lastUsedLabel, orderByRecent, stepIndex, touchRecent, windowDetail } from "./windowSwitcher";
+import { initialSelection, lastUsedLabel, orderByRecent, stepIndex, touchRecent, windowDetail, withCurrentFirst } from "./windowSwitcher";
 import { sketchKind } from "@/components/window-switcher/WindowSwitcher";
 
 const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
@@ -15,6 +15,13 @@ describe("Window switcher (Alt+W)", () => {
     const windows = [{ path: "" }, { path: "purchase-entry" }, { path: "customers" }, { path: "sales-invoice" }];
     expect(orderByRecent(windows, order).map((w) => w.path)).toEqual(["sales-invoice", "customers", "purchase-entry", ""]);
     expect(touchRecent(Array.from({ length: 25 }, (_, i) => `p${i}`), "x")).toHaveLength(20);
+  });
+
+  it("always lists the page on screen first, even if the recent list lags behind", () => {
+    const w = [{ path: "customers" }, { path: "sales-invoice" }, { path: "purchase-entry" }];
+    expect(withCurrentFirst(w, "purchase-entry").map((x) => x.path)).toEqual(["purchase-entry", "customers", "sales-invoice"]);
+    expect(withCurrentFirst(w, "customers")).toBe(w);
+    expect(withCurrentFirst(w, "not-open")).toBe(w);
   });
 
   it("starts on the window used before this one and wraps around", () => {

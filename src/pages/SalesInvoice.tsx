@@ -171,7 +171,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
-import { useDraftSave } from "@/hooks/useDraftSave";
+import { isExplicitEntryOpen, useDraftSave, useResumeEntryOnReturn } from "@/hooks/useDraftSave";
 import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
@@ -764,6 +764,7 @@ export default function SalesInvoice() {
     updateCurrentData,
     startAutoSave,
     stopAutoSave,
+    takeResumeCopy,
   } = useDraftSave('sale_invoice');
 
   // Load draft data
@@ -793,6 +794,9 @@ export default function SalesInvoice() {
     setRoundOff(data.roundOff || 0);
     // Silent restore - no toast to avoid disturbing user
   }, [toast, rebuildStagedQtyByVariantRef]);
+
+  // Back on this page after switching window (Alt+W, tab, menu): the same unsaved bill again.
+  useResumeEntryOnReturn(takeResumeCopy, loadDraftData, isExplicitEntryOpen(location.state, location.search));
 
   // Check for draft on mount (only if not in edit mode)
   const initialDraftCheckDone = useRef(false);
@@ -848,6 +852,9 @@ export default function SalesInvoice() {
     const filledItems = lineItems.filter(item => item.productId !== '');
     if (!editingInvoiceId && filledItems.length > 0) {
       updateCurrentData(buildDraftSnapshot());
+    } else if (!editingInvoiceId) {
+      // Every line removed: nothing to keep, so leaving the page must not bring an old bill back.
+      updateCurrentData(null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoiceDate, dueDate, lineItems, selectedCustomerId, selectedCustomer, paymentTerm, termsConditions, notes, shippingAddress, shippingInstructions, taxType, salesman, flatDiscountPercent, flatDiscountRupees, otherCharges, roundOff, b2bForm, editingInvoiceId, updateCurrentData]);

@@ -51,7 +51,7 @@ import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS } from "@/utils/thermalReceiptPrintDocument";
 import { waitForPrintReady } from "@/utils/printReady";
-import { useDraftSave } from "@/hooks/useDraftSave";
+import { isExplicitEntryOpen, useDraftSave, useResumeEntryOnReturn } from "@/hooks/useDraftSave";
 import { resolveSaleBillFormat, toInvoiceWrapperFormat, type PosBillFormat } from "@/utils/invoicePrintFormat";
 import { Switch } from "@/components/ui/switch";
 import { useIndustrialMode } from "@/hooks/useIndustrialMode";
@@ -168,6 +168,7 @@ export default function QuotationEntry() {
     updateCurrentData,
     startAutoSave,
     stopAutoSave,
+    takeResumeCopy,
   } = useDraftSave("quotation");
 
   const {
@@ -205,6 +206,9 @@ export default function QuotationEntry() {
     setFollowUpDate(typeof data.followUpDate === "string" ? data.followUpDate : "");
   }, []);
 
+  // Back on this page after switching window (Alt+W, tab, menu): the same unsaved bill again.
+  useResumeEntryOnReturn(takeResumeCopy, loadDraftData, isExplicitEntryOpen(location.state, location.search));
+
   useEffect(() => {
     if (location.state?.resumeDraft && !editingQuotationId && hasDraft && draftData) {
       loadDraftData(draftData);
@@ -231,6 +235,9 @@ export default function QuotationEntry() {
         roundOff,
         followUpDate,
       });
+    } else if (!editingQuotationId) {
+      // Every line removed: nothing to keep, so leaving the page must not bring an old bill back.
+      updateCurrentData(null);
     }
   }, [
     quotationDate, validUntil, lineItems, selectedCustomerId, selectedCustomer,

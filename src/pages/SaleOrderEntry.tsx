@@ -64,7 +64,7 @@ import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { SaleOrderPrint } from "@/components/SaleOrderPrint";
 import { INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS } from "@/utils/thermalReceiptPrintDocument";
 import { waitForPrintReady } from "@/utils/printReady";
-import { useDraftSave } from "@/hooks/useDraftSave";
+import { isExplicitEntryOpen, useDraftSave, useResumeEntryOnReturn } from "@/hooks/useDraftSave";
 import { useIndustrialMode } from "@/hooks/useIndustrialMode";
 
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
@@ -227,6 +227,7 @@ export default function SaleOrderEntry() {
     updateCurrentData,
     startAutoSave,
     stopAutoSave,
+    takeResumeCopy,
   } = useDraftSave('sale_order');
 
   // Load draft data
@@ -252,6 +253,9 @@ export default function SaleOrderEntry() {
     setCustomerPoDate(typeof data.customerPoDate === "string" ? data.customerPoDate : "");
     // Silent restore - no toast to avoid disturbing user
   }, [toast]);
+
+  // Back on this page after switching window (Alt+W, tab, menu): the same unsaved bill again.
+  useResumeEntryOnReturn(takeResumeCopy, loadDraftData, isExplicitEntryOpen(location.state, location.search));
 
   // Load draft automatically if navigated from dashboard with loadDraft flag
   useEffect(() => {
@@ -284,6 +288,9 @@ export default function SaleOrderEntry() {
         customerPoNo,
         customerPoDate,
       });
+    } else if (!editingOrderId) {
+      // Every line removed: nothing to keep, so leaving the page must not bring an old bill back.
+      updateCurrentData(null);
     }
   }, [orderDate, expectedDelivery, lineItems, selectedCustomerId, selectedCustomer, termsConditions, notes, shippingAddress, taxType, salesman, flatDiscountPercent, flatDiscountAmount, roundOff, customerPoNo, customerPoDate, editingOrderId, updateCurrentData]);
 

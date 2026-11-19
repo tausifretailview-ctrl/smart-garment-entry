@@ -114,6 +114,48 @@ function clearLocalBackup(orgId: string, userId: string, draftType: DraftType) {
   }
 }
 
+/**
+ * Leaving an entry page (switching window, menu, Alt+W) unmounts it. Its unsaved bill is kept
+ * here, in this browser tab, at that moment — no network — and put back when the page opens
+ * again, so the user returns to the same bill instead of a blank one. The database draft (and
+ * the dashboard's "Resume Draft") is unchanged; this copy is removed once the bill is saved,
+ * discarded, or taken back.
+ */
+const RESUME_MAX_CHARS = 2_000_000;
+
+export function draftResumeKey(orgId: string, userId: string, draftType: DraftType) {
+  return `ezzy-draft-resume:${orgId}:${userId}:${draftType}`;
+}
+
+function writeResumeCopy(orgId: string, userId: string, draftType: DraftType, data: any) {
+  try {
+    const raw = JSON.stringify(data);
+    if (raw.length > RESUME_MAX_CHARS) return; // very large bills rely on the database draft
+    sessionStorage.setItem(draftResumeKey(orgId, userId, draftType), raw);
+  } catch {
+    /* storage full or blocked */
+  }
+}
+
+function clearResumeCopy(orgId: string, userId: string, draftType: DraftType) {
+  try {
+    sessionStorage.removeItem(draftResumeKey(orgId, userId, draftType));
+  } catch {
+    /* blocked */
+  }
+}
+
+/** Opened for something specific (resume a draft, edit, duplicate, from a quotation…)? */
+export function isExplicitEntryOpen(state: unknown, search: string): boolean {
+  if (state && typeof state === "object" && Object.keys(state as object).length > 0) return true;
+  try {
+    const sp = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+    return ["id", "saleId", "billId", "edit", "editId", "orderId", "quotationId", "returnId"].some((k) => sp.has(k));
+  } catch {
+    return false;
+  }
+}
+
 interface UseDraftSaveOptions {
   autoSaveInterval?: number; // in milliseconds, default 30000 (30 seconds)
   onDraftLoaded?: (data: any) => void;
@@ -133,6 +175,11 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
   // Draft writes run one at a time, so an autosave still in flight can't re-create a draft
   // that a later delete (bill saved) already removed.
   const opChainRef = useRef<Promise<unknown>>(Promise.resolve());
+  // The unmount cleanup needs the shop and user after the contexts may have changed.
+  const orgIdRef = useRef<string | undefined>(currentOrganization?.id);
+  const userIdRef = useRef<string | undefined>(user?.id);
+  orgIdRef.current = currentOrganization?.id;
+  userIdRef.current = user?.id;
   const enqueue = useCallback(<T,>(op: () => Promise<T>): Promise<T> => {
     const run = opChainRef.current.then(op, op);
     opChainRef.current = run.catch(() => undefined);
@@ -311,6 +358,7 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
     currentDataRef.current = null;
     draftClearedRef.current = true;
     clearLocalBackup(orgId, userId, draftType);
+    clearResumeCopy(orgId, userId, draftType);
 
     try {
       const { error } = await enqueue(async () => supabase
@@ -368,11 +416,34 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
     return () => {
       // Don't save if draft was intentionally cleared (e.g., after successful save)
       if (currentDataRef.current && !draftClearedRef.current) {
+        // Leaving with an unsaved bill: keep it for this tab so reopening the page shows it.
+        if (orgIdRef.current && userIdRef.current) {
+          writeResumeCopy(orgIdRef.current, userIdRef.current, draftType, currentDataRef.current);
+        }
         reportIfFails(saveDraft(currentDataRef.current, false), "save the draft", { silent: true });
       }
       stopAutoSave();
     };
-  }, [stopAutoSave, saveDraft]);
+  }, [stopAutoSave, saveDraft, draftType]);
+
+  /**
+   * The bill this page had when the user left it (same browser tab), null when none, or
+   * undefined while the shop / user are still loading. Reading it removes it (put back once).
+   */
+  const takeResumeCopy = useCallback((): any | null | undefined => {
+    const orgId = currentOrganization?.id;
+    const userId = user?.id;
+    if (!orgId || !userId) return undefined; // not signed in to a shop yet: ask again later
+    try {
+      const key = draftResumeKey(orgId, userId, draftType);
+      const raw = sessionStorage.getItem(key);
+      if (!raw) return null;
+      sessionStorage.removeItem(key);
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }, [currentOrganization?.id, user?.id, draftType]);
 
   // Entry screens with pending draft data block automatic reloads (deploy skew recovery,
   // silent update). Dashboards using this hook never set current data, so they never block.
@@ -414,5 +485,29 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
     startAutoSave,
     stopAutoSave,
     checkDraft,
+    takeResumeCopy,
   };
 };
+
+/**
+ * Entry page: when it opens for a new bill, put back the bill it had when the user left it
+ * (window switch, menu, Alt+W). Opened for something specific (resume a draft, edit,
+ * duplicate…) the kept copy is dropped instead. Runs once.
+ */
+export function useResumeEntryOnReturn(
+  takeResumeCopy: () => any | null | undefined,
+  apply: (data: any) => void,
+  explicitOpen: boolean,
+) {
+  const doneRef = useRef(false);
+  const applyRef = useRef(apply);
+  applyRef.current = apply;
+  useEffect(() => {
+    if (doneRef.current) return;
+    const copy = takeResumeCopy();
+    if (copy === undefined) return;
+    doneRef.current = true;
+    if (copy && !explicitOpen) applyRef.current(copy);
+  }, [takeResumeCopy, explicitOpen]);
+}
+

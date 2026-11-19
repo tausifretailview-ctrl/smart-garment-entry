@@ -54,3 +54,10 @@ export function windowDetail(path: string, search?: string): string {
   }
   return "";
 }
+
+/** The current page always first, whatever the recent list says (it can lag a render behind). */
+export function withCurrentFirst<T extends { path: string }>(windows: T[], currentPath: string): T[] {
+  const i = windows.findIndex((w) => w.path === currentPath);
+  if (i <= 0) return windows;
+  return [windows[i], ...windows.slice(0, i), ...windows.slice(i + 1)];
+}

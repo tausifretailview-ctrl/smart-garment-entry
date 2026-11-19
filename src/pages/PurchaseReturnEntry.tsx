@@ -32,7 +32,7 @@ import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/li
 import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
-import { useDraftSave } from "@/hooks/useDraftSave";
+import { isExplicitEntryOpen, useDraftSave, useResumeEntryOnReturn } from "@/hooks/useDraftSave";
 import {
   buildPurchaseReturnItemPayload,
   derivePurchaseReturnLineDiscount,
@@ -323,6 +323,7 @@ const PurchaseReturnEntry = () => {
     updateCurrentData,
     startAutoSave,
     stopAutoSave,
+    takeResumeCopy,
   } = useDraftSave('purchase_return');
 
   // Load draft data callback
@@ -336,6 +337,9 @@ const PurchaseReturnEntry = () => {
     setDiscountPercent(data.discountPercent || 0);
     setDiscountAmount(data.discountAmount || 0);
   }, []);
+
+  // Back on this page after switching window (Alt+W, tab, menu): the same unsaved bill again.
+  useResumeEntryOnReturn(takeResumeCopy, loadDraftData, isExplicitEntryOpen(location.state, location.search));
 
   // Resume draft only when opened from dashboard (like Purchase Entry — no popup on direct open)
   useEffect(() => {
