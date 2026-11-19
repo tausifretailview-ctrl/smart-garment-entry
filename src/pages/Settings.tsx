@@ -12,7 +12,7 @@ import type { IndustrialModeConfig } from "@/utils/industrialMode";
 import { EwayBillSettingsSection } from "@/components/ewaybill/EwayBillSettingsSection";
 import { DEFAULT_MANUFACTURER_ERP, type ManufacturerERPConfig } from "@/utils/manufacturing";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, Factory, Truck, Building2, Landmark, Layers, ShoppingCart, Receipt, Tag, ListChecks, QrCode, Barcode, Wallet, Calculator, Gift, MessageCircle, Link2, Sparkles, Store } from "lucide-react";
+import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, Factory, Truck, Building2, Landmark, Layers, ShoppingCart, Receipt, Tag, ListChecks, QrCode, Barcode, Wallet, Calculator, Gift, MessageCircle, Link2, Sparkles, Store, LayoutGrid } from "lucide-react";
 import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { SaleInvoiceFormatBackupDialog } from "@/components/settings/SaleInvoiceFormatBackupDialog";
 import { InvoiceTemplateSelectItems } from "@/components/settings/InvoiceTemplateSelectItems";
@@ -280,6 +280,8 @@ interface EInvoiceSettings {
 }
 
 interface SaleSettings {
+  /** Home opens on the app-icon launcher (Wholesale Dashboard). Default off. */
+  wholesale_dashboard?: boolean;
   /** Settings > Product: Industrial mode (Platform Admin feature `industrial_mode` + this switch). */
   industrial_mode?: IndustrialModeConfig;
   /** Settings > WhatsApp: gift voucher buttons (off until turned on). */
@@ -1450,6 +1452,28 @@ export default function Settings() {
           </TabsList>
 
           <TabsContent value="company">
+            <SettingsSection
+              className="mb-3"
+              title="Home page"
+              subtitle="What opens when you go to the dashboard"
+              icon={LayoutGrid}
+              tone="blue"
+            >
+              <div className="px-4 pb-4">
+                <SettingsToggle
+                  id="wholesale_dashboard"
+                  label="Wholesale Dashboard"
+                  description="Home opens on large icons of the main pages (Sale Invoice, Purchases, Stock, Customers…) with search and favourites. The usual figures stay one click away under Overview. Each user sees only the pages their rights open."
+                  checked={settings.sale_settings?.wholesale_dashboard === true}
+                  onCheckedChange={(checked) =>
+                    setSettings({
+                      ...settings,
+                      sale_settings: { ...settings.sale_settings, wholesale_dashboard: checked === true },
+                    })
+                  }
+                />
+              </div>
+            </SettingsSection>
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 items-start">
               <SettingsSection
                 className="xl:col-span-2"
