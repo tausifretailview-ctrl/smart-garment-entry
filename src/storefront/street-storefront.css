@@ -1155,7 +1155,9 @@
 
 /* wide monitors: a wider page and one more step up */
 @media (min-width: 1600px) {
-  .ella-store.street-store { --st-page: 1640px; --st-gutter: 56px; font-size: 17px; }
+  /* Grows with the screen (1920 → ~1800px, 2560 → 1920px) instead of a fixed 1640px
+     column with wide empty margins on big monitors. */
+  .ella-store.street-store { --st-page: min(1920px, 94vw); --st-gutter: 56px; font-size: 17px; }
 
   .street-store .st-nav-link,
   .street-store .st-nav-sub { font-size: 16px; }
@@ -1921,3 +1923,23 @@
 .street-store .st-running:has(+ .st-footer) { margin-top: 48px; }
 .street-store .st-running + .st-footer { margin-top: 0; }
 .street-store .st-running-soft { background: #fde8e8; border-top: 1px solid #f5c2c2; color: var(--st-ink); }
+
+/* --- desktop polish: video row with few clips, bigger 3D showcase --------------- */
+@media (min-width: 1024px) {
+  /* 1-3 videos: centred heading and centred, larger cards instead of a lone card on the left. */
+  .street-store .st-reels[data-few="true"] .st-section-head { justify-content: center; text-align: center; }
+  .street-store .st-reels[data-few="true"] .st-reel-arrows { display: none; }
+  .street-store .st-reels[data-few="true"] .st-reel-rail {
+    grid-auto-columns: minmax(0, 300px);
+    justify-content: safe center;
+    gap: 20px;
+  }
+  .street-store .st-reels[data-count="1"] .st-reel-rail { grid-auto-columns: minmax(0, 340px); }
+
+  /* "Featured styles": the 3D stage scales with the screen instead of 980 x 460. */
+  .street-store .st-show-stage {
+    height: clamp(460px, 32vw, 640px);
+    max-width: min(1400px, 100%);
+  }
+  .street-store .st-show-info { margin-top: 28px; }
+}

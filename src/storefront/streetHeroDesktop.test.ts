@@ -21,4 +21,10 @@ describe("Street store home banner on desktop", () => {
   it("centres a short category row on desktop without hiding the start of a long one", () => {
     expect(css).toMatch(/\.st-cats-rail \{[^}]*justify-content:\s*safe center/);
   });
+
+  it("centres a short video row, widens the page on big screens and scales the showcase", () => {
+    expect(css).toMatch(/\.st-reels\[data-few="true"\] \.st-reel-rail \{[^}]*justify-content:\s*safe center/);
+    expect(css).toMatch(/--st-page:\s*min\(1920px,\s*94vw\)/);
+    expect(css).toMatch(/\.st-show-stage \{[^}]*height:\s*clamp\(460px,\s*32vw,\s*640px\)/);
+  });
 });

@@ -96,6 +96,7 @@ export const PAGE_TITLE_CONFIG: Record<string, { label: string; icon: string }> 
   "manual-journal": { label: "Manual Journal", icon: "BookOpen" },
   "ledger-opening-balances": { label: "Opening Balances", icon: "BookOpen" },
   "third-party-entry": { label: "Third Party Entry", icon: "BookOpen" },
+  "capital-investment": { label: "Capital & Investment", icon: "BookOpen" },
   "third-party-balances": { label: "Third Party Balances", icon: "BookOpen" },
   "bank-statement": { label: "Bank Statement", icon: "BookOpen" },
   "purchase-orders": { label: "Purchase Orders", icon: "ClipboardList" },

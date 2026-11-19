@@ -61,6 +61,7 @@ import {
   JournalVouchers,
   ManualJournalEntry,
   ThirdPartyVoucherEntry,
+  CapitalInvestment,
   ThirdPartyBalancesPage,
   BankStatementPage,
   LedgerOpeningBalances,
@@ -1664,6 +1665,18 @@ export function AppRoutes() {
               <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                 <Layout>
                   <ThirdPartyVoucherEntry />
+                </Layout>
+              </RoleProtectedRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="capital-investment"
+          element={
+            <ProtectedRoute>
+              <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                <Layout>
+                  <CapitalInvestment />
                 </Layout>
               </RoleProtectedRoute>
             </ProtectedRoute>
