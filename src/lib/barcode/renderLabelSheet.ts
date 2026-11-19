@@ -29,6 +29,17 @@ export interface RenderLabelSheetContext {
   isThermalMultiUp: () => boolean;
 }
 
+/**
+ * Inline style of one label cell on an A4 sheet (preview, print area and the Full Page
+ * Designer all use this, so they cannot drift apart).
+ */
+export function labelCellCss(widthMm: number, heightMm: number, absoluteLayout: boolean): string {
+  const size = `width: ${widthMm}mm; height: ${heightMm}mm; min-height: ${heightMm}mm; max-height: ${heightMm}mm; font-family: Arial, sans-serif;`;
+  return absoluteLayout
+    ? `${size} position: relative; overflow: visible; box-sizing: border-box;`
+    : `${size} text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; padding: 2px; box-sizing: border-box; line-height: 1.1;`;
+}
+
 export function renderLabelSheet(targetElementId: string, ctx: RenderLabelSheetContext): void {
   const {
     bottomOffset,
@@ -263,35 +274,7 @@ export function renderLabelSheet(targetElementId: string, ctx: RenderLabelSheetC
         const cell = document.createElement("div");
         cell.className = "label-cell";
         
-        if (useAbsoluteLayout) {
-          cell.style.cssText = `
-            width: ${dimensions.width}mm;
-            height: ${dimensions.height}mm;
-            min-height: ${dimensions.height}mm;
-            max-height: ${dimensions.height}mm;
-            font-family: Arial, sans-serif;
-            position: relative;
-            overflow: visible;
-            box-sizing: border-box;
-          `;
-        } else {
-          cell.style.cssText = `
-            width: ${dimensions.width}mm;
-            height: ${dimensions.height}mm;
-            min-height: ${dimensions.height}mm;
-            max-height: ${dimensions.height}mm;
-            font-family: Arial, sans-serif;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            padding: 2px;
-            box-sizing: border-box;
-            line-height: 1.1;
-          `;
-        }
+        cell.style.cssText = labelCellCss(dimensions.width, dimensions.height, useAbsoluteLayout);
         cell.innerHTML = allLabels[i].html;
         gridDiv.appendChild(cell);
       }
@@ -392,37 +375,8 @@ export function renderLabelSheet(targetElementId: string, ctx: RenderLabelSheetC
         const cell = document.createElement("div");
         cell.className = "label-cell";
         
-        if (useAbsoluteLayout) {
-          // Absolute positioning layout - matches BarTenderLabelDesigner
-          cell.style.cssText = `
-            width: ${dimensions.width}mm;
-            height: ${dimensions.height}mm;
-            min-height: ${dimensions.height}mm;
-            max-height: ${dimensions.height}mm;
-            font-family: Arial, sans-serif;
-            position: relative;
-            overflow: visible;
-            box-sizing: border-box;
-          `;
-        } else {
-          // Legacy flow-based layout
-          cell.style.cssText = `
-            width: ${dimensions.width}mm;
-            height: ${dimensions.height}mm;
-            min-height: ${dimensions.height}mm;
-            max-height: ${dimensions.height}mm;
-            font-family: Arial, sans-serif;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            padding: 2px;
-            box-sizing: border-box;
-            line-height: 1.1;
-          `;
-        }
+        // Absolute layout matches BarTenderLabelDesigner; flow layout is the legacy one.
+        cell.style.cssText = labelCellCss(dimensions.width, dimensions.height, useAbsoluteLayout);
         cell.innerHTML = allLabels[i].html;
         gridDiv.appendChild(cell);
       }
