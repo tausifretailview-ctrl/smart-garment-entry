@@ -1,0 +1,57 @@
+/* Window switcher (Alt+W). Scoped under .wsw-root. */
+.wsw-backdrop {
+  animation: wsw-fade 0.16s ease-out both;
+  background:
+    radial-gradient(900px 500px at 50% 40%, rgba(99, 102, 241, 0.18), transparent 70%),
+    rgba(2, 6, 23, 0.62);
+  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+}
+@keyframes wsw-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.wsw-panel {
+  animation: wsw-pop 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.86), rgba(15, 23, 42, 0.9));
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+@keyframes wsw-pop {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+.wsw-stage { perspective: 1400px; perspective-origin: 50% 40%; }
+
+.wsw-card {
+  --wsw-tilt: 0deg;
+  --wsw-depth: 0px;
+  background: linear-gradient(180deg, rgba(51, 65, 85, 0.75), rgba(30, 41, 59, 0.85));
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  transform: rotateY(var(--wsw-tilt)) translateZ(var(--wsw-depth));
+  transform-style: preserve-3d;
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+.wsw-card[data-selected="true"] {
+  --wsw-depth: 46px;
+  border-color: rgba(129, 140, 248, 0.95);
+  box-shadow:
+    0 0 0 2px rgba(129, 140, 248, 0.55),
+    0 24px 50px -18px rgba(99, 102, 241, 0.75);
+}
+.wsw-card[data-selected="false"] { opacity: 0.82; }
+.wsw-card[data-side="left"] { --wsw-tilt: 9deg; }
+.wsw-card[data-side="right"] { --wsw-tilt: -9deg; }
+
+.wsw-glyph {
+  background: linear-gradient(135deg, var(--wsw-from), var(--wsw-to));
+  box-shadow: 0 8px 18px -8px var(--wsw-from), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.wsw-sketch { background: linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(226, 232, 240, 0.92)); }
+.wsw-sketch .wsw-bar { background: linear-gradient(180deg, var(--wsw-from), var(--wsw-to)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .wsw-backdrop, .wsw-panel { animation: none; }
+  .wsw-card { transition: none; --wsw-tilt: 0deg !important; }
+  .wsw-card[data-selected="true"] { --wsw-depth: 0px; }
+}

@@ -28,6 +28,7 @@ const generalShortcuts: ShortcutGroup[] = [
     title: "Global",
     shortcuts: [
       { keys: ["Ctrl", "K"], description: "Command palette — search & navigate" },
+      { keys: ["Alt", "W"], description: "Switch window — hold Alt, tap W to move, release to open (Del closes)" },
       { keys: ["Esc"], description: "Go back (Tally-style) / Close dialog" },
       { keys: ["?"], description: "Show this shortcuts help" },
     ],

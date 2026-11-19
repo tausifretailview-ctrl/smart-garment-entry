@@ -7,6 +7,7 @@ import { getMenuPermissionForPath, resolveFirstAllowedPath } from "@/lib/menuPer
 import { prefetchTabPage, resolveTabCachePath } from "@/lib/tabPageRegistry";
 import { PAGE_TITLE_CONFIG } from "@/lib/pageTitles";
 import { isEditableTarget } from "@/lib/keyboardShortcuts";
+import { orderByRecent, touchRecent } from "@/lib/windowSwitcher";
 import { 
   ShoppingCart, BarChart3, FileText, Users, Package, Settings, 
   Home, Truck, Receipt, ArrowLeftRight, ClipboardList, UserCheck,
@@ -35,6 +36,13 @@ interface WindowTabsContextType {
   getPreviousWindow: (fromPath?: string) => WindowTab | null;
   /** Switch to the previous window tab; returns false when none is available. */
   switchToPreviousWindow: (fromPath?: string) => boolean;
+  /** Open windows, most recently used first (window switcher, Alt+W). */
+  windowsByRecent: WindowTab[];
+  /** When each window was last in front (ms since epoch). */
+  lastUsedAt: Record<string, number>;
+  /** Window switcher overlay (Alt+W / Ctrl+Tab). */
+  isSwitcherOpen: boolean;
+  setSwitcherOpen: (open: boolean) => void;
 }
 
 const WindowTabsContext = createContext<WindowTabsContextType | undefined>(undefined);
@@ -51,6 +59,10 @@ const FALLBACK_WINDOW_TABS: WindowTabsContextType = {
   isWindowOpen: () => false,
   getPreviousWindow: () => null,
   switchToPreviousWindow: () => false,
+  windowsByRecent: [],
+  lastUsedAt: {},
+  isSwitcherOpen: false,
+  setSwitcherOpen: () => {},
 };
 
 /** Shared with document.title via pageTitles.ts */
@@ -123,6 +135,15 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
   }, [location.pathname, orgSlug]);
 
   const [activeWindow, setActiveWindow] = useState(getCurrentPath());
+  // Most-recently-used order and last-use times for the window switcher (this tab only).
+  const [recentOrder, setRecentOrder] = useState<string[]>([]);
+  const [lastUsedAt, setLastUsedAt] = useState<Record<string, number>>({});
+  const [isSwitcherOpen, setSwitcherOpen] = useState(false);
+  useEffect(() => {
+    if (!activeWindow && activeWindow !== "") return;
+    setRecentOrder((prev) => touchRecent(prev, activeWindow));
+    setLastUsedAt((prev) => ({ ...prev, [activeWindow]: Date.now() }));
+  }, [activeWindow]);
 
   const canAccessPath = useCallback((path: string) => {
     if (permissionsLoading && permissions === null) return false;
@@ -244,18 +265,8 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
       const allowedWindows = Array.isArray(openWindows)
         ? openWindows.filter(w => canAccessPath(w.path))
         : [];
-      // Ctrl+Tab to cycle through windows
-      if (e.ctrlKey && e.key === "Tab") {
-        e.preventDefault();
-        if (allowedWindows.length > 1) {
-          const currentIndex = allowedWindows.findIndex(w => w.path === activeWindow);
-          const nextIndex = e.shiftKey 
-            ? (currentIndex - 1 + allowedWindows.length) % allowedWindows.length
-            : (currentIndex + 1) % allowedWindows.length;
-          const nextWindow = allowedWindows[nextIndex];
-          navigateToWindowPath(nextWindow.path, allowedWindows);
-        }
-      }
+      // Ctrl+Tab (Windows app; browsers keep Ctrl+Tab for their own tabs) is handled by the
+      // window switcher, like Alt+W: hold Ctrl and tap Tab to move, release to open.
       
       // Ctrl+W to close current window (but not if only one window)
       if (e.ctrlKey && e.key === "w" && allowedWindows.length > 1) {
@@ -353,6 +364,11 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
     [getPreviousWindow, switchWindow],
   );
 
+  const windowsByRecent = React.useMemo(
+    () => orderByRecent((Array.isArray(openWindows) ? openWindows : []).filter((w) => canAccessPath(w.path)), recentOrder),
+    [openWindows, recentOrder, canAccessPath],
+  );
+
   return (
     <WindowTabsContext.Provider value={{
       openWindows,
@@ -365,6 +381,10 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
       isWindowOpen,
       getPreviousWindow,
       switchToPreviousWindow,
+      windowsByRecent,
+      lastUsedAt,
+      isSwitcherOpen,
+      setSwitcherOpen,
     }}>
       {children}
     </WindowTabsContext.Provider>
