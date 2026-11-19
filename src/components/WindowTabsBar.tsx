@@ -1,5 +1,5 @@
 import React from "react";
-import { X, Plus, ChevronUp, ChevronDown } from "lucide-react";
+import { X, Plus, ChevronUp, ChevronDown, LayoutGrid } from "lucide-react";
 import { useWindowTabs, getTabIcon } from "@/contexts/WindowTabsContext";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -57,7 +57,8 @@ export function WindowTabsBar({ className }: WindowTabsBarProps) {
     openWindow, 
     isWindowOpen,
     isTabsBarVisible,
-    toggleTabsBarVisibility 
+    toggleTabsBarVisibility,
+    setSwitcherOpen,
   } = useWindowTabs();
 
   if (!Array.isArray(openWindows) || openWindows.length === 0) return null;
@@ -184,10 +185,26 @@ export function WindowTabsBar({ className }: WindowTabsBarProps) {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <div className="erp-tab-hint text-sm hidden md:block pl-2 border-l">
-            <kbd className="erp-tab-kbd px-1 py-0.5 rounded text-[11px]">Ctrl</kbd>+
-            <kbd className="erp-tab-kbd px-1 py-0.5 rounded text-[11px]">Tab</kbd>
-          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1.5 px-2 shrink-0 text-white hover:text-white"
+                onClick={() => setSwitcherOpen(true)}
+                aria-label="Show all open windows (Alt+W)"
+              >
+                <LayoutGrid className="h-4 w-4" />
+                <span className="erp-tab-hint hidden md:inline text-sm">
+                  <kbd className="erp-tab-kbd px-1 py-0.5 rounded text-[11px]">Alt</kbd>+
+                  <kbd className="erp-tab-kbd px-1 py-0.5 rounded text-[11px]">W</kbd>
+                </span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>All open windows — switch or close (Alt+W)</p>
+            </TooltipContent>
+          </Tooltip>
 
           <Tooltip>
             <TooltipTrigger asChild>
