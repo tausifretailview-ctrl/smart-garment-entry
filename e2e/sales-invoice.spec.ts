@@ -68,6 +68,8 @@ test("Sales invoice: customer, scan, Ctrl+S, invoice number shown", async ({ pag
   const line = page.locator("tr", { hasText: "100001" });
   await expect(line).toHaveCount(1);
   await expect(line).toContainText("COTTON SHIRT");
+  // Live stock under the barcode (screen only): 10 in stock, 1 on this bill.
+  await expect(line.locator(".sale-line-stock")).toHaveText("Stock 10 · 9 left");
 
   await page.keyboard.press("Control+s");
   const saved = page.getByRole("alertdialog", { name: "Print Invoice?" });
@@ -112,6 +114,8 @@ test("Sales invoice: customer, scan, Ctrl+S, invoice number shown", async ({ pag
   const printCopy = await readPrintCopy();
   expect(printCopy).toMatch(/Payment: PAY LATER/i);
   expect(printCopy).not.toMatch(/Payment: CASH/i);
+  // Live stock is for the screen only: never on the printed bill.
+  expect(printCopy).not.toMatch(/Stock \d+ ·|\d+ left/);
 
   await saved.getByRole("button", { name: "Skip" }).click();
   await expect(saved).toBeHidden();
