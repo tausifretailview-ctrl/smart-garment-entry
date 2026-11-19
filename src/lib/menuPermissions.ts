@@ -15,6 +15,8 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   "orphaned-products": "orphaned_products",
   customers: "customer_master",
   suppliers: "supplier_master",
+  // Transporters are picked in Customer Master, so the same right opens Transport Master.
+  transporters: "customer_master",
   employees: "employee_master",
   "pos-sales": "pos_sales",
   "pos-delivery-challan": "pos_sales",

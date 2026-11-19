@@ -96,6 +96,11 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
     layout: "fullscreen",
     roles: ["admin", "manager"],
   },
+  transporters: {
+    loader: () => import("@/pages/TransportMaster"),
+    layout: "fullscreen",
+    roles: ["admin", "manager"],
+  },
   employees: {
     loader: () => import("@/pages/EmployeeMaster"),
     layout: "fullscreen",

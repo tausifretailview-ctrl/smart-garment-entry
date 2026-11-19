@@ -1,3 +1,5 @@
+import { TransporterSelect } from "@/components/transport/TransporterSelect";
+import { customerTransporterPatch, transporterInvoiceText } from "@/lib/data/transporters";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { useCreateFormDraftPersistence } from "@/hooks/useCreateFormDraftPersistence";
@@ -211,6 +213,7 @@ const CustomerMaster = () => {
     opening_balance: "",
     discount_percent: "",
     transport_details: "",
+    transporter_id: "",
     portal_enabled: false,
     points_balance: "",
     birthday: "",
@@ -268,6 +271,8 @@ const CustomerMaster = () => {
   /** Birthday/anniversary as loaded for the customer being edited (to know when one was cleared). */
   const editingSpecialDaysRef = useRef<{ birthday: string; anniversary: string }>({ birthday: "", anniversary: "" });
   const editingFssaiRef = useRef("");
+  /** Transporter saved on the customer being edited (sent again only when changed). */
+  const editingTransporterRef = useRef("");
   const [shippingAddresses, setShippingAddresses] = useState<CustomerShippingAddress[]>([]);
   const editingShippingAddressesRef = useRef<CustomerShippingAddress[]>([]);
   const [showLegacyImport, setShowLegacyImport] = useState(false);
@@ -747,6 +752,7 @@ const CustomerMaster = () => {
         portal_enabled: data.portal_enabled || false,
         organization_id: currentOrganization.id,
         ...customerFssaiPatch(data.fssai_number),
+        ...customerTransporterPatch(data.transporter_id),
       };
       if (enablePointsSystem) {
         customerData.points_balance = pointsBalance;
@@ -827,6 +833,7 @@ const CustomerMaster = () => {
         transport_details: data.transport_details || null,
         portal_enabled: data.portal_enabled || false,
         ...customerFssaiPatch(data.fssai_number, editingFssaiRef.current),
+        ...customerTransporterPatch(data.transporter_id, editingTransporterRef.current),
       };
       if (enablePointsSystem) {
         customerData.points_balance = nextPoints;
@@ -924,6 +931,7 @@ const CustomerMaster = () => {
       opening_balance: "",
       discount_percent: "",
       transport_details: "",
+      transporter_id: "",
       portal_enabled: false,
       points_balance: "",
       birthday: "",
@@ -933,6 +941,18 @@ const CustomerMaster = () => {
     editingShippingAddressesRef.current = [];
     setCreditTermsForm(EMPTY_CREDIT_TERMS_FORM);
     setEditingCustomer(null);
+  };
+
+  /** Picking a transporter also fills the transport text that invoices already print. */
+  const pickTransporter = (
+    transporterId: string,
+    transporter: { transporter_name: string; phone: string | null; transporter_gstin: string | null } | null,
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      transporter_id: transporterId,
+      transport_details: transporter ? transporterInvoiceText(transporter) : prev.transport_details,
+    }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -960,6 +980,7 @@ const CustomerMaster = () => {
       opening_balance: customer.opening_balance?.toString() || "",
       discount_percent: customer.discount_percent?.toString() || "",
       transport_details: (customer as any).transport_details || "",
+      transporter_id: "",
       portal_enabled: (customer as any).portal_enabled || false,
       points_balance: String(Math.round(Number(customer.points_balance ?? 0))),
       birthday: "",
@@ -967,6 +988,7 @@ const CustomerMaster = () => {
     });
     editingSpecialDaysRef.current = { birthday: "", anniversary: "" };
     editingFssaiRef.current = "";
+    editingTransporterRef.current = "";
     setShippingAddresses([]);
     editingShippingAddressesRef.current = [];
     setIsDialogOpen(true);
@@ -999,6 +1021,19 @@ const CustomerMaster = () => {
           const fssai = normalizeFssaiNumber((data as unknown as { fssai_number?: string | null }).fssai_number);
           editingFssaiRef.current = fssai;
           if (fssai) setFormData((prev) => ({ ...prev, fssai_number: fssai }));
+        });
+      // Transporter loaded on its own too, so editing works before the transport SQL is run.
+      void supabase
+        .from("customers")
+        .select("transporter_id" as any)
+        .eq("id", customer.id)
+        .eq("organization_id", currentOrganization.id)
+        .maybeSingle()
+        .then(({ data, error }) => {
+          if (error || !data) return;
+          const tid = String((data as unknown as { transporter_id?: string | null }).transporter_id || "");
+          editingTransporterRef.current = tid;
+          if (tid) setFormData((prev) => ({ ...prev, transporter_id: tid }));
         });
       void fetchCustomerShippingAddresses(currentOrganization.id, customer.id)
         .then((rows) => {
@@ -1886,6 +1921,16 @@ const CustomerMaster = () => {
               <div><Label htmlFor="m-address">Address</Label><Textarea id="m-address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} /></div>
               <CustomerShippingAddressesEditor value={shippingAddresses} onChange={setShippingAddresses} />
               <div><Label htmlFor="m-gst">GST Number</Label><Input id="m-gst" value={formData.gst_number} onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })} /></div>
+              <div>
+                <Label htmlFor="m-transporter">Transporter</Label>
+                <TransporterSelect
+                  id="m-transporter"
+                  className="h-10"
+                  orgId={currentOrganization?.id}
+                  value={formData.transporter_id}
+                  onChange={pickTransporter}
+                />
+              </div>
               <div><Label htmlFor="m-fssai">FSSAI Number</Label><Input id="m-fssai" inputMode="numeric" value={formData.fssai_number} onChange={(e) => setFormData({ ...formData, fssai_number: e.target.value })} placeholder="Food shops only (optional)" /></div>
               {industrialMode.enabled && (
                 <CustomerCreditTermsFields value={creditTermsForm} onChange={setCreditTermsForm} idPrefix="m-ct" />
@@ -2193,7 +2238,16 @@ const CustomerMaster = () => {
                         <p className="text-[10px] text-muted-foreground mt-0.5">Auto-applied on POS</p>
                       </div>
                       <div>
-                        <Label htmlFor="transport_details" className="text-xs">Transport</Label>
+                        <Label htmlFor="transporter_id" className="text-xs">Transporter</Label>
+                        <TransporterSelect
+                          id="transporter_id"
+                          orgId={currentOrganization?.id}
+                          value={formData.transporter_id}
+                          onChange={pickTransporter}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="transport_details" className="text-xs">Transport (printed on bill)</Label>
                         <Input id="transport_details" value={formData.transport_details} onChange={(e) => setFormData({ ...formData, transport_details: e.target.value })} placeholder="e.g., VRL" className="h-9" />
                       </div>
                       <div>
