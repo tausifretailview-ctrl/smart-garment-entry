@@ -12,6 +12,8 @@ interface CustomerHistoryDialogProps {
   customerId: string | null;
   customerName: string;
   organizationId: string;
+  /** Replaces "Open invoice" (default: open it in Sale Invoice). */
+  onViewInvoice?: (saleId: string) => void;
 }
 
 function OpenFullPageLink({ customerId, className }: { customerId: string | null; className?: string }) {
@@ -39,6 +41,7 @@ export function CustomerHistoryDialog({
   customerId,
   customerName,
   organizationId,
+  onViewInvoice,
 }: CustomerHistoryDialogProps) {
   const isMobile = useIsMobile();
   const queriesEnabled = open && !!customerId && !!organizationId;
@@ -76,6 +79,7 @@ export function CustomerHistoryDialog({
             customerName={customerName}
             organizationId={organizationId}
             queriesEnabled={queriesEnabled}
+            onViewInvoice={onViewInvoice}
           />
         </div>
       </div>
@@ -104,6 +108,7 @@ export function CustomerHistoryDialog({
           customerName={customerName}
           organizationId={organizationId}
           queriesEnabled={queriesEnabled}
+          onViewInvoice={onViewInvoice}
         />
       </DialogContent>
     </Dialog>
