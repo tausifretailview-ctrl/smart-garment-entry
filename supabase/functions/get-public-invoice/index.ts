@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
     // This avoids the "first load missing EMI/GST/financer" issue where
     // sequential awaits caused the page to occasionally paint before the
     // financer/customer/settings calls completed.
-    const [financerRes, custRes, settingsRes, orgRes, bankRes] = await Promise.all([
+    const [financerRes, custRes, settingsRes, orgRes, bankRes, printRes] = await Promise.all([
       supabase
         .from('sale_financer_details')
         .select('financer_name, loan_number, emi_amount, tenure, down_payment, down_payment_mode, finance_discount, bank_transfer_amount')
@@ -91,10 +91,22 @@ Deno.serve(async (req) => {
         .is('deleted_at', null)
         .order('is_default', { ascending: false })
         .order('created_at', { ascending: true }),
+      // Customer Master "Print on bill" name / address. Its own read: before those columns exist
+      // it fails alone and the bill prints its own name and address.
+      sale.customer_id
+        ? supabase
+            .from('customers')
+            .select('print_name, print_address, print_place, print_pincode, print_state, print_country')
+            .eq('id', sale.customer_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
     ])
 
     const financerDetails = financerRes.data
-    const customerExtra = custRes.data as { gst_number?: string; transport_details?: string } | null
+    const customerPrint = (printRes as { error?: unknown }).error ? null : (printRes.data as Record<string, string | null> | null)
+    const customerExtra = custRes.data || customerPrint
+      ? { ...((custRes.data as { gst_number?: string; transport_details?: string } | null) ?? {}), ...(customerPrint ?? {}) }
+      : null
     const settings = settingsRes.data
     const org = orgRes.data
 

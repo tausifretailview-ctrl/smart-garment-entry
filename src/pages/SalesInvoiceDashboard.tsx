@@ -2356,6 +2356,7 @@ export default function SalesInvoiceDashboard() {
       }
       return (
         <InvoiceWrapper
+          customerId={(invoiceToPrint as { customer_id?: string | null }).customer_id ?? null}
           format={format}
           billNo={invoiceToPrint.sale_number}
           b2bDetails={(invoiceToPrint as { b2b_details?: SaleB2BDetails | null }).b2b_details ?? null}
@@ -3882,6 +3883,7 @@ export default function SalesInvoiceDashboard() {
             style={salePrintSourceStyle}
           >
             <InvoiceWrapper
+              customerId={(invoiceToPrint as { customer_id?: string | null }).customer_id ?? null}
               ref={printRef}
               format={saleInvoiceWrapperFormat}
               billNo={invoiceToPrint.sale_number}
@@ -5581,6 +5583,7 @@ export default function SalesInvoiceDashboard() {
             style={salePrintSourceStyle}
           >
             <InvoiceWrapper
+              customerId={(invoiceToPrint as { customer_id?: string | null }).customer_id ?? null}
               ref={printRef}
               format={saleInvoiceWrapperFormat}
               billNo={invoiceToPrint.sale_number}

@@ -1,3 +1,4 @@
+import { CUSTOMER_PRINT_COLUMNS, readCustomerPrintDetails, resolveBillParty } from "@/lib/customerPrintDetails";
 import React, { useState, useEffect } from 'react';
 import { formatSaleTransportLine, type SaleB2BDetails } from "@/utils/industrialMode";
 import { useQuery } from '@tanstack/react-query';
@@ -108,6 +109,8 @@ interface InvoiceWrapperProps {
   
   // Customer Details
   customerName: string;
+  /** Bill's customer: lets the bill print the customer's "Print on bill" name and address. */
+  customerId?: string | null;
   customerAddress?: string;
   /** Ship-to branch picked on Sale Bill (sales.shipping_address). Blank = main address. */
   shippingAddress?: string;
@@ -388,14 +391,44 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
         return pickInvoiceCustomerAddress(data ?? [], props.customerName, props.customerMobile);
       },
     });
-    const customerAddress = (props.customerAddress || '').trim()
+    const baseCustomerAddress = (props.customerAddress || '').trim()
       ? props.customerAddress
       : masterCustomerAddress || props.customerAddress;
+
+    // Customer Master → "Print on bill": a different name / address for bills. Any failure
+    // (including the columns not existing yet) prints the bill's own name and address.
+    const printDetailsEnabled = !!orgId && !!props.customerId;
+    const { data: customerPrintDetails = null, isLoading: printDetailsLoading } = useQuery({
+      queryKey: ['invoice-customer-print', orgId, props.customerId],
+      enabled: printDetailsEnabled,
+      staleTime: 60_000,
+      queryFn: async () => {
+        try {
+          const { data, error } = await supabase
+            .from('customers')
+            .select(CUSTOMER_PRINT_COLUMNS as any)
+            .eq('id', props.customerId!)
+            .eq('organization_id', orgId!)
+            .maybeSingle();
+          if (error || !data) return null;
+          return readCustomerPrintDetails(data);
+        } catch {
+          return null;
+        }
+      },
+    });
+    const billParty = resolveBillParty(
+      { customerName: props.customerName, customerAddress: baseCustomerAddress },
+      customerPrintDetails,
+    );
+    const customerAddress = billParty.customerAddress;
+    const printedCustomerName = billParty.customerName;
 
     if (
       !settings ||
       (descriptionQueryEnabled && descriptionPartsLoading) ||
-      (addressLookupEnabled && masterAddressLoading)
+      (addressLookupEnabled && masterAddressLoading) ||
+      (printDetailsEnabled && printDetailsLoading)
     ) {
       return (
         <div ref={ref} data-invoice-loading="true" style={{ padding: '20px', textAlign: 'center' }}>
@@ -637,7 +670,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           ? undefined
           : props.date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
       
-      customerName: props.customerName,
+      customerName: printedCustomerName,
       customerAddress: printedCustomerAddress,
       shippingAddress: shipToAddress || undefined,
       customerMobile: props.customerMobile,
@@ -851,7 +884,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             <TrendzoPosThermalReceipt80mm
               billNo={props.billNo}
               date={props.date}
-              customerName={props.customerName}
+              customerName={printedCustomerName}
               customerPhone={props.customerMobile}
               items={props.items.map((item, idx) => ({
                 sr: idx + 1,
@@ -899,7 +932,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             <KidsCampThermalReceipt80mm
               billNo={props.billNo}
               date={props.date}
-              customerName={props.customerName}
+              customerName={printedCustomerName}
               customerPhone={props.customerMobile}
               items={props.items.map((item, idx) => ({
                 sr: idx + 1,
@@ -939,7 +972,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             <VastrakalaThermalReceipt80mm
               billNo={props.billNo}
               date={props.date}
-              customerName={props.customerName}
+              customerName={printedCustomerName}
               customerPhone={props.customerMobile}
               items={props.items.map((item, idx) => ({
                 sr: idx + 1,
@@ -982,7 +1015,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             <KidsThermalReceipt80mm
               billNo={props.billNo}
               date={props.date}
-              customerName={props.customerName}
+              customerName={printedCustomerName}
               customerPhone={props.customerMobile}
               items={props.items.map((item, idx) => ({
                 sr: idx + 1,
@@ -1046,7 +1079,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           <ThermalComponent
             billNo={props.billNo}
             date={props.date}
-            customerName={props.customerName}
+            customerName={printedCustomerName}
             customerPhone={props.customerMobile}
             customerAddress={printedCustomerAddress}
             items={props.items.map((item, idx) => ({
@@ -1109,7 +1142,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
         const a5HorizontalData = {
           invoiceNo: props.billNo,
           date: props.date.toLocaleDateString('en-IN'),
-          customerName: props.customerName || 'Walk-in Customer',
+          customerName: printedCustomerName || 'Walk-in Customer',
           customerPhone: props.customerMobile,
           items: props.items.map(item => ({
             name: item.particulars,

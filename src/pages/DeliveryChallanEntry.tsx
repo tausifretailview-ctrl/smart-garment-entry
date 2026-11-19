@@ -1649,6 +1649,7 @@ export default function DeliveryChallanEntry() {
       <div className="invoice-print-source-screen">
         {printData && (
           <InvoiceWrapper
+            customerId={selectedCustomerId || null}
             ref={printRef}
             billNo={printData.challanNumber}
             date={challanDate}

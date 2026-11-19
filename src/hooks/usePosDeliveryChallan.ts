@@ -714,6 +714,7 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
       const invoiceData = {
         billNo: dcNumber,
         date: printDate,
+        customerId: customerId || null,
         customerName: customerName || "Walk-in",
         customerAddress: "",
         customerMobile: customerPhone || "",

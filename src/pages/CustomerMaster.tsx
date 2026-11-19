@@ -1,3 +1,11 @@
+import { CustomerPrintDetailsFields } from "@/components/customers/CustomerPrintDetailsFields";
+import {
+  CUSTOMER_PRINT_COLUMNS,
+  EMPTY_PRINT_DETAILS,
+  customerPrintDetailsPatch,
+  readCustomerPrintDetails,
+  type CustomerPrintDetails,
+} from "@/lib/customerPrintDetails";
 import { TransporterSelect } from "@/components/transport/TransporterSelect";
 import { customerTransporterPatch, transporterInvoiceText } from "@/lib/data/transporters";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
@@ -273,6 +281,9 @@ const CustomerMaster = () => {
   const editingFssaiRef = useRef("");
   /** Transporter saved on the customer being edited (sent again only when changed). */
   const editingTransporterRef = useRef("");
+  /** "Print on bill" name and address (separate state: its columns may not exist before the SQL). */
+  const [printDetails, setPrintDetails] = useState<CustomerPrintDetails>(EMPTY_PRINT_DETAILS);
+  const editingPrintDetailsRef = useRef<CustomerPrintDetails>(EMPTY_PRINT_DETAILS);
   const [shippingAddresses, setShippingAddresses] = useState<CustomerShippingAddress[]>([]);
   const editingShippingAddressesRef = useRef<CustomerShippingAddress[]>([]);
   const [showLegacyImport, setShowLegacyImport] = useState(false);
@@ -753,6 +764,7 @@ const CustomerMaster = () => {
         organization_id: currentOrganization.id,
         ...customerFssaiPatch(data.fssai_number),
         ...customerTransporterPatch(data.transporter_id),
+        ...customerPrintDetailsPatch(printDetails),
       };
       if (enablePointsSystem) {
         customerData.points_balance = pointsBalance;
@@ -834,6 +846,7 @@ const CustomerMaster = () => {
         portal_enabled: data.portal_enabled || false,
         ...customerFssaiPatch(data.fssai_number, editingFssaiRef.current),
         ...customerTransporterPatch(data.transporter_id, editingTransporterRef.current),
+        ...customerPrintDetailsPatch(printDetails, editingPrintDetailsRef.current),
       };
       if (enablePointsSystem) {
         customerData.points_balance = nextPoints;
@@ -939,6 +952,8 @@ const CustomerMaster = () => {
     });
     setShippingAddresses([]);
     editingShippingAddressesRef.current = [];
+    setPrintDetails(EMPTY_PRINT_DETAILS);
+    editingPrintDetailsRef.current = EMPTY_PRINT_DETAILS;
     setCreditTermsForm(EMPTY_CREDIT_TERMS_FORM);
     setEditingCustomer(null);
   };
@@ -989,6 +1004,8 @@ const CustomerMaster = () => {
     editingSpecialDaysRef.current = { birthday: "", anniversary: "" };
     editingFssaiRef.current = "";
     editingTransporterRef.current = "";
+    editingPrintDetailsRef.current = EMPTY_PRINT_DETAILS;
+    setPrintDetails(EMPTY_PRINT_DETAILS);
     setShippingAddresses([]);
     editingShippingAddressesRef.current = [];
     setIsDialogOpen(true);
@@ -1021,6 +1038,19 @@ const CustomerMaster = () => {
           const fssai = normalizeFssaiNumber((data as unknown as { fssai_number?: string | null }).fssai_number);
           editingFssaiRef.current = fssai;
           if (fssai) setFormData((prev) => ({ ...prev, fssai_number: fssai }));
+        });
+      // Print-on-bill name and address loaded on their own too (works before that SQL is run).
+      void supabase
+        .from("customers")
+        .select(CUSTOMER_PRINT_COLUMNS as any)
+        .eq("id", customer.id)
+        .eq("organization_id", currentOrganization.id)
+        .maybeSingle()
+        .then(({ data, error }) => {
+          if (error || !data) return;
+          const loaded = readCustomerPrintDetails(data);
+          editingPrintDetailsRef.current = loaded;
+          setPrintDetails(loaded);
         });
       // Transporter loaded on its own too, so editing works before the transport SQL is run.
       void supabase
@@ -1919,6 +1949,14 @@ const CustomerMaster = () => {
               <div><Label htmlFor="m-phone">Mobile Number</Label><Input id="m-phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} autoFocus placeholder="Enter mobile number (optional)" /></div>
               <div><Label htmlFor="m-name">Customer Name</Label><Input id="m-name" value={formData.customer_name} onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })} placeholder="Enter customer name" /></div>
               <div><Label htmlFor="m-address">Address</Label><Textarea id="m-address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} /></div>
+              <CustomerPrintDetailsFields
+                key={editingCustomer?.id ?? "new"}
+                idPrefix="m-print"
+                value={printDetails}
+                onChange={setPrintDetails}
+                customerName={formData.customer_name}
+                customerAddress={formData.address}
+              />
               <CustomerShippingAddressesEditor value={shippingAddresses} onChange={setShippingAddresses} />
               <div><Label htmlFor="m-gst">GST Number</Label><Input id="m-gst" value={formData.gst_number} onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })} /></div>
               <div>
@@ -2214,6 +2252,13 @@ const CustomerMaster = () => {
                       <Label htmlFor="address" className="text-xs">Address</Label>
                       <Textarea id="address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="min-h-[60px]" />
                     </div>
+                    <CustomerPrintDetailsFields
+                      key={editingCustomer?.id ?? "new"}
+                      value={printDetails}
+                      onChange={setPrintDetails}
+                      customerName={formData.customer_name}
+                      customerAddress={formData.address}
+                    />
                     <CustomerShippingAddressesEditor value={shippingAddresses} onChange={setShippingAddresses} compact />
                     {industrialMode.enabled && (
                       <CustomerCreditTermsFields value={creditTermsForm} onChange={setCreditTermsForm} compact idPrefix="ct" />

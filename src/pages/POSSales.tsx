@@ -4696,6 +4696,7 @@ export default function POSSales() {
           ),
           billNo: meta.saleNumber,
           date: meta.saleDate,
+          customerId: snapCustomerId || null,
           customerName: snapCustomerName,
           customerAddress: customers.find((c) => c.id === snapCustomerId)?.address || "",
           customerMobile: snapCustomerPhone,
@@ -6232,6 +6233,7 @@ export default function POSSales() {
             </div>
           )}
           <InvoiceWrapper
+            customerId={savedInvoiceData?.customerId || customerId || null}
             template={posInvoiceTemplate}
             format={posInvoiceWrapperFormat}
             thermalPaper={posThermalPaper}
@@ -8751,6 +8753,7 @@ export default function POSSales() {
             </DialogHeader>
             <div className="space-y-4">
               <InvoiceWrapper
+                customerId={customerId || null}
                 ref={printRef}
                 format={posInvoiceWrapperFormat}
                 template={posInvoiceTemplate}
@@ -8951,6 +8954,7 @@ export default function POSSales() {
             thermalPaper={posThermalPaper}
             renderInvoice={(format) => (
               <InvoiceWrapper
+                customerId={savedInvoiceData.customerId || null}
                 format={format}
                 billNo={savedInvoiceData.invoiceNumber}
                 date={new Date()}
