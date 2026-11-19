@@ -175,14 +175,14 @@ export default function CapitalInvestment() {
       if (!clean) throw new Error("Enter the owner or partner name");
       let lastError: unknown;
       for (let attempt = 0; attempt < 5; attempt++) {
-        const { data: codes, error: codeErr } = await (supabase as any)
+        const { data: codes, error: codeErr } = await supabase
           .from("chart_of_accounts")
           .select("account_code")
           .eq("organization_id", orgId)
           .like("account_code", "30%");
         if (codeErr) throw codeErr;
         const code = nextCapitalAccountCode(((codes || []) as Array<{ account_code: string }>).map((r) => r.account_code));
-        const { data, error } = await (supabase as any)
+        const { data, error } = await supabase
           .from("chart_of_accounts")
           .insert({
             organization_id: orgId,
