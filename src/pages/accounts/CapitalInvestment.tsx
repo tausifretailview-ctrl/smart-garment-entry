@@ -63,6 +63,10 @@ import {
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(n || 0);
 
+/** Whole rupees for the compact owners table. */
+const fmt0 = (n: number) =>
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n || 0);
+
 function parseAmount(s: string): number {
   const v = Number(String(s).replace(/,/g, "").trim());
   return Number.isFinite(v) ? Math.round(v * 100) / 100 : 0;
@@ -573,29 +577,25 @@ export default function CapitalInvestment() {
           {summary.rows.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">No capital accounts yet.</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead className="text-right">Invested</TableHead>
-                  <TableHead className="text-right">Withdrawn</TableHead>
-                  <TableHead className="text-right">Net</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {summary.rows.map((r) => (
-                  <TableRow key={r.accountId}>
-                    <TableCell className="font-semibold">
-                      {r.name}
-                      <span className="ml-1 text-xs text-muted-foreground">({r.code})</span>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-emerald-700">{fmt(r.invested)}</TableCell>
-                    <TableCell className="text-right tabular-nums text-amber-700">{fmt(r.withdrawn)}</TableCell>
-                    <TableCell className="text-right tabular-nums font-bold">{fmt(r.net)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <ul className="divide-y divide-slate-100" data-testid="capital-owner-rows">
+              {summary.rows.map((r) => (
+                <li key={r.accountId} className="py-2.5">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="truncate font-semibold text-slate-800" title={`Ledger ${r.code}`}>{r.name}</span>
+                    <span className="shrink-0 font-bold tabular-nums text-slate-900">{fmt0(r.net)}</span>
+                  </div>
+                  <div className="mt-0.5 flex gap-3 text-xs tabular-nums text-muted-foreground">
+                    <span>
+                      In <b className="text-emerald-700">{fmt0(r.invested)}</b>
+                    </span>
+                    <span>
+                      Out <b className="text-amber-700">{fmt0(r.withdrawn)}</b>
+                    </span>
+                    <span className="ml-auto">{r.entries} entr{r.entries === 1 ? "y" : "ies"}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </Card>
       </div>
