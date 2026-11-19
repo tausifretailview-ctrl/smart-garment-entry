@@ -649,6 +649,7 @@ export default function DebitNoteDashboard() {
           />
         ) : printData && printDetails ? (
           <InvoiceWrapper
+            customerId={printData.row.customer_id ?? null}
             ref={printRef}
             billNo={printData.row.sale_number}
             date={new Date(`${String(printData.row.sale_date).slice(0, 10)}T12:00:00`)}

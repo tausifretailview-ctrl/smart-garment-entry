@@ -1,3 +1,4 @@
+import { readCustomerPrintDetails, resolveBillParty } from "@/lib/customerPrintDetails";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
@@ -101,6 +102,13 @@ export default function PublicInvoiceView() {
   const organization = data?.organization;
   const financerDetails = data?.financerDetails;
   const customerExtra = data?.customerExtra;
+  // Customer Master "Print on bill" name / address (blank fields fall back to the bill's own).
+  const billParty = sale
+    ? resolveBillParty(
+        { customerName: sale.customer_name, customerAddress: sale.customer_address || "" },
+        customerExtra ? readCustomerPrintDetails(customerExtra) : null,
+      )
+    : null;
 
   useEffect(() => {
     if (settings?.business_name && sale?.sale_number) {
@@ -233,8 +241,8 @@ export default function PublicInvoiceView() {
     invoiceNumber: sale.sale_number,
     invoiceDate: new Date(sale.sale_date),
     dueDate: sale.due_date || null,
-    customerName: sale.customer_name,
-    customerAddress: sale.customer_address || "",
+    customerName: billParty?.customerName ?? sale.customer_name,
+    customerAddress: billParty?.customerAddress ?? (sale.customer_address || ""),
     customerMobile: sale.customer_phone || "",
     customerGSTIN,
     customerTransportDetails: customerExtra?.transport_details || "",
@@ -318,7 +326,7 @@ export default function PublicInvoiceView() {
       const thermalProps = {
         billNo: sale.sale_number,
         date: new Date(sale.sale_date),
-        customerName: sale.customer_name,
+        customerName: billParty?.customerName ?? sale.customer_name,
         items: thermalItems,
         subTotal: sale.gross_amount,
         discount: sale.discount_amount + sale.flat_discount_amount,
@@ -347,7 +355,7 @@ export default function PublicInvoiceView() {
             ref={printRef as any}
             billNo={sale.sale_number}
             date={new Date(sale.sale_date)}
-            customerName={sale.customer_name}
+            customerName={billParty?.customerName ?? sale.customer_name}
             customerPhone={sale.customer_phone || undefined}
             items={saleItems.map((item: any, index: number) => ({
               sr: index + 1,

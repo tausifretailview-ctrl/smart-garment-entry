@@ -1611,6 +1611,7 @@ export default function QuotationEntry() {
       <div className="invoice-print-source-screen">
         {printData ? (
           <InvoiceWrapper
+            customerId={selectedCustomerId || null}
             ref={printRef}
             documentType="quotation"
             template={invoiceTemplate}

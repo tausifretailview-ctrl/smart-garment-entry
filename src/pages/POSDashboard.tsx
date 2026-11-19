@@ -2083,6 +2083,7 @@ const POSDashboard = () => {
       return {
         billNo: sale.sale_number,
         date: saleDate,
+        customerId: sale.customer_id ?? null,
         customerName: sale.customer_name,
         customerAddress: sale.customer_address || "",
         customerMobile: sale.customer_phone || "",
@@ -4941,6 +4942,7 @@ const POSDashboard = () => {
               <div data-invoice-loading className="p-6 text-sm text-muted-foreground">Loading preview…</div>
             ) : (
             <InvoiceWrapper
+              customerId={previewSale.customer_id ?? null}
               format={format}
               billNo={previewSale.sale_number}
               date={new Date(previewSale.sale_date)}
@@ -5177,6 +5179,7 @@ const POSDashboard = () => {
             >
               {printData && (
                 <InvoiceWrapper
+                  customerId={printData.customerId ?? null}
                   billNo={printData.billNo}
             date={printData.date}
             customerName={printData.customerName}
