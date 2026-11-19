@@ -69,7 +69,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, Scan, Printer, ChevronLeft, ChevronRight, SkipBack, Lock, FileText, Coins, Trash2, Save, RefreshCw } from "lucide-react";
+import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, Scan, Printer, ChevronLeft, ChevronRight, SkipBack, Lock, FileText, Coins, Trash2, Save, RefreshCw, FileSpreadsheet, FileDown } from "lucide-react";
 import { Banknote, Smartphone, Wallet } from "lucide-react";
 import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
@@ -103,7 +103,16 @@ import { createCustomerPageLinkForWhatsApp, customerPageBaseDomain } from "@/uti
 import { invokeSendWhatsAppMessage } from "@/utils/invokeSendWhatsAppMessage";
 import type { WhatsAppSettings } from "@/hooks/useWhatsAppAPI";
 import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
-import { getKrishnaA5HorizontalPrintPageStyle, resolveSaleInvoiceTemplate } from "@/utils/invoicePrintFormat";
+import { getKrishnaA5HorizontalPrintPageStyle, resolvePosThermalPaper, resolveSaleInvoiceTemplate } from "@/utils/invoicePrintFormat";
+import { captureElementToPdfBlob } from "@/utils/invoiceElementToPdf";
+import { deliverPdfBlob } from "@/utils/mobileDocumentDelivery";
+import {
+  downloadSaleInvoiceExcel,
+  saleInvoiceExportFileBase,
+  saleInvoicePdfPageFormat,
+  type SaleInvoiceExportData,
+  type SaleInvoiceExportLine,
+} from "@/utils/saleInvoiceExport";
 import { crmPointsPrintSnapshot } from "@/utils/retailErpInvoicePrint";
 import { invalidateCustomerPointsRelatedQueries } from "@/utils/customerPointsQueryInvalidation";
 import { INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS } from "@/utils/thermalReceiptPrintDocument";
@@ -697,6 +706,11 @@ export default function SalesInvoice() {
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
+  /** Unsaved bill rendered into the hidden invoice only while its PDF is exported. */
+  const [exportDraftData, setExportDraftData] = useState<any>(null);
+  const [exportingAs, setExportingAs] = useState<null | "excel" | "pdf">(null);
+  const hasSavedPrintData = !!(savedInvoiceData?.invoiceNumber && (savedInvoiceData?.filledItems?.length ?? 0) > 0);
+  const printInvoiceData = hasSavedPrintData ? savedInvoiceData : exportDraftData;
   const [whatsappCaptureTemplate, setWhatsappCaptureTemplate] = useState<string | null>(null);
   const [salesman, setSalesman] = useState<string>("");
   const [flatDiscountPercent, setFlatDiscountPercent] = useState<number>(0);
@@ -4449,6 +4463,141 @@ Thank you for choosing us!`;
   
   const netAmount = Math.round(netBeforeRoundOff + roundOff);
 
+  // ── Export (Excel / PDF) from the bottom bar ──────────────────────────────
+  // A saved / opened invoice exports exactly what Print prints; an unsaved bill exports
+  // what is on screen, marked DRAFT.
+  const toExportLine = (item: any): SaleInvoiceExportLine => ({
+    productName: item.productName || "",
+    size: item.size || "",
+    color: item.color || "",
+    barcode: item.barcode || "",
+    hsn: item.hsnCode || "",
+    qty: Number(item.quantity) || 0,
+    mrp: Number(item.mrp) || 0,
+    rate: Number(item.salePrice) || 0,
+    discountPercent: Number(item.discountPercent) || 0,
+    gstPercent: Number(item.gstPercent) || 0,
+    total: Number(item.lineTotal) || 0,
+  });
+
+  const filledLinesForExport = lineItems.filter((i) => i.productId !== "");
+  const canExportInvoice = hasSavedPrintData || filledLinesForExport.length > 0;
+
+  const buildSaleInvoiceExport = (): SaleInvoiceExportData | null => {
+    const businessName =
+      (settingsData as { business_name?: string } | null)?.business_name || currentOrganization?.name || "";
+    if (hasSavedPrintData) {
+      const saved = savedInvoiceData;
+      const cust = saved.customer || selectedCustomer || {};
+      return {
+        businessName,
+        billNo: String(saved.invoiceNumber),
+        date: invoiceDate,
+        customerName: cust.customer_name || "",
+        customerPhone: cust.phone || "",
+        customerAddress: cust.address || "",
+        customerGstin: cust.gst_number || "",
+        taxType,
+        paymentMethod: formatInvoicePaymentModeFallback(saved.paymentMethod),
+        notes: saved.notes || "",
+        lines: (saved.filledItems as any[]).map(toExportLine),
+        summary: [
+          { label: "Gross", amount: Number(saved.grossAmount) || 0, always: true },
+          { label: "Discount", amount: -(Number(saved.totalDiscount) || 0), always: true },
+          { label: "Other Charges", amount: Number(saved.otherCharges) || 0 },
+          { label: "Net Payable", amount: Number(saved.netAmount) || 0, always: true },
+        ],
+      };
+    }
+    if (filledLinesForExport.length === 0) return null;
+    return {
+      businessName,
+      billNo: "DRAFT",
+      date: invoiceDate,
+      customerName: selectedCustomer?.customer_name || "",
+      customerPhone: selectedCustomer?.phone || "",
+      customerAddress: selectedCustomer?.address || "",
+      customerGstin: selectedCustomer?.gst_number || "",
+      taxType,
+      paymentMethod: paymentOverride?.method ? formatInvoicePaymentModeFallback(paymentOverride.method) : null,
+      notes,
+      lines: filledLinesForExport.map(toExportLine),
+      summary: [
+        { label: "Gross", amount: grossAmount, always: true },
+        { label: "Discount", amount: -totalDiscount, always: true },
+        ...(taxType === "exclusive" ? [{ label: "GST", amount: totalGST }] : []),
+        { label: "Other Charges", amount: otherCharges },
+        { label: "Points Redeemed", amount: -pointsRedemptionValue },
+        { label: "Round Off", amount: roundOff },
+        { label: "Net Payable", amount: netAmount, always: true },
+      ],
+    };
+  };
+
+  const handleExportExcel = async () => {
+    if (exportingAs) return;
+    const data = buildSaleInvoiceExport();
+    if (!data) return;
+    setExportingAs("excel");
+    try {
+      await downloadSaleInvoiceExcel(data);
+      toast({ title: "Excel exported", description: `${saleInvoiceExportFileBase(data.billNo, data.date)}.xlsx` });
+    } catch (error) {
+      console.error("Sale invoice Excel export failed:", error);
+      toast({ variant: "destructive", title: "Export failed", description: "Could not create the Excel file." });
+    } finally {
+      setExportingAs(null);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    if (exportingAs) return;
+    const billNo = hasSavedPrintData ? String(savedInvoiceData.invoiceNumber) : "DRAFT";
+    if (!hasSavedPrintData) {
+      if (filledLinesForExport.length === 0) return;
+      setExportDraftData({
+        invoiceNumber: "DRAFT",
+        filledItems: filledLinesForExport,
+        netAmount,
+        grossAmount,
+        totalDiscount,
+        notes,
+        otherCharges,
+        shippingAddress,
+        customer: selectedCustomer,
+        b2bDetails: null,
+        paymentMethod: paymentOverride?.method ?? null,
+        ...crmPointsPrintSnapshot({
+          crmEnabled: isPointsEnabled,
+          customerId: selectedCustomerId,
+          balanceBefore: customerPointsData?.balance || 0,
+          pointsToRedeem,
+          pointsEarned: calculatePoints(netAmount),
+        }),
+      });
+    }
+    setExportingAs("pdf");
+    try {
+      await new Promise<void>((resolve) => waitForPrintReady(printRef, resolve));
+      if (!printRef.current) throw new Error("Invoice template not rendered");
+      const settingsAny = settingsData as any;
+      const blob = await captureElementToPdfBlob(printRef.current, {
+        pageFormat: saleInvoicePdfPageFormat(settingsAny?.sale_settings?.sales_bill_format),
+        thermalPaper: resolvePosThermalPaper(settingsAny?.bill_barcode_settings?.direct_print_sale_paper),
+        mobileOptimized: window.innerWidth < 768,
+      });
+      const fileName = `${saleInvoiceExportFileBase(billNo, invoiceDate)}.pdf`;
+      await deliverPdfBlob(blob, fileName, { preferDownload: true });
+      toast({ title: "PDF exported", description: fileName });
+    } catch (error) {
+      console.error("Sale invoice PDF export failed:", error);
+      toast({ variant: "destructive", title: "Export failed", description: "Could not create the PDF." });
+    } finally {
+      setExportingAs(null);
+      setExportDraftData(null);
+    }
+  };
+
   // Industrial mode: will this bill take the party over its credit limit?
   const creditLimitCheck = useMemo(
     () =>
@@ -6247,6 +6396,29 @@ Thank you for choosing us!`;
             <Button
               variant="ghost"
               size="sm"
+              onClick={() => void handleExportExcel()}
+              disabled={!canExportInvoice || !!exportingAs || isSaving}
+              className="h-9 px-3 text-[13px] font-bold text-emerald-300 hover:bg-emerald-900/40 hover:text-emerald-200 gap-1.5"
+              title={hasSavedPrintData ? "Export this invoice to Excel" : "Export this bill to Excel (not saved yet: marked DRAFT)"}
+            >
+              {exportingAs === "excel" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+              Excel
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void handleExportPdf()}
+              disabled={!canExportInvoice || !!exportingAs || isSaving}
+              className="h-9 px-3 text-[13px] font-bold text-rose-300 hover:bg-rose-900/40 hover:text-rose-200 gap-1.5"
+              title={hasSavedPrintData ? "Export this invoice as PDF (same layout as Print)" : "Export this bill as PDF (not saved yet: marked DRAFT)"}
+            >
+              {exportingAs === "pdf" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+              PDF
+            </Button>
+            <div className="w-px h-6 bg-slate-700 mx-1" />
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setShowNotesSection(prev => !prev)}
               className="h-9 px-3 text-[13px] font-bold text-slate-200 hover:bg-slate-800 hover:text-white gap-1.5"
             >
@@ -6362,22 +6534,22 @@ Thank you for choosing us!`;
 
       {/* Hidden Invoice for Printing */}
       <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
-        {savedInvoiceData?.invoiceNumber && (savedInvoiceData?.filledItems?.length ?? 0) > 0 ? (
+        {printInvoiceData?.invoiceNumber && (printInvoiceData?.filledItems?.length ?? 0) > 0 ? (
           <InvoiceWrapper
-            customerId={savedInvoiceData?.customer?.id || selectedCustomer?.id || null}
+            customerId={printInvoiceData?.customer?.id || selectedCustomer?.id || null}
             ref={printRef}
             template={effectiveInvoicePrintTemplate}
-            billNo={savedInvoiceData.invoiceNumber}
+            billNo={printInvoiceData.invoiceNumber}
           date={invoiceDate}
           dueDate={dueDate}
-          customerName={savedInvoiceData?.customer.customer_name || selectedCustomer?.customer_name || ""}
-          customerAddress={savedInvoiceData?.customer.address || selectedCustomer?.address || ""}
-          shippingAddress={savedInvoiceData?.shippingAddress || ""}
-          customerMobile={savedInvoiceData?.customer.phone || selectedCustomer?.phone || ""}
-          customerGSTIN={savedInvoiceData?.customer.gst_number || selectedCustomer?.gst_number || ""}
-          customerTransportDetails={(savedInvoiceData?.customer as any)?.transport_details || (selectedCustomer as any)?.transport_details || ""}
-          b2bDetails={savedInvoiceData?.b2bDetails as SaleB2BDetails | null | undefined}
-            items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({
+          customerName={printInvoiceData?.customer.customer_name || selectedCustomer?.customer_name || ""}
+          customerAddress={printInvoiceData?.customer.address || selectedCustomer?.address || ""}
+          shippingAddress={printInvoiceData?.shippingAddress || ""}
+          customerMobile={printInvoiceData?.customer.phone || selectedCustomer?.phone || ""}
+          customerGSTIN={printInvoiceData?.customer.gst_number || selectedCustomer?.gst_number || ""}
+          customerTransportDetails={(printInvoiceData?.customer as any)?.transport_details || (selectedCustomer as any)?.transport_details || ""}
+          b2bDetails={printInvoiceData?.b2bDetails as SaleB2BDetails | null | undefined}
+            items={(printInvoiceData.filledItems).map((item: any, index: number) => ({
               sr: index + 1,
               particulars: item.productName,
               productId: item.productId,
@@ -6393,15 +6565,15 @@ Thank you for choosing us!`;
               gstPercent: item.gstPercent || 0,
               discountPercent: item.discountPercent || 0,
             }))}
-            subTotal={savedInvoiceData?.grossAmount ?? grossAmount}
-            discount={savedInvoiceData?.totalDiscount ?? totalDiscount}
-            grandTotal={savedInvoiceData?.netAmount ?? netAmount}
-            notes={savedInvoiceData?.notes ?? notes}
-            pointsBalance={savedInvoiceData?.pointsBalance}
-            pointsRedeemed={savedInvoiceData?.pointsRedeemed}
-            otherCharges={savedInvoiceData?.otherCharges ?? otherCharges}
+            subTotal={printInvoiceData?.grossAmount ?? grossAmount}
+            discount={printInvoiceData?.totalDiscount ?? totalDiscount}
+            grandTotal={printInvoiceData?.netAmount ?? netAmount}
+            notes={printInvoiceData?.notes ?? notes}
+            pointsBalance={printInvoiceData?.pointsBalance}
+            pointsRedeemed={printInvoiceData?.pointsRedeemed}
+            otherCharges={printInvoiceData?.otherCharges ?? otherCharges}
             roundOff={roundOff}
-            paymentMethod={formatInvoicePaymentModeFallback(savedInvoiceData?.paymentMethod)}
+            paymentMethod={formatInvoicePaymentModeFallback(printInvoiceData?.paymentMethod)}
             taxType={taxType}
             financerDetails={financerDetails}
           />
