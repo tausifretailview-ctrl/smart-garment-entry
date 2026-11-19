@@ -69,7 +69,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, Scan, Printer, ChevronLeft, ChevronRight, SkipBack, Lock, FileText, Coins, Trash2, Save, RefreshCw, FileSpreadsheet, FileDown } from "lucide-react";
+import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, Scan, Printer, ChevronLeft, ChevronRight, SkipBack, Lock, FileText, Coins, Trash2, Save, RefreshCw, FileSpreadsheet, FileDown, History as HistoryIcon, BarChart3 } from "lucide-react";
 import { Banknote, Smartphone, Wallet } from "lucide-react";
 import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
@@ -184,6 +184,8 @@ import { isExplicitEntryOpen, useDraftSave, useResumeEntryOnReturn } from "@/hoo
 import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
+import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { CustomerAnalysisDialog } from "@/components/customers/CustomerAnalysisDialog";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
 import { MrpTierSelectionDialog, toMrpTierSelectionChoices } from "@/components/MrpTierSelectionDialog";
 import { pickLastPurchaseScanPrice, resolveSaleScanPriceSource } from "@/utils/saleScanPricePreference";
@@ -763,6 +765,9 @@ export default function SalesInvoice() {
   
   // Product history dialog state
   const [historyProduct, setHistoryProduct] = useState<{ id: string; name: string } | null>(null);
+  // Selected customer: all transactions / purchase analysis
+  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
+  const [showCustomerAnalysis, setShowCustomerAnalysis] = useState(false);
 
   // Invoice navigation state (like POS)
   const [navInvoiceIndex, setNavInvoiceIndex] = useState<number | null>(null);
@@ -5357,6 +5362,30 @@ Thank you for choosing us!`;
               <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => setOpenCustomerDialog(true)}>
                 <Plus className="h-4 w-4" />
               </Button>
+              {selectedCustomerId && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 shrink-0 text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                    onClick={() => setShowCustomerHistory(true)}
+                    title="Customer history: all bills, payments, returns and credit notes"
+                    aria-label="Customer history"
+                  >
+                    <HistoryIcon className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-9 shrink-0 gap-1 px-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-semibold shadow-sm hover:from-violet-500 hover:to-indigo-500"
+                    onClick={() => setShowCustomerAnalysis(true)}
+                    title="Advance analysis: what this customer buys, prices paid, payment record"
+                    aria-label="Customer analysis"
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                    <span className="hidden min-[1700px]:inline">Analysis</span>
+                  </Button>
+                </>
+              )}
             </div>
             {selectedCustomerId &&
               selectedCustomer?.discount_percent > 0 &&
@@ -6579,6 +6608,50 @@ Thank you for choosing us!`;
           />
         ) : <div ref={printRef} />}
         </div>
+
+      {/* Selected customer: all transactions + purchase analysis */}
+      {selectedCustomerId && currentOrganization && (
+        <>
+          <CustomerHistoryDialog
+            open={showCustomerHistory}
+            onOpenChange={setShowCustomerHistory}
+            customerId={selectedCustomerId}
+            customerName={selectedCustomer?.customer_name || ""}
+            organizationId={currentOrganization.id}
+            onViewInvoice={(saleId) => {
+              // Opening an old invoice here replaces the bill on screen: only when it is empty.
+              if (lineItems.some((i) => i.productId) && saleId !== editingInvoiceId) {
+                toast({
+                  title: "Finish this bill first",
+                  description: "Save or clear the current bill, then open the invoice from History.",
+                });
+                return;
+              }
+              setShowCustomerHistory(false);
+              navigate("/sales-invoice", { state: { editInvoiceId: saleId } });
+            }}
+          />
+          <CustomerAnalysisDialog
+            open={showCustomerAnalysis}
+            onOpenChange={setShowCustomerAnalysis}
+            organizationId={currentOrganization.id}
+            customerId={selectedCustomerId}
+            customerName={selectedCustomer?.customer_name || ""}
+            customerPhone={selectedCustomer?.phone || null}
+            balance={{
+              grossOutstanding: customerGrossOutstanding,
+              unusedAdvance: customerUnusedAdvanceTotal,
+              pendingCn: customerPendingCn,
+              netPosition: customerBalance,
+              isLoading: isBalanceLoading,
+            }}
+            onOpenHistory={() => {
+              setShowCustomerAnalysis(false);
+              setShowCustomerHistory(true);
+            }}
+          />
+        </>
+      )}
 
       {/* Product History Dialog */}
       {historyProduct && currentOrganization && (

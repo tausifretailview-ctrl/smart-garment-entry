@@ -22,6 +22,8 @@ interface CustomerAccountHistoryShellProps {
   queriesEnabled: boolean;
   scrollAreaClassName?: string;
   wrapperClassName?: string;
+  /** Replaces "Open invoice" (default: open it in Sale Invoice). */
+  onViewInvoice?: (saleId: string) => void;
 }
 
 type ReturnForAdjust = {
@@ -42,6 +44,7 @@ export function CustomerAccountHistoryShell({
   queriesEnabled,
   scrollAreaClassName,
   wrapperClassName,
+  onViewInvoice,
 }: CustomerAccountHistoryShellProps) {
   const queryClient = useQueryClient();
   const { orgNavigate } = useOrgNavigation();
@@ -65,6 +68,10 @@ export function CustomerAccountHistoryShell({
   const actions: CustomerAccountHistoryActions = useMemo(
     () => ({
       onViewInvoice: (saleId: string) => {
+        if (onViewInvoice) {
+          onViewInvoice(saleId);
+          return;
+        }
         orgNavigate("/sales-invoice", { state: { editInvoiceId: saleId } });
       },
       onEditPayment: (voucher) => {
@@ -90,7 +97,7 @@ export function CustomerAccountHistoryShell({
         setShowOverpaymentRefund(true);
       },
     }),
-    [orgNavigate, paymentDialogs, customerName],
+    [orgNavigate, paymentDialogs, customerName, onViewInvoice],
   );
 
   return (
