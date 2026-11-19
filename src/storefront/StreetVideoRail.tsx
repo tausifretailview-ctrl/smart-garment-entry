@@ -190,7 +190,13 @@ export function StreetVideoRail({
   };
 
   return (
-    <section className="st-section st-reels" aria-label={title}>
+    <section
+      className="st-section st-reels"
+      aria-label={title}
+      data-count={videos.length}
+      // A few clips don't fill a desktop row: they sit centred under a centred heading.
+      data-few={videos.length <= 3 ? "true" : undefined}
+    >
       <div className="st-section-head">
         <h2 className="st-h2">{title}</h2>
         {videos.length > 1 ? (

@@ -15,8 +15,9 @@ const products = Array.from({ length: 8 }, (_, i) => ({
 
 /**
  * Street theme store on desktop (user report): the home banner spans the full screen width
- * (it was pinned to 1360px by the phone 2:1 rule), and "no size" placeholders are not shown
- * as sizes on product cards.
+ * (it was pinned to 1360px by the phone 2:1 rule), "no size" placeholders are not shown as
+ * sizes, a single shop video sits centred, the page widens on big screens and the 3D
+ * showcase scales up.
  */
 for (const width of [1366, 1920, 2560]) {
   test(`Street store on a ${width}px desktop: full-width banner, no placeholder sizes`, async ({ page, backend }, testInfo) => {
@@ -34,6 +35,7 @@ for (const width of [1366, 1920, 2560]) {
       settings: {
         storefront_theme: "street",
         storefront_banners: [{ id: "b1", image_url: "https://img.example/banner.svg", heading: "", subheading: "", target: "" }],
+        storefront_videos: [{ id: "vid1", video_url: "https://img.example/clip.mp4", caption: "Emerald Bloom Suit", target: "" }],
       },
     }));
     await page.route("https://img.example/**", (route) => {
@@ -56,6 +58,16 @@ for (const width of [1366, 1920, 2560]) {
     const sizeLines = await page.locator(".st-card-sizes").allTextContents();
     expect(sizeLines.length).toBeGreaterThan(0);
     for (const line of sizeLines) expect(line).not.toMatch(/\bNONE\b|^0$/);
+    // One shop video: centred under its heading, not a lone card on the left.
+    const reel = await page.locator(".st-reel").first().boundingBox();
+    const reelCentre = reel!.x + reel!.width / 2;
+    expect(Math.abs(reelCentre - pageWidth / 2)).toBeLessThan(40);
+    // The page grows with big screens; the 3D showcase is not a fixed 980 x 460 box.
+    const content = await page.locator(".st-grid").first().boundingBox();
+    const stage = await page.locator(".st-show-stage").boundingBox();
+    if (width >= 1920) expect(content!.width).toBeGreaterThan(1600);
+    expect(stage!.height).toBeGreaterThanOrEqual(460);
+    if (width >= 1920) expect(stage!.width).toBeGreaterThan(1200);
     await page.screenshot({ path: testInfo.outputPath(`store-${width}.png`) });
   });
 }
