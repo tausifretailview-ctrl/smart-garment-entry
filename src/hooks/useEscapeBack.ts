@@ -2,10 +2,19 @@ import { useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { isGlobalShortcutBlocked, isPosSalesRoute } from "@/lib/keyboardShortcuts";
+import {
+  consumeSteppingBack,
+  pagePathAfterSlug,
+  readEscHistory,
+  recordVisit,
+  takeEscBackTarget,
+  writeEscHistory,
+} from "@/lib/escapeHistory";
 
-// Maps each page path → where Esc should go
-// Tally-style: entry pages go to their dashboard, dashboards go to home
-const BACK_MAP: Record<string, string> = {
+// Esc first steps back through the pages this tab visited (src/lib/escapeHistory.ts).
+// This map is the fallback when there is no earlier page: each page's usual parent
+// (Tally-style: entry pages go to their dashboard, dashboards go to home).
+export const BACK_MAP: Record<string, string> = {
   // Sale entry → Sale Invoice Dashboard
   "sales-invoice":            "sales-invoice-dashboard",
   "sale-return-entry":        "sales-invoice-dashboard",
@@ -148,6 +157,14 @@ export const useEscapeBack = () => {
   const location = useLocation();
   const { orgNavigate, orgSlug } = useOrgNavigation();
 
+  // Remember every page visited in this tab (Esc steps back through them).
+  useEffect(() => {
+    if (!orgSlug) return;
+    const path = pagePathAfterSlug(location.pathname, orgSlug);
+    const next = recordVisit(readEscHistory(orgSlug), { path, search: location.search }, consumeSteppingBack());
+    writeEscHistory(orgSlug, next);
+  }, [location.pathname, location.search, orgSlug]);
+
   const handleEscape = useCallback(() => {
     // Get the last path segment
     const pathParts = location.pathname.split("/").filter(Boolean);
@@ -155,6 +172,13 @@ export const useEscapeBack = () => {
 
     // Check if current page is root / org home → do nothing
     if (!currentPage || currentPage === orgSlug) return;
+
+    // The page visited before this one, newest first (reverse of how the user came here).
+    const back = orgSlug ? takeEscBackTarget(orgSlug, location.pathname) : null;
+    if (back) {
+      orgNavigate(back);
+      return;
+    }
 
     // Look up smart back destination
     const destination = BACK_MAP[currentPage];
