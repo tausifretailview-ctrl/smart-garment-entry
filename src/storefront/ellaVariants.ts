@@ -37,6 +37,8 @@ export function normalizeSizeLabel(raw: string | null | undefined): string {
   const value = String(raw || "").trim().toUpperCase();
   if (!value) return FREE_SIZE_LABEL;
   if (/^(FREE|FREE SIZE|FREESIZE|ONE SIZE|OS)$/.test(value)) return FREE_SIZE_LABEL;
+  // ERP placeholders for "no size" (e.g. NONE, NA, -, 0) are not sizes a shopper can pick.
+  if (/^(NONE|NO SIZE|NA|N\/A|NIL|-+|\.+|0)$/.test(value)) return FREE_SIZE_LABEL;
   return value.slice(0, 8);
 }
 

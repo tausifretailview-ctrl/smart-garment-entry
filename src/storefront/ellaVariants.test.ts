@@ -86,3 +86,15 @@ describe("validateEllaOrderDetails", () => {
     }
   });
 });
+
+describe("normalizeSizeLabel", () => {
+  it("treats ERP 'no size' placeholders as free size, keeps real sizes", async () => {
+    const { normalizeSizeLabel, FREE_SIZE_LABEL } = await import("./ellaVariants");
+    for (const raw of ["NONE", "none", " None ", "NA", "N/A", "-", "0", "NIL", "", null]) {
+      expect(normalizeSizeLabel(raw)).toBe(FREE_SIZE_LABEL);
+    }
+    expect(normalizeSizeLabel("1")).toBe("1");
+    expect(normalizeSizeLabel("10")).toBe("10");
+    expect(normalizeSizeLabel("xl")).toBe("XL");
+  });
+});
