@@ -1,3 +1,6 @@
+import { useSettings } from "@/hooks/useSettings";
+import { WholesaleLauncher } from "@/components/dashboard/WholesaleLauncher";
+import { LAUNCHER_VIEW_KEY, isWholesaleDashboardEnabled } from "@/lib/wholesaleLauncher";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { flushSync } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1448,11 +1451,64 @@ const DesktopDashboard = () => {
   );
 };
 
-const DashboardContent = () => (
-  <div className="h-full min-h-0 flex flex-col">
-    <DesktopDashboard />
-  </div>
-);
+function readLauncherView(): "apps" | "overview" {
+  try {
+    return window.localStorage.getItem(LAUNCHER_VIEW_KEY) === "overview" ? "overview" : "apps";
+  } catch {
+    return "apps";
+  }
+}
+
+/**
+ * Settings → Company → Home page "Wholesale Dashboard" (off by default): home opens on the app
+ * icons, with a switch to the usual figures. The figures page (and its queries) loads only when
+ * "Overview" is chosen.
+ */
+const DashboardContent = () => {
+  const { data: settings } = useSettings();
+  const launcherOn = isWholesaleDashboardEnabled((settings as { sale_settings?: unknown } | null)?.sale_settings);
+  const [view, setView] = useState<"apps" | "overview">(readLauncherView);
+  const choose = (next: "apps" | "overview") => {
+    setView(next);
+    try {
+      window.localStorage.setItem(LAUNCHER_VIEW_KEY, next);
+    } catch {
+      /* storage blocked — the choice lasts for this visit */
+    }
+  };
+
+  if (!launcherOn) {
+    return (
+      <div className="h-full min-h-0 flex flex-col">
+        <DesktopDashboard />
+      </div>
+    );
+  }
+  return (
+    <div className="relative h-full min-h-0 flex flex-col">
+      <div className="absolute right-3 top-3 z-10 flex rounded-full border border-slate-200 bg-white/90 p-0.5 text-xs font-semibold shadow-sm backdrop-blur" role="tablist" aria-label="Home view">
+        {(["apps", "overview"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            role="tab"
+            aria-selected={view === v}
+            onClick={() => choose(v)}
+            className={cn(
+              "rounded-full px-3 py-1.5 transition-colors",
+              view === v ? "bg-slate-900 text-white" : "text-slate-600 hover:text-slate-900",
+            )}
+          >
+            {v === "apps" ? "Apps" : "Overview"}
+          </button>
+        ))}
+      </div>
+      <div className={cn("min-h-0 flex-1", view === "overview" && "pt-10")}>
+        {view === "apps" ? <WholesaleLauncher /> : <DesktopDashboard />}
+      </div>
+    </div>
+  );
+};
 
 const Index = () => {
   const { currentOrganization, organizations, loading } = useOrganization();
