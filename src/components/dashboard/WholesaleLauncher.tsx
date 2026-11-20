@@ -172,7 +172,7 @@ export function WholesaleLauncher() {
       <div key={tile.path} className="wl-tile group relative" style={{ "--wl-i": index } as React.CSSProperties}>
         <button
           type="button"
-          className="flex w-full flex-col items-center gap-2 rounded-2xl px-1 py-3 outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+          className="flex w-full flex-col items-center gap-1.5 rounded-2xl px-1 py-2 outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
           onClick={() => open(tile)}
           onMouseEnter={() => prefetchTabPage(tile.path, { intent: true })}
           onFocus={() => prefetchTabPage(tile.path, { intent: true })}
@@ -196,13 +196,16 @@ export function WholesaleLauncher() {
     );
   };
 
+  // Search results: one wide grid. Sections: compact cards, 5 apps per row (4 on phones).
   const grid = "grid grid-cols-3 gap-x-2 gap-y-1 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8";
+  const cardGrid = "grid grid-cols-4 gap-x-1 gap-y-1 sm:grid-cols-5";
+  const card = "wl-card mb-4 break-inside-avoid rounded-3xl border border-white/70 bg-white/60 p-3 shadow-sm backdrop-blur sm:p-4";
   let i = 0;
 
   return (
     <div className="wl-root h-full min-h-0 overflow-y-auto">
-      <div className="mx-auto w-full max-w-6xl px-4 pb-10 pt-6 sm:px-6">
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div className="mx-auto w-full max-w-[1500px] px-4 pb-10 pt-6 sm:px-6 sm:pt-12">
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-sm font-medium text-violet-600">
               {now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}
@@ -275,16 +278,23 @@ export function WholesaleLauncher() {
               </section>
             ) : null}
 
-            {LAUNCHER_GROUPS.map((group) => {
-              const inGroup = tiles.filter((t) => t.group === group);
-              if (inGroup.length === 0) return null;
-              return (
-                <section key={group} aria-label={group}>
-                  <h2 className="mb-1 px-1 text-xs font-semibold uppercase tracking-wider text-slate-400">{group}</h2>
-                  <div className={grid}>{inGroup.map((t) => tileButton(t, i++))}</div>
-                </section>
-              );
-            })}
+            {/* Section cards packed in columns (2 on laptops, 3 on wide screens), so short
+                sections sit side by side instead of leaving half-empty rows. */}
+            <div className="wl-sections columns-1 gap-4 lg:columns-2 2xl:columns-3" data-testid="launcher-sections">
+              {LAUNCHER_GROUPS.map((group) => {
+                const inGroup = tiles.filter((t) => t.group === group);
+                if (inGroup.length === 0) return null;
+                return (
+                  <section key={group} aria-label={group} className={card}>
+                    <h2 className="mb-1 flex items-center justify-between px-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      {group}
+                      <span className="rounded-full bg-slate-100 px-1.5 text-[10px] font-bold text-slate-400">{inGroup.length}</span>
+                    </h2>
+                    <div className={cardGrid}>{inGroup.map((t) => tileButton(t, i++))}</div>
+                  </section>
+                );
+              })}
+            </div>
 
             {tiles.length > 0 && favouriteTiles.length === 0 ? (
               <p className="text-center text-xs text-slate-400">
