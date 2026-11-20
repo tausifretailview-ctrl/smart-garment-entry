@@ -19,6 +19,14 @@ import {
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { BrandMarkdownDialog } from "@/components/BrandMarkdownDialog";
+import { normalizeBrandKey, parseProductMarkdownInput } from "@/lib/markdown";
+import {
+  brandMarkdownMap,
+  invalidateMarkdownQueries,
+  saveProductMarkdown,
+  useBrandMarkdowns,
+} from "@/lib/data/markdowns";
 import { ToastAction } from "@/components/ui/toast";
 import { invalidateProductDashboardQueries } from "@/utils/invalidateDashboardQueries";
 import { Button } from "@/components/ui/button";
@@ -777,6 +785,10 @@ export const ProductEntryDialog = ({
   /** Ephemeral Sale Disc % for MRP→Sale pricing only — never persisted to sale_discount_*. */
   const [pricingDiscPercent, setPricingDiscPercent] = useState("");
   const [showDiscountFields, setShowDiscountFields] = useState(false);
+  /** Markdown % for the Sale Bill ("" = follow the brand's markdown). Saved to products.markdown_percent. */
+  const [markdownInput, setMarkdownInput] = useState("");
+  const [showBrandMarkdown, setShowBrandMarkdown] = useState(false);
+  const { data: brandMarkdownRows = [] } = useBrandMarkdowns({ enabled: open });
   const [garmentGstSettings, setGarmentGstSettings] = useState<GarmentGstRuleSettings>({});
  const [cursorAfterStyle, setCursorAfterStyle] = useState<'pur_price' | 'hsn'>('pur_price');
   const purGstRef = useRef<HTMLButtonElement>(null);
@@ -1614,6 +1626,7 @@ export const ProductEntryDialog = ({
     });
     setColorInput("");
     setMarkupPercent("");
+    setMarkdownInput("");
     setPricingDiscPercent(
       pricingSaleDiscPercentInputValue(
         (lastProduct as { pricing_sale_disc_percent?: number | null }).pricing_sale_disc_percent,
@@ -2792,6 +2805,14 @@ export const ProductEntryDialog = ({
 
       if (productError) throw productError;
 
+      // Markdown % (Sale Bill): its own small write, so the product save never depends on it.
+      const productMarkdown = parseProductMarkdownInput(markdownInput);
+      if (productMarkdown !== null && productData?.id) {
+        const md = await saveProductMarkdown(currentOrganization.id, productData.id, productMarkdown);
+        if (md.ok) invalidateMarkdownQueries(queryClient, currentOrganization.id);
+        else toast({ title: "Markdown % not saved", description: md.reason, variant: "destructive" });
+      }
+
       // Insert variants — prepared and validated before product insert
       let insertedVariants: any[] = [];
       if (variantsToCreate.length > 0) {
@@ -3703,6 +3724,48 @@ export const ProductEntryDialog = ({
                     placeholder="0"
                   />
                 </div>
+
+                {formData.product_type !== "service" && !masterOnly && (() => {
+                  const brandMarkdown = brandMarkdownMap(brandMarkdownRows).get(normalizeBrandKey(formData.brand));
+                  const own = parseProductMarkdownInput(markdownInput);
+                  const effective = own ?? brandMarkdown ?? 0;
+                  const sale = Number(formData.default_sale_price) || 0;
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label htmlFor="markdown_percent" className={purchaseTypography.priceFieldLabel}>
+                          Markdown %
+                        </Label>
+                        <button
+                          type="button"
+                          className="text-[11px] font-medium text-primary hover:underline"
+                          onClick={() => setShowBrandMarkdown(true)}
+                          data-testid="open-brand-markdown"
+                        >
+                          Brand list
+                        </button>
+                      </div>
+                      <Input
+                        id="markdown_percent"
+                        data-testid="product-markdown-input"
+                        type="number"
+                        min="0"
+                        max="99.99"
+                        step="0.01"
+                        value={markdownInput}
+                        onChange={(e) => setMarkdownInput(e.target.value)}
+                        onKeyDown={handleEnterAsTab}
+                        placeholder={brandMarkdown != null ? `Brand ${brandMarkdown}%` : "0"}
+                        className={cn(isPurchaseBillForm ? purchaseTypography.priceInput : "h-11")}
+                      />
+                      <p className="text-[10px] leading-snug text-muted-foreground" data-testid="product-markdown-hint">
+                        {effective > 0 && sale > 0
+                          ? `Sale Bill: ${sale} − ${effective}% = ${Math.round(sale * (1 - effective / 100) * 100) / 100}${own === null ? " (brand)" : ""}`
+                          : "Taken off the sale price on the Sale Bill. Empty = brand's markdown."}
+                      </p>
+                    </div>
+                  );
+                })()}
 
                 {showDiscountFields && (
                   <div className="space-y-2">
@@ -5181,6 +5244,11 @@ export const ProductEntryDialog = ({
           }}
         />
       )}
+      <BrandMarkdownDialog
+        open={showBrandMarkdown}
+        onOpenChange={setShowBrandMarkdown}
+        initialBrand={formData.brand || undefined}
+      />
     </>
   );
 };
