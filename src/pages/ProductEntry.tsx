@@ -10,6 +10,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { canonicalizeProductBrand } from "@/utils/productBrandUtils";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
+import { BrandMarkdownDialog } from "@/components/BrandMarkdownDialog";
+import { normalizeBrandKey, parseProductMarkdownInput } from "@/lib/markdown";
+import {
+  brandMarkdownMap,
+  invalidateMarkdownQueries,
+  saveProductMarkdown,
+  useBrandMarkdowns,
+} from "@/lib/data/markdowns";
 import { ToastAction } from "@/components/ui/toast";
 import { findProductNameMatch, productNameMatchKey } from "@/utils/productNameDedupe";
 import { useProductProtection } from "@/hooks/useProductProtection";
@@ -220,6 +228,24 @@ const ProductEntry = () => {
   const [markupPercent, setMarkupPercent] = useState<string>("");
   /** Ephemeral Sale Disc % for MRP→Sale pricing only — never persisted to sale_discount_*. */
   const [pricingDiscPercent, setPricingDiscPercent] = useState("");
+  /** Markdown % for the Sale Bill ("" = follow the brand). products.markdown_percent. */
+  const [markdownInput, setMarkdownInput] = useState("");
+  /** As loaded, so a product save only writes the markdown when it changed. */
+  const loadedMarkdownRef = useRef<number | null>(null);
+  const [showBrandMarkdown, setShowBrandMarkdown] = useState(false);
+  const { data: brandMarkdownRows = [] } = useBrandMarkdowns();
+  const saveMarkdownForProduct = async (productId: string | undefined) => {
+    if (!productId || !currentOrganization?.id) return;
+    const next = parseProductMarkdownInput(markdownInput);
+    if (next === loadedMarkdownRef.current) return;
+    const md = await saveProductMarkdown(currentOrganization.id, productId, next);
+    if (md.ok) {
+      loadedMarkdownRef.current = next;
+      invalidateMarkdownQueries(queryClient, currentOrganization.id);
+    } else {
+      toast({ title: "Markdown % not saved", description: md.reason, variant: "destructive" });
+    }
+  };
 
   // Copy from existing product
   const [copySearch, setCopySearch] = useState("");
@@ -793,6 +819,11 @@ const ProductEntry = () => {
         setPricingDiscPercent(
           pricingSaleDiscPercentInputValue((product as any).pricing_sale_disc_percent),
         );
+        {
+          const loadedMd = (product as { markdown_percent?: number | null }).markdown_percent;
+          loadedMarkdownRef.current = loadedMd == null ? null : Number(loadedMd);
+          setMarkdownInput(loadedMd == null ? "" : String(Number(loadedMd)));
+        }
         setLoadedHasItemColumns("reorder_level" in product && "alt_uom" in product);
         setIndustrialItemForm(industrialItemToForm(product));
 
@@ -1440,6 +1471,7 @@ const ProductEntry = () => {
 
         if (productError) throw productError;
         productData = data;
+        await saveMarkdownForProduct(productData?.id);
         if (industrialItem && productData?.id) await saveIndustrialItemDetails(productData.id, industrialItem);
 
         // For updates, separate existing variants (with ID) from new variants
@@ -1661,6 +1693,7 @@ const ProductEntry = () => {
 
         if (productError) throw productError;
         productData = data;
+        await saveMarkdownForProduct(productData?.id);
         if (industrialItem && productData?.id) await saveIndustrialItemDetails(productData.id, industrialItem);
 
         // Insert variants using manual check-then-insert pattern
@@ -2846,6 +2879,44 @@ const ProductEntry = () => {
                 )}
               </div>
 
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="markdown_percent">Markdown %</Label>
+                  <button
+                    type="button"
+                    className="text-[11px] font-medium text-primary hover:underline"
+                    onClick={() => setShowBrandMarkdown(true)}
+                  >
+                    Brand list
+                  </button>
+                </div>
+                {(() => {
+                  const brandMd = brandMarkdownMap(brandMarkdownRows).get(normalizeBrandKey(formData.brand));
+                  const own = parseProductMarkdownInput(markdownInput);
+                  const effective = own ?? brandMd ?? 0;
+                  const sale = Number(formData.default_sale_price) || 0;
+                  return (
+                    <>
+                      <Input
+                        id="markdown_percent"
+                        type="number"
+                        min="0"
+                        max="99.99"
+                        step="0.01"
+                        value={markdownInput}
+                        onChange={(e) => setMarkdownInput(e.target.value)}
+                        placeholder={brandMd != null ? `Brand ${brandMd}%` : "0"}
+                      />
+                      <p className="text-[10px] text-muted-foreground leading-snug">
+                        {effective > 0 && sale > 0
+                          ? `Sale Bill: ${sale} − ${effective}% = ${Math.round(sale * (1 - effective / 100) * 100) / 100}${own === null ? " (brand)" : ""}`
+                          : "Taken off the sale price on the Sale Bill. Empty = brand's markdown."}
+                      </p>
+                    </>
+                  );
+                })()}
+              </div>
+
               {/* Purchase Discount Section */}
               {showDiscountFields && (
                 <div className="col-span-full">
@@ -3516,6 +3587,11 @@ const ProductEntry = () => {
             </div>
           </DialogContent>
         </Dialog>
+        <BrandMarkdownDialog
+          open={showBrandMarkdown}
+          onOpenChange={setShowBrandMarkdown}
+          initialBrand={formData.brand || undefined}
+        />
       </div>
     </div>
   );

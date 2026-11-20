@@ -2022,6 +2022,41 @@ export type Database = {
           },
         ]
       }
+      brand_markdowns: {
+        Row: {
+          brand: string
+          created_at: string
+          id: string
+          markdown_percent: number
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          brand: string
+          created_at?: string
+          id?: string
+          markdown_percent: number
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          brand?: string
+          created_at?: string
+          id?: string
+          markdown_percent?: number
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_markdowns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_brand_discounts: {
         Row: {
           brand: string
@@ -6896,6 +6931,7 @@ export type Database = {
           hsn_code: string | null
           id: string
           image_url: string | null
+          markdown_percent: number | null
           organization_id: string
           pricing_sale_disc_percent: number | null
           product_name: string
@@ -6931,6 +6967,7 @@ export type Database = {
           hsn_code?: string | null
           id?: string
           image_url?: string | null
+          markdown_percent?: number | null
           organization_id: string
           pricing_sale_disc_percent?: number | null
           product_name: string
@@ -6966,6 +7003,7 @@ export type Database = {
           hsn_code?: string | null
           id?: string
           image_url?: string | null
+          markdown_percent?: number | null
           organization_id?: string
           pricing_sale_disc_percent?: number | null
           product_name?: string
@@ -8324,6 +8362,7 @@ export type Database = {
           is_dc_item: boolean | null
           item_notes: string | null
           line_total: number
+          markdown_percent: number | null
           mrp: number
           net_after_discount: number
           organization_id: string
@@ -8352,6 +8391,7 @@ export type Database = {
           is_dc_item?: boolean | null
           item_notes?: string | null
           line_total: number
+          markdown_percent?: number | null
           mrp: number
           net_after_discount?: number
           organization_id: string
@@ -8380,6 +8420,7 @@ export type Database = {
           is_dc_item?: boolean | null
           item_notes?: string | null
           line_total?: number
+          markdown_percent?: number | null
           mrp?: number
           net_after_discount?: number
           organization_id?: string

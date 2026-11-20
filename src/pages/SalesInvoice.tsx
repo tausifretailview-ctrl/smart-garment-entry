@@ -170,6 +170,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useLocation } from "react-router-dom";
 import { useWindowTabs } from "@/contexts/WindowTabsContext";
+import {
+  clampMarkdownPercent,
+  combinedDiscountPercent,
+  markdownLineAmounts,
+  resolveMarkdownPercent,
+  splitMarkdownFromSavedLine,
+} from "@/lib/markdown";
+import { brandMarkdownMap, useBrandMarkdowns, useProductMarkdownMap, type BrandMarkdown } from "@/lib/data/markdowns";
 import { recordSaleCommission } from "@/utils/posSalesmanCommission";
 import { entryWindowId, entryWindowInstance, MULTI_WINDOW_PAGES, nextFreeEntryWindow, tabIdOf } from "@/lib/entryWindows";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -223,6 +231,9 @@ import { getInvoiceWhatsAppSettings } from "@/lib/data/invoiceWhatsAppSettings";
 import { fetchCustomerInvoiceDetails } from "@/lib/data/customerInvoiceDetails";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 
+const EMPTY_BRAND_MARKDOWNS: BrandMarkdown[] = [];
+const EMPTY_PRODUCT_MARKDOWNS: ReadonlyMap<string, number> = new Map();
+
 interface LineItem {
   id: string;
   productId: string;
@@ -237,6 +248,13 @@ interface LineItem {
   salePrice: number;
   discountPercent: number;
   discountAmount: number;
+  /**
+   * Markdown % (wholesale): comes off the sale price before Disc % / Disc ₹, which are the extra
+   * discount on the price after markdown. From the product, else its brand (src/lib/markdown.ts).
+   */
+  markdownPercent?: number;
+  /** Rupees taken off by the markdown (set by calculateLineTotal). */
+  markdownAmount?: number;
   gstPercent: number;
   /** Purchase GST % — base rate when effective sale price is at/below threshold. */
   purchaseGstPercent?: number;
@@ -525,6 +543,19 @@ export default function SalesInvoice() {
     }))
   );
   const [tablePadRowCount, setTablePadRowCount] = useState(SALE_BILL_MIN_DISPLAY_ROWS);
+  // Markdown % (wholesale): brand list + products with their own markdown. Both read nothing
+  // until the markdown SQL is run, and the column stays hidden.
+  const { data: brandMarkdownRows = EMPTY_BRAND_MARKDOWNS } = useBrandMarkdowns();
+  const { data: productMarkdownMap } = useProductMarkdownMap();
+  const brandMarkdownMapMemo = useMemo(() => brandMarkdownMap(brandMarkdownRows), [brandMarkdownRows]);
+  const brandMarkdownMapRef = useRef(brandMarkdownMapMemo);
+  brandMarkdownMapRef.current = brandMarkdownMapMemo;
+  const productMarkdownMapRef = useRef<ReadonlyMap<string, number>>(EMPTY_PRODUCT_MARKDOWNS);
+  productMarkdownMapRef.current = productMarkdownMap ?? EMPTY_PRODUCT_MARKDOWNS;
+  const showMarkdownCol =
+    brandMarkdownRows.length > 0 ||
+    (productMarkdownMap?.size ?? 0) > 0 ||
+    lineItems.some((item) => (item.markdownPercent || 0) > 0);
 
   const rebuildStagedQtyByVariantRef = useCallback((items: LineItem[]) => {
     const map = new Map<string, number>();
@@ -2498,6 +2529,12 @@ export default function SalesInvoice() {
       return 0;
     })();
     const discountPercent = brandDiscount > 0 ? brandDiscount : (productSaleDiscount > 0 ? productSaleDiscount : 0);
+    // Markdown % (wholesale): the product's own, else its brand's.
+    const markdownPercent = resolveMarkdownPercent({
+      productMarkdown: productMarkdownMapRef.current.get(product.id),
+      brand: product.brand,
+      brandMarkdowns: brandMarkdownMapRef.current,
+    });
 
     // Use functional update with duplicate check INSIDE to prevent stale state during rapid barcode scans
     hasManuallyAddedNewItemRef.current = true;
@@ -2539,6 +2576,7 @@ export default function SalesInvoice() {
           salePrice: salePrice,
           discountPercent,
           discountAmount: 0,
+          ...(markdownPercent > 0 ? { markdownPercent } : {}),
           purchaseGstPercent: product.purchase_gst_percent ?? product.gst_per ?? 0,
           gstPercent: product.sale_gst_percent ?? product.gst_per ?? 0,
           lineTotal: 0,
@@ -2693,7 +2731,12 @@ export default function SalesInvoice() {
           box: '',
           mrp: item.mrp || 0,
           salePrice: item.unit_price || 0,
-          ...hydrateSaleItemDiscountFields(item),
+          // The saved discount % is the whole line discount; split the markdown back out.
+          ...splitMarkdownFromSavedLine(
+            hydrateSaleItemDiscountFields(item),
+            (item as { markdown_percent?: number | null }).markdown_percent,
+            (Number(item.unit_price) || 0) * (Number(item.quantity) || 0),
+          ),
           gstPercent: item.gst_percent || 0,
           lineTotal: item.line_total || 0,
           hsnCode: item.hsn_code || '',
@@ -2831,10 +2874,26 @@ export default function SalesInvoice() {
   const calculateLineTotal = (item: LineItem): LineItem => {
     const mult = getMtrMultiplier(item);
     const baseAmount = item.salePrice * mult;
-    const discountAmount = item.discountPercent > 0
-      ? Math.round((baseAmount * item.discountPercent) / 100 * 100) / 100
-      : Math.round(item.discountAmount * 100) / 100;
-    const amountAfterDiscount = Math.round((baseAmount - discountAmount) * 100) / 100;
+    let discountAmount: number;
+    let markdownAmount = 0;
+    let amountAfterDiscount: number;
+    if ((item.markdownPercent || 0) > 0) {
+      // Markdown first, then the extra Disc % / Disc ₹ on the price after markdown.
+      const md = markdownLineAmounts({
+        base: baseAmount,
+        markdownPercent: item.markdownPercent || 0,
+        discountPercent: item.discountPercent,
+        discountAmount: item.discountAmount,
+      });
+      markdownAmount = md.markdownAmount;
+      discountAmount = md.extraDiscountAmount;
+      amountAfterDiscount = md.afterDiscount;
+    } else {
+      discountAmount = item.discountPercent > 0
+        ? Math.round((baseAmount * item.discountPercent) / 100 * 100) / 100
+        : Math.round(item.discountAmount * 100) / 100;
+      amountAfterDiscount = Math.round((baseAmount - discountAmount) * 100) / 100;
+    }
     const effectiveUnitPrice = mult > 0 ? amountAfterDiscount / mult : amountAfterDiscount;
     const purchaseGst = item.purchaseGstPercent ?? item.gstPercent;
     // Slab is judged on the per-piece price after line discount and the bill
@@ -2862,9 +2921,39 @@ export default function SalesInvoice() {
     return {
       ...item,
       discountAmount,
+      markdownAmount,
       gstPercent,
       lineTotal,
     };
+  };
+
+  /**
+   * sale_items discount fields: discount_percent is the whole line discount (markdown included,
+   * so reports and prints stay right); markdown_percent only on lines that have a markdown.
+   */
+  const persistedLineDiscount = (item: LineItem): { discount_percent: number; markdown_percent?: number } => {
+    const base = item.salePrice * getMtrMultiplier(item);
+    const md = item.markdownPercent || 0;
+    if (md > 0) {
+      return {
+        discount_percent: combinedDiscountPercent({
+          base,
+          markdownPercent: md,
+          discountPercent: item.discountPercent,
+          discountAmount: item.discountAmount,
+        }),
+        markdown_percent: md,
+      };
+    }
+    return { discount_percent: saleItemDiscountPercentForPersist(base, item.discountPercent, item.discountAmount) };
+  };
+
+  const updateMarkdownPercent = (id: string, markdownPercent: number) => {
+    setLineItems((prev) =>
+      prev.map((item) =>
+        item.id === id ? calculateLineTotal({ ...item, markdownPercent: clampMarkdownPercent(markdownPercent) }) : item,
+      ),
+    );
   };
 
   const updateQuantity = async (id: string, quantity: number) => {
@@ -3662,11 +3751,7 @@ Thank you for choosing us!`;
             quantity: item.quantity,
             unit_price: item.salePrice,
             mrp: item.mrp,
-            discount_percent: saleItemDiscountPercentForPersist(
-              item.salePrice * getMtrMultiplier(item),
-              item.discountPercent,
-              item.discountAmount,
-            ),
+            ...persistedLineDiscount(item),
             gst_percent: item.gstPercent,
             line_total: item.lineTotal,
             hsn_code: item.hsnCode || null,
@@ -3906,11 +3991,7 @@ Thank you for choosing us!`;
             quantity: item.quantity,
             unit_price: item.salePrice,
             mrp: item.mrp,
-            discount_percent: saleItemDiscountPercentForPersist(
-              item.salePrice * getMtrMultiplier(item),
-              item.discountPercent,
-              item.discountAmount,
-            ),
+            ...persistedLineDiscount(item),
             gst_percent: item.gstPercent,
             line_total: item.lineTotal,
             hsn_code: item.hsnCode || null,
@@ -4412,7 +4493,7 @@ Thank you for choosing us!`;
     const discount = item.discountAmount > 0 
       ? item.discountAmount 
       : (item.discountPercent > 0 ? (baseAmount * item.discountPercent) / 100 : 0);
-    return sum + discount;
+    return sum + discount + (item.markdownAmount || 0);
   }, 0);
   // Flat discount: Stack both percent and rupees discounts together
   const flatDiscountPercentAmount = (grossAmount * flatDiscountPercent) / 100;
@@ -4444,7 +4525,7 @@ Thank you for choosing us!`;
   }, [billDiscountRatioKey, garmentGstSettings.garment_gst_rule_enabled]);
   
   const totalGST = lineItems.reduce((sum, item) => {
-    const baseAmount = item.salePrice * getMtrMultiplier(item) - item.discountAmount;
+    const baseAmount = item.salePrice * getMtrMultiplier(item) - item.discountAmount - (item.markdownAmount || 0);
     // Apply flat discount proportionally
     const proportionalFlatDiscount = grossAmount > 0 ? (baseAmount / grossAmount) * flatDiscountAmount : 0;
     const adjustedBase = Math.round((baseAmount - proportionalFlatDiscount) * 100) / 100;
@@ -5149,7 +5230,7 @@ Thank you for choosing us!`;
         <SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={sizeGridProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} showStock validateStock={!allowNegativeStock} title="Enter Size-wise Qty" isLoading={sizeGridLoading} />
         <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
           {savedInvoiceData?.invoiceNumber && (savedInvoiceData?.filledItems?.length ?? 0) > 0 ? (
-            <InvoiceWrapper customerId={savedInvoiceData?.customer?.id || selectedCustomer?.id || null} ref={printRef} template={effectiveInvoicePrintTemplate} billNo={savedInvoiceData.invoiceNumber} date={invoiceDate} dueDate={dueDate} customerName={savedInvoiceData?.customer?.customer_name || selectedCustomer?.customer_name || ""} customerAddress={savedInvoiceData?.customer?.address || selectedCustomer?.address || ""} shippingAddress={savedInvoiceData?.shippingAddress || ""} customerMobile={savedInvoiceData?.customer?.phone || selectedCustomer?.phone || ""} customerGSTIN={savedInvoiceData?.customer?.gst_number || selectedCustomer?.gst_number || ""} customerTransportDetails={savedInvoiceData?.customer?.transport_details || selectedCustomer?.transport_details || ""} b2bDetails={savedInvoiceData?.b2bDetails as SaleB2BDetails | null | undefined} items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({ sr: index + 1, particulars: item.productName, productId: item.productId, size: item.size, barcode: item.barcode || "", hsn: item.hsnCode || "", sp: item.salePrice, mrp: item.mrp, qty: item.quantity, rate: item.salePrice, total: item.lineTotal, color: item.color || "", gstPercent: item.gstPercent || 0, discountPercent: item.discountPercent || 0 }))} subTotal={savedInvoiceData?.grossAmount ?? grossAmount} discount={savedInvoiceData?.totalDiscount ?? totalDiscount} grandTotal={savedInvoiceData?.netAmount ?? netAmount} notes={savedInvoiceData?.notes ?? notes} pointsBalance={savedInvoiceData?.pointsBalance} pointsRedeemed={savedInvoiceData?.pointsRedeemed} otherCharges={savedInvoiceData?.otherCharges ?? otherCharges} roundOff={roundOff} paymentMethod={formatInvoicePaymentModeFallback(savedInvoiceData?.paymentMethod)} taxType={taxType} financerDetails={financerDetails} />
+            <InvoiceWrapper customerId={savedInvoiceData?.customer?.id || selectedCustomer?.id || null} ref={printRef} template={effectiveInvoicePrintTemplate} billNo={savedInvoiceData.invoiceNumber} date={invoiceDate} dueDate={dueDate} customerName={savedInvoiceData?.customer?.customer_name || selectedCustomer?.customer_name || ""} customerAddress={savedInvoiceData?.customer?.address || selectedCustomer?.address || ""} shippingAddress={savedInvoiceData?.shippingAddress || ""} customerMobile={savedInvoiceData?.customer?.phone || selectedCustomer?.phone || ""} customerGSTIN={savedInvoiceData?.customer?.gst_number || selectedCustomer?.gst_number || ""} customerTransportDetails={savedInvoiceData?.customer?.transport_details || selectedCustomer?.transport_details || ""} b2bDetails={savedInvoiceData?.b2bDetails as SaleB2BDetails | null | undefined} items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({ sr: index + 1, particulars: item.productName, productId: item.productId, size: item.size, barcode: item.barcode || "", hsn: item.hsnCode || "", sp: item.salePrice, mrp: item.mrp, qty: item.quantity, rate: item.salePrice, total: item.lineTotal, color: item.color || "", gstPercent: item.gstPercent || 0, discountPercent: ((item.markdownPercent || 0) > 0 ? persistedLineDiscount(item).discount_percent : item.discountPercent) || 0 }))} subTotal={savedInvoiceData?.grossAmount ?? grossAmount} discount={savedInvoiceData?.totalDiscount ?? totalDiscount} grandTotal={savedInvoiceData?.netAmount ?? netAmount} notes={savedInvoiceData?.notes ?? notes} pointsBalance={savedInvoiceData?.pointsBalance} pointsRedeemed={savedInvoiceData?.pointsRedeemed} otherCharges={savedInvoiceData?.otherCharges ?? otherCharges} roundOff={roundOff} paymentMethod={formatInvoicePaymentModeFallback(savedInvoiceData?.paymentMethod)} taxType={taxType} financerDetails={financerDetails} />
           ) : <div ref={printRef} />}
         </div>
         {historyProduct && currentOrganization && <ProductHistoryDialog isOpen={!!historyProduct} onClose={() => setHistoryProduct(null)} productId={historyProduct.id} productName={historyProduct.name} organizationId={currentOrganization.id} />}
@@ -5824,6 +5905,7 @@ Thank you for choosing us!`;
                 {showCol.box && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 w-16">BOX</th>}
                 {showCol.mrp && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 sale-col-mrp">MRP</th>}
                 <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 sale-col-price">PRICE</th>
+                {showMarkdownCol && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 w-24" title="Markdown % off the price, before Disc %">MKDN%</th>}
                 {showCol.disc_percent && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 w-20">DISC%</th>}
                 {showCol.disc_amount && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 w-24">DISC ₹</th>}
                 {showCol.gst && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 w-[5.5rem]">GST%</th>}
@@ -5835,7 +5917,7 @@ Thank you for choosing us!`;
               {(() => {
                 if (filledLineItems.length === 0) {
                   const baseCols = 8; // #, product, size, barcode, qty, price, total, action
-                  const optCols = [showCol.color, showCol.hsn, showCol.box, showCol.mrp, showCol.disc_percent, showCol.disc_amount, showCol.gst].filter(Boolean).length;
+                  const optCols = [showCol.color, showCol.hsn, showCol.box, showCol.mrp, showMarkdownCol, showCol.disc_percent, showCol.disc_amount, showCol.gst].filter(Boolean).length;
                   const totalCols = baseCols + optCols;
                   return Array.from({ length: tablePadRowCount }, (_, i) => (
                     <tr key={`empty-${i}`} className="sale-bill-pad-row border-b border-muted/30">
@@ -5848,7 +5930,7 @@ Thank you for choosing us!`;
                 }
 
                 const baseCols = 8;
-                const optCols = [showCol.color, showCol.hsn, showCol.box, showCol.mrp, showCol.disc_percent, showCol.disc_amount, showCol.gst].filter(Boolean).length;
+                const optCols = [showCol.color, showCol.hsn, showCol.box, showCol.mrp, showMarkdownCol, showCol.disc_percent, showCol.disc_amount, showCol.gst].filter(Boolean).length;
                 const totalCols = baseCols + optCols;
                 const padCount = tablePadRowCount;
 
@@ -6040,6 +6122,32 @@ Thank you for choosing us!`;
                           className="sale-num-box w-full max-w-full h-9 text-right text-[15px] font-semibold bg-white border border-slate-200 shadow-none focus-visible:ring-1 tabular-nums rounded-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                       </td>
+                      {showMarkdownCol && (
+                        <td className="text-right px-1.5 py-1" data-testid="sale-line-markdown">
+                          <div className="flex flex-col items-end gap-0.5">
+                            <Input
+                              type="number"
+                              min="0"
+                              max="99.99"
+                              aria-label={`Markdown % for ${item.productName}`}
+                              value={item.markdownPercent || ""}
+                              placeholder="0"
+                              onChange={(e) => updateMarkdownPercent(item.id, parseFloat(e.target.value) || 0)}
+                              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                              className="w-16 h-8 text-right text-[15px] bg-amber-50 border border-amber-200 shadow-none focus-visible:ring-1 ml-auto tabular-nums rounded-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            {(item.markdownPercent || 0) > 0 && (
+                              <span
+                                className="text-[11px] font-semibold text-emerald-700 tabular-nums whitespace-nowrap"
+                                data-testid="sale-line-after-markdown"
+                                title="Price after markdown (before Disc %)"
+                              >
+                                → ₹{(Math.round(item.salePrice * (1 - (item.markdownPercent || 0) / 100) * 100) / 100).toLocaleString("en-IN")}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      )}
                       {showCol.disc_percent && (
                         <td
                           {...lineGrid.getCellProps(displayIndex, "disc_percent", {
@@ -6173,7 +6281,7 @@ Thank you for choosing us!`;
                   <td className="sale-col-qty text-center font-bold text-primary text-sm tabular-nums px-1.5 py-2">
                     {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
                   </td>
-                  <td className="px-3 py-2" colSpan={saleLineMidColSpan} />
+                  <td className="px-3 py-2" colSpan={saleLineMidColSpan + (showMarkdownCol ? 1 : 0)} />
                   <td className="sale-col-total text-right font-bold text-sm tabular-nums px-2 py-2">₹{grossAmount.toFixed(2)}</td>
                   <td className="px-1 py-2" />
                 </tr>
