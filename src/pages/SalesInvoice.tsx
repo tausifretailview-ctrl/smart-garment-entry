@@ -170,6 +170,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useLocation } from "react-router-dom";
 import { useWindowTabs } from "@/contexts/WindowTabsContext";
+import { recordSaleCommission } from "@/utils/posSalesmanCommission";
 import { entryWindowId, entryWindowInstance, MULTI_WINDOW_PAGES, nextFreeEntryWindow, tabIdOf } from "@/lib/entryWindows";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { DEBIT_NOTE_SALE_TYPE } from "@/utils/debitNote";
@@ -3801,6 +3802,10 @@ Thank you for choosing us!`;
         });
         // Goods out of a godown: move only the difference (warnings replace the toast above).
         await saleGodown.syncAfterSave(editingInvoiceId, true);
+        // Salesman commission follows the edited bill (paid rows are kept as they are).
+        if (currentOrganization?.id) {
+          void recordSaleCommission({ organizationId: currentOrganization.id, saleId: editingInvoiceId });
+        }
 
         scheduleInvoiceDashboardRefresh();
 
@@ -4247,6 +4252,9 @@ Thank you for choosing us!`;
               else invalidateQuotationViewsAfterSave(queryClient, quotationOrgId);
             });
         }
+
+        // Salesman commission for the new bill (header or per-line salesman).
+        void recordSaleCommission({ organizationId: currentOrganization.id, saleId: saleData.id });
 
         // Now show print dialog with saved data
         setSavedInvoiceData(invoiceDataForPrint);

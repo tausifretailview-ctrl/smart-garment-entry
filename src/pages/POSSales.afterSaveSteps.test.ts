@@ -26,7 +26,7 @@ describe("POSSales after-save steps", () => {
     it(`${h.slice(6, h.indexOf(" ="))} uses the shared financer, commission and reset steps`, () => {
       const body = handlerBody(h);
       expect(body).toContain("await saveFinancerAfterSave(result)");
-      expect(body).toContain("recordCommissionAfterSave(result,");
+      expect(body).toContain("recordCommissionAfterSave(result);");
       expect(body).toContain("resetPosBillAfterSave()");
     });
   }
@@ -34,7 +34,15 @@ describe("POSSales after-save steps", () => {
   it("the finance-discount voucher and commission booking are written once", () => {
     // One call each, inside the shared helpers (plus the import / offline-sync paths).
     expect(src.split("await syncFinanceDiscountVoucher(").length - 1).toBe(1);
-    expect(src.split("shouldCreatePosCommissionOnSave({ salesmanName, isEditingExistingSale })").length - 1).toBe(1);
+    expect(src.split("await recordPosSalesmanCommission(").length - 1).toBe(1);
+  });
+
+  it("commission follows every saved bill: new, edited and held bills finished later", () => {
+    // Edits (held bills resumed count as edits) used to be skipped; FASHION STUDIO had 92 of 100
+    // November bills with a salesman and no commission. Now the bill's rows are rebuilt from it.
+    const helper = handlerBody("const recordCommissionAfterSave = (");
+    expect(helper).not.toContain("isEditingExistingSale");
+    expect(src).not.toContain("shouldCreatePosCommissionOnSave(");
   });
 
   it("commission is skipped for bills saved offline", () => {

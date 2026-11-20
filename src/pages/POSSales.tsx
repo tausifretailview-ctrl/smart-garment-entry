@@ -163,7 +163,6 @@ import { isPosSalesRoute } from "@/lib/keyboardShortcuts";
 import {
   POS_OPEN_SALESMAN_PICKER_EVENT,
   shouldClearPosSalesmanAfterSave,
-  shouldCreatePosCommissionOnSave,
 } from "@/utils/posSalesmanRetain";
 import {
   effectiveCartLineSalesman,
@@ -5239,23 +5238,15 @@ export default function POSSales() {
 
   /**
    * After a save, every path: book the salesman commission (not awaited, as before). Skipped for a
-   * bill saved offline (useOfflinePosSync books it when the bill is sent) and when
-   * shouldCreatePosCommissionOnSave says no (no salesman, or an edited bill).
+   * bill saved offline (useOfflinePosSync books it when the bill is sent). New and edited
+   * bills alike (a held bill finished later is an edit): the bill's pending rows are rebuilt
+   * from the saved bill, header or per-line salesman.
    */
   const recordCommissionAfterSave = (
     result: { id: string; sale_number: string; sale_date?: string | null; net_amount: number },
-    salesmanName: string,
-    isEditingExistingSale: boolean,
   ) => {
     if ((result as { offline?: boolean }).offline) return;
-    if (!shouldCreatePosCommissionOnSave({ salesmanName, isEditingExistingSale })) return;
-    createCommissionRecords(
-      result.id,
-      result.sale_number,
-      result.sale_date || new Date().toISOString().split('T')[0],
-      salesmanName,
-      result.net_amount,
-    );
+    void createCommissionRecords(result.id);
   };
 
   /**
@@ -5420,7 +5411,7 @@ export default function POSSales() {
       
       // Auto-record salesman commission
       // Offline bills get their commission when they are sent (useOfflinePosSync).
-      recordCommissionAfterSave(result, selectedSalesman, !!currentSaleId);
+      recordCommissionAfterSave(result);
 
       // Clear cart on success
       resetPosBillAfterSave();
@@ -5429,19 +5420,12 @@ export default function POSSales() {
 
   // Auto-create commission records after sale save
   // Same helper as the phone / offline POS, with this screen's cached staff and rules.
-  const createCommissionRecords = async (
-    saleId: string, saleNumber: string, saleDate: string, salesmanName: string, totalNetAmount: number
-  ) => {
+  const createCommissionRecords = async (saleId: string) => {
     if (!currentOrganization?.id) return;
     await recordPosSalesmanCommission({
       organizationId: currentOrganization.id,
       saleId,
-      saleNumber,
-      saleDate,
-      customerName,
-      salesmanName,
-      totalNetAmount,
-      employees: employees || [],
+      employees: employees || undefined,
       rules: commissionRules || [],
     });
   };
@@ -5451,17 +5435,8 @@ export default function POSSales() {
     organizationId: currentOrganization?.id,
     saveSale,
     isSaving,
-    onBillSent: (sale, bill) => {
-      const salesman = String(bill.saleData.salesman || "");
-      if (shouldCreatePosCommissionOnSave({ salesmanName: salesman, isEditingExistingSale: false })) {
-        void createCommissionRecords(
-          sale.id,
-          sale.sale_number,
-          sale.sale_date || bill.saleDate.slice(0, 10),
-          salesman,
-          Number(sale.net_amount ?? bill.netAmount),
-        );
-      }
+    onBillSent: (sale) => {
+      void createCommissionRecords(sale.id);
     },
     onRoundDone: () => refreshPosAfterBillPrint(),
   });
@@ -5617,7 +5592,6 @@ export default function POSSales() {
       await saveFinancerAfterSave(result);
       // Store invoice number and sale ID for printing
       setCurrentInvoiceNumber(result.sale_number);
-      const wasEditing = !!currentSaleId;
       setCurrentSaleId(result.id);
 
       await applyAdvanceAfterSave(result);
@@ -5651,7 +5625,7 @@ export default function POSSales() {
       
       // Auto-record salesman commission
       // Offline bills get their commission when they are sent (useOfflinePosSync).
-      recordCommissionAfterSave(result, salesmanForPrint, wasEditing);
+      recordCommissionAfterSave(result);
 
       // WhatsApp invoice auto-send is handled by useSaveSale hook — do NOT send here to avoid duplicates
       // Set print snapshot first so hidden invoice re-renders with salesman before cart clears.
@@ -5888,7 +5862,7 @@ export default function POSSales() {
       
       // Auto-record salesman commission
       // Offline bills get their commission when they are sent (useOfflinePosSync).
-      recordCommissionAfterSave(result, selectedSalesman, !!currentSaleId);
+      recordCommissionAfterSave(result);
 
       // WhatsApp invoice auto-send is handled by useSaveSale hook — do NOT send here to avoid duplicates
 
