@@ -36,6 +36,7 @@ import {
 } from "@/lib/data/purchaseVariantLookups";
 import { syncPurchaseLineBrands, updatePurchaseLines, updatePurchaseLinesEach } from "@/lib/data/purchaseLineWrites";
 import { generateNextBarcodes } from "@/lib/data/barcodeSeries";
+import { createPieceVariantsInBulk, type PieceVariant } from "@/utils/purchasePieceVariants";
 import { insertProductsPreferringPurchaseFlag } from "@/utils/productCreatedInPurchaseColumn";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -4317,6 +4318,8 @@ const PurchaseEntry = () => {
   ) => {
     const gridProduct = productOverride ?? selectedProduct;
     const imeiScans: { tempId: string; qty: number; item: LineItem }[] = [];
+    type GridItem = { variant: any; qty: number; pieceOf?: object; pieceIndex?: number };
+    let gridItems: GridItem[] = items;
     // Settings > Purchase "Individual barcode for every piece": S = 2 → two qty-1
     // lines, each on its own new SKU + barcode (new size → created per piece; existing
     // generated SKU → forked per piece below). IMEI units, measured UOMs and a
@@ -4341,9 +4344,9 @@ const PurchaseEntry = () => {
               barcode_source: variant.barcode_source,
               barcode: variant.barcode,
             })),
-        (item) => ({ ...item, qty: 1 }),
+        (item, index) => ({ ...item, qty: 1, pieceOf: item, pieceIndex: index }),
       );
-      items = expanded.rows;
+      gridItems = expanded.rows;
       if (expanded.skippedTooMany > 0) {
         toast({
           title: "Some sizes kept on one barcode",
@@ -4351,7 +4354,55 @@ const PurchaseEntry = () => {
         });
       }
     }
-    for (const { variant, qty } of items) {
+    // Pieces of one size are made together (one barcode request, one insert) instead of
+    // 4–6 requests per piece; a size that fails falls back to the one-by-one path below.
+    const piecePlans = new Map<object, PieceVariant[]>();
+    if (currentOrganization?.id) {
+      const pieceGroups = new Map<object, number>();
+      for (const it of gridItems) {
+        if (it.pieceOf) pieceGroups.set(it.pieceOf, (pieceGroups.get(it.pieceOf) ?? 0) + 1);
+      }
+      for (const [group, count] of pieceGroups) {
+        const { variant } = group as GridItem;
+        const route = variant.isCustomSize
+          ? "create"
+          : !shouldReuseExistingBarcodeOnPurchaseSelect({ barcode_source: variant.barcode_source, barcode: variant.barcode })
+            ? "fork"
+            : null;
+        if (!route) continue;
+        try {
+          const created = await createPieceVariantsInBulk({
+            organizationId: currentOrganization.id,
+            productId: gridProduct.id,
+            size: variant.size,
+            color:
+              route === "create"
+                ? newColor || variant.color || gridProduct.color || null
+                : newColor || variant.color || gridProduct.color || "",
+            pur_price: variant.pur_price || gridProduct.default_pur_price || 0,
+            sale_price: variant.sale_price || gridProduct.default_sale_price || 0,
+            mrp:
+              route === "create"
+                ? variant.mrp || variant.sale_price || gridProduct.default_sale_price || 0
+                : variant.mrp || 0,
+            count,
+            reuseLeftover: route === "fork",
+            excludeSkuIds: draftSkuGuardRef.current.exclude(lineItemsRef.current.map((row) => row.sku_id)),
+          });
+          created.forEach((piece) => draftSkuGuardRef.current.add(piece.id));
+          if (created.length === count) piecePlans.set(group, created);
+        } catch (error) {
+          console.error("Bulk piece barcodes failed, adding pieces one by one:", error);
+        }
+      }
+    }
+    const piecesInBulk = [...piecePlans.values()].reduce((n, list) => n + list.length, 0);
+
+    // All new lines land on the bill together (one render), not one by one.
+    const pendingRows: LineItem[] = [];
+    try {
+    for (const gridItem of gridItems) {
+      const { variant, qty } = gridItem;
       // Serialised (IMEI) product: each unit gets its own scanned IMEI variant —
       // do not reuse the existing unit's variant (and IMEI) for the new units.
       if (
@@ -4385,11 +4436,7 @@ const PurchaseEntry = () => {
           uom: (gridProduct as any).uom || "NOS",
           requires_imei: true,
         });
-        setLineItems((prev) => {
-          const next = [...prev, line];
-          setVisibleItemCount((vc) => Math.max(vc, next.length <= 200 ? next.length : vc + 1));
-          return next;
-        });
+        pendingRows.push(line);
         imeiScans.push({ tempId: line.temp_id, qty: Math.max(1, Number(qty) || 1), item: line });
         continue;
       }
@@ -4403,7 +4450,11 @@ const PurchaseEntry = () => {
       // Universal barcode scanned in Add Product (use-existing path): keep it — the
       // SKU is created with that EAN instead of a generated series barcode.
       const externalBarcode = String(variant.externalBarcode || "").trim();
-      if (externalBarcode) {
+      const plannedPiece = gridItem.pieceOf ? piecePlans.get(gridItem.pieceOf)?.[gridItem.pieceIndex ?? 0] : undefined;
+      if (plannedPiece) {
+        skuId = plannedPiece.id;
+        barcode = plannedPiece.barcode;
+      } else if (externalBarcode) {
         const created = await createNewVariantWithBarcode({
           product_id: gridProduct.id,
           size: variant.size,
@@ -4502,7 +4553,7 @@ const PurchaseEntry = () => {
         }
       }
 
-      addItemRow({
+      pendingRows.push(createLineItemRow({
         product_name: gridProduct.product_name,
         product_id: gridProduct.id,
         sku_id: skuId,
@@ -4535,6 +4586,17 @@ const PurchaseEntry = () => {
         uom: gridProduct.uom || "NOS",
         requires_imei:
           (variant.requires_imei ?? (gridProduct as any).requires_imei) !== false,
+      }));
+    }
+    } finally {
+      if (pendingRows.length > 0) {
+        setLineItems((prev) => [...prev, ...pendingRows]);
+      }
+    }
+    if (piecesInBulk > 1) {
+      toast({
+        title: "Added to bill",
+        description: `${piecesInBulk} pieces added, each with its own barcode.`,
       });
     }
 

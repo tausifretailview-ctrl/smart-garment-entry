@@ -110,6 +110,7 @@ import {
   type ProductEntryUnsavedDraft,
 } from "@/utils/productEntryUnsavedDraft";
 import { expandRowsIntoPieces, isPerPieceBarcodeEnabled, isPerPieceMeasuredUom } from "@/utils/purchasePerPieceBarcode";
+import { generateNextBarcodes } from "@/lib/data/barcodeSeries";
 import { colorSuggestEnterOrTab } from "@/utils/colorSuggestKeys";
 import { getOrgSettingsRow } from "@/hooks/useSettings";
 import { readSizeGroups, refreshSizeGroupsCache } from "@/lib/data/sizeGroups";
@@ -131,7 +132,7 @@ interface ProductVariant {
   sale_price: number;
   mrp: number | null;
   barcode: string;
-  /** Set when barcode is assigned — user scan/type vs generateSequentialBarcode(). */
+  /** Set when barcode is assigned — user scan/type vs the shop's barcode series (generateNextBarcodes). */
   barcode_source?: "external" | "generated";
   active: boolean;
   opening_qty: number;
@@ -150,7 +151,7 @@ function variantWithExternalBarcode<T extends ProductVariant>(variant: T, barcod
   return { ...variant, barcode: trimmed, barcode_source: "external" };
 }
 
-/** Value returned by generateSequentialBarcode(). */
+/** Value from the shop's barcode series (generateNextBarcodes). */
 function variantWithGeneratedBarcode<T extends ProductVariant>(variant: T, barcode: string): T {
   return { ...variant, barcode, barcode_source: "generated" };
 }
@@ -839,14 +840,13 @@ export const ProductEntryDialog = ({
       (async () => {
         try {
           const updated = [...variants];
-          for (let i = 0; i < updated.length; i++) {
-            if (!updated[i].barcode) {
-              updated[i] = variantWithGeneratedBarcode(
-                updated[i],
-                await generateSequentialBarcode(),
-              );
-            }
-          }
+          const blankAt = updated.flatMap((v, i) => (v.barcode ? [] : [i]));
+          const codes = currentOrganization?.id
+            ? await generateNextBarcodes(currentOrganization.id, blankAt.length)
+            : [];
+          blankAt.forEach((at, k) => {
+            if (codes[k]) updated[at] = variantWithGeneratedBarcode(updated[at], codes[k]);
+          });
           setVariants(updated);
         } catch (e) {
           console.error('Auto barcode generation failed:', e);
@@ -2132,14 +2132,6 @@ export const ProductEntryDialog = ({
     }
   };
 
-  const generateSequentialBarcode = async (): Promise<string> => {
-    const { data, error } = await supabase.rpc('generate_next_barcode', {
-      p_organization_id: currentOrganization?.id
-    });
-    if (error) throw error;
-    return data;
-  };
-
   const handleGenerateSizeVariants = () => {
     if (formData.product_type === 'service') {
       const newVariant: ProductVariant = {
@@ -2284,15 +2276,17 @@ export const ProductEntryDialog = ({
       }
       
       // Generate barcodes only for variants that will actually be used (qty > 0 in purchase context)
-      for (let i = 0; i < updatedVariants.length; i++) {
-        const v = updatedVariants[i];
+      const blankAt = updatedVariants.flatMap((v, i) => {
         const shouldSkip = hideOpeningQty && formData.product_type !== 'service' && (v.purchase_qty || 0) <= 0;
-        if (!v.barcode && !shouldSkip) {
-          updatedVariants[i] = variantWithGeneratedBarcode(
-            updatedVariants[i],
-            await generateSequentialBarcode(),
-          );
-        }
+        return !v.barcode && !shouldSkip ? [i] : [];
+      });
+      if (blankAt.length > 0) {
+        if (!currentOrganization?.id) throw new Error("No organization selected");
+        const codes = await generateNextBarcodes(currentOrganization.id, blankAt.length);
+        if (codes.some((c) => !c)) throw new Error("Barcode generation failed");
+        blankAt.forEach((at, k) => {
+          updatedVariants[at] = variantWithGeneratedBarcode(updatedVariants[at], codes[k]);
+        });
       }
       setVariants(updatedVariants);
       setTimeout(() => {
@@ -2641,13 +2635,13 @@ export const ProductEntryDialog = ({
       // Fill any blank barcode here so the checked sizes are real variants.
       // Mobile ERP "Normal product" always gets a generated barcode when none was typed.
       if ((hideOpeningQty && isAutoBarcode) || masterOnly || (mobileERPMode?.enabled && mobileLocalItem)) {
-        for (let i = 0; i < variantsToCreate.length; i++) {
-          if (!variantsToCreate[i].barcode) {
-            variantsToCreate[i] = variantWithGeneratedBarcode(
-              variantsToCreate[i],
-              await generateSequentialBarcode(),
-            );
-          }
+        // All blank barcodes in one request (65 pieces = 1 request, not 65 one after another).
+        const blankAt = variantsToCreate.flatMap((v, i) => (v.barcode ? [] : [i]));
+        if (blankAt.length > 0) {
+          const codes = await generateNextBarcodes(currentOrganization.id, blankAt.length);
+          blankAt.forEach((at, k) => {
+            if (codes[k]) variantsToCreate[at] = variantWithGeneratedBarcode(variantsToCreate[at], codes[k]);
+          });
         }
       }
 
