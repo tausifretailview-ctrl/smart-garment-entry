@@ -4965,6 +4965,37 @@ export default function BarcodePrinting() {
                   <p className="text-xs text-muted-foreground">
                     Leave blank to use the column gap. A4 65-label sheets (38.1×21.2mm): columns 2.5, rows 0.
                   </p>
+                  {(() => {
+                    // A grid taller / wider than A4 has no room for margins: printing starts at the
+                    // page edge (Swamini Sarees: 13 × 21 + 12 × 2.5 = 303mm with one gap for both).
+                    const rowGapMm = customRowGap ?? customGap;
+                    const contentH = customRows * customHeight + Math.max(0, customRows - 1) * rowGapMm;
+                    const contentW = customCols * customWidth + Math.max(0, customCols - 1) * customGap;
+                    const r1 = (n: number) => Math.round(n * 10) / 10;
+                    if (contentH <= 297 + 0.05 && contentW <= 210 + 0.05) return null;
+                    return (
+                      <p
+                        role="alert"
+                        data-testid="sheet-too-big"
+                        className="text-xs text-destructive bg-destructive/10 border border-destructive/30 rounded px-2 py-1.5"
+                      >
+                        {contentH > 297 + 0.05 && (
+                          <>
+                            {customRows} rows × {customHeight}mm + {Math.max(0, customRows - 1)} gaps × {rowGapMm}mm ={" "}
+                            {r1(contentH)}mm — taller than A4 (297mm), so labels print from the top edge with no
+                            margin.{" "}
+                          </>
+                        )}
+                        {contentW > 210 + 0.05 && (
+                          <>
+                            {customCols} columns × {customWidth}mm + {Math.max(0, customCols - 1)} gaps × {customGap}mm ={" "}
+                            {r1(contentW)}mm — wider than A4 (210mm).{" "}
+                          </>
+                        )}
+                        Check the label size and set the gap between rows (often 0).
+                      </p>
+                    );
+                  })()}
                   {customCols === 4 &&
                     customRows === 12 &&
                     Math.abs(customWidth - 48) < 0.05 &&

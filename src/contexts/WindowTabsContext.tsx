@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
@@ -169,11 +169,19 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
   const [recentOrder, setRecentOrder] = useState<string[]>([]);
   const [lastUsedAt, setLastUsedAt] = useState<Record<string, number>>({});
   const [isSwitcherOpen, setSwitcherOpen] = useState(false);
-  useEffect(() => {
-    if (!activeWindow && activeWindow !== "") return;
-    setRecentOrder((prev) => touchRecent(prev, activeWindow));
-    setLastUsedAt((prev) => ({ ...prev, [activeWindow]: Date.now() }));
-  }, [activeWindow]);
+  /**
+   * A window came to the front. Recorded where the address change is handled, not in an effect
+   * on activeWindow: two quick switches (Purchase Entry, then straight back to Customers) can
+   * land in one render, activeWindow never shows Purchase Entry, and Alt+W then forgot it.
+   */
+  const windowInFrontRef = useRef<string | null>(null);
+  const noteWindowInFront = useCallback((id: string) => {
+    // Once per change of window (the address handler also re-runs on rights refreshes).
+    if (windowInFrontRef.current === id) return;
+    windowInFrontRef.current = id;
+    setRecentOrder((prev) => touchRecent(prev, id));
+    setLastUsedAt((prev) => ({ ...prev, [id]: Date.now() }));
+  }, []);
 
   const canAccessPath = useCallback((path: string) => {
     if (permissionsLoading && permissions === null) return false;
@@ -259,6 +267,7 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
 
     const currentId = entryWindowId(currentPath, location.search);
     setActiveWindow(currentId);
+    noteWindowInFront(currentId);
 
     // Warm main dashboard chunk while user is on POS so first return is instant.
     if (currentPath === "pos-sales") {
@@ -296,7 +305,7 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
         return changed ? next : prev;
       });
     }
-  }, [location.pathname, location.search, getCurrentPath, canAccessPath, navigate, getOrgPath]);
+  }, [location.pathname, location.search, getCurrentPath, canAccessPath, navigate, getOrgPath, noteWindowInFront]);
 
   // Keyboard shortcuts — never while typing (barcode / form fields).
   useEffect(() => {
