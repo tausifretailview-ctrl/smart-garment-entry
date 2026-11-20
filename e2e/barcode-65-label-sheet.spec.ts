@@ -45,6 +45,14 @@ test("65-label sheet: columns 40.6mm apart, rows 21.2mm apart, grid on the die-c
   await page.getByRole("option", { name: /65 LABEL 38\.1x21\.2/ }).click();
   await expect(page.getByLabel("Gap between rows (mm)")).toHaveValue("0");
   await expect(page.getByLabel("Gap between columns (mm)")).toHaveValue("2.5");
+  await expect(page.getByTestId("sheet-too-big")).toHaveCount(0);
+
+  // One gap for both (row gap blank): 13 × 21.2 + 12 × 2.5 = 305.6mm, taller than A4 — warned.
+  const rowGap = page.getByLabel("Gap between rows (mm)");
+  await rowGap.fill("");
+  await expect(page.getByTestId("sheet-too-big")).toContainText("305.6mm — taller than A4 (297mm)");
+  await rowGap.fill("0");
+  await expect(page.getByTestId("sheet-too-big")).toHaveCount(0);
 
   const search = page.getByRole("combobox").filter({ hasText: /Search product, brand, size, or barcode/ });
   await search.click();
