@@ -67,7 +67,7 @@ import { cn } from "@/lib/utils";
 import { adjustQtyByStep, minQtyForUom } from "@/utils/qtyInput";
 import { posLineDiscountRupees, type PosCartItem } from "@/lib/posBilling";
 import { mobileNumberError } from "@/utils/mobileNumberValidation";
-import { shouldClearPosSalesmanAfterSave, shouldCreatePosCommissionOnSave } from "@/utils/posSalesmanRetain";
+import { shouldClearPosSalesmanAfterSave } from "@/utils/posSalesmanRetain";
 import { recordPosSalesmanCommission } from "@/utils/posSalesmanCommission";
 import { PosSchemeAppliedTag } from "@/components/pos/PosSchemeAppliedTag";
 import { useMobileUiTheme } from "@/hooks/useMobileUiTheme";
@@ -538,18 +538,9 @@ export default function MobilePosBilling() {
       if (
         currentOrganization?.id &&
         // Offline bills get a real id only when they sync — no commission row for them here.
-        !String(result.id).startsWith("offline-") &&
-        shouldCreatePosCommissionOnSave({ salesmanName, isEditingExistingSale: false })
+        !String(result.id).startsWith("offline-")
       ) {
-        void recordPosSalesmanCommission({
-          organizationId: currentOrganization.id,
-          saleId: result.id,
-          saleNumber: result.sale_number,
-          saleDate: result.sale_date || new Date().toISOString().split("T")[0],
-          customerName,
-          salesmanName,
-          totalNetAmount: Number(result.net_amount) || 0,
-        });
+        void recordPosSalesmanCommission({ organizationId: currentOrganization.id, saleId: result.id });
       }
       setSaleNotes("");
       if (shouldClearPosSalesmanAfterSave(retainPosSalesman)) setSelectedSalesman("");

@@ -1,80 +1,45 @@
 /**
- * Salesman commission rows for a freshly saved POS bill.
- * Used by desktop POS (with its cached staff and rules) and the phone / offline POS.
+ * Salesman commission rows for a saved bill (POS, phone / offline POS, Sale Bill).
+ * New and edited bills alike: the bill's pending rows are rebuilt from the bill
+ * (syncSaleCommissions), so an edit, a held bill finished later or a per-line salesman
+ * all end up on the Salesman Commission page. Paid rows are never touched.
  * Non-blocking: errors are logged, never thrown, so the sale itself is never affected.
  */
-import { supabase } from "@/integrations/supabase/client";
 import { logError } from "@/lib/errorLogger";
-import { buildSalesmanCommissionRecords } from "@/utils/salesmanCommissionLineRepair";
+import { syncSaleCommissions } from "@/utils/syncSaleCommissions";
 
-export async function recordPosSalesmanCommission(input: {
+export async function recordSaleCommission(input: {
   organizationId: string;
   saleId: string;
-  saleNumber: string;
-  saleDate: string;
-  customerName: string;
-  salesmanName: string;
-  totalNetAmount: number;
   /** Already-loaded active staff / commission rules (desktop POS caches both); read when absent. */
   employees?: unknown[];
   rules?: unknown[];
 }): Promise<void> {
   try {
-    const orgId = input.organizationId;
-    const [{ data: employees }, rulesRes, { data: saleItems }] = await Promise.all([
-      input.employees
-        ? Promise.resolve({ data: input.employees })
-        : supabase
-            .from("employees")
-            .select("id, employee_name, designation, commission_percent")
-            .eq("organization_id", orgId)
-            .is("deleted_at", null)
-            .eq("status", "active"),
-      input.rules
-        ? Promise.resolve({ data: input.rules, error: null })
-        : (supabase.from("commission_rules" as any) as any)
-            .select("id, employee_id, employee_name, rule_type, rule_value, commission_percent")
-            .eq("organization_id", orgId)
-            .eq("is_active", true),
-      supabase
-        .from("sale_items")
-        .select("product_id, product_name, quantity, line_total, discount_share, net_after_discount, salesman")
-        .eq("sale_id", input.saleId)
-        .eq("organization_id", orgId)
-        .is("deleted_at", null),
-    ]);
-
-    const productIds = [...new Set((saleItems || []).map((item) => item.product_id).filter(Boolean))];
-    const productMap: Record<string, { brand?: string | null; category?: string | null; style?: string | null }> = {};
-    if (productIds.length > 0) {
-      const { data: prods } = await supabase
-        .from("products")
-        .select("id, brand, category, style")
-        .eq("organization_id", orgId)
-        .in("id", productIds);
-      (prods || []).forEach((product) => {
-        productMap[product.id] = product;
-      });
-    }
-
-    const records = buildSalesmanCommissionRecords({
-      organizationId: orgId,
-      saleId: input.saleId,
-      saleNumber: input.saleNumber,
-      saleDate: input.saleDate,
-      customerName: input.customerName,
-      headerSalesman: input.salesmanName,
-      totalNetAmount: input.totalNetAmount,
-      items: saleItems || [],
-      productsById: productMap,
-      employees: (employees || []) as never[],
-      rules: (rulesRes?.error ? [] : rulesRes?.data || []) as never[],
+    await syncSaleCommissions(input.organizationId, [input.saleId], {
+      employees: input.employees,
+      rules: input.rules,
     });
-    if (records.length === 0) return;
-    const { error: commissionError } = await (supabase.from("salesman_commissions" as any) as any).insert(records);
-    if (commissionError) throw commissionError;
   } catch (err) {
     // Non-blocking for the bill, but visible in Admin Health (commission reports would miss it).
-    void logError({ operation: "pos:salesman-commission", organizationId: input.organizationId, additionalContext: { sale_id: input.saleId } }, err);
+    void logError(
+      { operation: "sale:salesman-commission", organizationId: input.organizationId, additionalContext: { sale_id: input.saleId } },
+      err,
+    );
   }
+}
+
+/** POS / phone POS callers (bill fields are read from the saved bill itself). */
+export async function recordPosSalesmanCommission(input: {
+  organizationId: string;
+  saleId: string;
+  saleNumber?: string;
+  saleDate?: string;
+  customerName?: string;
+  salesmanName?: string;
+  totalNetAmount?: number;
+  employees?: unknown[];
+  rules?: unknown[];
+}): Promise<void> {
+  await recordSaleCommission(input);
 }

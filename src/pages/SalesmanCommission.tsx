@@ -17,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableRow } from "@/components/u
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
-import { TrendingUp, CheckCircle, Download, Plus, Trash2, ArrowLeft } from "lucide-react";
+import { TrendingUp, CheckCircle, Download, Plus, Trash2, ArrowLeft, RefreshCw, AlertTriangle } from "lucide-react";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { cn } from "@/lib/utils";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -36,6 +36,11 @@ import {
 } from "@/utils/salesmanCommissionDisplay";
 import { isDailyIncentiveUiOrg } from "@/utils/dailySalesmanIncentive";
 import { DailySalesmanIncentivePanel } from "@/components/DailySalesmanIncentivePanel";
+import {
+  fetchSaleIdsForPeriod,
+  syncSaleCommissions,
+  type SyncSaleCommissionsResult,
+} from "@/utils/syncSaleCommissions";
 
 const COMMISSION_TAB_TRIGGER = cn(
   "rounded-md px-3 py-1.5 text-sm font-semibold text-slate-600",
@@ -103,6 +108,8 @@ export default function SalesmanCommission() {
   const [editingRule, setEditingRule] = useState<any>(null);
 
   const { start, end } = getPeriodDates(period, customStart, customEnd);
+  const [showRebuild, setShowRebuild] = useState(false);
+  const [rebuildResult, setRebuildResult] = useState<(SyncSaleCommissionsResult & { range: string }) | null>(null);
   const showDailyIncentiveTab = isDailyIncentiveUiOrg(currentOrganization?.id);
 
   const { data: employees = [] } = useQuery({
@@ -121,6 +128,41 @@ export default function SalesmanCommission() {
       return data || [];
     },
     enabled: !!currentOrganization?.id,
+  });
+
+  // Rebuild the period's commission rows from the bills (Sale Bills, edited / held POS bills,
+  // per-line salesman). Paid rows are kept as they are.
+  const rebuildMutation = useMutation({
+    mutationFn: async () => {
+      const orgId = currentOrganization!.id;
+      const ids = await fetchSaleIdsForPeriod(orgId, start, end);
+      const total: SyncSaleCommissionsResult = { bills: 0, rows: 0, paidKept: 0, noSalesmanBills: 0, noSalesmanAmount: 0 };
+      const activeRules = (rules as any[]).filter((r) => r.is_active !== false);
+      for (let i = 0; i < ids.length; i += 200) {
+        const part = await syncSaleCommissions(orgId, ids.slice(i, i + 200), { employees, rules: activeRules });
+        total.bills += part.bills;
+        total.rows += part.rows;
+        total.paidKept += part.paidKept;
+        total.noSalesmanBills += part.noSalesmanBills;
+        total.noSalesmanAmount += part.noSalesmanAmount;
+      }
+      return total;
+    },
+    onSuccess: (total) => {
+      setShowRebuild(false);
+      setRebuildResult({ ...total, range: `${start}|${end}` });
+      void queryClient.invalidateQueries({ queryKey: ["salesman-commissions-page"] });
+      void queryClient.invalidateQueries({ queryKey: ["commission-sale-items-discount"] });
+      toast({
+        title: "Commission rebuilt from bills",
+        description: `${total.bills.toLocaleString("en-IN")} bills checked · ${total.rows.toLocaleString("en-IN")} commission rows${
+          total.paidKept ? ` · ${total.paidKept} bills with paid commission kept as they are` : ""
+        }`,
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: "Could not rebuild commission", description: err?.message || "Try again", variant: "destructive" });
+    },
   });
 
   const { data: commissions = [], isLoading: commissionsLoading } = useQuery({
@@ -467,9 +509,38 @@ export default function SalesmanCommission() {
                 {start === end ? start : `${start} → ${end}`}
               </p>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 px-3 text-sm"
+              data-testid="commission-rebuild"
+              onClick={() => setShowRebuild(true)}
+              disabled={!currentOrganization?.id || rebuildMutation.isPending}
+              title="Rebuild this period's commission from the bills (Sale Bills, edited and held bills, per-line salesman)"
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-1", rebuildMutation.isPending && "animate-spin")} />
+              Rebuild from bills
+            </Button>
           </div>
         </div>
 
+        {rebuildResult && rebuildResult.range === `${start}|${end}` && rebuildResult.noSalesmanBills > 0 && (
+          <div
+            data-testid="commission-no-salesman"
+            className="no-print flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 shrink-0"
+          >
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>
+              {(() => {
+                const n = rebuildResult.noSalesmanBills;
+                const one = n === 1;
+                return `${n.toLocaleString("en-IN")} ${one ? "bill" : "bills"} (${fmt(rebuildResult.noSalesmanAmount)}) in this period ${
+                  one ? "has" : "have"
+                } no salesman, so ${one ? "it earns" : "they earn"} no commission.`;
+              })()} Pick the salesman on those bills (POS / Sale Bill edit) and rebuild.
+            </span>
+          </div>
+        )}
         <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2 w-full shrink-0">
           <InsightsKpiCard label="Gross sales" value={totalGross} valueFormat="inr" tone="neutral" sub="Before discount" />
           <InsightsKpiCard label="Discount" value={totalDiscount} valueFormat="inr" tone="critical" sub="% off lines" />
@@ -817,6 +888,30 @@ export default function SalesmanCommission() {
             <Button variant="outline" onClick={resetRuleForm}>Cancel</Button>
             <Button onClick={() => saveRule.mutate()} disabled={!ruleEmployee || (ruleType !== "default" && !ruleValue)}>
               {editingRule ? "Update" : "Save"} Rule
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showRebuild} onOpenChange={(open) => !rebuildMutation.isPending && setShowRebuild(open)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rebuild commission from bills</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 text-sm text-slate-600">
+            <p>
+              Every bill from <b className="tabular-nums">{start}</b> to <b className="tabular-nums">{end}</b> (POS and
+              Sale Bills) gets its commission worked out again from the bill: the line&apos;s salesman, else the bill&apos;s
+              salesman, with today&apos;s rules.
+            </p>
+            <p>Bills whose commission is already marked <b>Paid</b> are kept exactly as they are.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRebuild(false)} disabled={rebuildMutation.isPending}>
+              Cancel
+            </Button>
+            <Button onClick={() => rebuildMutation.mutate()} disabled={rebuildMutation.isPending} data-testid="commission-rebuild-confirm">
+              <RefreshCw className={cn("h-4 w-4 mr-1", rebuildMutation.isPending && "animate-spin")} />
+              {rebuildMutation.isPending ? "Rebuilding…" : "Rebuild"}
             </Button>
           </DialogFooter>
         </DialogContent>
