@@ -76,10 +76,28 @@ describe("per-piece barcode wiring", () => {
     const purchase = readFileSync(join(root, "src/pages/PurchaseEntry.tsx"), "utf8");
     const fn = purchase.slice(
       purchase.indexOf("const handleSizeGridConfirm = async"),
-      purchase.indexOf("for (const { variant, qty } of items)", purchase.indexOf("const handleSizeGridConfirm = async")),
+      purchase.indexOf("for (const gridItem of gridItems)", purchase.indexOf("const handleSizeGridConfirm = async")),
     );
     expect(fn).toContain("perPieceBarcodeEnabled");
     expect(fn).toContain("expandRowsIntoPieces(");
+    // Pieces of one size are made together (one barcode request + one insert), not 4–6
+    // requests per piece (65 pieces took about a minute, lines appearing one by one).
+    expect(fn).toContain("createPieceVariantsInBulk(");
+  });
+
+  it("size grid puts all new lines on the bill in one update", () => {
+    const purchase = readFileSync(join(root, "src/pages/PurchaseEntry.tsx"), "utf8");
+    const start = purchase.indexOf("const handleSizeGridConfirm = async");
+    const fn = purchase.slice(start, purchase.indexOf("const queueImeiScans = ", start));
+    expect(fn).not.toContain("addItemRow(");
+    expect(fn.match(/setLineItems\(/g) ?? []).toHaveLength(1);
+    expect(fn).toContain("setLineItems((prev) => [...prev, ...pendingRows])");
+  });
+
+  it("Add New Product asks for all blank barcodes in one request", () => {
+    const dialog = readFileSync(join(root, "src/components/ProductEntryDialog.tsx"), "utf8");
+    expect(dialog).not.toMatch(/for \(let i = 0;[^}]*await generate/);
+    expect(dialog).toContain("generateNextBarcodes(currentOrganization.id, blankAt.length)");
   });
 
   it("Settings > Purchase has the toggle", () => {
