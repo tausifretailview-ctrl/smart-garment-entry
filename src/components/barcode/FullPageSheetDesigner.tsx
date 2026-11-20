@@ -26,6 +26,8 @@ export interface FullPageSheetGeometry {
   widthMm: number;
   heightMm: number;
   gapMm: number;
+  /** Gap between rows when it differs from the column gap (default gapMm). */
+  rowGapMm?: number | null;
   /** Where the first label starts on the page (base margin + nudges). */
   marginTopMm: number;
   marginLeftMm: number;
@@ -185,6 +187,7 @@ export function FullPageSheetDesigner(props: FullPageSheetDesignerProps) {
     widthMm: sheet.widthMm,
     heightMm: sheet.heightMm,
     gapMm: sheet.gapMm,
+    rowGapMm: sheet.rowGapMm,
     marginTopMm: sheet.marginTopMm,
     marginLeftMm: sheet.marginLeftMm,
   });
@@ -386,7 +389,7 @@ export function FullPageSheetDesigner(props: FullPageSheetDesignerProps) {
                       display: "grid",
                       gridTemplateColumns: `repeat(${sheet.cols}, ${sheet.widthMm}mm)`,
                       gridTemplateRows: `repeat(${sheet.rows}, ${sheet.heightMm}mm)`,
-                      gap: `${sheet.gapMm}mm`,
+                      gap: `${sheet.rowGapMm ?? sheet.gapMm}mm ${sheet.gapMm}mm`,
                     }}
                   >
                     {slots.map((slot, i) => (

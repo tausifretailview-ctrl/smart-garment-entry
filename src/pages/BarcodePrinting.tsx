@@ -262,7 +262,10 @@ interface CustomPreset {
   height: number;
   cols: number;
   rows: number;
+  /** Gap between columns (and rows, unless rowGap is set). */
   gap: number;
+  /** Gap between rows when it differs, e.g. A4 65-label 38.1×21.2: gap 2.5, rowGap 0. Unset = gap. */
+  rowGap?: number | null;
   scale?: number;
 }
 
@@ -413,6 +416,8 @@ export default function BarcodePrinting() {
   const [customRows, setCustomRows] = useState(12);
   // Die-cut A4 sheets are usually gap 0; default 2 made 48×24 presets look misaligned.
   const [customGap, setCustomGap] = useState(0);
+  /** null = rows use the same gap as columns (every preset saved before row gap existed). */
+  const [customRowGap, setCustomRowGap] = useState<number | null>(null);
   
   // Preset management state
   const [savedPresets, setSavedPresets] = useState<CustomPreset[]>([]);
@@ -1004,6 +1009,7 @@ export default function BarcodePrinting() {
                 setCustomCols(resolved.custom.cols);
                 setCustomRows(resolved.custom.rows);
                 setCustomGap(resolved.custom.gap);
+        setCustomRowGap(null);
                 setSelectedPreset("");
               } else {
                 setSheetType(resolved.sheetType as SheetType);
@@ -1087,6 +1093,7 @@ export default function BarcodePrinting() {
           setCustomCols(livePreset.cols);
           setCustomRows(livePreset.rows || 10);
           setCustomGap(livePreset.gap);
+          setCustomRowGap(livePreset.rowGap ?? null);
           setPrintScale(livePreset.scale || defaultFormat.printScale || 100);
           setSelectedPreset(livePreset.name);
         } else if (defaultFormat.customDimensions) {
@@ -1095,6 +1102,7 @@ export default function BarcodePrinting() {
           setCustomCols(defaultFormat.customDimensions.cols);
           setCustomRows(defaultFormat.customDimensions.rows || 10);
           setCustomGap(defaultFormat.customDimensions.gap);
+          setCustomRowGap(defaultFormat.customDimensions.rowGap ?? null);
           if (defaultFormat.customDimensions.scale) {
             setPrintScale(defaultFormat.customDimensions.scale);
           }
@@ -1136,6 +1144,7 @@ export default function BarcodePrinting() {
       setCustomCols(preset.cols);
       setCustomRows(preset.rows);
       setCustomGap(preset.gap);
+      setCustomRowGap(preset.rowGap ?? null);
       setPrintScale(preset.scale || 100);
       setSelectedPreset(preset.name);
       setSheetType("custom");
@@ -2026,6 +2035,7 @@ export default function BarcodePrinting() {
         setCustomCols(resolved.custom.cols);
         setCustomRows(resolved.custom.rows);
         setCustomGap(resolved.custom.gap);
+        setCustomRowGap(null);
         setSelectedPreset("");
       } else {
         setSheetType(resolved.sheetType as SheetType);
@@ -2871,6 +2881,7 @@ export default function BarcodePrinting() {
       cols: customCols,
       rows: customRows,
       gap: customGap,
+      rowGap: customRowGap,
       scale: printScale,
     };
 
@@ -2910,6 +2921,7 @@ export default function BarcodePrinting() {
             cols: customCols,
             rows: customRows,
             gap: customGap,
+            rowGap: customRowGap,
             scale: printScale,
           },
         });
@@ -2958,6 +2970,7 @@ export default function BarcodePrinting() {
       cols: customCols,
       rows: customRows,
       gap: customGap,
+      rowGap: customRowGap,
       scale: printScale,
     };
 
@@ -2984,6 +2997,7 @@ export default function BarcodePrinting() {
             cols: customCols,
             rows: customRows,
             gap: customGap,
+            rowGap: customRowGap,
             scale: printScale,
           },
         });
@@ -3000,6 +3014,7 @@ export default function BarcodePrinting() {
       setCustomCols(preset.cols);
       setCustomRows(preset.rows);
       setCustomGap(preset.gap);
+      setCustomRowGap(preset.rowGap ?? null);
       setPrintScale(preset.scale || 100);
       setSelectedPreset(presetName);
       toast.success(`Loaded preset "${presetName}"`);
@@ -3035,6 +3050,7 @@ export default function BarcodePrinting() {
     setCustomHeight(height);
     setCustomCols(preset.cols);
     setCustomGap(gap);
+    setCustomRowGap(null);
     
     // Calculate rows based on preset type
     const rowsMap: Record<string, number> = {
@@ -3512,6 +3528,7 @@ export default function BarcodePrinting() {
         cols: customCols,
         rows: customRows,
         gap: customGap,
+        rowGap: customRowGap,
         scale: printScale,
       } : undefined,
     };
@@ -3557,6 +3574,7 @@ export default function BarcodePrinting() {
         setCustomCols(resolved.custom.cols);
         setCustomRows(resolved.custom.rows);
         setCustomGap(resolved.custom.gap);
+        setCustomRowGap(null);
         setSelectedPreset("");
       } else {
         setSheetType(resolved.sheetType as SheetType);
@@ -3690,6 +3708,10 @@ export default function BarcodePrinting() {
         toast.error("Gap must be between 0mm and 50mm");
         return;
       }
+      if (customRowGap != null && (customRowGap < 0 || customRowGap > 50)) {
+        toast.error("Row gap must be between 0mm and 50mm");
+        return;
+      }
     }
 
     setIsPreviewDialogOpen(true);
@@ -3761,18 +3783,19 @@ export default function BarcodePrinting() {
     if (isThermal1Up()) return 1;
 
     const dims = sheetType === "custom"
-      ? { cols: customCols, rows: customRows, width: customWidth, height: customHeight, gap: customGap }
+      ? { cols: customCols, rows: customRows, width: customWidth, height: customHeight, gap: customGap, rowGap: customRowGap ?? customGap }
       : {
           cols: sheetPresets[sheetType].cols,
           rows: (sheetPresets[sheetType] as any).rows || 10,
           width: parseFloat(sheetPresets[sheetType].width),
           height: parseFloat(sheetPresets[sheetType].height),
-          gap: parseFloat(sheetPresets[sheetType].gap)
+          gap: parseFloat(sheetPresets[sheetType].gap),
+          rowGap: parseFloat(sheetPresets[sheetType].gap),
         };
 
     // Exclude user offsets - they are handled by CSS padding, not content size
     const contentWidth = (dims.cols * dims.width) + ((dims.cols - 1) * dims.gap);
-    const contentHeight = (dims.rows * dims.height) + ((dims.rows - 1) * dims.gap);
+    const contentHeight = (dims.rows * dims.height) + ((dims.rows - 1) * dims.rowGap);
 
     const printableWidth = 184;  // A4 210mm - ~26mm default margins
     const printableHeight = 270; // A4 297mm - ~27mm default margins
@@ -3798,12 +3821,15 @@ export default function BarcodePrinting() {
     const rawGap =
       sheetType === "custom" ? customGap : parseFloat(sheetPresets[sheetType].gap);
     const width = resolveA4LabelWidthMm(cols, rows, rawWidth, height, rawGap, brand);
+    const gap = resolveA4LayoutGap(cols, rows, rawWidth, height, rawGap, brand);
     return {
       cols,
       rows,
       width,
       height,
-      gap: resolveA4LayoutGap(cols, rows, rawWidth, height, rawGap, brand),
+      gap,
+      // Custom presets may space rows differently from columns (unset = same as columns).
+      rowGap: !brand && sheetType === "custom" && customRowGap != null ? customRowGap : gap,
       rawGap,
       rawWidth,
       novaJetBrand: brand,
@@ -3811,7 +3837,7 @@ export default function BarcodePrinting() {
   };
 
   const getSheetPageMargins = () => {
-    const { cols, rows, width, height, gap, novaJetBrand } = getA4SheetDimensions();
+    const { cols, rows, width, height, gap, rowGap, novaJetBrand } = getA4SheetDimensions();
 
     return computeA4SheetMargins(
       cols,
@@ -3826,6 +3852,7 @@ export default function BarcodePrinting() {
         right: rightOffset,
       },
       novaJetBrand,
+      rowGap,
     );
   };
 
@@ -4082,6 +4109,7 @@ export default function BarcodePrinting() {
         cols: dimensions.cols,
         rows: dimensions.rows,
         gapMm: dimensions.gap,
+        rowGapMm: dimensions.rowGap,
         topOffsetMm: topOffset,
         leftOffsetMm: leftOffset,
         bottomOffsetMm: bottomOffset,
@@ -4183,6 +4211,7 @@ export default function BarcodePrinting() {
         cols: dimensions.cols,
         rows: dimensions.rows,
         gapMm: dimensions.gap,
+        rowGapMm: dimensions.rowGap,
         topOffsetMm: topOffset,
         leftOffsetMm: leftOffset,
         bottomOffsetMm: bottomOffset,
@@ -4908,7 +4937,7 @@ export default function BarcodePrinting() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="customGap">Gap between labels (mm)</Label>
+                  <Label htmlFor="customGap">Gap between columns (mm)</Label>
                   <Input
                     id="customGap"
                     type="number"
@@ -4919,6 +4948,23 @@ export default function BarcodePrinting() {
                     onChange={(e) => setCustomGap(Math.max(0, Math.min(50, parseFloat(e.target.value) || 0)))}
                     placeholder="e.g., 0"
                   />
+                  <Label htmlFor="customRowGap" className="block pt-1">Gap between rows (mm)</Label>
+                  <Input
+                    id="customRowGap"
+                    type="number"
+                    min="0"
+                    max="50"
+                    step="0.1"
+                    value={customRowGap ?? ""}
+                    onChange={(e) => {
+                      const raw = e.target.value.trim();
+                      setCustomRowGap(raw === "" ? null : Math.max(0, Math.min(50, parseFloat(raw) || 0)));
+                    }}
+                    placeholder={`Same as columns (${customGap})`}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Leave blank to use the column gap. A4 65-label sheets (38.1×21.2mm): columns 2.5, rows 0.
+                  </p>
                   {customCols === 4 &&
                     customRows === 12 &&
                     Math.abs(customWidth - 48) < 0.05 &&
@@ -4985,7 +5031,7 @@ export default function BarcodePrinting() {
                              <li>Height: {customHeight}mm</li>
                              <li>Columns: {customCols}</li>
                              <li>Rows: {customRows}</li>
-                             <li>Gap: {customGap}mm</li>
+                             <li>Gap: {customGap}mm{customRowGap != null && customRowGap !== customGap ? ` (rows ${customRowGap}mm)` : ""}</li>
                              <li>Print Scale: {printScale}%</li>
                              <li>Total labels per sheet: {customCols * customRows}</li>
                            </ul>
@@ -6047,6 +6093,7 @@ export default function BarcodePrinting() {
               widthMm: dims.width,
               heightMm: dims.height,
               gapMm: dims.gap,
+              rowGapMm: dims.rowGap,
               marginTopMm: margins.marginTop,
               marginLeftMm: margins.marginLeft,
             }}

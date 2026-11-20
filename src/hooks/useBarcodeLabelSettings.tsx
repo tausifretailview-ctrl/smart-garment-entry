@@ -25,6 +25,8 @@ interface CustomPreset {
   cols: number;
   rows: number;
   gap: number;
+  /** Gap between rows when it differs from `gap` (unset = same). */
+  rowGap?: number | null;
   scale?: number;
 }
 
@@ -58,6 +60,7 @@ interface DefaultFormat {
     cols: number;
     rows: number;
     gap: number;
+    rowGap?: number | null;
     scale?: number;
   };
 }

@@ -69,7 +69,10 @@ export interface A4SheetOptions {
   labelHeightMm: number;
   cols: number;
   rows: number;
+  /** Gap between columns (and rows, unless rowGapMm is given). */
   gapMm: number;
+  /** Gap between rows when it differs (A4 65-label 38.1×21.2: columns 2.5mm, rows 0). */
+  rowGapMm?: number | null;
   topOffsetMm?: number;
   leftOffsetMm?: number;
   bottomOffsetMm?: number;
@@ -93,7 +96,7 @@ export const generateA4LabelPdf = async (
   options: A4SheetOptions
 ): Promise<Uint8Array> => {
   const {
-    labelWidthMm, labelHeightMm, cols, rows, gapMm,
+    labelWidthMm, labelHeightMm, cols, rows, gapMm, rowGapMm,
     topOffsetMm: rawTopOffsetMm = 0,
     leftOffsetMm: rawLeftOffsetMm = 0,
     bottomOffsetMm: rawBottomOffsetMm = 0,
@@ -131,6 +134,8 @@ export const generateA4LabelPdf = async (
     gapMm,
     novaJetBrand,
   );
+  // NovaJet brands keep their one die-cut gap; other sheets may set rows apart.
+  const layoutRowGapMm = novaJetBrand ? layoutGapMm : rowGapMm ?? layoutGapMm;
   const layoutWidthMm = resolveA4LabelWidthMm(
     cols,
     rows,
@@ -143,7 +148,7 @@ export const generateA4LabelPdf = async (
   const totalWidthMm =
     leftOffsetMm + rightOffsetMm + cols * layoutWidthMm + (cols - 1) * layoutGapMm;
   const totalHeightMm =
-    topOffsetMm + bottomOffsetMm + rows * labelHeightMm + (rows - 1) * layoutGapMm;
+    topOffsetMm + bottomOffsetMm + rows * labelHeightMm + (rows - 1) * layoutRowGapMm;
   if (totalWidthMm > 210 || totalHeightMm > 297) {
     console.warn(
       `[a4LabelPdf] Layout may exceed A4 page bounds: ${totalWidthMm.toFixed(1)}mm x ${totalHeightMm.toFixed(1)}mm (A4 = 210x297mm)`,
@@ -155,6 +160,7 @@ export const generateA4LabelPdf = async (
   const labelW = mmToPt(layoutWidthMm);
   const labelH = mmToPt(labelHeightMm);
   const gap = mmToPt(layoutGapMm);
+  const rowGap = mmToPt(layoutRowGapMm);
   const { marginLeft: marginLeftMm, marginTop: marginTopMm } = computeA4SheetMargins(
     cols,
     rows,
@@ -163,6 +169,7 @@ export const generateA4LabelPdf = async (
     layoutGapMm,
     { top: topOffsetMm, left: leftOffsetMm, bottom: bottomOffsetMm, right: rightOffsetMm },
     novaJetBrand,
+    layoutRowGapMm,
   );
   const marginLeft = mmToPt(marginLeftMm);
   const marginTop = mmToPt(marginTopMm);
@@ -195,7 +202,7 @@ export const generateA4LabelPdf = async (
       const row = Math.floor(i / cols);
 
       const x = marginLeft + col * (labelW + gap);
-      const y = PAGE_H - marginTop - (row + 1) * labelH - row * gap;
+      const y = PAGE_H - marginTop - (row + 1) * labelH - row * rowGap;
 
       // No cell borders on the print PDF — grey grid lines look like inter-label
       // "columns"/gaps and confuse alignment against the physical die-cut sheet.
