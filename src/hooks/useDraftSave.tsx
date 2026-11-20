@@ -11,6 +11,7 @@ import {
   type PurchaseDraftEventDetail,
 } from '@/lib/purchaseEntryPersistence';
 import { registerUnsavedWorkSource } from '@/lib/unsavedWorkGuard';
+import { ENTRY_WINDOW_PARAM, takeEntryWindowClosing } from '@/lib/entryWindows';
 
 export type DraftType = 'purchase' | 'quotation' | 'sale_order' | 'sale_invoice' | 'purchase_order' | 'salesman_sale_order' | 'purchase_return';
 
@@ -123,23 +124,25 @@ function clearLocalBackup(orgId: string, userId: string, draftType: DraftType) {
  */
 const RESUME_MAX_CHARS = 2_000_000;
 
-export function draftResumeKey(orgId: string, userId: string, draftType: DraftType) {
-  return `ezzy-draft-resume:${orgId}:${userId}:${draftType}`;
+/** Window 1 keeps the plain key; extra windows of the page (Sale Bill 2, 3) add ":wN". */
+export function draftResumeKey(orgId: string, userId: string, draftType: DraftType, windowInstance = 1) {
+  const base = `ezzy-draft-resume:${orgId}:${userId}:${draftType}`;
+  return windowInstance > 1 ? `${base}:${ENTRY_WINDOW_PARAM}${windowInstance}` : base;
 }
 
-function writeResumeCopy(orgId: string, userId: string, draftType: DraftType, data: any) {
+function writeResumeCopy(orgId: string, userId: string, draftType: DraftType, data: any, windowInstance = 1) {
   try {
     const raw = JSON.stringify(data);
     if (raw.length > RESUME_MAX_CHARS) return; // very large bills rely on the database draft
-    sessionStorage.setItem(draftResumeKey(orgId, userId, draftType), raw);
+    sessionStorage.setItem(draftResumeKey(orgId, userId, draftType, windowInstance), raw);
   } catch {
     /* storage full or blocked */
   }
 }
 
-function clearResumeCopy(orgId: string, userId: string, draftType: DraftType) {
+function clearResumeCopy(orgId: string, userId: string, draftType: DraftType, windowInstance = 1) {
   try {
-    sessionStorage.removeItem(draftResumeKey(orgId, userId, draftType));
+    sessionStorage.removeItem(draftResumeKey(orgId, userId, draftType, windowInstance));
   } catch {
     /* blocked */
   }
@@ -159,10 +162,20 @@ export function isExplicitEntryOpen(state: unknown, search: string): boolean {
 interface UseDraftSaveOptions {
   autoSaveInterval?: number; // in milliseconds, default 30000 (30 seconds)
   onDraftLoaded?: (data: any) => void;
+  /**
+   * Which window of the page this is (src/lib/entryWindows.ts). Window 1 (default) keeps the
+   * database draft as always. Extra windows (2, 3) keep their bill only in this browser tab
+   * (resume copy, also written on reload) and never read, write or delete the database
+   * draft, which belongs to window 1.
+   */
+  windowInstance?: number;
+  /** Window id ("sales-invoice~2"), to skip keeping the bill when the window is closed. */
+  windowId?: string;
 }
 
 export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions = {}) => {
-  const { autoSaveInterval = 30000, onDraftLoaded } = options; // 30 seconds default — reduces network overhead for large bills
+  const { autoSaveInterval = 30000, onDraftLoaded, windowInstance = 1, windowId } = options; // 30 seconds default — reduces network overhead for large bills
+  const isExtraWindow = windowInstance > 1;
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
   const [hasDraft, setHasDraft] = useState(false);
@@ -189,6 +202,7 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
   // Check if draft exists on mount
   const checkDraft = useCallback(async () => {
     if (!currentOrganization?.id || !user?.id) return;
+    if (isExtraWindow) return; // the database draft belongs to window 1
 
     try {
       const { data, error } = await supabase
@@ -232,7 +246,7 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
     } catch (error) {
       console.error('Error checking draft:', error);
     }
-  }, [currentOrganization?.id, user?.id, draftType, enqueue]);
+  }, [currentOrganization?.id, user?.id, draftType, enqueue, isExtraWindow]);
 
   useEffect(() => {
     checkDraft();
@@ -241,7 +255,7 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
   // Pages stay mounted as tabs, so a mount-time check goes stale: re-check when the window
   // comes back, and mirror saves/deletes made by the other instance (entry page ↔ dashboard).
   useEffect(() => {
-    if (!LIVE_DRAFT_TYPES.has(draftType)) return;
+    if (!LIVE_DRAFT_TYPES.has(draftType) || isExtraWindow) return;
     const onVisible = () => {
       if (document.visibilityState === 'visible') void checkDraft();
     };
@@ -263,7 +277,7 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener(DRAFT_CHANGED_EVENT, onDraftChanged);
     };
-  }, [checkDraft, currentOrganization?.id, user?.id, draftType]);
+  }, [checkDraft, currentOrganization?.id, user?.id, draftType, isExtraWindow]);
 
   // Purchase Entry may save/delete draft in another tab — keep dashboard banner in sync.
   useEffect(() => {
@@ -298,6 +312,11 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
 
     const orgId = currentOrganization.id;
     const userId = user.id;
+    if (isExtraWindow) {
+      // Extra window: keep the bill in this browser tab only (window 1 owns the database draft).
+      writeResumeCopy(orgId, userId, draftType, data, windowInstance);
+      return true;
+    }
     writeLocalBackup(orgId, userId, draftType, data);
 
     setIsSaving(true);
@@ -337,7 +356,7 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
     } finally {
       setIsSaving(false);
     }
-  }, [currentOrganization?.id, user?.id, draftType, enqueue]);
+  }, [currentOrganization?.id, user?.id, draftType, enqueue, isExtraWindow, windowInstance]);
 
   // Load draft
   const loadDraft = useCallback(() => {
@@ -357,6 +376,11 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
     // meanwhile gets its pending data wiped and never autosaves.
     currentDataRef.current = null;
     draftClearedRef.current = true;
+    if (isExtraWindow) {
+      // Saved / new bill in an extra window: forget only this window's kept bill.
+      clearResumeCopy(orgId, userId, draftType, windowInstance);
+      return true;
+    }
     clearLocalBackup(orgId, userId, draftType);
     clearResumeCopy(orgId, userId, draftType);
 
@@ -379,7 +403,7 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
       console.error('Error deleting draft:', error);
       return false;
     }
-  }, [currentOrganization?.id, user?.id, draftType, enqueue]);
+  }, [currentOrganization?.id, user?.id, draftType, enqueue, isExtraWindow, windowInstance]);
 
   // Update current data reference for auto-save
   const updateCurrentData = useCallback((data: any) => {
@@ -414,17 +438,26 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
   // Cleanup on unmount - SAVE draft before stopping auto-save (only if not intentionally cleared)
   useEffect(() => {
     return () => {
+      // Its window was closed (×, Ctrl+W, Alt+W → Delete): an extra window's bill goes with it.
+      const closed = windowId ? takeEntryWindowClosing(windowId) : false;
+      if (closed && isExtraWindow) {
+        if (orgIdRef.current && userIdRef.current) {
+          clearResumeCopy(orgIdRef.current, userIdRef.current, draftType, windowInstance);
+        }
+        stopAutoSave();
+        return;
+      }
       // Don't save if draft was intentionally cleared (e.g., after successful save)
       if (currentDataRef.current && !draftClearedRef.current) {
         // Leaving with an unsaved bill: keep it for this tab so reopening the page shows it.
         if (orgIdRef.current && userIdRef.current) {
-          writeResumeCopy(orgIdRef.current, userIdRef.current, draftType, currentDataRef.current);
+          writeResumeCopy(orgIdRef.current, userIdRef.current, draftType, currentDataRef.current, windowInstance);
         }
-        reportIfFails(saveDraft(currentDataRef.current, false), "save the draft", { silent: true });
+        if (!isExtraWindow) reportIfFails(saveDraft(currentDataRef.current, false), "save the draft", { silent: true });
       }
       stopAutoSave();
     };
-  }, [stopAutoSave, saveDraft, draftType]);
+  }, [stopAutoSave, saveDraft, draftType, windowId, isExtraWindow, windowInstance]);
 
   /**
    * The bill this page had when the user left it (same browser tab), null when none, or
@@ -435,7 +468,7 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
     const userId = user?.id;
     if (!orgId || !userId) return undefined; // not signed in to a shop yet: ask again later
     try {
-      const key = draftResumeKey(orgId, userId, draftType);
+      const key = draftResumeKey(orgId, userId, draftType, windowInstance);
       const raw = sessionStorage.getItem(key);
       if (!raw) return null;
       sessionStorage.removeItem(key);
@@ -443,16 +476,16 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
     } catch {
       return null;
     }
-  }, [currentOrganization?.id, user?.id, draftType]);
+  }, [currentOrganization?.id, user?.id, draftType, windowInstance]);
 
   // Entry screens with pending draft data block automatic reloads (deploy skew recovery,
   // silent update). Dashboards using this hook never set current data, so they never block.
   useEffect(
     () =>
-      registerUnsavedWorkSource(`draft:${draftType}`, () =>
+      registerUnsavedWorkSource(`draft:${draftType}${isExtraWindow ? `:${ENTRY_WINDOW_PARAM}${windowInstance}` : ""}`, () =>
         Boolean(currentDataRef.current) && !draftClearedRef.current,
       ),
-    [draftType],
+    [draftType, isExtraWindow, windowInstance],
   );
 
   // Handle beforeunload to save draft (only if not intentionally cleared)

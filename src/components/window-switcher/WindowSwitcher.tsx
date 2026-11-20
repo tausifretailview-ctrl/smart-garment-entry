@@ -11,6 +11,7 @@ import {
   withCurrentFirst,
 } from "@/lib/windowSwitcher";
 import { resolveTabCachePath } from "@/lib/tabPageRegistry";
+import { entryWindowId, tabIdOf } from "@/lib/entryWindows";
 import "./window-switcher.css";
 
 type Held = "Alt" | "Control" | null;
@@ -80,6 +81,12 @@ function Sketch({ kind }: { kind: "bill" | "chart" | "list" }) {
   );
 }
 
+/** Window id of the page on screen ("sales-invoice~2" for Sale Bill 2), from the address. */
+function addressWindowId(): string {
+  const path = resolveTabCachePath(window.location.pathname.split("/").filter(Boolean).slice(1).join("/"));
+  return entryWindowId(path, window.location.search);
+}
+
 /**
  * Alt+W window switcher, like Windows Alt+Tab, for the windows in the tab strip.
  *   Hold Alt, tap W to move (Shift+W back), release Alt to open the chosen window.
@@ -93,9 +100,10 @@ export function WindowSwitcher() {
   const [selected, setSelected] = useState(0);
   const [visible, setVisible] = useState(false);
   const held = useRef<Held>(null);
-  // The page on screen, read from the address (the tab state can be a render behind it).
+  // The window on screen, read from the address (the tab state can be a render behind it).
   const currentPath = resolveTabCachePath(window.location.pathname.split("/").filter(Boolean).slice(1).join("/"));
-  const windows = withCurrentFirst(windowsByRecent, currentPath);
+  const currentId = entryWindowId(currentPath, window.location.search);
+  const windows = withCurrentFirst(windowsByRecent, currentId);
   const count = windows.length;
   const listRef = useRef(windows);
   listRef.current = windows;
@@ -114,16 +122,15 @@ export function WindowSwitcher() {
     (index?: number) => {
       const target = listRef.current[index ?? selectedRef.current];
       close();
-      const here = resolveTabCachePath(window.location.pathname.split("/").filter(Boolean).slice(1).join("/"));
-      if (target && target.path !== here) switchWindow(target.path);
+      const here = addressWindowId();
+      if (target && tabIdOf(target) !== here) switchWindow(tabIdOf(target));
     },
     [close, switchWindow],
   );
 
   const openSwitcher = useCallback(
     (by: Held) => {
-      const here = resolveTabCachePath(window.location.pathname.split("/").filter(Boolean).slice(1).join("/"));
-      listRef.current = withCurrentFirst(listRef.current, here);
+      listRef.current = withCurrentFirst(listRef.current, addressWindowId());
       if (listRef.current.length === 0) return;
       held.current = by;
       setSelected(initialSelection(listRef.current.length));
@@ -191,7 +198,7 @@ export function WindowSwitcher() {
       if (e.key === "Delete" || (key === "x" && !e.ctrlKey && !e.altKey)) {
         stop();
         const target = listRef.current[selectedRef.current];
-        if (target && n > 1) closeWindow(target.path);
+        if (target && n > 1) closeWindow(tabIdOf(target));
         return;
       }
       if (!["Alt", "Control", "Shift", "Meta"].includes(e.key)) stop();
@@ -248,12 +255,13 @@ export function WindowSwitcher() {
             const Icon = getTabIcon(w.icon);
             const [from, to] = PALETTE[w.icon] ?? ["#6366f1", "#0ea5e9"];
             const isSel = i === selected;
-            const isActive = w.path === currentPath || (!currentPath && w.path === activeWindow);
+            const wid = tabIdOf(w);
+            const isActive = wid === currentId || (!currentPath && wid === activeWindow);
             const detail = windowDetail(w.path, w.search);
-            const used = isActive ? "Current window" : lastUsedLabel(lastUsedAt[w.path], now) || "Open";
+            const used = isActive ? "Current window" : lastUsedLabel(lastUsedAt[wid], now) || "Open";
             return (
               <li
-                key={w.path}
+                key={wid}
                 role="option"
                 aria-selected={isSel}
                 className="wsw-card group relative w-[178px] cursor-pointer rounded-2xl p-2.5 sm:w-[196px]"
@@ -286,7 +294,7 @@ export function WindowSwitcher() {
                     aria-label={`Close ${w.label}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      closeWindow(w.path);
+                      closeWindow(wid);
                     }}
                   >
                     <X className="h-3.5 w-3.5" />

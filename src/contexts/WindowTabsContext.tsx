@@ -8,6 +8,17 @@ import { prefetchTabPage, resolveTabCachePath } from "@/lib/tabPageRegistry";
 import { PAGE_TITLE_CONFIG } from "@/lib/pageTitles";
 import { isEditableTarget } from "@/lib/keyboardShortcuts";
 import { orderByRecent, touchRecent } from "@/lib/windowSwitcher";
+import {
+  entryWindowId,
+  entryWindowLabel,
+  entryWindowSearch,
+  forgetEntryWindowBill,
+  isMultiWindowPage,
+  markEntryWindowClosing,
+  nextFreeEntryWindow,
+  parseEntryWindowId,
+  tabIdOf,
+} from "@/lib/entryWindows";
 import { 
   ShoppingCart, BarChart3, FileText, Users, Package, Settings, 
   Home, Truck, Receipt, ArrowLeftRight, ClipboardList, UserCheck,
@@ -16,6 +27,11 @@ import {
 } from "lucide-react";
 
 interface WindowTab {
+  /**
+   * Window id: the path, or "path~N" for extra windows of a multi-window page (Sale Bill 2).
+   * Missing on records saved before windows had ids (then the path is the id).
+   */
+  id?: string;
   path: string;
   label: string;
   icon: string;
@@ -28,9 +44,13 @@ interface WindowTabsContextType {
   activeWindow: string;
   isTabsBarVisible: boolean;
   toggleTabsBarVisibility: () => void;
+  /** Paths or window ids ("sales-invoice~2") are accepted by the window actions below. */
   openWindow: (path: string) => void;
+  /** Open one more window of a multi-window page (Sale Bill 2, 3); false when all are open. */
+  openNewWindow: (path: string) => boolean;
   closeWindow: (path: string) => void;
   switchWindow: (path: string) => void;
+  /** Any window of this page is open. */
   isWindowOpen: (path: string) => boolean;
   /** Tab immediately before `fromPath` in the window strip (restores saved search on switch). */
   getPreviousWindow: (fromPath?: string) => WindowTab | null;
@@ -54,6 +74,7 @@ const FALLBACK_WINDOW_TABS: WindowTabsContextType = {
   isTabsBarVisible: false,
   toggleTabsBarVisibility: () => {},
   openWindow: () => {},
+  openNewWindow: () => false,
   closeWindow: () => {},
   switchWindow: () => {},
   isWindowOpen: () => false,
@@ -75,7 +96,7 @@ const MAX_WINDOWS = 8;
 function normalizeWindowTab(tab: WindowTab): WindowTab {
   const canonical = resolveTabCachePath(tab.path);
   if (canonical === tab.path) return tab;
-  return { ...tab, path: canonical };
+  return { ...tab, path: canonical, id: tab.id && tab.id !== tab.path ? tab.id.replace(tab.path, canonical) : undefined };
 }
 
 function normalizeWindowTabs(tabs: unknown): WindowTab[] {
@@ -85,11 +106,20 @@ function normalizeWindowTabs(tabs: unknown): WindowTab[] {
   for (const tab of tabs) {
     if (!tab || typeof tab !== "object" || typeof (tab as WindowTab).path !== "string") continue;
     const normalized = normalizeWindowTab(tab as WindowTab);
-    if (seen.has(normalized.path)) continue;
-    seen.add(normalized.path);
+    const id = tabIdOf(normalized);
+    if (seen.has(id)) continue;
+    seen.add(id);
     out.push(normalized);
   }
   return out;
+}
+
+/** Path part of a path or window id, canonical. */
+function cleanWindowRef(ref: string): { id: string; path: string; instance: number } {
+  const raw = ref.startsWith("/") ? ref.slice(1) : ref;
+  const { path, instance } = parseEntryWindowId(raw);
+  const canonical = resolveTabCachePath(path);
+  return { id: instance > 1 ? `${canonical}~${instance}` : canonical, path: canonical, instance };
 }
 
 export function WindowTabsProvider({ children }: { children: React.ReactNode }) {
@@ -152,10 +182,13 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
   }, [hasMenuAccess, permissions, permissionsLoading]);
 
   const navigateToWindowPath = useCallback(
-    (path: string, windows: WindowTab[] = openWindows) => {
+    (ref: string, windows: WindowTab[] = openWindows) => {
       const safeWindows = Array.isArray(windows) ? windows : [];
-      const cleanPath = resolveTabCachePath(path.startsWith("/") ? path.slice(1) : path);
-      let savedSearch = safeWindows.find((w) => w.path === cleanPath)?.search || "";
+      const { id, path: cleanPath, instance } = cleanWindowRef(ref);
+      let savedSearch = safeWindows.find((w) => tabIdOf(w) === id)?.search || "";
+      // Extra windows of a page always carry their window number (?w=2).
+      if (instance > 1 && entryWindowId(cleanPath, savedSearch) !== id) savedSearch = entryWindowSearch(instance);
+      if (instance === 1 && isMultiWindowPage(cleanPath) && entryWindowId(cleanPath, savedSearch) !== cleanPath) savedSearch = "";
       // Safety net: never reopen the POS Sales tab on an old saved-invoice edit URL.
       // Strip ?saleId so clicking the POS Sales tab always lands on a fresh new sale.
       if (cleanPath === "pos-sales" && savedSearch) {
@@ -224,7 +257,8 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
       return;
     }
 
-    setActiveWindow(currentPath);
+    const currentId = entryWindowId(currentPath, location.search);
+    setActiveWindow(currentId);
 
     // Warm main dashboard chunk while user is on POS so first return is instant.
     if (currentPath === "pos-sales") {
@@ -235,19 +269,26 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
     if (currentPath && PAGE_CONFIG[currentPath] && canAccessPath(currentPath)) {
       const config = PAGE_CONFIG[currentPath];
       const currentSearch = location.search || undefined;
+      const instance = parseEntryWindowId(currentId).instance;
       setOpenWindows((prev) => {
         if (!Array.isArray(prev)) return [];
-        const exists = prev.some((w) => w.path === currentPath);
+        const exists = prev.some((w) => tabIdOf(w) === currentId);
         if (!exists && prev.length < MAX_WINDOWS) {
           return [
             ...prev,
-            { path: currentPath, label: config.label, icon: config.icon, search: currentSearch },
+            {
+              ...(instance > 1 ? { id: currentId } : {}),
+              path: currentPath,
+              label: entryWindowLabel(config.label, instance),
+              icon: config.icon,
+              search: currentSearch,
+            },
           ];
         }
         if (!exists) return prev;
         let changed = false;
         const next = prev.map((w) => {
-          if (w.path !== currentPath) return w;
+          if (tabIdOf(w) !== currentId) return w;
           if (w.search === currentSearch) return w;
           changed = true;
           return { ...w, search: currentSearch };
@@ -281,7 +322,7 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
         const idx = parseInt(e.key, 10) - 1;
         if (idx < allowedWindows.length) {
           e.preventDefault();
-          navigateToWindowPath(allowedWindows[idx].path, allowedWindows);
+          navigateToWindowPath(tabIdOf(allowedWindows[idx]), allowedWindows);
         }
       }
 
@@ -303,7 +344,7 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
     // Explicit user open — intent (must not be skipped on Save-Data / 2g).
     prefetchTabPage(cleanPath, { intent: true });
     const existing = Array.isArray(openWindows)
-      ? openWindows.find((w) => w.path === cleanPath)
+      ? openWindows.find((w) => tabIdOf(w) === cleanPath)
       : undefined;
     if (!existing && Array.isArray(openWindows) && openWindows.length < MAX_WINDOWS) {
       setOpenWindows((prev) => [
@@ -314,51 +355,75 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
     navigateToWindowPath(cleanPath);
   }, [openWindows, navigateToWindowPath, canAccessPath]);
 
-  const closeWindow = useCallback((path: string) => {
-    const cleanPath = resolveTabCachePath(path.startsWith("/") ? path.slice(1) : path);
+  const openNewWindow = useCallback((path: string) => {
+    const { path: cleanPath } = cleanWindowRef(path);
+    const config = PAGE_CONFIG[cleanPath];
+    if (!config || !canAccessPath(cleanPath) || !isMultiWindowPage(cleanPath)) return false;
+    const windows = Array.isArray(openWindows) ? openWindows : [];
+    const instance = nextFreeEntryWindow(cleanPath, windows.map(tabIdOf));
+    if (instance === null || windows.length >= MAX_WINDOWS) return false;
+    prefetchTabPage(cleanPath, { intent: true });
+    const id = instance > 1 ? `${cleanPath}~${instance}` : cleanPath;
+    const search = entryWindowSearch(instance) || undefined;
+    const next = [
+      ...windows,
+      { ...(instance > 1 ? { id } : {}), path: cleanPath, label: entryWindowLabel(config.label, instance), icon: config.icon, search },
+    ];
+    setOpenWindows(next);
+    navigateToWindowPath(id, next);
+    return true;
+  }, [openWindows, navigateToWindowPath, canAccessPath]);
+
+  const closeWindow = useCallback((ref: string) => {
+    const { id, path: cleanPath, instance } = cleanWindowRef(ref);
     if (!Array.isArray(openWindows)) {
       setOpenWindows([]);
       return;
     }
-    const newWindows = openWindows.filter(w => w.path !== cleanPath);
+    const newWindows = openWindows.filter(w => tabIdOf(w) !== id);
     setOpenWindows(newWindows);
-    
+    if (instance > 1) {
+      // A closed extra window takes its unsaved bill with it (window 1 keeps its draft).
+      markEntryWindowClosing(id);
+      forgetEntryWindowBill(cleanPath, instance);
+    }
+
     // If closing active window, switch to previous or first window
-    if (cleanPath === activeWindow && newWindows.length > 0) {
-      const closedIndex = openWindows.findIndex(w => w.path === cleanPath);
+    if (id === activeWindow && newWindows.length > 0) {
+      const closedIndex = openWindows.findIndex(w => tabIdOf(w) === id);
       const nextWindow = newWindows[Math.max(0, closedIndex - 1)];
-      navigateToWindowPath(nextWindow.path, newWindows);
+      navigateToWindowPath(tabIdOf(nextWindow), newWindows);
     }
   }, [openWindows, activeWindow, navigateToWindowPath]);
 
-  const switchWindow = useCallback((path: string) => {
-    const cleanPath = resolveTabCachePath(path);
+  const switchWindow = useCallback((ref: string) => {
+    const { id, path: cleanPath } = cleanWindowRef(ref);
     if (!canAccessPath(cleanPath)) return;
     prefetchTabPage(cleanPath, { intent: true });
-    navigateToWindowPath(cleanPath);
+    navigateToWindowPath(id);
   }, [navigateToWindowPath, canAccessPath]);
 
-  const isWindowOpen = useCallback((path: string) => {
-    const cleanPath = resolveTabCachePath(path.startsWith("/") ? path.slice(1) : path);
+  const isWindowOpen = useCallback((ref: string) => {
+    const { path: cleanPath } = cleanWindowRef(ref);
     return Array.isArray(openWindows) && openWindows.some(w => w.path === cleanPath);
   }, [openWindows]);
 
   const getPreviousWindow = useCallback(
-    (fromPath?: string) => {
+    (fromRef?: string) => {
       if (!Array.isArray(openWindows) || openWindows.length === 0) return null;
-      const current = resolveTabCachePath(fromPath ?? activeWindow);
-      const idx = openWindows.findIndex((w) => w.path === current);
+      const current = cleanWindowRef(fromRef ?? activeWindow).id;
+      const idx = openWindows.findIndex((w) => tabIdOf(w) === current);
       if (idx > 0) return openWindows[idx - 1];
-      return openWindows.find((w) => w.path !== current) ?? null;
+      return openWindows.find((w) => tabIdOf(w) !== current) ?? null;
     },
     [openWindows, activeWindow],
   );
 
   const switchToPreviousWindow = useCallback(
-    (fromPath?: string) => {
-      const previous = getPreviousWindow(fromPath);
+    (fromRef?: string) => {
+      const previous = getPreviousWindow(fromRef);
       if (!previous) return false;
-      switchWindow(previous.path);
+      switchWindow(tabIdOf(previous));
       return true;
     },
     [getPreviousWindow, switchWindow],
@@ -376,6 +441,7 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
       isTabsBarVisible,
       toggleTabsBarVisibility,
       openWindow,
+      openNewWindow,
       closeWindow,
       switchWindow,
       isWindowOpen,

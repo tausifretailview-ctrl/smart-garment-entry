@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { prefetchTabPage } from "@/lib/tabPageRegistry";
+import { isMultiWindowPage, nextFreeEntryWindow, tabIdOf } from "@/lib/entryWindows";
+import { toast } from "sonner";
 
 type WindowTabsBarProps = {
   className?: string;
@@ -55,6 +57,7 @@ export function WindowTabsBar({ className }: WindowTabsBarProps) {
     closeWindow, 
     switchWindow, 
     openWindow, 
+    openNewWindow,
     isWindowOpen,
     isTabsBarVisible,
     toggleTabsBarVisibility,
@@ -111,15 +114,16 @@ export function WindowTabsBar({ className }: WindowTabsBarProps) {
           <div className="flex items-center gap-1">
             {openWindows.map((window, index) => {
               const IconComponent = getTabIcon(window.icon);
-              const isActive = window.path === activeWindow;
+              const windowId = tabIdOf(window);
+              const isActive = windowId === activeWindow;
               
               return (
                 <div
-                  key={window.path}
+                  key={windowId}
                   className={cn("erp-tab group", isActive && "erp-tab--active")}
                   onMouseEnter={() => prefetchTabPage(window.path)}
                   onPointerDown={() => prefetchTabPage(window.path, { intent: true })}
-                  onClick={() => switchWindow(window.path)}
+                  onClick={() => switchWindow(windowId)}
                 >
                   {index < 9 && (
                     <kbd className="erp-tab-kbd px-1 py-0.5 rounded text-[10px] leading-none shrink-0 hidden md:inline">
@@ -134,7 +138,7 @@ export function WindowTabsBar({ className }: WindowTabsBarProps) {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        closeWindow(window.path);
+                        closeWindow(windowId);
                       }}
                       className="erp-tab-close ml-0.5 rounded-sm hover:bg-white/20 p-0.5"
                       aria-label={`Close ${window.label}`}
@@ -166,18 +170,33 @@ export function WindowTabsBar({ className }: WindowTabsBarProps) {
                   {pages.map((page) => {
                     const IconComponent = getTabIcon(page.icon);
                     const isOpen = isWindowOpen(page.path);
+                    const multi = isMultiWindowPage(page.path);
+                    const canOpenAnother = multi && isOpen && nextFreeEntryWindow(page.path, openWindows.map(tabIdOf)) !== null;
                     return (
-                      <DropdownMenuItem
-                        key={page.path}
-                        onClick={() => openWindow(page.path)}
-                        onMouseEnter={() => prefetchTabPage(page.path)}
-                        onPointerDown={() => prefetchTabPage(page.path, { intent: true })}
-                        className={cn(isOpen && "bg-muted")}
-                      >
-                        <IconComponent className="h-4 w-4 mr-2" />
-                        {page.label}
-                        {isOpen && <span className="ml-auto text-xs text-muted-foreground">Open</span>}
-                      </DropdownMenuItem>
+                      <React.Fragment key={page.path}>
+                        <DropdownMenuItem
+                          onClick={() => openWindow(page.path)}
+                          onMouseEnter={() => prefetchTabPage(page.path)}
+                          onPointerDown={() => prefetchTabPage(page.path, { intent: true })}
+                          className={cn(isOpen && "bg-muted")}
+                        >
+                          <IconComponent className="h-4 w-4 mr-2" />
+                          {page.label}
+                          {isOpen && <span className="ml-auto text-xs text-muted-foreground">Open</span>}
+                        </DropdownMenuItem>
+                        {multi && isOpen ? (
+                          <DropdownMenuItem
+                            disabled={!canOpenAnother}
+                            onClick={() => {
+                              if (!openNewWindow(page.path)) toast.info(`All ${page.label} windows are open`);
+                            }}
+                            className="pl-8 text-xs"
+                          >
+                            <Plus className="h-3.5 w-3.5 mr-1.5" />
+                            New {page.label} window
+                          </DropdownMenuItem>
+                        ) : null}
+                      </React.Fragment>
                     );
                   })}
                 </React.Fragment>

@@ -7,6 +7,7 @@ import { MenuPermissionRoute } from "@/components/MenuPermissionRoute";
 import { OrganizationSetup } from "@/components/OrganizationSetup";
 import { Layout } from "@/components/Layout";
 import { FullScreenLayout } from "@/components/FullScreenLayout";
+import { EntryWindowKey } from "@/components/EntryWindowKey";
 import { POSLayout } from "@/components/POSLayout";
 import { ChunkLoadBoundary } from "@/components/ChunkLoadBoundary";
 import { PosDeliveryChallanLayout } from "@/components/PosDeliveryChallanLayout";
@@ -968,7 +969,9 @@ export function AppRoutes() {
           element={
             <ProtectedRoute>
               <FullScreenLayout>
-                <SalesInvoice />
+                <EntryWindowKey path="sales-invoice">
+                  <SalesInvoice />
+                </EntryWindowKey>
               </FullScreenLayout>
             </ProtectedRoute>
           }
