@@ -69,7 +69,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, Scan, Printer, ChevronLeft, ChevronRight, SkipBack, Lock, FileText, Coins, Trash2, Save, RefreshCw, FileSpreadsheet, FileDown, History as HistoryIcon, BarChart3 } from "lucide-react";
+import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, Scan, Printer, ChevronLeft, ChevronRight, SkipBack, Lock, FileText, Coins, Trash2, Save, RefreshCw, FileSpreadsheet, FileDown, History as HistoryIcon, BarChart3, CopyPlus } from "lucide-react";
 import { Banknote, Smartphone, Wallet } from "lucide-react";
 import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
@@ -169,6 +169,8 @@ import { mobileNumberError } from "@/utils/mobileNumberValidation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useLocation } from "react-router-dom";
+import { useWindowTabs } from "@/contexts/WindowTabsContext";
+import { entryWindowId, entryWindowInstance, MULTI_WINDOW_PAGES, nextFreeEntryWindow, tabIdOf } from "@/lib/entryWindows";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { DEBIT_NOTE_SALE_TYPE } from "@/utils/debitNote";
 import {
@@ -427,6 +429,12 @@ export default function SalesInvoice() {
     (showCol.disc_amount ? 1 : 0) +
     (showCol.gst ? 1 : 0);
   const location = useLocation();
+  // Several Sale Bill windows (Sale Bill 2 = ?w=2): each keeps its own unsaved bill.
+  const saleWindowInstance = entryWindowInstance("sales-invoice", location.search);
+  const saleWindowId = entryWindowId("sales-invoice", location.search);
+  const { openWindows: saleOpenWindows, openNewWindow } = useWindowTabs();
+  const canOpenAnotherSaleWindow =
+    nextFreeEntryWindow("sales-invoice", (Array.isArray(saleOpenWindows) ? saleOpenWindows : []).map(tabIdOf)) !== null;
   const { orgNavigate: navigate } = useOrgNavigation();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   
@@ -784,7 +792,7 @@ export default function SalesInvoice() {
     startAutoSave,
     stopAutoSave,
     takeResumeCopy,
-  } = useDraftSave('sale_invoice');
+  } = useDraftSave('sale_invoice', { windowInstance: saleWindowInstance, windowId: saleWindowId });
 
   // Load draft data
   const loadDraftData = useCallback((data: any) => {
@@ -5186,6 +5194,15 @@ Thank you for choosing us!`;
                 ? allInvoiceIds[navInvoiceIndex!].sale_number
                 : (savedInvoiceData?.sale_number || 'NEW')}
             </span>
+            {saleWindowInstance > 1 && (
+              <span
+                data-testid="sale-window-badge"
+                className="bg-amber-500/90 text-slate-900 text-[11px] font-bold px-2 py-0.5 rounded-md shrink-0 whitespace-nowrap"
+                title={`Sale Bill window ${saleWindowInstance} — switch windows with Alt+W`}
+              >
+                Window {saleWindowInstance}
+              </span>
+            )}
             {navInvoiceIndex !== null && allInvoiceIds && (
               <span className="text-white/50 text-xs hidden lg:inline shrink-0">
                 {navInvoiceIndex + 1} of {allInvoiceIds.length}
@@ -5254,6 +5271,24 @@ Thank you for choosing us!`;
               title="New Bill">
               <Plus className="h-3.5 w-3.5" />
               <span className="hidden xl:inline">New</span>
+            </Button>
+            <Button variant="ghost" size="sm"
+              data-testid="sale-new-window"
+              onClick={() => {
+                if (!openNewWindow("sales-invoice")) {
+                  toast({
+                    title: "All Sale Bill windows are open",
+                    description: `Up to ${MULTI_WINDOW_PAGES["sales-invoice"].max} Sale Bills can be open at once. Close one (Ctrl+W) or switch with Alt+W.`,
+                  });
+                }
+              }}
+              disabled={!canOpenAnotherSaleWindow}
+              className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1 px-2 sm:px-2.5 disabled:opacity-40"
+              title={canOpenAnotherSaleWindow
+                ? "Open another Sale Bill window (this bill stays open in the background — switch with Alt+W)"
+                : `All ${MULTI_WINDOW_PAGES["sales-invoice"].max} Sale Bill windows are open — switch with Alt+W`}>
+              <CopyPlus className="h-3.5 w-3.5" />
+              <span className="hidden xl:inline">New Window</span>
             </Button>
             {(editingInvoiceId || savedInvoiceData) && (
               <>
@@ -6628,7 +6663,7 @@ Thank you for choosing us!`;
                 return;
               }
               setShowCustomerHistory(false);
-              navigate("/sales-invoice", { state: { editInvoiceId: saleId } });
+              navigate(`/sales-invoice${location.search}`, { state: { editInvoiceId: saleId } });
             }}
           />
           <CustomerAnalysisDialog

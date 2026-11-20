@@ -10,11 +10,14 @@ export function touchRecent(order: string[], path: string, max = RECENT_MAX): st
   return [path, ...order.filter((p) => p !== path)].slice(0, max);
 }
 
+/** Window id: "path~N" for extra windows of a page (Sale Bill 2), else the path. */
+const idOf = (w: { id?: string; path: string }) => w.id || w.path;
+
 /** Open windows sorted by last use (never-used ones keep their strip order, at the end). */
-export function orderByRecent<T extends { path: string }>(windows: T[], recent: string[]): T[] {
+export function orderByRecent<T extends { path: string; id?: string }>(windows: T[], recent: string[]): T[] {
   const rank = new Map(recent.map((p, i) => [p, i]));
   return windows
-    .map((w, i) => ({ w, i, r: rank.has(w.path) ? (rank.get(w.path) as number) : Number.MAX_SAFE_INTEGER }))
+    .map((w, i) => ({ w, i, r: rank.has(idOf(w)) ? (rank.get(idOf(w)) as number) : Number.MAX_SAFE_INTEGER }))
     .sort((a, b) => a.r - b.r || a.i - b.i)
     .map((x) => x.w);
 }
@@ -55,9 +58,9 @@ export function windowDetail(path: string, search?: string): string {
   return "";
 }
 
-/** The current page always first, whatever the recent list says (it can lag a render behind). */
-export function withCurrentFirst<T extends { path: string }>(windows: T[], currentPath: string): T[] {
-  const i = windows.findIndex((w) => w.path === currentPath);
+/** The current window always first, whatever the recent list says (it can lag a render behind). */
+export function withCurrentFirst<T extends { path: string; id?: string }>(windows: T[], currentId: string): T[] {
+  const i = windows.findIndex((w) => idOf(w) === currentId);
   if (i <= 0) return windows;
   return [windows[i], ...windows.slice(0, i), ...windows.slice(i + 1)];
 }
