@@ -16,6 +16,9 @@ test("Alt+W shows open windows and switches or closes them", async ({ page, back
   const shots = process.env.E2E_SHOT_DIR;
 
   await page.goto(`/${E2E_ORG_SLUG}/purchase-entry`);
+  // On screen, not just "network idle": leaving before the shop has loaded would skip this
+  // window (a person cannot leave a page they have not seen yet).
+  await expect(page.getByPlaceholder(/SEARCH BY NAME, BRAND/i).filter({ visible: true })).toBeVisible({ timeout: 60_000 });
   await page.waitForLoadState("networkidle");
   await open("sales-invoice");
   await expect(page.getByPlaceholder("Scan barcode...").filter({ visible: true })).toBeVisible({ timeout: 60_000 });
