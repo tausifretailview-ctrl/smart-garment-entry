@@ -80,6 +80,8 @@ export function renderLabelSheet(targetElementId: string, ctx: RenderLabelSheetC
     width: a4Dims.width,
     height: a4Dims.height,
     gap: a4Dims.gap,
+    /** Same as gap unless a custom preset sets its own row gap (65-label sheets: 2.5mm columns, 0 rows). */
+    rowGap: a4Dims.rowGap,
   };
   
   printArea.innerHTML = "";
@@ -116,7 +118,7 @@ export function renderLabelSheet(targetElementId: string, ctx: RenderLabelSheetC
     } else {
       const availableHeight = 297 - topOffset - bottomOffset;
       const explicitRows = sheetType === 'custom' ? customRows : ((sheetPresets[sheetType] as any)?.rows || null);
-      const rowsPerPage = explicitRows ? explicitRows : Math.floor(availableHeight / (dimensions.height + dimensions.gap));
+      const rowsPerPage = explicitRows ? explicitRows : Math.floor(availableHeight / (dimensions.height + dimensions.rowGap));
       const labelsPerPage = dimensions.cols * Math.max(1, rowsPerPage);
       numPages = totalLabels > 0 ? Math.ceil(totalLabels / labelsPerPage) : 0;
     }
@@ -136,7 +138,7 @@ export function renderLabelSheet(targetElementId: string, ctx: RenderLabelSheetC
     const explicitRowsP = sheetType === "custom" ? customRows : ((sheetPresets[sheetType] as any)?.rows || null);
     const rowsPerPage = explicitRowsP
       ? explicitRowsP
-      : Math.max(1, Math.floor(availableHeight / (dimensions.height + dimensions.gap)));
+      : Math.max(1, Math.floor(availableHeight / (dimensions.height + dimensions.rowGap)));
     const labelsPerPage = dimensions.cols * rowsPerPage;
     const previewMargins = getSheetPageMargins();
 
@@ -161,7 +163,7 @@ export function renderLabelSheet(targetElementId: string, ctx: RenderLabelSheetC
       display: grid;
       grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
       grid-template-rows: repeat(${rowsPerPage}, ${dimensions.height}mm);
-      gap: ${dimensions.gap}mm;
+      gap: ${dimensions.rowGap}mm ${dimensions.gap}mm;
       margin: ${previewMargins.marginTop}mm ${previewMargins.marginRight}mm ${previewMargins.marginBottom}mm ${previewMargins.marginLeft}mm;
     `;
 
@@ -196,7 +198,7 @@ export function renderLabelSheet(targetElementId: string, ctx: RenderLabelSheetC
     const isThermalPreview = isThermal1Up();
     const availableHeight = 297 - topOffset - bottomOffset;
     const explicitRowsP = sheetType === 'custom' ? customRows : ((sheetPresets[sheetType] as any)?.rows || null);
-    const rowsPerPage = isThermalPreview ? 1 : (explicitRowsP ? explicitRowsP : Math.floor(availableHeight / (dimensions.height + dimensions.gap)));
+    const rowsPerPage = isThermalPreview ? 1 : (explicitRowsP ? explicitRowsP : Math.floor(availableHeight / (dimensions.height + dimensions.rowGap)));
     const labelsPerPage = isThermalPreview ? 1 : dimensions.cols * Math.max(1, rowsPerPage);
 
     // Add total count at the top
@@ -258,7 +260,7 @@ export function renderLabelSheet(targetElementId: string, ctx: RenderLabelSheetC
           display: grid;
           grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
           grid-template-rows: repeat(${rowsPerPage}, ${dimensions.height}mm);
-          gap: ${dimensions.gap}mm;
+          gap: ${dimensions.rowGap}mm ${dimensions.gap}mm;
           margin: ${previewMargins.marginTop}mm ${previewMargins.marginRight}mm ${page < numPages - 1 ? '20px' : previewMargins.marginBottom + 'mm'} ${previewMargins.marginLeft}mm;
         `;
       }
@@ -291,7 +293,7 @@ export function renderLabelSheet(targetElementId: string, ctx: RenderLabelSheetC
       : (() => {
           const availableHeight = 297 - topOffset - bottomOffset;
           const explicitRows = sheetType === 'custom' ? customRows : ((sheetPresets[sheetType] as any)?.rows || null);
-          const rowsPerPage = explicitRows ? explicitRows : Math.floor(availableHeight / (dimensions.height + dimensions.gap));
+          const rowsPerPage = explicitRows ? explicitRows : Math.floor(availableHeight / (dimensions.height + dimensions.rowGap));
           return dimensions.cols * Math.max(1, rowsPerPage);
         })();
     const numPrintPages = allLabels.length > 0 ? Math.ceil(allLabels.length / labelsPerPage) : 0;
@@ -350,10 +352,10 @@ export function renderLabelSheet(targetElementId: string, ctx: RenderLabelSheetC
              display: grid;
              grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
              grid-template-rows: repeat(${rowsOnPage}, ${dimensions.height}mm);
-             gap: ${dimensions.gap}mm;
+             gap: ${dimensions.rowGap}mm ${dimensions.gap}mm;
              align-content: start;
              width: ${dimensions.cols * dimensions.width + (dimensions.cols - 1) * dimensions.gap}mm;
-             height: ${rowsOnPage * dimensions.height + (rowsOnPage - 1) * dimensions.gap}mm;
+             height: ${rowsOnPage * dimensions.height + (rowsOnPage - 1) * dimensions.rowGap}mm;
              margin: ${pageMargins.marginTop}mm ${pageMargins.marginRight}mm ${pageMargins.marginBottom}mm ${pageMargins.marginLeft}mm;
              page-break-after: always;
              break-after: page;

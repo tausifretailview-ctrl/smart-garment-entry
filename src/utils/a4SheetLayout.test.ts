@@ -137,3 +137,24 @@ describe("NovaJet MPL 40L A4 margins (39×35, 5×8)", () => {
     expect(margins.marginTop).toBeCloseTo((297 - contentH) / 2, 5);
   });
 });
+
+describe("A4 65-label sheet (38.1×21.2mm, 5×13): column gap 2.5mm, row gap 0", () => {
+  it("separate row gap puts the grid on the die-cut (left 4.75mm, top 10.7mm)", () => {
+    const m = computeA4SheetMargins(5, 13, 38.1, 21.2, 2.5, {}, null, 0);
+    expect(m.marginLeft).toBeCloseTo(4.75, 5);
+    expect(m.marginRight).toBeCloseTo(4.75, 5);
+    expect(m.marginTop).toBeCloseTo(10.7, 5);
+    expect(m.marginBottom).toBeCloseTo(10.7, 5);
+  });
+
+  it("presets without a row gap are unchanged (rows use the column gap)", () => {
+    expect(computeA4SheetMargins(5, 13, 38, 21.5, 0, { top: 1.5, bottom: 1 })).toEqual(
+      computeA4SheetMargins(5, 13, 38, 21.5, 0, { top: 1.5, bottom: 1 }, null, null),
+    );
+    expect(computeA4SheetMargins(4, 9, 48, 30, 2, {}, null, undefined)).toEqual(computeA4SheetMargins(4, 9, 48, 30, 2));
+  });
+
+  it("NovaJet die-cuts ignore a row gap", () => {
+    expect(computeA4SheetMargins(5, 8, 39, 35, 0, {}, "mpl40", 3)).toEqual(computeA4SheetMargins(5, 8, 39, 35, 0, {}, "mpl40"));
+  });
+});

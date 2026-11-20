@@ -187,6 +187,8 @@ export function computeA4SheetMargins(
   gapMm: number,
   offsets: A4SheetMarginOffsets = {},
   novaJetBrand?: NovaJetSheetBrand | null,
+  /** Gap between rows when it differs from the column gap (custom presets); default = gapMm. */
+  rowGapMm?: number | null,
 ): { marginTop: number; marginLeft: number; marginBottom: number; marginRight: number } {
   const effectiveGap = resolveA4LayoutGap(
     cols,
@@ -205,7 +207,8 @@ export function computeA4SheetMargins(
     novaJetBrand,
   );
   const contentW = cols * effectiveWidth + Math.max(0, cols - 1) * effectiveGap;
-  const contentH = rows * labelHeightMm + Math.max(0, rows - 1) * effectiveGap;
+  const effectiveRowGap = novaJetBrand ? effectiveGap : rowGapMm ?? effectiveGap;
+  const contentH = rows * labelHeightMm + Math.max(0, rows - 1) * effectiveRowGap;
 
   const novaJet48L = novaJetBrand === "mpl48";
   const novaJet40L = novaJetBrand === "mpl40";

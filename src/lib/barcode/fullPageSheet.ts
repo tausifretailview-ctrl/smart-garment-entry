@@ -78,6 +78,8 @@ export interface SheetFitInput {
   widthMm: number;
   heightMm: number;
   gapMm: number;
+  /** Gap between rows when it differs from the column gap (default gapMm). */
+  rowGapMm?: number | null;
   marginTopMm: number;
   marginLeftMm: number;
 }
@@ -98,7 +100,7 @@ const r1 = (n: number) => Math.round(n * 10) / 10 || 0;
 
 export function computeSheetFit(s: SheetFitInput): SheetFitResult {
   const contentWidthMm = s.cols * s.widthMm + Math.max(0, s.cols - 1) * s.gapMm;
-  const contentHeightMm = s.rows * s.heightMm + Math.max(0, s.rows - 1) * s.gapMm;
+  const contentHeightMm = s.rows * s.heightMm + Math.max(0, s.rows - 1) * (s.rowGapMm ?? s.gapMm);
   const rightMm = A4_PAGE_WIDTH_MM - s.marginLeftMm - contentWidthMm;
   const bottomMm = A4_PAGE_HEIGHT_MM - s.marginTopMm - contentHeightMm;
   return {

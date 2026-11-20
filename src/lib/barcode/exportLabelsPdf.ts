@@ -62,6 +62,8 @@ export interface ExportLabelsPdfContext {
     width: number;
     height: number;
     gap: number;
+    /** Gap between rows; same as `gap` unless a custom preset sets its own row gap. */
+    rowGap: number;
     rawGap: number;
     rawWidth: number;
     novaJetBrand: NovaJetSheetBrand | null;
@@ -271,15 +273,17 @@ export async function exportLabelsPdf(ctx: ExportLabelsPdfContext): Promise<void
           width: a4Dims.width,
           height: a4Dims.height,
           gap: a4Dims.gap,
+          rowGap: a4Dims.rowGap,
         }
       : sheetType === "custom"
-      ? { cols: customCols, rows: customRows, width: customWidth, height: customHeight, gap: customGap }
+      ? { cols: customCols, rows: customRows, width: customWidth, height: customHeight, gap: customGap, rowGap: customGap }
       : {
           cols: sheetPresets[sheetType].cols,
           rows: Math.ceil(totalLabels / sheetPresets[sheetType].cols),
           width: parseFloat(sheetPresets[sheetType].width),
           height: parseFloat(sheetPresets[sheetType].height),
-          gap: parseFloat(sheetPresets[sheetType].gap)
+          gap: parseFloat(sheetPresets[sheetType].gap),
+          rowGap: parseFloat(sheetPresets[sheetType].gap),
         };
     
     // Apply scale to dimensions for PDF
@@ -287,7 +291,8 @@ export async function exportLabelsPdf(ctx: ExportLabelsPdfContext): Promise<void
       ...baseDimensions,
       width: baseDimensions.width * scaleFactor,
       height: baseDimensions.height * scaleFactor,
-      gap: baseDimensions.gap * scaleFactor
+      gap: baseDimensions.gap * scaleFactor,
+      rowGap: baseDimensions.rowGap * scaleFactor,
     };
     
     // Calculate how many rows fit on one page - use BASE dimensions (unscaled) for accurate page calculation
@@ -302,7 +307,7 @@ export async function exportLabelsPdf(ctx: ExportLabelsPdfContext): Promise<void
             : sheetType === 'custom' ? customRows : ((sheetPresets[sheetType] as any)?.rows || 0);
           if (explicitRows > 0) return baseDimensions.cols * explicitRows;
           const availableHeight = 297 - 10;
-          const rowsPerPage = Math.floor(availableHeight / (baseDimensions.height + baseDimensions.gap));
+          const rowsPerPage = Math.floor(availableHeight / (baseDimensions.height + baseDimensions.rowGap));
           return baseDimensions.cols * Math.max(1, rowsPerPage);
         })();
     
@@ -407,11 +412,11 @@ export async function exportLabelsPdf(ctx: ExportLabelsPdfContext): Promise<void
           display: grid;
           grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
           grid-template-rows: repeat(${rowsOnThisPage}, ${dimensions.height}mm);
-          gap: ${dimensions.gap}mm;
+          gap: ${dimensions.rowGap}mm ${dimensions.gap}mm;
           margin: ${pageMargins.marginTop}mm ${pageMargins.marginRight}mm ${pageMargins.marginBottom}mm ${pageMargins.marginLeft}mm;
           padding: 0;
           width: ${dimensions.cols * dimensions.width + (dimensions.cols - 1) * dimensions.gap}mm;
-          height: ${rowsOnThisPage * dimensions.height + (rowsOnThisPage - 1) * dimensions.gap}mm;
+          height: ${rowsOnThisPage * dimensions.height + (rowsOnThisPage - 1) * dimensions.rowGap}mm;
           box-sizing: content-box;
           overflow: hidden;
         `;
