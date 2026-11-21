@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { vastrakalaPdfTheme } from "@/utils/thermalPdfColourTheme";
 import { format } from "date-fns";
 import { useSettings } from "@/hooks/useSettings";
 import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
@@ -358,6 +359,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
       ref={ref}
       className="thermal-print-80mm thermal-receipt-container vastrakala-thermal-receipt-80mm"
       data-thermal-paper={thermalPaper}
+      data-pdf-theme={vastrakalaPdfTheme(settings?.business_name)}
       style={base}
     >
       <div className="vk-header vk-section">
@@ -416,16 +418,16 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
 
       <div className="vk-meta vk-section" style={{ marginBottom: layout.sectionGap }}>
         <div>
-          NAME: {(customerName || "CASH").toUpperCase()}
+          <span className="vk-meta-label">NAME:</span> {(customerName || "CASH").toUpperCase()}
           {customerPhone?.trim() ? `-${customerPhone.trim()}` : ""}
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 4 }}>
-          <span>BILL NO. {billNo}</span>
-          <span>DATE : {format(date, "dd-MM-yyyy")}</span>
+          <span><span className="vk-meta-label">BILL NO.</span> {billNo}</span>
+          <span><span className="vk-meta-label">DATE :</span> {format(date, "dd-MM-yyyy")}</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 4 }}>
-          <span>SALESMAN : {(salesman || "-").toUpperCase()}</span>
-          <span>TIME - {format(date, "h:mm a")}</span>
+          <span><span className="vk-meta-label">SALESMAN :</span> {(salesman || "-").toUpperCase()}</span>
+          <span><span className="vk-meta-label">TIME -</span> {format(date, "h:mm a")}</span>
         </div>
       </div>
 
@@ -596,7 +598,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
         className="vk-footer-thanks"
         style={{ textAlign: "center", marginTop: layout.sectionGap, fontSize: layout.subFont }}
       >
-        THANK YOU !!! VISIT AGAIN !!!
+        <span className="vk-thanks-main">THANK YOU !!!</span> <span className="vk-thanks-sub">VISIT AGAIN !!!</span>
       </div>
     </div>
   );

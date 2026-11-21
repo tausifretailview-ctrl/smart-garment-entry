@@ -208,6 +208,138 @@ function vastrakalaColourCss(): string {
   `;
 }
 
+/**
+ * Vastrakala Sarees (the shop itself) gets a black & gold WhatsApp PDF; other shops on the
+ * Vastrakala layout keep the violet one. Matched on the shop name in Settings.
+ */
+export const VASTRAKALA_BLACK_GOLD = "black-gold";
+
+export function vastrakalaPdfTheme(businessName: unknown): string | undefined {
+  const name = typeof businessName === "string" ? businessName : "";
+  return /vastrakala|वस्त्रकला/i.test(name) ? VASTRAKALA_BLACK_GOLD : undefined;
+}
+
+/** Black & gold palette (Vastrakala Sarees). */
+export const VASTRAKALA_BLACK_GOLD_COLOURS = {
+  black: "#0b0a08",
+  coal: "#1d1a14",
+  gold: "#d4a93c",
+  goldLight: "#f1d58a",
+  goldDeep: "#9c7420",
+  cream: "#fbf6e9",
+  creamDeep: "#f3e8cc",
+  line: "#e2cf9a",
+  ink: "#17140f",
+  muted: "#4a4234",
+  red: "#c0262d",
+} as const;
+
+function vastrakalaBlackGoldCss(): string {
+  const c = VASTRAKALA_BLACK_GOLD_COLOURS;
+  // One attribute more specific than the violet rules, so these win.
+  const B = `${VASTRAKALA_ROOT}.${THERMAL_PDF_COLOUR_CLASS}[data-pdf-theme="${VASTRAKALA_BLACK_GOLD}"]`;
+  const band = `linear-gradient(160deg, ${c.black} 0%, ${c.coal} 55%, ${c.black} 100%)`;
+  const goldBar = `linear-gradient(180deg, ${c.goldLight} 0%, ${c.gold} 55%, ${c.goldDeep} 100%)`;
+  return `
+    ${B} { background: ${c.cream} !important; color: ${c.ink} !important; }
+    ${B} * { color: ${c.ink} !important; }
+
+    /* Header: black band, gold shop name, cream details, gold edge */
+    ${B} .vk-header {
+      background: ${band} !important;
+      border-bottom: 1.2mm solid ${c.gold} !important;
+    }
+    ${B} .vk-header * { color: ${c.goldLight} !important; }
+    ${B} .vk-header-title { color: ${c.gold} !important; letter-spacing: 1px !important; }
+    ${B} .vk-header-tagline { color: ${c.goldLight} !important; }
+    ${B} .vk-header-meta, ${B} .vk-header-meta * { color: #f6eedb !important; }
+    ${B} .vk-header-logo {
+      background: ${c.cream} !important;
+      border: 1px solid ${c.gold} !important;
+    }
+    ${B} .vk-insta-icon rect, ${B} .vk-insta-icon circle { stroke: ${c.goldLight} !important; }
+    ${B} .vk-insta-icon circle:last-child { fill: ${c.goldLight} !important; }
+    ${B} .vk-doc-title {
+      background: ${goldBar} !important;
+      color: ${c.black} !important;
+      border: 1px solid ${c.goldDeep} !important;
+      letter-spacing: 1.4px !important;
+    }
+
+    ${B} .vk-rule { border-top-color: ${c.line} !important; }
+
+    /* Customer / bill card: black with gold labels */
+    ${B} .vk-meta {
+      background: ${c.black} !important;
+      border: 1px solid ${c.gold} !important;
+      border-left: 1px solid ${c.gold} !important;
+      border-radius: 1.8mm !important;
+    }
+    ${B} .vk-meta, ${B} .vk-meta * { color: #ffffff !important; }
+    ${B} .vk-meta > div:first-child {
+      color: #ffffff !important;
+      border-bottom: 1px solid ${c.goldDeep} !important;
+      padding-bottom: 0.8mm !important;
+      margin-bottom: 0.6mm !important;
+    }
+    ${B} .vk-meta .vk-meta-label { color: ${c.gold} !important; font-weight: 800 !important; }
+
+    /* Item table */
+    ${B} .vk-items-head {
+      background: ${c.black} !important;
+      border: 1px solid ${c.gold} !important;
+    }
+    ${B} .vk-items-head span { color: ${c.goldLight} !important; }
+    ${B} .vk-items-row { border-bottom: 1px solid ${c.line} !important; background: transparent !important; }
+    ${B} .vk-items-row:nth-child(even) { background: ${c.creamDeep} !important; }
+    ${B} .vk-items-row > span:last-child { color: ${c.black} !important; }
+    ${B} .vk-line-disc { color: ${c.red} !important; }
+
+    /* Totals */
+    ${B} .vk-totals-right > .vk-net-amt {
+      background: ${c.black} !important;
+      border: 1px solid ${c.gold} !important;
+      box-shadow: inset 0 0 0 0.6mm ${c.coal} !important;
+    }
+    ${B} .vk-net-amt * { color: ${c.gold} !important; }
+    ${B} .vk-totals-left > div {
+      background: #fffaf0 !important;
+      color: ${c.ink} !important;
+      border: 1px solid ${c.gold} !important;
+    }
+
+    /* Terms */
+    ${B} .vk-terms {
+      background: #fffaf0 !important;
+      border: 1px solid ${c.gold} !important;
+    }
+    ${B} .vk-terms-label { color: ${c.goldDeep} !important; }
+    ${B} .vk-terms-body, ${B} .vk-terms-body * { color: ${c.muted} !important; }
+
+    /* Footer: black band, gold thank-you */
+    ${B} .vk-footer-thanks {
+      background: ${band} !important;
+      border-top: 1.2mm solid ${c.gold} !important;
+      padding: 2.6mm 2mm 2.4mm !important;
+    }
+    ${B} .vk-footer-thanks, ${B} .vk-footer-thanks * { color: ${c.gold} !important; }
+    ${B} .vk-thanks-main {
+      display: block !important;
+      font-family: Georgia, "Times New Roman", serif !important;
+      font-style: italic !important;
+      font-size: 1.35em !important;
+      letter-spacing: 0.5px !important;
+    }
+    ${B} .vk-thanks-sub {
+      display: block !important;
+      margin-top: 0.6mm !important;
+      color: #f6eedb !important;
+      font-size: 0.82em !important;
+      letter-spacing: 2.5px !important;
+    }
+  `;
+}
+
 /** Trendzo premium palette: deep velvet plum with gold accents. */
 export const TRENDZO_PDF_COLOURS = {
   velvet: "#2a0a24",
@@ -431,7 +563,7 @@ function trendzoColourCss(): string {
 }
 
 const THERMAL_PDF_THEMES: { root: string; className: string; css: () => string }[] = [
-  { root: VASTRAKALA_ROOT, className: THERMAL_PDF_COLOUR_CLASS, css: vastrakalaColourCss },
+  { root: VASTRAKALA_ROOT, className: THERMAL_PDF_COLOUR_CLASS, css: () => vastrakalaColourCss() + vastrakalaBlackGoldCss() },
   { root: TRENDZO_ROOT, className: TRENDZO_PDF_COLOUR_CLASS, css: trendzoColourCss },
 ];
 
