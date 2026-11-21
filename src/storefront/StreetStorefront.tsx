@@ -33,6 +33,7 @@ import { ellaWhatsAppNumber } from "./ellaWhatsApp";
 import { submitStorefrontEnquiry } from "./storefrontClient";
 import { StreetRatingLine, StreetReviewsContext, StreetReviewsSection } from "./StreetReviews";
 import { StreetSizeHelper, useStreetSizeProfile, useStreetSizeSuggestion } from "./StreetSizeHelper";
+import { TryOnButton } from "./TrialRoom";
 import { StreetSpinViewer } from "./StreetSpinViewer";
 import { StreetSignalsContext } from "./StreetSignals";
 import { StreetRequestPanel } from "./StreetRequestPanel";
@@ -418,6 +419,7 @@ function StreetProductPage({
   related,
   wishlist,
   sizeHelper,
+  trialRoom = false,
   look,
   requests,
   onBack,
@@ -428,6 +430,8 @@ function StreetProductPage({
   onQuickAdd,
 }: {
   product: EllaStorefrontProduct;
+  /** AI Trial Room switched on by the shop: "Try it on" above the buy buttons. */
+  trialRoom?: boolean;
   /** "Find my size" settings; undefined or switched off hides the helper. */
   sizeHelper?: PublicStorefrontPayload["sizeHelper"];
   /** Which of "Reserve & try in store" / "Tell me when it's back" the store may offer. */
@@ -645,6 +649,16 @@ function StreetProductPage({
             </div>
           ) : null}
 
+          <TryOnButton
+            enabled={trialRoom}
+            slug={orgSlug}
+            productId={product.productId}
+            productName={product.name}
+            productCategory={product.sourceCategory}
+            productPhoto={product.images[0]}
+            className="st-btn st-btn-wide st-tryon-btn"
+          />
+
           <div className="st-pdp-actions">
             {canBuy ? (
               <>
@@ -808,11 +822,14 @@ export function StreetStorefront({
   showcase = true,
   reviews,
   sizeHelper,
+  trialRoom = false,
   signals,
   requests,
   strips,
   currency,
 }: {
+  /** AI Trial Room (Website → Theme); off unless the shop switched it on. */
+  trialRoom?: boolean;
   shop: PublicStorefrontShop;
   orgSlug: string;
   /** Banner images from Website → Theme; empty shows the sample banners. */
@@ -1598,6 +1615,7 @@ export function StreetStorefront({
             wished={wishlist.includes(view.product.productId)}
             wishlist={wishlist}
             sizeHelper={sizeHelper}
+            trialRoom={trialRoom && !sampleMode}
             look={lookFor(view.product)}
             requests={sampleMode || !requests ? NO_STOREFRONT_REQUESTS : requests}
             related={streetRelatedProducts(items, view.product)}

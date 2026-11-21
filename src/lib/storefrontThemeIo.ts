@@ -38,6 +38,12 @@ import {
   type StorefrontSizeHelper,
 } from "@/lib/sizeHelper";
 import {
+  STOREFRONT_TRIAL_ROOM_KEY,
+  parseStorefrontTrialRoom,
+  serializeStorefrontTrialRoom,
+  type StorefrontTrialRoom,
+} from "@/lib/trialRoom";
+import {
   STOREFRONT_THEME_KEY,
   parseStorefrontTheme,
   type StorefrontThemeId,
@@ -160,6 +166,48 @@ export async function saveStorefrontSizeHelper(orgId: string, helper: Storefront
     { [STOREFRONT_SIZE_HELPER_KEY]: serializeStorefrontSizeHelper(helper) },
     "the size helper",
   );
+}
+
+/** AI Trial Room switch and daily limit (Website → Theme). */
+export async function loadStorefrontTrialRoom(orgId: string): Promise<StorefrontTrialRoom> {
+  return parseStorefrontTrialRoom(await readOrgSettings(orgId));
+}
+
+export async function saveStorefrontTrialRoom(orgId: string, room: StorefrontTrialRoom): Promise<void> {
+  await patchOrgSettings(orgId, { [STOREFRONT_TRIAL_ROOM_KEY]: serializeStorefrontTrialRoom(room) }, "the trial room");
+}
+
+export type TrialRoomSetup = {
+  /** The trial-room SQL has run (usage table readable). */
+  database: boolean;
+  /** The storefront-try-on function answers. */
+  deployed: boolean;
+  /** The function has its AI key. */
+  aiConfigured: boolean;
+  /** Try-ons run for this shop in the last 24 hours. */
+  usedToday: number;
+};
+
+/** What is in place for the trial room, so the switch is only offered when a try-on can work. */
+export async function loadTrialRoomSetup(orgId: string): Promise<TrialRoomSetup> {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const [usage, status] = await Promise.all([
+    supabase
+      .from("storefront_tryons" as never)
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId)
+      .gte("created_at", since),
+    supabase.functions
+      .invoke("storefront-try-on", { body: { action: "status" } })
+      .then((r) => (r.error ? null : (r.data as { deployed?: unknown; aiConfigured?: unknown } | null)))
+      .catch(() => null),
+  ]);
+  return {
+    database: !usage.error,
+    deployed: status?.deployed === true,
+    aiConfigured: status?.aiConfigured === true,
+    usedToday: usage.error ? 0 : usage.count ?? 0,
+  };
 }
 
 export async function saveStorefrontVideos(orgId: string, videos: StorefrontVideo[]): Promise<void> {

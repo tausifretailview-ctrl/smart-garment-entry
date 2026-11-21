@@ -1,5 +1,6 @@
 import type { PublicProductReviews } from "@/lib/productReviewsPublic";
 import type { StorefrontSizeHelper } from "@/lib/sizeHelper";
+import type { StorefrontTrialRoom } from "@/lib/trialRoom";
 import type { StorefrontSignals } from "@/lib/storefrontSignals";
 import type { StorefrontRequests } from "@/lib/storefrontRequests";
 import type { StorefrontCurrency, StripId } from "@/lib/storefrontStrips";
@@ -156,6 +157,8 @@ export type PublicStorefrontPayload = {
   signals?: StorefrontSignals;
   /** "Find my size" switch and size chart (see sizeHelper.ts). */
   sizeHelper?: StorefrontSizeHelper;
+  /** AI Trial Room ("Try it on"): on only when the shop switched it on (see trialRoom.ts). */
+  trialRoom?: StorefrontTrialRoom;
   /** Stars and shop-approved customer reviews by product id (see productReviewsPublic.ts). */
   reviews?: Record<string, PublicProductReviews>;
   shop?: PublicStorefrontShop;

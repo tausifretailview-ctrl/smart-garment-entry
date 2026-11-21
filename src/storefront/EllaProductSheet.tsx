@@ -3,6 +3,7 @@ import type { EllaStorefrontProduct } from "./ellaProduct";
 import { addToEllaCart, ellaCartLineKey, type EllaCartLine } from "./ellaCart";
 import { findSize, type EllaSizeOption } from "./ellaVariants";
 import { useLockBodyScroll } from "./ellaLockBody";
+import { TryOnButton } from "./TrialRoom";
 
 const SIZE_CHART: Array<{ size: string; bust: string; waist: string; length: string }> = [
   { size: "FS", bust: "42", waist: "40", length: "46" },
@@ -20,7 +21,12 @@ export function EllaProductSheet({
   onAddToCart,
   onOpenCart,
   onClose,
+  orgSlug,
+  trialRoom = false,
 }: {
+  orgSlug: string;
+  /** AI Trial Room switched on by the shop. */
+  trialRoom?: boolean;
   product: EllaStorefrontProduct;
   cart: EllaCartLine[];
   onAddToCart: (next: EllaCartLine[]) => void;
@@ -228,6 +234,16 @@ export function EllaProductSheet({
                   </button>
                 </div>
               </div>
+
+              <TryOnButton
+                enabled={trialRoom}
+                slug={orgSlug}
+                productId={product.productId}
+                productName={product.name}
+                productCategory={product.sourceCategory}
+                productPhoto={product.images[imageIndex] ?? product.images[0]}
+                className="ella-btn ella-btn-outline ella-tryon-btn"
+              />
 
               <div className="ella-form-actions ella-pdp-actions">
                 <button type="button" className="ella-btn ella-btn-ink" disabled={!canBuy} onClick={() => add(false)}>

@@ -101,3 +101,6 @@ verify_jwt = false
 
 [functions.amazon-sync]
 verify_jwt = false
+
+[functions.storefront-try-on]
+verify_jwt = false
