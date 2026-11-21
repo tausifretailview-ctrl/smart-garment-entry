@@ -36,6 +36,8 @@ export const INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS = `
     body .wholesale-gst-a4-invoice-root *,
     body .klear-a4-invoice-root,
     body .klear-a4-invoice-root *,
+    body .wholesale-size-a4-invoice-root,
+    body .wholesale-size-a4-invoice-root *,
     body .motas-a4-invoice-root,
     body .motas-a4-invoice-root *,
     body .professional-invoice-template,

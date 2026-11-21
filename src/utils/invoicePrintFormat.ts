@@ -25,6 +25,7 @@ export type InvoiceTemplateId =
   | 'wholesale-gst-a4'
   | 'krishna-mobile-a5'
   | 'klear-a4'
+  | 'wholesale-size-a4'
   | 'motas-a4'
   | 'kids-80mm'
   | 'kids-camp-80mm'
@@ -65,6 +66,7 @@ export const A4_ONLY_INVOICE_TEMPLATES = new Set([
   'a4-gst-classic',
   'wholesale-gst-a4',
   'klear-a4',
+  'wholesale-size-a4',
   'motas-a4',
 ]);
 
@@ -358,6 +360,7 @@ export const FULL_PAGE_INVOICE_TEMPLATES = new Set([
   'a4-gst-classic',
   'wholesale-gst-a4',
   'klear-a4',
+  'wholesale-size-a4',
   'motas-a4',
   'a4-electronic',
   'retail',

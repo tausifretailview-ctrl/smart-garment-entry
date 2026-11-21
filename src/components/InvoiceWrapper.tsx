@@ -9,6 +9,7 @@ import { ProfessionalTemplate } from './invoice-templates/ProfessionalTemplate';
 import { ClassicTemplate } from './invoice-templates/ClassicTemplate';
 import { ModernTemplate } from './invoice-templates/ModernTemplate';
 import { ModernWholesaleTemplate } from './invoice-templates/ModernWholesaleTemplate';
+import { WholesaleSizeA4Template } from './invoice-templates/WholesaleSizeA4Template';
 import { MinimalTemplate } from './invoice-templates/MinimalTemplate';
 import { CompactTemplate } from './invoice-templates/CompactTemplate';
 import { DetailedTemplate } from './invoice-templates/DetailedTemplate';
@@ -229,7 +230,7 @@ interface InvoiceWrapperProps {
 }
 
 /** Invoice formats with a separate "Shipped To" box next to Billed To. */
-const SHIP_TO_BOX_TEMPLATES = new Set(['a4-gst-classic', 'a4-electronic', 'gift_tally', 'modern-wholesale']);
+const SHIP_TO_BOX_TEMPLATES = new Set(['a4-gst-classic', 'a4-electronic', 'gift_tally', 'modern-wholesale', 'wholesale-size-a4']);
 
 export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperProps>(
   (props, ref) => {
@@ -339,10 +340,12 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           .filter((id): id is string => typeof id === "string" && id.length > 0),
       ),
     ].sort();
+    // Wholesale Size-wise A4 groups rows under the product's brand (not on the print items).
+    const brandLookupTemplate = descriptionTemplate === "wholesale-size-a4";
     const descriptionQueryEnabled =
       !!settings &&
-      (descriptionSequenceEnabled || tallyStyleLineEnabled) &&
-      descriptionTemplate === "tally-tax-invoice" &&
+      (((descriptionSequenceEnabled || tallyStyleLineEnabled) && descriptionTemplate === "tally-tax-invoice") ||
+        brandLookupTemplate) &&
       !!orgId &&
       descriptionProductIds.length > 0;
     const { data: descriptionProducts, isLoading: descriptionPartsLoading } = useQuery({
@@ -482,6 +485,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
         templateForFormat === 'a4-gst-classic' ||
         templateForFormat === 'wholesale-gst-a4' ||
         templateForFormat === 'klear-a4' ||
+        templateForFormat === 'wholesale-size-a4' ||
         templateForFormat === 'motas-a4')
     ) {
       format = 'a4';
@@ -617,6 +621,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       templateForFormat === 'gift_tally' ||
       templateForFormat === 'wholesale-gst-a4' ||
       templateForFormat === 'klear-a4' ||
+      templateForFormat === 'wholesale-size-a4' ||
       templateForFormat === 'motas-a4'
         ? receivingBankDetails || settings?.sale_settings?.bank_details
         : settings?.sale_settings?.bank_details;
@@ -624,6 +629,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       templateForFormat === 'gift_tally' ||
       templateForFormat === 'wholesale-gst-a4' ||
       templateForFormat === 'klear-a4' ||
+      templateForFormat === 'wholesale-size-a4' ||
       templateForFormat === 'motas-a4'
         ? !!(receivingBankDetails || settings?.sale_settings?.bank_details)
         : showBankDetails;
@@ -682,6 +688,12 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       b2bDetails: props.b2bDetails ?? null,
       
       items: props.items.map((item) => {
+        if (templateForFormat === "wholesale-size-a4") {
+          const product = item.productId
+            ? (descriptionProducts ?? []).find((row) => row.id === item.productId)
+            : undefined;
+          return { ...item, brand: item.brand || product?.brand || undefined };
+        }
         if (templateForFormat !== "tally-tax-invoice") return item;
         if (!descriptionSequenceEnabled && !tallyStyleLineEnabled) return item;
         const product = item.productId
@@ -1207,6 +1219,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           return <A4GstClassicInvoiceTemplate {...commonProps} />;
         case 'wholesale-gst-a4':
           return <WholesaleGstA4Template {...commonProps} />;
+        case 'wholesale-size-a4':
+          return <WholesaleSizeA4Template {...commonProps} />;
         case 'klear-a4':
           return <KlearA4Template {...commonProps} />;
         case 'motas-a4':
