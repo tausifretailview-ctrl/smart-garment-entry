@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchDcReturnSplit, fetchReturnsTiedToDcBills, returnsTiedToDcBills, splitDcReturns } from "./dcSaleReturnShare";
+import {
+  applyReturnDcView,
+  fetchDcReturnSplit,
+  fetchReturnsTiedToDcBills,
+  returnsTiedToDcBills,
+  splitDcReturns,
+} from "./dcSaleReturnShare";
 
 describe("dcSaleReturnShare", () => {
   afterEach(() => vi.restoreAllMocks());
@@ -81,5 +87,31 @@ describe("returns tied to DC bills", () => {
     q.range = () => Promise.resolve({ data: null, error: { message: "boom" } });
     expect((await fetchReturnsTiedToDcBills({ from: () => q }, "org")).size).toBe(0);
     expect(warn).toHaveBeenCalledOnce();
+  });
+
+  it("Business Report: DC refunds only for the DC User, GST refunds only for the GST login", () => {
+    const split = splitDcReturns([
+      { return_id: "dc", line_total: 2450, is_dc_item: true },
+      { return_id: "mix", line_total: 300, is_dc_item: true },
+      { return_id: "mix", line_total: 700, is_dc_item: false },
+      { return_id: "gst", line_total: 2400, is_dc_item: false },
+    ]);
+    const rows = [
+      { id: "dc", net_amount: 2450 },
+      { id: "mix", net_amount: 1000 },
+      { id: "gst", net_amount: 2400 },
+      { id: "tied", net_amount: 500 }, // GST lines, but its bill was a DC bill
+    ];
+    const tied = new Set(["tied"]);
+
+    expect(applyReturnDcView(rows, split, tied, { onlyDc: true })).toEqual([
+      { id: "dc", net_amount: 2450 },
+      { id: "mix", net_amount: 300 },
+    ]);
+    expect(applyReturnDcView(rows, split, tied, { hideDc: true })).toEqual([
+      { id: "mix", net_amount: 700 },
+      { id: "gst", net_amount: 2400 },
+    ]);
+    expect(applyReturnDcView(rows, split, tied, {})).toBe(rows);
   });
 });

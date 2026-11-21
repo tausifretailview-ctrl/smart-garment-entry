@@ -176,3 +176,63 @@ function tiedLookupFailed(error: unknown): Set<string> {
   console.warn("[dcSaleReturnShare] DC bill lookup for returns failed; those returns are shown", error);
   return new Set();
 }
+
+/**
+ * Business Report (Daily Cashier): a return's money for this screen's DC view, the same rules as
+ * the Sale Return Dashboard and the bills (dcSaleShare.ts):
+ * - DC User: only returns with a DC line, at their DC part.
+ * - DC hidden: all-DC returns and returns tied to a DC bill left out; a mixed return keeps its
+ *   non-DC part.
+ * - Neither: unchanged.
+ * Refunds for DC goods showed in the GST login too, and GST refunds in the DC User login
+ * (Shivlaxmi Paithani, Nov 2026).
+ */
+export function applyReturnDcView<T extends { id: string }>(
+  rows: readonly T[],
+  split: DcReturnSplit,
+  tiedToDcBill: ReadonlySet<string>,
+  view: { hideDc?: boolean; onlyDc?: boolean },
+  moneyFields: readonly string[] = ["net_amount"],
+): T[] {
+  if (!view.hideDc && !view.onlyDc) return rows as T[];
+  const out: T[] = [];
+  for (const row of rows) {
+    const id = String(row.id);
+    const dcPart = split.allDc.has(id) ? 1 : split.dcShare.get(id) ?? 0;
+    let part: number;
+    if (view.onlyDc) part = dcPart;
+    else part = tiedToDcBill.has(id) ? 0 : 1 - dcPart;
+    if (part <= 0) continue;
+    if (part >= 1) {
+      out.push(row);
+      continue;
+    }
+    const scaled: Record<string, unknown> = { ...row };
+    for (const f of moneyFields) {
+      const v = Number((row as Record<string, unknown>)[f]);
+      if (Number.isFinite(v)) scaled[f] = Math.round(v * part * 100) / 100;
+    }
+    out.push(scaled as T);
+  }
+  return out;
+}
+
+/** Looks up the DC lines (and, for Hide DC, DC bills) once for a report's date range. */
+export async function saleReturnsForDcView<T extends { id: string }>(
+  supabaseClient: unknown,
+  organizationId: string,
+  rows: readonly T[],
+  view: { hideDc?: boolean; onlyDc?: boolean },
+  fromDate?: string | null,
+  toDate?: string | null,
+): Promise<T[]> {
+  if (!view.hideDc && !view.onlyDc) return rows as T[];
+  if (rows.length === 0) return [];
+  const [split, tied] = await Promise.all([
+    fetchDcReturnSplit(supabaseClient, organizationId, fromDate, toDate),
+    view.hideDc
+      ? fetchReturnsTiedToDcBills(supabaseClient, organizationId, fromDate, toDate)
+      : Promise.resolve(new Set<string>()),
+  ]);
+  return applyReturnDcView(rows, split, tied, view);
+}
