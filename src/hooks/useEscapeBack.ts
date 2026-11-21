@@ -36,6 +36,7 @@ export const BACK_MAP: Record<string, string> = {
   // Reports → Dashboard
   "stock-report":             "/",
   "stock-summary":            "/reports",
+  "product-catalogue":        "/reports",
   "stock-adjustment":         "stock-report",
   "duplicate-purchase-bills": "purchase-bills",
   "stock-transfer":           "/",

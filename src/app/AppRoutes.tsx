@@ -29,6 +29,7 @@ import {
   BarcodePrinting,
   StockReport,
   StockSummary,
+  ProductCatalogue,
   Settings,
   Manufacturing,
   Profile,
@@ -509,6 +510,16 @@ export function AppRoutes() {
             <ProtectedRoute>
               <Layout>
                 <StockSummary />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="product-catalogue"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <ProductCatalogue />
               </Layout>
             </ProtectedRoute>
           }

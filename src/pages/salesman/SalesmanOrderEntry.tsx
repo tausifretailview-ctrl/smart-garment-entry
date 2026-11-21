@@ -36,6 +36,8 @@ import {
 } from "lucide-react";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { cn, sortSearchResults } from "@/lib/utils";
+import { ProductThumb } from "@/components/ProductThumb";
+import { isUsableImageUrl } from "@/lib/productImages";
 import { SalesmanSizeGridDialog } from "@/components/SalesmanSizeGridDialog";
 import { variantsForSalesmanSizeGrid, salesmanSizeBoxCount } from "@/utils/salesmanOrderSizeGrid";
 import type { MergedSizeGridVariant } from "@/utils/mergeSizeColorVariantsForGrid";
@@ -60,6 +62,8 @@ interface Product {
   purchase_gst_percent?: number;
   sale_gst_percent?: number;
   size_group_id?: string | null;
+  /** Product photo (shown in search, size grid and order lines). */
+  image_url?: string | null;
 }
 
 interface Variant {
@@ -116,6 +120,9 @@ const SalesmanOrderEntry = () => {
   const [showProductSearch, setShowProductSearch] = useState(false);
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  // Photos only when a product has one (layout unchanged for shops without photos).
+  const productsHaveImages = products.some((p) => isUsableImageUrl(p.product.image_url));
+  const orderHasImages = orderItems.some((i) => isUsableImageUrl(i.product.image_url));
   const [orderNumber, setOrderNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
@@ -348,7 +355,7 @@ const SalesmanOrderEntry = () => {
       // First, search products by name/style in the organization
       const { data: matchingProducts, error: productsError } = await supabase
         .from("products")
-        .select("id, product_name, brand, category, gst_per, style, size_group_id")
+        .select("id, product_name, brand, category, gst_per, style, size_group_id, image_url")
         .eq("organization_id", currentOrganization.id)
         .eq("status", "active")
         .is("deleted_at", null)
@@ -368,7 +375,7 @@ const SalesmanOrderEntry = () => {
         .from("product_variants")
         .select(`
           id, size, color, barcode, mrp, sale_price, stock_qty, product_id,
-          products!inner(id, product_name, brand, category, gst_per, organization_id, size_group_id)
+          products!inner(id, product_name, brand, category, gst_per, organization_id, size_group_id, image_url)
         `)
         .eq("organization_id", currentOrganization.id)
         .eq("products.organization_id", currentOrganization.id)
@@ -387,7 +394,7 @@ const SalesmanOrderEntry = () => {
           .from("product_variants")
           .select(`
             id, size, color, barcode, mrp, sale_price, stock_qty, product_id,
-            products!inner(id, product_name, brand, category, gst_per, organization_id, size_group_id)
+            products!inner(id, product_name, brand, category, gst_per, organization_id, size_group_id, image_url)
           `)
           .eq("organization_id", currentOrganization.id)
           .eq("products.organization_id", currentOrganization.id)
@@ -421,6 +428,10 @@ const SalesmanOrderEntry = () => {
           });
         }
         const existing = productMap.get(groupKey)!;
+        // Same-name products (different MRP): show the first photo any of them has.
+        if (!existing.product.image_url && v.products?.image_url) {
+          existing.product = { ...existing.product, image_url: v.products.image_url };
+        }
         // Avoid duplicate variants when merging
         if (!existing.variants.some(ev => ev.id === v.id)) {
           existing.variants.push({
@@ -833,8 +844,9 @@ const SalesmanOrderEntry = () => {
                 className="border-b last:border-0 cursor-pointer hover:bg-primary/5"
                 onClick={() => openSizeGrid(product, variants)}
               >
-                <div className="p-3 flex justify-between items-center">
-                  <div className="flex-1">
+                <div className="p-3 flex justify-between items-center gap-3">
+                  {productsHaveImages && <ProductThumb url={product.image_url} alt={product.product_name} size={52} />}
+                  <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm">{product.product_name}</p>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {product.brand && (
@@ -889,6 +901,7 @@ const SalesmanOrderEntry = () => {
           <div className="divide-y">
             {orderItems.map((item) => (
               <div key={item.id} className="py-2 flex items-center gap-2">
+                {orderHasImages && <ProductThumb url={item.product.image_url} alt={item.product.product_name} size={40} />}
                 {/* Product Info - Compact */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1">

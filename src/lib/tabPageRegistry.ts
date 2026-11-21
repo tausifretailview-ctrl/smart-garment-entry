@@ -108,6 +108,7 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
   },
   "stock-report": { loader: () => import("@/pages/StockReport"), layout: "layout" },
   "stock-summary": { loader: () => import("@/pages/StockSummary"), layout: "layout" },
+  "product-catalogue": { loader: () => import("@/pages/ProductCatalogue"), layout: "layout" },
   reports: { loader: () => import("@/pages/ReportsHub"), layout: "layout" },
   "stock-adjustment": {
     loader: () => import("@/pages/StockAdjustment"),

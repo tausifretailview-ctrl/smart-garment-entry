@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { sizeMatrixKey, sortSizes } from "@/utils/sizeSort";
 import { useSizeGroups } from "@/lib/data/sizeGroups";
+import { ProductThumb } from "@/components/ProductThumb";
+import { fitImageInBox, isUsableImageUrl, loadImagesForPdf } from "@/lib/productImages";
 
 interface SizeStockDialogProps {
   open: boolean;
@@ -57,6 +59,8 @@ interface SizeWiseRow {
   color: string;
   sizeStocks: Record<string, number>;
   totalStock: number;
+  /** Product photo (first one found for this name + brand + colour). */
+  imageUrl?: string;
 }
 
 export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
@@ -371,7 +375,8 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
             products!inner(
               id,
               product_name,
-              brand
+              brand,
+              image_url
             )
           `)
           .eq("organization_id", currentOrganization.id)
@@ -409,6 +414,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
           }
 
           const row = productMap.get(productKey)!;
+          if (!row.imageUrl && isUsableImageUrl(product.image_url)) row.imageUrl = product.image_url;
           const qty = Number(variant.stock_qty) || 0;
           row.sizeStocks[sizeKey] = (row.sizeStocks[sizeKey] || 0) + qty;
           row.totalStock += qty;
@@ -445,6 +451,9 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
     grandTotal += row.totalStock;
   });
 
+  // Photo column only when a product on screen has a photo (layout unchanged otherwise).
+  const hasImages = sizeWiseData.rows.some((row) => !!row.imageUrl);
+
   // PDF Export function
   const exportToPDF = async () => {
     if (sizeWiseData.rows.length === 0 || isExportingPdf) return;
@@ -452,6 +461,9 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
     setIsExportingPdf(true);
     try {
     const { default: jsPDF } = await import("jspdf");
+    const images = hasImages
+      ? await loadImagesForPdf(sizeWiseData.rows.map((r) => r.imageUrl || ""), 200)
+      : new Map();
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -469,13 +481,16 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
     yPos += 10;
 
     // Table setup
+    const imageColWidth = hasImages ? 16 : 0;
     const productColWidth = 70;
     const stockColWidth = 18;
-    const availableWidth = pageWidth - margin * 2 - productColWidth - stockColWidth;
+    const availableWidth = pageWidth - margin * 2 - imageColWidth - productColWidth - stockColWidth;
     const sizeColWidth = sizeWiseData.sizes.length > 0 
       ? Math.min(15, availableWidth / sizeWiseData.sizes.length) 
       : 15;
-    const rowHeight = 7;
+    const headerHeight = 7;
+    const rowHeight = hasImages ? 15 : 7;
+    const textDy = hasImages ? 8.5 : 5;
 
     // Draw header row
     doc.setFillColor(59, 130, 246);
@@ -485,25 +500,31 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
     doc.setDrawColor(200, 200, 200);
     
     let xPos = margin;
+
+    if (imageColWidth) {
+      doc.rect(xPos, yPos, imageColWidth, headerHeight, "FD");
+      doc.text("Photo", xPos + imageColWidth / 2, yPos + 5, { align: "center" });
+      xPos += imageColWidth;
+    }
     
     // Product header
-    doc.rect(xPos, yPos, productColWidth, rowHeight, "FD");
+    doc.rect(xPos, yPos, productColWidth, headerHeight, "FD");
     doc.text("Product", xPos + 2, yPos + 5);
     xPos += productColWidth;
 
     // Size headers
     sizeWiseData.sizes.forEach((size) => {
       doc.setFillColor(59, 130, 246);
-      doc.rect(xPos, yPos, sizeColWidth, rowHeight, "FD");
+      doc.rect(xPos, yPos, sizeColWidth, headerHeight, "FD");
       doc.text(String(size), xPos + sizeColWidth / 2, yPos + 5, { align: "center" });
       xPos += sizeColWidth;
     });
 
     // Stock header
     doc.setFillColor(37, 99, 235);
-    doc.rect(xPos, yPos, stockColWidth, rowHeight, "FD");
+    doc.rect(xPos, yPos, stockColWidth, headerHeight, "FD");
     doc.text("Stock", xPos + stockColWidth / 2, yPos + 5, { align: "center" });
-    yPos += rowHeight;
+    yPos += headerHeight;
 
     // Data rows
     doc.setFont("helvetica", "normal");
@@ -519,12 +540,23 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
       doc.setTextColor(0, 0, 0);
 
       xPos = margin;
+
+      if (imageColWidth) {
+        doc.setFillColor(255, 255, 255);
+        doc.rect(xPos, yPos, imageColWidth, rowHeight, "FD");
+        const img = row.imageUrl ? images.get(row.imageUrl) : undefined;
+        if (img) {
+          const box = fitImageInBox(img, xPos + 1, yPos + 1, imageColWidth - 2, rowHeight - 2);
+          doc.addImage(img.dataUrl, "JPEG", box.x, box.y, box.w, box.h);
+        }
+        xPos += imageColWidth;
+      }
       
       // Product cell
       doc.setFillColor(isEven ? 249 : 255, isEven ? 249 : 255, isEven ? 249 : 255);
       doc.rect(xPos, yPos, productColWidth, rowHeight, "FD");
       const productLabel = `${row.productName}${row.brand || row.color ? ` (${[row.brand, row.color].filter(Boolean).join(" - ")})` : ""}`;
-      doc.text(productLabel.substring(0, 40), xPos + 2, yPos + 5);
+      doc.text(productLabel.substring(0, 40), xPos + 2, yPos + textDy);
       xPos += productColWidth;
 
       // Size cells
@@ -533,7 +565,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
         doc.setFillColor(isEven ? 249 : 255, isEven ? 249 : 255, isEven ? 249 : 255);
         doc.rect(xPos, yPos, sizeColWidth, rowHeight, "FD");
         if (qty !== 0) {
-          doc.text(String(qty), xPos + sizeColWidth / 2, yPos + 5, { align: "center" });
+          doc.text(String(qty), xPos + sizeColWidth / 2, yPos + textDy, { align: "center" });
         }
         xPos += sizeColWidth;
       });
@@ -546,7 +578,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
       }
       doc.rect(xPos, yPos, stockColWidth, rowHeight, "FD");
       doc.setFont("helvetica", "bold");
-      doc.text(String(row.totalStock), xPos + stockColWidth / 2, yPos + 5, { align: "center" });
+      doc.text(String(row.totalStock), xPos + stockColWidth / 2, yPos + textDy, { align: "center" });
       doc.setFont("helvetica", "normal");
       yPos += rowHeight;
     });
@@ -562,19 +594,19 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
     doc.setFont("helvetica", "bold");
 
     xPos = margin;
-    doc.rect(xPos, yPos, productColWidth, rowHeight, "FD");
+    doc.rect(xPos, yPos, imageColWidth + productColWidth, headerHeight, "FD");
     doc.text("Total Stock", xPos + 2, yPos + 5);
-    xPos += productColWidth;
+    xPos += imageColWidth + productColWidth;
 
     sizeWiseData.sizes.forEach((size) => {
       doc.setFillColor(239, 68, 68);
-      doc.rect(xPos, yPos, sizeColWidth, rowHeight, "FD");
+      doc.rect(xPos, yPos, sizeColWidth, headerHeight, "FD");
       doc.text(String(sizeTotals[size] || 0), xPos + sizeColWidth / 2, yPos + 5, { align: "center" });
       xPos += sizeColWidth;
     });
 
     doc.setFillColor(220, 38, 38);
-    doc.rect(xPos, yPos, stockColWidth, rowHeight, "FD");
+    doc.rect(xPos, yPos, stockColWidth, headerHeight, "FD");
     doc.text(String(grandTotal), xPos + stockColWidth / 2, yPos + 5, { align: "center" });
 
     doc.save(`SizeStock_Report_${format(new Date(), "yyyy-MM-dd")}.pdf`);
@@ -764,6 +796,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
                 <table className="w-full text-[11px] border-collapse">
                   <thead className="sticky top-0 z-10">
                     <tr className="bg-primary/5">
+                      {hasImages && <th className="py-1.5 px-1 border-b w-12" aria-label="Photo" />}
                       <th className="text-left py-1.5 px-2 font-semibold text-primary border-b">Product</th>
                       {sizeWiseData.sizes.map((size) => (
                         <th key={size} className="text-center py-1.5 px-1 font-semibold text-primary border-b min-w-[28px]">
@@ -786,6 +819,11 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
                             hasStock ? "bg-green-50 dark:bg-green-950/20" : "bg-background"
                           )}
                         >
+                          {hasImages && (
+                            <td className="py-1 px-1 align-middle">
+                              <ProductThumb url={row.imageUrl} alt={row.productName} size={40} />
+                            </td>
+                          )}
                           <td className="py-1 px-2">
                             <div className="text-sm font-bold text-foreground">{row.productName}</div>
                             {(row.brand || row.color) && (
@@ -821,7 +859,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
                     })}
                     {/* Totals Row */}
                     <tr className="bg-red-500 text-white font-bold">
-                      <td className="py-1.5 px-2">Total Stock</td>
+                      <td className="py-1.5 px-2" colSpan={hasImages ? 2 : 1}>Total Stock</td>
                       {sizeWiseData.sizes.map((size) => (
                         <td key={size} className="text-center py-1.5 px-0.5">
                           {sizeTotals[size] || 0}

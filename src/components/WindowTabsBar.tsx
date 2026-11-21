@@ -42,6 +42,7 @@ const QUICK_OPEN_PAGES = [
   { path: "employees", label: "Employees", icon: "UserCheck", category: "Masters" },
   { path: "stock-report", label: "Stock Report", icon: "BarChart3", category: "Reports" },
   { path: "stock-summary", label: "Stock Summary", icon: "Package", category: "Reports" },
+  { path: "product-catalogue", label: "Product Catalogue", icon: "BookOpen", category: "Reports" },
   { path: "daily-cashier-report", label: "Business Report", icon: "CalendarDays", category: "Reports" },
   { path: "payments-dashboard", label: "Payments", icon: "Wallet", category: "Accounts" },
   { path: "accounts", label: "Accounts", icon: "BookOpen", category: "Accounts" },

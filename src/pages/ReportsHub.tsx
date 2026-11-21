@@ -218,6 +218,14 @@ const ALL_REPORTS: ReportItem[] = [
     permission: "stock_report",
   },
   {
+    icon: BookOpen,
+    label: "Product Catalogue",
+    path: "/product-catalogue",
+    desc: "Photo catalogue PDF to send customers",
+    tab: "inventory",
+    permission: "stock_report",
+  },
+  {
     icon: Layers,
     label: "Item-wise Stock",
     path: "/item-wise-stock",

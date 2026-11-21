@@ -17,7 +17,9 @@ import {
   matchesProductSearchFields,
   restrictProductsToExactNameMatches,
 } from "@/utils/productSearch";
-import { Package, Search, X } from "lucide-react";
+import { FileText, Loader2, Package, Search, X } from "lucide-react";
+import { ProductThumb } from "@/components/ProductThumb";
+import { isUsableImageUrl } from "@/lib/productImages";
 import {
   Table,
   TableBody,
@@ -41,13 +43,13 @@ const QUICK_STOCK_CURRENCY = "\u20B9";
 // hang on "Loading stock report…" on slow connections or after deploy.
 const QUICK_STOCK_VARIANT_SELECT = `
   id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id,
-  product:products!inner(id, product_name, brand, category, style, product_type, deleted_at, organization_id)
+  product:products!inner(id, product_name, brand, category, style, product_type, deleted_at, organization_id, image_url)
 `;
 
 /** Same join shape as QUICK_STOCK but for lookupVariantRowsByScan (products alias). */
 const QUICK_STOCK_SCAN_SELECT = `
   id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id,
-  products!inner(id, product_name, brand, category, style, product_type, deleted_at, organization_id)
+  products!inner(id, product_name, brand, category, style, product_type, deleted_at, organization_id, image_url)
 `;
 
 function mapQuickStockScanRows(rows: Record<string, unknown>[]): any[] {
@@ -312,10 +314,32 @@ function quickStockSearchReady(rawQuery: string): boolean {
   return term.length >= 2;
 }
 
+/** The fields the Photo column and the PDF read from a Quick Stock row. */
+type QuickStockRow = {
+  barcode?: string | null;
+  size?: string | null;
+  color?: string | null;
+  stock_qty?: number | null;
+  pur_price?: number | null;
+  mrp?: number | null;
+  sale_price?: number | null;
+  product?: {
+    product_name?: string | null;
+    style?: string | null;
+    brand?: string | null;
+    category?: string | null;
+    product_type?: string | null;
+    image_url?: string | null;
+  } | null;
+};
+
 // Floating Stock Report Dialog
+
+
 export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { currentOrganization } = useOrganization();
   const [searchQuery, setSearchQuery] = useState("");
+  const [pdfBusy, setPdfBusy] = useState(false);
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -411,6 +435,34 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
   // Service/combo virtual stock (999999) must not inflate these â€” those aren't
   // physically-held units (FLEXI LS 100 MIX turned 215 real pcs into 10,00,214).
   const { qty: totalQty, value: totalStockValue } = sumPhysicalStockTotals(displayData || []);
+  // Photo column only when a product in the list has a photo (layout unchanged otherwise).
+  const hasImages = (displayData as QuickStockRow[]).some((item) => isUsableImageUrl(item.product?.image_url));
+  const productLabel = (item: QuickStockRow) =>
+    [item.product?.product_name, item.product?.style, item.product?.brand, item.product?.category, item.color]
+      .filter(Boolean)
+      .join(" - ");
+  const exportPdf = async () => {
+    if (!displayData?.length || pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      const { exportQuickStockPdf } = await import("@/lib/quickStockPdf");
+      await exportQuickStockPdf(
+        (displayData as QuickStockRow[]).map((item) => ({
+          product: productLabel(item),
+          barcode: item.barcode || "",
+          size: item.size || "",
+          stock: displaySaleStockQty(item.product?.product_type, item.stock_qty),
+          purPrice: item.pur_price,
+          mrp: item.mrp,
+          salePrice: item.sale_price,
+          imageUrl: item.product?.image_url,
+        })),
+        { search: searchQuery.trim() },
+      );
+    } finally {
+      setPdfBusy(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -465,6 +517,17 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
                 <span className="text-xs text-muted-foreground">Stock Value</span>
                 <p className="font-bold text-lg">{QUICK_STOCK_CURRENCY}{Math.round(totalStockValue).toLocaleString('en-IN')}</p>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="ml-auto gap-1.5"
+                onClick={() => void exportPdf()}
+                disabled={pdfBusy}
+                data-testid="quick-stock-pdf"
+              >
+                {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                PDF
+              </Button>
               {showSearching && (
                 <span className="text-xs text-muted-foreground pb-2">
                   {isSearching ? "Updating full stock..." : "Searching..."}
@@ -477,6 +540,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
+                    {hasImages && <TableHead className="w-14" aria-label="Photo" />}
                     <TableHead>Product</TableHead>
                     <TableHead>Barcode</TableHead>
                     <TableHead>Size</TableHead>
@@ -493,16 +557,13 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
                     const displayStock = displaySaleStockQty(productType, item.stock_qty);
                     return (
                       <TableRow key={item.id}>
+                      {hasImages && (
+                        <TableCell className="py-1.5">
+                          <ProductThumb url={item.product?.image_url} alt={item.product?.product_name || ""} size={40} />
+                        </TableCell>
+                      )}
                       <TableCell>
-                        <p className="font-medium">
-                          {[
-                            item.product?.product_name,
-                            item.product?.style,
-                            item.product?.brand,
-                            item.product?.category,
-                            item.color,
-                          ].filter(Boolean).join(' - ')}
-                        </p>
+                        <p className="font-medium">{productLabel(item)}</p>
                       </TableCell>
                       <TableCell className="font-mono text-xs">{item.barcode || '-'}</TableCell>
                       <TableCell>{item.size}</TableCell>

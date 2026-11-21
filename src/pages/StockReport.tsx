@@ -1,5 +1,8 @@
 import { useEffect, useState, useMemo, useCallback, useRef, type ReactNode } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
+import { fetchProductImageMap, fitImageInBox, loadImagesForPdf } from "@/lib/productImages";
+import { ProductThumb } from "@/components/ProductThumb";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -124,6 +127,8 @@ interface SizeWiseRow {
   department: string;
   sizeStocks: Record<string, number>;
   totalStock: number;
+  /** One variant of the row, to look up the product photo. */
+  repVariantId: string;
 }
 
 /** Override ui/table defaults (bg-black + text-white on thead/th) for light report headers */
@@ -1153,7 +1158,8 @@ export default function StockReport() {
           category: item.category,
           department: item.department,
           sizeStocks: {},
-          totalStock: 0
+          totalStock: 0,
+          repVariantId: item.id,
         });
       }
       
@@ -1167,6 +1173,41 @@ export default function StockReport() {
       rows: Array.from(productMap.values()).sort((a, b) => a.productName.localeCompare(b.productName))
     };
   }, [filteredStockItems, sizeWiseSearch]);
+
+  // Product photos for the size-wise rows (get_stock_report has none): one variant per row →
+  // its product → products.image_url / first gallery photo. Plain object (query is persisted).
+  const sizeWiseRepVariantIds = useMemo(
+    () => sizeWiseData.rows.map((r) => r.repVariantId).filter(Boolean),
+    [sizeWiseData],
+  );
+  const { data: sizeWiseImages } = useQuery({
+    queryKey: ["stock-report-sizewise-images", currentOrganization?.id, sizeWiseRepVariantIds],
+    enabled: activeTab === "sizewise" && !!currentOrganization?.id && sizeWiseRepVariantIds.length > 0,
+    staleTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
+    queryFn: async () => {
+      const orgId = currentOrganization!.id;
+      const variants = await fetchInIdBatches<{ id: string; product_id: string }>(sizeWiseRepVariantIds, (batch) =>
+        supabase.from("product_variants").select("id, product_id").eq("organization_id", orgId).in("id", batch).order("id") as never,
+      );
+      const images = await fetchProductImageMap(orgId, variants.map((v) => v.product_id));
+      const out: Record<string, string> = {};
+      for (const v of variants) {
+        const url = images.get(v.product_id);
+        if (url) out[v.id] = url;
+      }
+      return out;
+    },
+  });
+  const sizeWiseImageOf = useCallback(
+    (row: SizeWiseRow): string | undefined =>
+      sizeWiseImages && typeof sizeWiseImages === "object" ? sizeWiseImages[row.repVariantId] : undefined,
+    [sizeWiseImages],
+  );
+  const sizeWiseHasImages = useMemo(
+    () => sizeWiseData.rows.some((row) => !!sizeWiseImageOf(row)),
+    [sizeWiseData, sizeWiseImageOf],
+  );
 
   // Calculate totals for size-wise report
   const sizeWiseTotals = useMemo(() => {
@@ -1342,14 +1383,20 @@ export default function StockReport() {
     let y = 35;
     const startX = 10;
     const sizes = sizeWiseData.sizes;
-    const productColWidth = 70;
+    // Photo column only when a row has a photo; rows then get taller for the thumbnail.
+    const images = sizeWiseHasImages
+      ? await loadImagesForPdf(sizeWiseData.rows.map((r) => sizeWiseImageOf(r) || ""), 200)
+      : new Map();
+    const photoW = sizeWiseHasImages ? 14 : 0;
+    const rowStep = sizeWiseHasImages ? 14 : 6;
+    const productColWidth = 70 + photoW;
     const sizeColWidth = Math.min(15, (pageWidth - productColWidth - 30) / (sizes.length + 1));
     
     doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
     doc.setFillColor(240, 240, 240);
     doc.rect(startX, y - 5, pageWidth - 20, 8, "F");
-    doc.text("Product (Brand)", startX + 2, y);
+    doc.text("Product (Brand)", startX + 2 + photoW, y);
     sizes.forEach((size, i) => {
       doc.text(size, productColWidth + startX + (i * sizeColWidth), y);
     });
@@ -1357,7 +1404,7 @@ export default function StockReport() {
     
     doc.setFont("helvetica", "normal");
     sizeWiseData.rows.forEach((row, idx) => {
-      y += 6;
+      y += rowStep;
       if (y > pageHeight - 25) {
         doc.addPage();
         y = 20;
@@ -1365,11 +1412,19 @@ export default function StockReport() {
       
       if (idx % 2 === 0) {
         doc.setFillColor(250, 250, 250);
-        doc.rect(startX, y - 4, pageWidth - 20, 6, "F");
+        doc.rect(startX, y - 4 - (rowStep - 6), pageWidth - 20, rowStep, "F");
+      }
+      if (photoW) {
+        const url = sizeWiseImageOf(row);
+        const img = url ? images.get(url) : undefined;
+        if (img) {
+          const box = fitImageInBox(img, startX + 1, y - 4 - (rowStep - 6) + 1, photoW - 2, rowStep - 2);
+          doc.addImage(img.dataUrl, "JPEG", box.x, box.y, box.w, box.h);
+        }
       }
       
       const productLabel = `${row.productName} ${row.brand ? `(${row.brand})` : ''} ${row.department ? `[${row.department}]` : ''}`.substring(0, 70);
-      doc.text(productLabel, startX + 2, y);
+      doc.text(productLabel, startX + 2 + photoW, y);
       sizes.forEach((size, i) => {
         const qty = row.sizeStocks[size] || 0;
         doc.text(String(qty), productColWidth + startX + (i * sizeColWidth), y);
@@ -2527,7 +2582,11 @@ export default function StockReport() {
                                 )}
                               >
                                 <TableCell className="font-medium sticky left-0 bg-inherit z-10 backdrop-blur-sm min-w-[160px] md:min-w-[220px] py-1 px-2 align-top">
-                                  <div className="flex flex-col gap-0.5">
+                                  <div className="flex items-start gap-2">
+                                  {sizeWiseHasImages && (
+                                    <ProductThumb url={sizeWiseImageOf(row)} alt={row.productName} size={44} className="mt-0.5" />
+                                  )}
+                                  <div className="flex flex-col gap-0.5 min-w-0">
                                     <span className="text-base font-bold text-foreground truncate max-w-[150px] md:max-w-none bg-blue-50/40 dark:bg-blue-950/20 px-1 rounded">
                                       {highlightSearchText(row.productName, swQuery)}
                                     </span>
@@ -2565,6 +2624,7 @@ export default function StockReport() {
                                         )}
                                       </span>
                                     )}
+                                  </div>
                                   </div>
                                 </TableCell>
                                 {sizeWiseData.sizes.map(size => {
