@@ -13,7 +13,14 @@ test("Add New Product shows the brand markdown and adds one from the Brand list"
   await expect(md).toBeVisible({ timeout: 60_000 });
 
   await page.locator("#default_pur_price").fill("1000");
-  await page.locator("#markup_percent").fill("80");
+  await expect(page.locator("#default_pur_price")).toHaveValue(/1000/);
+  // Markup prices the product from the committed purchase price; under load the first markup
+  // keystrokes can land before it, so re-enter the markup until the sale price is 1800.
+  await expect(async () => {
+    await page.locator("#markup_percent").fill("");
+    await page.locator("#markup_percent").fill("80");
+    await expect(page.locator("#default_sale_price")).toHaveValue(/^1800(\.0+)?$/, { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   await page.locator('input[placeholder="Brand" i]').first().fill("ACME");
   await expect(md).toHaveAttribute("placeholder", "Brand 25%");
   await expect(page.getByTestId("product-markdown-hint")).toHaveText("Sale Bill: 1800 − 25% = 1350 (brand)");

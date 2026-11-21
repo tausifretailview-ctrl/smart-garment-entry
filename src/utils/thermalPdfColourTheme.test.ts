@@ -4,6 +4,8 @@ import {
   applyThermalPdfColourTheme,
   THERMAL_PDF_COLOUR_CLASS,
   TRENDZO_PDF_COLOUR_CLASS,
+  VASTRAKALA_BLACK_GOLD,
+  vastrakalaPdfTheme,
 } from "@/utils/thermalPdfColourTheme";
 
 function cloneDoc(rootClass: string) {
@@ -43,5 +45,21 @@ describe("applyThermalPdfColourTheme", () => {
     expect(applyThermalPdfColourTheme(doc, wrap)).toBe(false);
     expect(doc.head.querySelector("style[data-thermal-pdf-colour]")).toBeNull();
     expect(wrap.querySelector(`.${THERMAL_PDF_COLOUR_CLASS}, .${TRENDZO_PDF_COLOUR_CLASS}`)).toBeNull();
+  });
+
+  it("gives Vastrakala Sarees the black & gold look, other shops on the layout keep violet", () => {
+    expect(vastrakalaPdfTheme("VASTRAKALA Sarees & Ladies Wear")).toBe(VASTRAKALA_BLACK_GOLD);
+    expect(vastrakalaPdfTheme("वस्त्रकला")).toBe(VASTRAKALA_BLACK_GOLD);
+    expect(vastrakalaPdfTheme("TRENDZO")).toBeUndefined();
+    expect(vastrakalaPdfTheme(undefined)).toBeUndefined();
+
+    const doc = cloneDoc("vastrakala-thermal-receipt-80mm");
+    const wrap = doc.body.firstElementChild as HTMLElement;
+    applyThermalPdfColourTheme(doc, wrap);
+    const css = doc.head.querySelector("style[data-thermal-pdf-colour]")?.textContent ?? "";
+    // Black & gold rules are scoped to the shop's attribute, so they never reach other shops.
+    expect(css).toContain(`[data-pdf-theme="${VASTRAKALA_BLACK_GOLD}"] .vk-header`);
+    expect(css).toMatch(/data-pdf-theme="black-gold"\] \.vk-meta \.vk-meta-label \{ color: #d4a93c/);
+    expect(css).toContain("#6d28d9"); // violet stays the default
   });
 });
