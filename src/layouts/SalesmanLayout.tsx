@@ -17,6 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { useInstallPrompt, triggerPwaInstall, isIOSDevice } from "@/hooks/useInstallPrompt";
 import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
+import { useFieldSalesManifest } from "@/hooks/useFieldSalesManifest";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -92,15 +93,11 @@ const SalesmanLayout = () => {
     return () => window.clearTimeout(timer);
   }, [currentOrganization?.id, hasAccess, queryClient]);
 
-  // Dynamic manifest and theme for Field Sales PWA
-  useEffect(() => {
-    // Update manifest link for Field Sales
-    const manifestLink = document.querySelector('link[rel="manifest"]');
-    const originalManifest = manifestLink?.getAttribute('href');
-    if (manifestLink) {
-      manifestLink.setAttribute('href', '/manifest-field-sales.webmanifest');
-    }
+  // Install = this shop's Field Sales app (opens /{org}/salesman), never the owner app.
+  useFieldSalesManifest(currentOrganization?.slug, currentOrganization?.name);
 
+  // Theme for Field Sales PWA
+  useEffect(() => {
     // Update theme-color meta tag to orange
     const themeColor = document.querySelector('meta[name="theme-color"]');
     const originalThemeColor = themeColor?.getAttribute('content');
@@ -108,25 +105,10 @@ const SalesmanLayout = () => {
       themeColor.setAttribute('content', '#F97316');
     }
 
-    // Update apple-mobile-web-app-title
-    let appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
-    if (!appleTitle) {
-      appleTitle = document.createElement('meta');
-      appleTitle.setAttribute('name', 'apple-mobile-web-app-title');
-      document.head.appendChild(appleTitle);
-    }
-    appleTitle.setAttribute('content', 'Field Sales');
-
     return () => {
       // Restore original values when leaving Field Sales
-      if (manifestLink && originalManifest) {
-        manifestLink.setAttribute('href', originalManifest);
-      }
       if (themeColor && originalThemeColor) {
         themeColor.setAttribute('content', originalThemeColor);
-      }
-      if (appleTitle) {
-        appleTitle.setAttribute('content', 'EzzyERP');
       }
     };
   }, []);

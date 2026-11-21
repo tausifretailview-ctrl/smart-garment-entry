@@ -3,6 +3,9 @@ import { isValidOrgSlug, normalizeOrgSlug } from "@/lib/orgSlug";
 const FIELD_SALES_MANIFEST = "manifest-field-sales";
 
 let orgManifestBlobUrl: string | null = null;
+let fieldSalesManifestBlobUrl: string | null = null;
+/** Set on the manifest <link> while the Field Sales app's manifest is attached. */
+const FIELD_SALES_ATTR = "data-ezzy-field-sales-manifest";
 
 /** True when running as an installed home-screen / standalone PWA. */
 export function isStandalonePwa(): boolean {
@@ -74,7 +77,7 @@ export function applyOrgPwaManifest(orgSlug: string, orgName?: string | null): v
 
   const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
   // Field Sales uses its own dedicated manifest — do not override.
-  if (link?.getAttribute("href")?.includes(FIELD_SALES_MANIFEST)) return;
+  if (link?.getAttribute("href")?.includes(FIELD_SALES_MANIFEST) || link?.hasAttribute(FIELD_SALES_ATTR)) return;
 
   const slug = normalizeOrgSlug(orgSlug);
   const displayName = orgName?.trim() || "";
@@ -131,4 +134,84 @@ export function applyOrgPwaManifest(orgSlug: string, orgName?: string | null): v
 
   manifestLink.href = orgManifestBlobUrl;
   manifestLink.setAttribute("data-ezzy-org-manifest", slug);
+}
+
+/** The Field Sales install, as a manifest object (exported for tests). */
+export function buildFieldSalesManifest(orgSlug: string, orgName: string | null | undefined, origin: string) {
+  const slug = normalizeOrgSlug(orgSlug);
+  const base = origin.replace(/\/$/, "");
+  const name = orgName?.trim() || "";
+  const icon192 = `${base}/icon-field-sales-192.png`;
+  const icon512 = `${base}/icon-field-sales-512.png`;
+  return {
+    // Its own app id: installs next to (not over) the shop's owner app on the same phone.
+    id: `${base}/${slug}/salesman`,
+    name: name ? `${name} · Field Sales` : "Field Sales - EzzyERP",
+    short_name: "Field Sales",
+    description: "Field Sales app — customers, orders and outstanding for salesmen",
+    theme_color: "#F97316",
+    background_color: "#1a1a1a",
+    display: "standalone",
+    orientation: "portrait",
+    scope: `${base}/`,
+    // Opens straight into the salesman app (login first when signed out).
+    start_url: `${base}/${slug}/salesman?app=fieldsales`,
+    categories: ["business", "productivity"],
+    icons: [
+      { src: icon192, sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: icon192, sizes: "192x192", type: "image/png", purpose: "maskable" },
+      { src: icon512, sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: icon512, sizes: "512x512", type: "image/png", purpose: "maskable" },
+    ],
+  };
+}
+
+/**
+ * Field Sales screens (salesman app, field-sales login): point the manifest at the Field Sales
+ * app of this shop, so Chrome's "Install" adds the orange Field Sales icon that opens
+ * /{org}/salesman — not the owner app. Returns a function that puts the shop manifest back.
+ */
+export function applyFieldSalesPwaManifest(orgSlug: string, orgName?: string | null): () => void {
+  if (typeof document === "undefined" || !isValidOrgSlug(orgSlug)) return () => {};
+  const slug = normalizeOrgSlug(orgSlug);
+  let link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+  if (link?.getAttribute(FIELD_SALES_ATTR) === slug && fieldSalesManifestBlobUrl && link.href === fieldSalesManifestBlobUrl) {
+    return () => restoreShopManifest(slug, orgName);
+  }
+  if (fieldSalesManifestBlobUrl) URL.revokeObjectURL(fieldSalesManifestBlobUrl);
+  fieldSalesManifestBlobUrl = URL.createObjectURL(
+    new Blob([JSON.stringify(buildFieldSalesManifest(slug, orgName, window.location.origin))], {
+      type: "application/manifest+json",
+    }),
+  );
+  if (!link) {
+    link = document.createElement("link");
+    link.rel = "manifest";
+    document.head.appendChild(link);
+  }
+  link.removeAttribute("data-ezzy-org-manifest");
+  link.setAttribute(FIELD_SALES_ATTR, slug);
+  link.href = fieldSalesManifestBlobUrl;
+
+  let appleTitle = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-title"]');
+  if (!appleTitle) {
+    appleTitle = document.createElement("meta");
+    appleTitle.name = "apple-mobile-web-app-title";
+    document.head.appendChild(appleTitle);
+  }
+  appleTitle.content = "Field Sales";
+  return () => restoreShopManifest(slug, orgName);
+}
+
+function restoreShopManifest(slug: string, orgName?: string | null) {
+  const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+  if (link?.getAttribute(FIELD_SALES_ATTR) !== slug) return;
+  link.removeAttribute(FIELD_SALES_ATTR);
+  applyOrgPwaManifest(slug, orgName);
+}
+
+/** The link a salesman opens on the phone (log in, then install Field Sales). */
+export function fieldSalesInstallLink(orgSlug: string, origin?: string): string {
+  const base = (origin || (typeof window !== "undefined" ? window.location.origin : "")).replace(/\/$/, "");
+  return `${base}/${normalizeOrgSlug(orgSlug)}/field-sales`;
 }

@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { validateAuth } from "@/lib/validations";
 import { storeOrgSlug } from "@/lib/orgSlug";
+import { useFieldSalesManifest } from "@/hooks/useFieldSalesManifest";
+import { FieldSalesInstallCard } from "@/components/fieldSales/FieldSalesInstallCard";
 
 const FIELD_SALES_COLOR = "#F97316"; // Orange-500
 
@@ -46,6 +48,8 @@ export default function FieldSalesAuth() {
   const [error, setError] = useState<string>("");
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [lockoutUntil, setLockoutUntil] = useState<Date | null>(null);
+  // "Install" on this page adds the shop's Field Sales app (opens /{org}/salesman).
+  useFieldSalesManifest(organization?.slug ?? null, organization?.name);
 
   useEffect(() => {
     const storedLockout = localStorage.getItem(`field_sales_lockout_${orgSlug}`);
@@ -391,6 +395,8 @@ export default function FieldSalesAuth() {
               </form>
             </CardContent>
           </Card>
+
+          <FieldSalesInstallCard />
 
           {/* Footer */}
           <p className="text-center text-muted-foreground text-xs">

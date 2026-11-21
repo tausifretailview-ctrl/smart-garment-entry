@@ -56,6 +56,14 @@ function ensureGlobalPromptCapture() {
   });
 }
 
+/**
+ * Forget the deferred install event. Call when the page switches app manifest (shop app ↔
+ * Field Sales): an event Chrome raised for the old manifest would install the wrong app.
+ */
+export function resetDeferredInstallPrompt(): void {
+  clearPrompt();
+}
+
 /** Latest deferred Chrome/Edge install event (if any). */
 export function getDeferredInstallPrompt(): BeforeInstallPromptEvent | null {
   ensureGlobalPromptCapture();
