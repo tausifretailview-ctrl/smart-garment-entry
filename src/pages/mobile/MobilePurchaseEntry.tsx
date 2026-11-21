@@ -8,7 +8,8 @@ import { Capacitor } from "@capacitor/core";
 import { App as CapApp } from "@capacitor/app";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Camera, CheckCircle2, Loader2, Minus, Plus, Search, Trash2, X } from "lucide-react";
+import { Camera, CheckCircle2, ChevronRight, Loader2, Minus, PackagePlus, Plus, Search, Store, Trash2, X } from "lucide-react";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
@@ -54,7 +55,7 @@ import {
   writeMobilePurchaseDraft,
 } from "@/utils/mobilePurchaseDraft";
 import { useMobileUiTheme } from "@/hooks/useMobileUiTheme";
-import { ShellHeader, ShellButton, SearchBar, SectionHead } from "@/components/mobile/premium";
+import { ShellHeader, SearchBar, SectionHead } from "@/components/mobile/premium";
 import { PosFastPicks, type FastPick } from "@/components/mobile/premium/PosFastPicks";
 import { PosKeypad, type KeypadMode } from "@/components/mobile/premium/PosKeypad";
 
@@ -114,6 +115,7 @@ function todayYmd(): string {
 
 export default function MobilePurchaseEntry() {
   const theme = useMobileUiTheme();
+  const { orgNavigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
   const { openScan, registerBillingScanHandler } = useMobileScan();
@@ -298,7 +300,8 @@ export default function MobilePurchaseEntry() {
           },
         ];
       });
-      toast.success("Added", { description: hit.product.product_name });
+      // Top of the screen: a bottom toast would cover the total and Save bill.
+      toast.success("Added", { description: hit.product.product_name, position: "top-center", duration: 1500 });
       setSearchInput("");
       setDebouncedSearch("");
     },
@@ -589,6 +592,9 @@ export default function MobilePurchaseEntry() {
           <Button className="h-12 w-full max-w-sm text-base font-semibold" onClick={resetBill}>
             New Bill
           </Button>
+          <Button variant="ghost" className="h-11 w-full max-w-sm" onClick={() => orgNavigate("/owner-purchases")}>
+            Back to purchases
+          </Button>
         </div>
       </div>
     );
@@ -601,25 +607,31 @@ export default function MobilePurchaseEntry() {
         {saving && (
           <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center gap-3 bg-[var(--ez-ground)]/85 backdrop-blur-sm">
             <Loader2 className="h-10 w-10 animate-spin text-[var(--ez-accent)]" />
-            <p className="text-[13px] font-bold">Saving purchase bill…</p>
-            <p className="text-[11px] font-medium text-[var(--ez-muted)]">Please wait — do not go back</p>
+            <p className="text-[15px] font-semibold">Saving purchase bill…</p>
+            <p className="text-[13px] font-medium text-[var(--ez-muted)]">Please wait — do not go back</p>
           </div>
         )}
 
         <ShellHeader
           title="Purchase entry"
           kicker={items.length ? "Draft saved" : "New bill"}
-          action={<ShellButton onClick={() => setSupplierPickerOpen(true)}>Change</ShellButton>}
+          onBack={() => orgNavigate("/owner-purchases")}
         >
           <button
             type="button"
             onClick={() => setSupplierPickerOpen(true)}
-            className="w-full border-2 border-[var(--ez-shell-line)] px-2.5 py-2.5 text-left"
+            className="ez-press flex w-full items-center gap-3 rounded-2xl bg-[var(--ez-shell-fill)] px-3.5 py-2.5 text-left ring-1 ring-inset ring-[var(--ez-shell-line)] active:bg-white/25"
           >
-            <p className="text-[8.5px] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--ez-shell-muted)]">
-              Supplier
-            </p>
-            <p className="mt-1 truncate text-[12px] font-semibold leading-none">{supplierName || "Select supplier"}</p>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/20">
+              <Store className="h-[18px] w-[18px]" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[11.5px] font-medium leading-none text-[var(--ez-shell-muted)]">Supplier</span>
+              <span className="mt-1 block truncate text-[14.5px] font-semibold leading-tight">
+                {supplierName || "Select supplier"}
+              </span>
+            </span>
+            <ChevronRight className="h-5 w-5 shrink-0 text-[var(--ez-shell-muted)]" aria-hidden />
           </button>
         </ShellHeader>
 
@@ -646,47 +658,42 @@ export default function MobilePurchaseEntry() {
           triggerClassName="hidden"
         />
 
-        {/* ── bill meta: three flush-left cells, DC is a toggle cell not a checkbox ── */}
-        <div className="grid shrink-0 grid-cols-3 border-b-2 border-[var(--ez-rule)]">
-          <label className="border-r border-[var(--ez-rule-thin)] px-2.5 py-2">
-            <span className="block text-[8.5px] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--ez-muted)]">
-              Bill date
-            </span>
+        {/* ── bill meta: date, supplier invoice no, DC switch ── */}
+        <div className="grid shrink-0 grid-cols-[1.3fr_1fr_0.8fr] gap-2 px-3 pt-3">
+          <label className="ez-card min-w-0 px-3 py-2 focus-within:border-[var(--ez-accent)]">
+            <span className="ez-label block">Bill date</span>
             <DateInput
               type="date"
               value={billDate}
               disabled={saving}
               onChange={(e) => setBillDate(e.target.value)}
-              className="num mt-1 w-full border-0 bg-transparent p-0 text-[12px] font-bold leading-none outline-none"
+              className="num mt-1 w-full border-0 bg-transparent p-0 text-[13.5px] font-semibold leading-tight outline-none"
             />
           </label>
-          <label className="border-r border-[var(--ez-rule-thin)] px-2.5 py-2">
-            <span className="block text-[8.5px] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--ez-muted)]">
-              Supp. invoice
-            </span>
+          <label className="ez-card min-w-0 px-3 py-2 focus-within:border-[var(--ez-accent)]">
+            <span className="ez-label block truncate">Supplier inv. no</span>
             <input
               value={supplierInvoiceNo}
               disabled={saving}
-              placeholder="AUTO"
+              placeholder="Auto"
               onChange={(e) => setSupplierInvoiceNo(e.target.value)}
-              className="mt-1 w-full border-0 bg-transparent p-0 text-[12px] font-bold leading-none outline-none placeholder:text-[var(--ez-muted)]"
+              className="mt-1 w-full border-0 bg-transparent p-0 text-[13.5px] font-semibold leading-tight outline-none placeholder:font-medium placeholder:text-[var(--ez-muted)]"
             />
           </label>
           <button
             type="button"
             disabled={saving || isDcUser}
             onClick={() => setIsDcPurchase(!isDcPurchase)}
+            aria-pressed={isDcPurchase}
             className={cn(
-              "px-2.5 py-2 text-left",
-              isDcPurchase ? "bg-[var(--ez-accent)] text-white" : "bg-[var(--ez-ground)] text-[var(--ez-ink)]",
+              "ez-card ez-press min-w-0 px-3 py-2 text-left transition-colors duration-200",
+              isDcPurchase && "border-[var(--ez-accent)] !bg-[var(--ez-accent)] text-white",
             )}
           >
-            <span className="block text-[8.5px] font-semibold uppercase leading-none tracking-[0.12em] opacity-75">
+            <span className={cn("block truncate text-[12px] font-medium leading-[1.2]", isDcPurchase ? "text-white/85" : "text-[var(--ez-muted)]")}>
               DC · no GST
             </span>
-            <span className="mt-1 block text-[12px] font-extrabold uppercase leading-none tracking-[0.06em]">
-              {isDcPurchase ? "On" : "Off"}
-            </span>
+            <span className="mt-1 block text-[13.5px] font-bold leading-tight">{isDcPurchase ? "On" : "Off"}</span>
           </button>
         </div>
 
@@ -701,38 +708,46 @@ export default function MobilePurchaseEntry() {
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
           <PosFastPicks items={purchasePicks} searchTerm={debouncedSearch} loading={searchLoading} />
 
-          <div className="border-t-2 border-[var(--ez-rule)]">
+          <div>
             <SectionHead title={`Lines · ${items.length}`} />
             {items.length === 0 ? (
-              <p className="border-t border-[var(--ez-rule-thin)] px-3.5 pb-5 pt-4 text-[12px] font-medium leading-[1.5] text-[var(--ez-muted)]">
-                No lines yet. Scan the supplier's carton labels one after another — quantity and cost stay on the keypad.
-              </p>
+              <div className="ez-card mx-3 flex flex-col items-center px-5 py-7 text-center">
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--ez-tint)] text-[var(--ez-accent)]">
+                  <PackagePlus className="h-6 w-6" aria-hidden />
+                </span>
+                <p className="mt-3 text-[14.5px] font-semibold">No lines yet</p>
+                <p className="mt-1 text-[13px] font-medium leading-[1.45] text-[var(--ez-muted)]">
+                  Scan the supplier's carton labels one after another. Tap a line to change its quantity or cost.
+                </p>
+              </div>
             ) : (
-              items.map((item, index) => (
-                <button
-                  key={item.temp_id}
-                  type="button"
-                  disabled={saving}
-                  onClick={() => {
-                    setSelIndex(index);
-                    setKpMode("qty");
-                  }}
-                  className={cn(
-                    "block w-full border-t border-[var(--ez-rule-thin)] px-3.5 pb-2.5 pt-2.5 text-left",
-                    selIndex === index ? "bg-[var(--ez-tint)]" : "bg-[var(--ez-ground)]",
-                  )}
-                >
-                  <div className="flex justify-between gap-2.5">
-                    <p className="truncate text-[12.5px] font-bold leading-[1.3]">{item.product_name}</p>
-                    <p className="num shrink-0 text-[13px] font-extrabold leading-[1.3]">
-                      ₹{formatInr(mobilePurchaseLineTotal(item))}
+              <div className="space-y-2 px-3">
+                {items.map((item, index) => (
+                  <button
+                    key={item.temp_id}
+                    type="button"
+                    disabled={saving}
+                    onClick={() => {
+                      setSelIndex(index);
+                      setKpMode("qty");
+                    }}
+                    className={cn(
+                      "ez-card ez-press ez-pop block w-full px-3.5 py-3 text-left transition-colors duration-150",
+                      selIndex === index && "border-[var(--ez-accent)] bg-[var(--ez-tint)] ring-1 ring-[var(--ez-accent)]",
+                    )}
+                  >
+                    <div className="flex justify-between gap-3">
+                      <p className="truncate text-[14.5px] font-semibold leading-[1.3]">{item.product_name}</p>
+                      <p className="num shrink-0 text-[15px] font-bold leading-[1.3]">
+                        ₹{formatInr(mobilePurchaseLineTotal(item))}
+                      </p>
+                    </div>
+                    <p className="num mt-1 text-[12.5px] font-medium leading-tight text-[var(--ez-muted)]">
+                      {item.size ? `Size ${item.size} · ` : ""}Qty {item.qty} × ₹{formatInr(item.pur_price)}
                     </p>
-                  </div>
-                  <p className="num mt-[3px] text-[10.5px] font-medium leading-none text-[var(--ez-muted-2)]">
-                    {item.size ? `Size ${item.size} · ` : ""}Qty {item.qty} × ₹{formatInr(item.pur_price)}
-                  </p>
-                </button>
-              ))
+                  </button>
+                ))}
+              </div>
             )}
           </div>
           <div className="h-4" />
@@ -766,55 +781,55 @@ export default function MobilePurchaseEntry() {
 
         {/* ── discount / other charges + save ── */}
         <div
-          className="ez shrink-0 border-t-2 border-[var(--ez-ink)] bg-[var(--ez-ground)]"
-          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px))" }}
+          className="ez shrink-0 rounded-t-[22px] border-t border-[var(--ez-rule)] bg-[var(--ez-surface)] shadow-[var(--ez-sheet-shadow)]"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" }}
         >
           {saveError ? (
-            <p className="border-b border-[var(--ez-rule-thin)] bg-[#f9ecea] px-3.5 py-2 text-[11px] font-semibold text-[var(--ez-debit)]">
+            <p className="rounded-t-[22px] bg-red-50 px-4 py-2 text-[12.5px] font-semibold text-[var(--ez-debit)]">
               {saveError}
             </p>
           ) : null}
-          <div className="grid grid-cols-2 border-b border-[var(--ez-rule-thin)]">
-            <label className="border-r border-[var(--ez-rule-thin)] px-2.5 py-2">
-              <span className="block text-[8.5px] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--ez-muted)]">
-                Discount
-              </span>
+          <div className="grid grid-cols-2 gap-2 px-3 pt-3">
+            <label className="min-w-0 rounded-xl bg-[var(--ez-ground)] px-3 py-2 focus-within:ring-2 focus-within:ring-[var(--ez-tint-2)]">
+              <span className="ez-label block">Discount ₹</span>
               <input
                 inputMode="decimal"
                 value={String(discountAmount || "")}
                 disabled={saving}
+                placeholder="0"
                 onFocus={selectOnFocus}
                 onChange={(e) => setDiscountAmount(Number(e.target.value) || 0)}
-                className="num mt-1 w-full border-0 bg-transparent p-0 text-[13px] font-bold leading-none outline-none"
+                style={{ fontSize: 16 }}
+                className="num mt-0.5 w-full border-0 bg-transparent p-0 font-semibold leading-tight outline-none placeholder:text-[var(--ez-muted)]"
               />
             </label>
-            <label className="px-2.5 py-2">
-              <span className="block text-[8.5px] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--ez-muted)]">
-                Other charges
-              </span>
+            <label className="min-w-0 rounded-xl bg-[var(--ez-ground)] px-3 py-2 focus-within:ring-2 focus-within:ring-[var(--ez-tint-2)]">
+              <span className="ez-label block">Other charges ₹</span>
               <input
                 inputMode="decimal"
                 value={String(otherCharges || "")}
                 disabled={saving}
+                placeholder="0"
                 onFocus={selectOnFocus}
                 onChange={(e) => setOtherCharges(Number(e.target.value) || 0)}
-                className="num mt-1 w-full border-0 bg-transparent p-0 text-[13px] font-bold leading-none outline-none"
+                style={{ fontSize: 16 }}
+                className="num mt-0.5 w-full border-0 bg-transparent p-0 font-semibold leading-tight outline-none placeholder:text-[var(--ez-muted)]"
               />
             </label>
           </div>
-          <div className="flex items-end justify-between gap-3 px-3.5 pb-2.5 pt-2.5">
+          <div className="flex items-end justify-between gap-3 px-4 pt-3">
             <div className="min-w-0">
               <p className="ez-label">
                 {items.length} line{items.length === 1 ? "" : "s"}
                 {!isDcPurchase && totals.gstAmount > 0 ? ` · GST ₹${formatInr(totals.gstAmount)}` : ""}
               </p>
-              <p className="ez-money mt-1">₹{formatInr(totals.netAmount)}</p>
+              <p className="ez-money mt-1.5">₹{formatInr(totals.netAmount)}</p>
             </div>
             <button
               type="button"
               disabled={items.length === 0 || saving}
               onClick={() => void runSave()}
-              className="ez-btn-label min-h-[48px] shrink-0 bg-[var(--ez-accent)] px-5 py-3.5 pl-4 text-white active:bg-[var(--ez-accent-600)] disabled:bg-[var(--ez-disabled)] disabled:text-[var(--ez-muted)]"
+              className="ez-press flex h-[52px] min-w-[9rem] shrink-0 items-center justify-center rounded-2xl bg-[var(--ez-accent)] px-6 text-[15px] font-semibold text-white shadow-[0_8px_16px_-8px_rgba(37,99,235,0.8)] active:bg-[var(--ez-accent-600)] disabled:bg-[var(--ez-disabled)] disabled:text-[var(--ez-muted)] disabled:shadow-none"
             >
               {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : "Save bill"}
             </button>

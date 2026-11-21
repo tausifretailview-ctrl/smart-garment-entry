@@ -15,6 +15,14 @@ export const MOBILE_POS_PATH = "/mobile-pos";
 /** Mobile purchase bill entry (atomic RPC save). */
 export const MOBILE_PURCHASE_ENTRY_PATH = "/mobile-purchase-entry";
 
+/**
+ * Bill entry screens (mobile POS, mobile purchase entry). In the app look they are full-screen:
+ * no bottom bar, a back arrow in the header, and the Pay / Save panel at the bottom edge.
+ */
+export function isMobileEntryScreenPath(pathname: string): boolean {
+  return /\/(mobile-pos|mobile-purchase-entry)(\/|$)/.test(pathname);
+}
+
 /** Open mobile POS and auto-start camera scan (bottom-nav Scan from other hubs). */
 export function mobilePosPathWithScan(): string {
   return `${MOBILE_POS_PATH}?scan=1`;

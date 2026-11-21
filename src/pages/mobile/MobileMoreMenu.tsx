@@ -1,3 +1,4 @@
+import { MobileHubHeader } from "@/components/mobile/MobileHubHeader";
 import {
   BarChart3,
   FileText,
@@ -155,10 +156,7 @@ export default function MobileMoreMenu() {
       {...pullHandlers}
     >
       <PullToRefreshIndicator visible={isRefreshing} />
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-4 py-4">
-        <h1 className="text-xl font-semibold text-foreground">Reports & More</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">POS billing on phone · reports &amp; summaries</p>
-      </div>
+      <MobileHubHeader title="Menu" subtitle="Billing, reports and settings" />
 
       <div className="px-4 py-4 space-y-6">
         <div className="bg-card rounded-2xl border border-border/60 shadow-sm overflow-hidden divide-y divide-border/60">

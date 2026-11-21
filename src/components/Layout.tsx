@@ -126,7 +126,7 @@ export const Layout = ({ children }: LayoutProps) => {
                               "flex-1 min-h-0 overflow-y-auto tab-scroll-stable relative z-[1] min-w-0 p-3 sm:p-4 animate-fade-in",
                               inTabCachePane && "data-tab-scroll",
                             )
-                          : mobileMainContentClass
+                          : `${mobileMainContentClass} mobile-page-enter`
                   }
                 >
                   {children}

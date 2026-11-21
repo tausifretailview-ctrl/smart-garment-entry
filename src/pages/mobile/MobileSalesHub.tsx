@@ -1,3 +1,5 @@
+import { MobileHubHeader } from "@/components/mobile/MobileHubHeader";
+import { useMobileUiTheme } from "@/hooks/useMobileUiTheme";
 import { useState, useCallback, useEffect } from "react";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -30,6 +32,7 @@ import { Button } from "@/components/ui/button";
 export default function MobileSalesHub() {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
+  const premium = useMobileUiTheme() === "premium";
   const { sendWhatsApp } = useWhatsAppSend();
   const queryClient = useQueryClient();
   const { scrollRef, isRefreshing, pullHandlers } = usePullToRefresh(
@@ -192,35 +195,40 @@ export default function MobileSalesHub() {
       {...pullHandlers}
     >
       <PullToRefreshIndicator visible={isRefreshing} />
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-4 pb-3 space-y-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))]">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <h1 className="text-xl font-semibold text-foreground">Sales Summary</h1>
-            <p className="text-xs text-muted-foreground">Bill list · create via POS</p>
-          </div>
+      {/* Header: title, New bill and search stay on screen; the period chips scroll with the list */}
+      <MobileHubHeader
+        title="Sales"
+        subtitle="Bill list · create a bill in POS"
+        right={
           <Button
             type="button"
             size="sm"
-            className="h-9 shrink-0 gap-1.5"
+            className={cn(
+              "h-10 shrink-0 gap-1.5 rounded-full px-4",
+              premium && "bg-white font-semibold text-blue-700 shadow-sm hover:bg-white/90 active:scale-95",
+            )}
             onClick={() => orgNavigate(MOBILE_POS_PATH)}
           >
             <ShoppingCart className="h-4 w-4" />
             New Bill
           </Button>
-        </div>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        }
+      >
+        <div className="relative mt-3">
+          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search invoice or customer..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-10 bg-muted/50 border-0 rounded-xl text-sm"
+            className={cn(
+              "h-11 rounded-2xl border-0 pl-10 text-base",
+              premium ? "bg-white text-slate-900 shadow-sm" : "bg-muted/50",
+            )}
           />
         </div>
-        <div className="-mx-4 px-4">
-          <MobileDateFilterChips selectedPeriod={period} onPeriodChange={setPeriod} />
-        </div>
+      </MobileHubHeader>
+      <div className="bg-white px-4 pb-2 pt-3 dark:bg-card">
+        <MobileDateFilterChips selectedPeriod={period} onPeriodChange={setPeriod} />
       </div>
 
       {/* Stats strip — ERP + POS combined (matches owner home dashboard) */}

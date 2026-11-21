@@ -192,7 +192,7 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
   };
 
   return (
-    <div className="bg-muted/30 -mx-3 sm:-mx-4 pb-6">
+    <div className="bg-muted/30 pb-6">
       <div className="sticky top-0 z-20 shrink-0 bg-background/95 backdrop-blur-md border-b border-border">
         <div className="px-4 py-3">
           <h1 className="text-base font-semibold text-foreground mb-3">Stock Overview</h1>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { Download, Share, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import {
 import { useHideMobileBottomNav } from "@/hooks/useMobileChrome";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { cn } from "@/lib/utils";
+import { isMobileEntryScreenPath } from "@/lib/mobileShell";
 
 const DISMISS_KEY = "pwa-install-banner-dismissed";
 
@@ -23,7 +25,11 @@ export function PwaInstallBanner() {
   const { orgNavigate } = useOrgNavigation();
   const [dismissed, setDismissed] = useState(() => localStorage.getItem(DISMISS_KEY) === "1");
 
+  const { pathname } = useLocation();
+
   if (Capacitor.isNativePlatform()) return null;
+  // On the bill entry screens the banner would sit on the total and the Pay / Save buttons.
+  if (isMobileEntryScreenPath(pathname)) return null;
 
   const standalone = isStandaloneDisplay() || isInstalled;
   const ios = isIOSDevice();

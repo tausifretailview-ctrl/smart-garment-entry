@@ -10,6 +10,7 @@
  * Mount it directly above the total/pay footer when a line is selected.
  */
 import { useState } from "react";
+import { Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /** "disc" = line discount %, "discAmt" = line discount ₹ (POS only). */
@@ -98,18 +99,27 @@ export function PosKeypad({
   ];
 
   return (
-    <div className="ez shrink-0 border-t-2 border-[var(--ez-ink)] bg-[var(--ez-surface)]">
-      <div className="flex items-center justify-between gap-3 border-b border-[var(--ez-rule-thin)] px-3.5 py-2">
-        <p className="min-w-0 truncate text-[11px] font-bold leading-[1.2]">
-          {title} · {fieldLabel}
+    <div className="ez ez-sheet-up shrink-0 rounded-t-[22px] border-t border-[var(--ez-rule)] bg-[var(--ez-surface)] shadow-[var(--ez-sheet-shadow)]">
+      <div className="flex items-center justify-between gap-3 px-4 pb-1.5 pt-3">
+        <p className="min-w-0 truncate text-[13px] font-semibold leading-[1.2]">
+          {title} <span className="font-medium text-[var(--ez-muted)]">· {fieldLabel}</span>
         </p>
-        <div className="flex shrink-0 items-center gap-4">
+        <div className="flex shrink-0 items-center gap-1">
           {onRemove ? (
-            <button type="button" onClick={onRemove} className="ez-btn-label text-[10px] text-[var(--ez-debit)]">
+            <button
+              type="button"
+              onClick={onRemove}
+              className="ez-press flex h-9 items-center gap-1 rounded-full px-2.5 text-[12.5px] font-semibold text-[var(--ez-debit)] active:bg-red-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden />
               Delete line
             </button>
           ) : null}
-          <button type="button" onClick={onClose} className="ez-btn-label text-[10px] text-[var(--ez-muted-2)]">
+          <button
+            type="button"
+            onClick={onClose}
+            className="ez-press flex h-9 items-center rounded-full bg-[var(--ez-ground)] px-3.5 text-[12.5px] font-semibold text-[var(--ez-muted-2)]"
+          >
             Done
           </button>
         </div>
@@ -117,7 +127,7 @@ export function PosKeypad({
 
       <div
         className={cn(
-          "grid border-b border-[var(--ez-rule-thin)]",
+          "grid gap-1.5 px-3 pb-2",
           modes.length === 4 ? "grid-cols-4" : modes.length === 3 ? "grid-cols-3" : "grid-cols-2",
         )}
       >
@@ -126,21 +136,26 @@ export function PosKeypad({
             key={m.key}
             type="button"
             onClick={() => pick(m.key)}
+            aria-pressed={mode === m.key}
             className={cn(
-              "min-w-0 border-r border-[var(--ez-rule-thin)] py-2.5 text-left last:border-r-0",
-              modes.length === 4 ? "px-2" : "px-3",
-              mode === m.key ? "bg-[var(--ez-accent)] text-white" : "bg-[var(--ez-surface)] text-[var(--ez-ink)]",
+              "ez-press min-w-0 rounded-xl py-2 text-center",
+              modes.length === 4 ? "px-1.5" : "px-3",
+              mode === m.key
+                ? "bg-[var(--ez-accent)] text-white shadow-[0_6px_14px_-6px_rgba(37,99,235,0.7)]"
+                : "bg-[var(--ez-ground)] text-[var(--ez-ink)]",
             )}
           >
-            <p className="text-[9px] font-bold uppercase leading-none tracking-[0.12em]">{m.label}</p>
-            <p className={cn("num mt-1 truncate font-extrabold leading-none", modes.length === 4 ? "text-[13px]" : "text-[15px]")}>
+            <p className={cn("text-[11px] font-medium leading-none", mode === m.key ? "text-white/85" : "text-[var(--ez-muted)]")}>
+              {m.label}
+            </p>
+            <p className={cn("num mt-1 truncate font-bold leading-none", modes.length === 4 ? "text-[14px]" : "text-[16px]")}>
               {m.value}
             </p>
           </button>
         ))}
       </div>
 
-      <div className="grid grid-cols-4">
+      <div className="grid grid-cols-4 gap-1.5 px-3 pb-3">
         {KEYS.map((key) => {
           const label = key === "back" ? "⌫" : key === "clear" ? "C" : key === "plus1" ? "+1" : key === "ok" ? "OK" : key;
           const isOk = key === "ok";
@@ -150,13 +165,16 @@ export function PosKeypad({
               key={key}
               type="button"
               onClick={() => press(key)}
+              aria-label={key === "back" ? "Backspace" : key === "clear" ? "Clear" : undefined}
               className={cn(
-                "min-h-[44px] border-b border-r border-[var(--ez-rule-thin)] py-2.5 pl-3.5 text-left text-[17px] font-extrabold leading-none active:bg-[var(--ez-tint-2)]",
+                "ez-press flex h-12 items-center justify-center rounded-xl text-[19px] font-semibold leading-none",
                 isOk
                   ? "bg-[var(--ez-accent)] text-white active:bg-[var(--ez-accent-600)]"
                   : isEdit
-                    ? "bg-[var(--ez-surface)]"
-                    : "bg-[var(--ez-ground)]",
+                    ? "bg-[var(--ez-rule)] text-[var(--ez-muted-2)] active:bg-[var(--ez-tint-2)]"
+                    : key === "plus1"
+                      ? "bg-[var(--ez-tint)] text-[var(--ez-accent-700)] active:bg-[var(--ez-tint-2)]"
+                      : "bg-[var(--ez-ground)] active:bg-[var(--ez-tint-2)]",
               )}
             >
               {label}

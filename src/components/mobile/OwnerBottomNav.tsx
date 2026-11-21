@@ -12,8 +12,10 @@ import {
   MOBILE_POS_PATH,
   MOBILE_REPORTS_PATH,
   MOBILE_SALES_PATH,
+  isMobileEntryScreenPath,
   mobilePosPathWithScan,
 } from "@/lib/mobileShell";
+import { usePhoneShell } from "@/hooks/useFieldSalesShell";
 
 interface NavTab {
   icon: React.ElementType;
@@ -80,6 +82,9 @@ const sideTabs: NavTab[] = [
 export const OwnerBottomNav = () => {
   const theme = useMobileUiTheme();
   const location = useLocation();
+  // The bottom bar is on screen exactly when the phone app shell is: phone text size (the web
+  // root is 18-19px, sized for desktop) and status-bar spacing in the Android app.
+  usePhoneShell(true, "owner-mobile-app");
   const { orgNavigate, getOrgPath } = useOrgNavigation();
   const { openScan, hasBillingScanHandler } = useMobileScan();
   const { hasMenuAccess, permissions } = useUserPermissions();
@@ -93,6 +98,8 @@ export const OwnerBottomNav = () => {
     const current = location.pathname;
     if (current === getOrgPath("/")) return tab.matchPaths.includes("/");
     return tab.matchPaths.some((p) => {
+      // "/" is only the org root (handled above); as a prefix it would match every screen.
+      if (p === "/") return false;
       const full = getOrgPath(p);
       return current === full || current.startsWith(full + "/");
     });
@@ -115,8 +122,8 @@ export const OwnerBottomNav = () => {
   const rightTabs = visibleTabs.slice(mid);
 
   if (theme === "premium") {
-    const cell =
-      "flex flex-col items-start justify-end gap-1.5 px-2.5 pt-2 pb-3 min-h-[56px] touch-manipulation transition-colors";
+    // Bill entry screens are full-screen: their own back arrow on top, Pay / Save at the bottom.
+    if (isMobileEntryScreenPath(location.pathname)) return null;
 
     const renderTab = (tab: NavTab) => {
       const Icon = tab.premiumIcon;
@@ -126,20 +133,24 @@ export const OwnerBottomNav = () => {
           key={tab.path}
           type="button"
           onClick={() => orgNavigate(tab.path)}
+          aria-current={active ? "page" : undefined}
           className={cn(
-            cell,
-            "border-t-[3px] bg-[var(--ez-shell)] active:bg-[#1c1f25]",
-            active ? "border-[var(--ez-accent)]" : "border-transparent",
+            "ez-press flex min-w-0 flex-col items-center justify-center gap-0.5",
+            active ? "text-[var(--ez-accent)]" : "text-[var(--ez-muted)]",
           )}
         >
-          <Icon
-            className={cn("h-[17px] w-[17px]", active ? "text-white" : "text-[var(--ez-shell-muted)]")}
-            strokeWidth={2}
-          />
           <span
             className={cn(
-              "ez-btn-label text-[9.5px] tracking-[0.08em]",
-              active ? "text-white" : "text-[var(--ez-shell-muted)]",
+              "flex h-7 w-12 items-center justify-center rounded-full transition-colors duration-200",
+              active && "bg-[var(--ez-tint-2)]",
+            )}
+          >
+            <Icon className="h-5 w-5 shrink-0" strokeWidth={active ? 2.4 : 2} />
+          </span>
+          <span
+            className={cn(
+              "w-full truncate text-center text-[11px] leading-tight tracking-tight",
+              active ? "font-semibold" : "font-medium",
             )}
           >
             {tab.premiumLabel}
@@ -149,21 +160,25 @@ export const OwnerBottomNav = () => {
     };
 
     return (
-      <nav className="ez ez-shell fixed bottom-0 left-0 right-0 z-[40] border-t-2 border-[var(--ez-ink)] lg:hidden safe-area-pb">
-        <div className="grid grid-cols-5 max-w-lg mx-auto">
+      <nav
+        className="ez fixed bottom-0 left-0 right-0 z-[40] border-t border-[var(--ez-rule)] !bg-white shadow-[0_-6px_20px_-12px_rgba(15,23,42,0.25)] lg:hidden safe-area-pb"
+        aria-label="Main"
+      >
+        <div className="mx-auto grid h-[4.25rem] max-w-lg grid-cols-5">
           {leftTabs.map(renderTab)}
 
           <button
             type="button"
             onClick={onScanTap}
             aria-label="Scan barcode for POS or stock"
-            className={cn(
-              cell,
-              "border-t-[3px] border-[var(--ez-accent)] bg-[var(--ez-accent)] active:bg-[var(--ez-accent-600)]",
-            )}
+            className="flex min-w-0 flex-col items-center justify-end pb-1.5"
           >
-            <ScanBarcode className="h-[17px] w-[17px] text-white" strokeWidth={2} />
-            <span className="ez-btn-label text-[9.5px] tracking-[0.08em] text-white">Scan</span>
+            <span className="ez-press -mt-6 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-lg shadow-blue-600/40 ring-4 ring-[var(--ez-ground)]">
+              <ScanBarcode className="h-7 w-7" strokeWidth={2.2} />
+            </span>
+            <span className="mt-0.5 w-full truncate text-center text-[11px] font-semibold leading-tight text-[var(--ez-accent)]">
+              Scan
+            </span>
           </button>
 
           {rightTabs.map(renderTab)}

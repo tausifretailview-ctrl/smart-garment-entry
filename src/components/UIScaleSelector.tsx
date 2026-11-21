@@ -1,3 +1,4 @@
+import { PHONE_SHELL_CLASS } from "@/hooks/useFieldSalesShell";
 import { Monitor, Check } from "lucide-react";
 import { useState, useEffect } from "react";
 import { isElectronShell } from "@/lib/electronShell";
@@ -60,7 +61,11 @@ function defaultScaleKey(): ScaleKey {
 
 function applyScale(key: ScaleKey) {
   const opt = getScaleOptions().find((o) => o.key === key)!;
-  document.documentElement.style.fontSize = opt.size;
+  // A phone shell (owner mobile app, Field Sales) runs at its own text size: the desktop sizes
+  // (18-19px on web) made every phone screen oversized. Leave the root alone while one is open.
+  if (!document.documentElement.classList.contains(PHONE_SHELL_CLASS)) {
+    document.documentElement.style.fontSize = opt.size;
+  }
   if (key === "compact") {
     document.documentElement.classList.add("scale-compact");
   } else {

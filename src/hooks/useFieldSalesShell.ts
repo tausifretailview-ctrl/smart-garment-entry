@@ -12,6 +12,8 @@ import { Capacitor } from "@capacitor/core";
  *   reports none.
  */
 export const FIELD_SALES_ROOT_FONT_PX = 16;
+/** On <html> while a phone shell runs at the phone text size; the desktop UI scale leaves it alone. */
+export const PHONE_SHELL_CLASS = "phone-shell";
 
 /** Top padding for a Field Sales header so it clears the status bar. */
 export const FIELD_SALES_SAFE_TOP = "max(env(safe-area-inset-top, 0px), var(--fs-safe-top-fallback, 0px))";
@@ -28,13 +30,17 @@ export function fieldSalesSafeTopFallbackPx(isNativeAndroid: boolean, userAgent:
 
 /**
  * Phone shell for a screen: clears the status bar in the Android app and, when `phoneText` is
- * on, runs the screen at the phone text size. Used by the Field Sales app and the login pages.
+ * on, runs the screen at the phone text size. Used by the Field Sales app, the login pages and
+ * the owner mobile app (OwnerBottomNav).
  */
 export function usePhoneShell(phoneText: boolean, rootClass?: string): void {
   useLayoutEffect(() => {
     const html = document.documentElement;
     const prevFont = html.style.fontSize;
-    if (phoneText) html.style.fontSize = `${FIELD_SALES_ROOT_FONT_PX}px`;
+    if (phoneText) {
+      html.style.fontSize = `${FIELD_SALES_ROOT_FONT_PX}px`;
+      html.classList.add(PHONE_SHELL_CLASS);
+    }
     if (rootClass) html.classList.add(rootClass);
     let nativeAndroid = false;
     try {
@@ -44,7 +50,10 @@ export function usePhoneShell(phoneText: boolean, rootClass?: string): void {
     }
     html.style.setProperty("--fs-safe-top-fallback", `${fieldSalesSafeTopFallbackPx(nativeAndroid, navigator.userAgent)}px`);
     return () => {
-      if (phoneText) html.style.fontSize = prevFont;
+      if (phoneText) {
+        html.style.fontSize = prevFont;
+        html.classList.remove(PHONE_SHELL_CLASS);
+      }
       if (rootClass) html.classList.remove(rootClass);
       html.style.removeProperty("--fs-safe-top-fallback");
     };
