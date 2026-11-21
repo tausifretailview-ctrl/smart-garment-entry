@@ -3,18 +3,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  ArrowLeft,
   Search,
   Phone,
   MessageCircle,
   IndianRupee,
-  Users,
   RefreshCw,
   Link2,
 } from "lucide-react";
@@ -159,127 +153,97 @@ const SalesmanOutstanding = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-full">
-      {/* Header */}
-      <div className="p-4 bg-background border-b">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/salesman")}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <h1 className="font-semibold text-lg">Outstanding Report</h1>
+    <div className="flex min-h-full flex-col" data-testid="fs-outstanding">
+      <div className="sticky top-0 z-10 space-y-2.5 bg-slate-50 px-3 pb-2 pt-3">
+        {/* Summary */}
+        <div className="flex items-center gap-3 rounded-2xl bg-slate-900 px-4 py-3 text-white shadow-sm">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+              Total outstanding · {customers.length} customer{customers.length !== 1 ? "s" : ""}
+            </p>
+            <p className="truncate text-2xl font-bold leading-tight tabular-nums text-rose-300">
+              ₹{totalOutstanding.toLocaleString("en-IN")}
+            </p>
           </div>
-          <Button variant="outline" size="icon" onClick={handleRefresh}>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 active:bg-white/20"
+            aria-label="Refresh"
+          >
             <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
-          </Button>
+          </button>
         </div>
 
-        {/* Summary */}
-        <Card className="border-0 bg-red-500/10">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-red-500/20">
-                  <IndianRupee className="h-6 w-6 text-red-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Outstanding</p>
-                  <p className="text-2xl font-bold text-red-600">
-                    ₹{totalOutstanding.toLocaleString("en-IN")}
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="flex items-center gap-1 text-muted-foreground">
-                  <Users className="h-4 w-4" />
-                  <span className="font-semibold text-foreground">{customers.length}</span>
-                </div>
-                <p className="text-xs text-muted-foreground">Customers</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search */}
-      <div className="p-4 bg-background">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by name or phone..."
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+          <input
+            placeholder="Search name or phone"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 h-12"
+            className="h-11 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-3 text-base text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-200"
           />
         </div>
       </div>
 
-      {/* Customer List */}
-      <div className="flex-1 overflow-auto p-4 space-y-3">
+      <div className="flex-1 space-y-2.5 px-3 pb-6 pt-1">
         {filteredCustomers.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <IndianRupee className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No outstanding found</p>
+          <div className="px-6 py-12 text-center">
+            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+              <IndianRupee className="h-8 w-8" />
+            </span>
+            <p className="mt-3 text-[15px] font-semibold text-slate-800">No outstanding found</p>
           </div>
         ) : (
           filteredCustomers.map((customer) => (
-            <Card key={customer.id} className="border-0 shadow-sm">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div
-                    className="flex-1 cursor-pointer"
-                    onClick={() => navigate(`/salesman/customer/${customer.id}`)}
-                  >
-                    <p className="font-semibold">{customer.customer_name}</p>
-                    {customer.phone && (
-                      <p className="text-sm text-muted-foreground">{customer.phone}</p>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-red-600">
-                      ₹{customer.balance.toLocaleString("en-IN")}
-                    </p>
-                    <Badge variant="outline" className="text-xs">
-                      {customer.invoiceCount} invoice{customer.invoiceCount !== 1 ? "s" : ""}
-                    </Badge>
-                  </div>
-                </div>
+            <div key={customer.id} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm" data-testid="fs-due">
+              <button
+                type="button"
+                className="flex w-full items-start gap-3 text-left"
+                onClick={() => navigate(`/salesman/customer/${customer.id}`)}
+              >
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rose-100 text-base font-bold uppercase text-rose-700">
+                  {customer.customer_name.trim().charAt(0) || "?"}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[15px] font-semibold leading-tight text-slate-900">{customer.customer_name}</span>
+                  <span className="mt-0.5 block truncate text-xs leading-tight text-slate-500">
+                    {customer.phone || "No phone"} · {customer.invoiceCount} bill{customer.invoiceCount !== 1 ? "s" : ""}
+                  </span>
+                </span>
+                <span className="shrink-0 text-right text-[15px] font-bold leading-tight tabular-nums text-red-600">
+                  ₹{customer.balance.toLocaleString("en-IN")}
+                </span>
+              </button>
 
-                <div className="flex gap-2">
-                  {customer.phone && (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => window.open(`tel:${customer.phone}`)}
-                      >
-                        <Phone className="h-4 w-4 mr-1" />
-                        Call
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => sendReminder(customer)}
-                      >
-                        <MessageCircle className="h-4 w-4 mr-1" />
-                        Remind
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => openPaymentLink(customer)}
-                      >
-                        <Link2 className="h-4 w-4 mr-1" />
-                        Pay Link
-                      </Button>
-                    </>
-                  )}
+              {customer.phone && (
+                <div className="mt-2.5 flex gap-2">
+                  <a
+                    href={`tel:${customer.phone}`}
+                    className="flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 active:bg-slate-100"
+                  >
+                    <Phone className="h-4 w-4 shrink-0" />
+                    <span className="truncate">Call</span>
+                  </a>
+                  <button
+                    type="button"
+                    className="flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 text-sm font-semibold text-emerald-700 active:bg-emerald-100"
+                    onClick={() => sendReminder(customer)}
+                  >
+                    <MessageCircle className="h-4 w-4 shrink-0" />
+                    <span className="truncate">Remind</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl bg-orange-500 text-sm font-bold text-white shadow-sm active:bg-orange-600"
+                    onClick={() => openPaymentLink(customer)}
+                  >
+                    <Link2 className="h-4 w-4 shrink-0" />
+                    <span className="truncate">Pay link</span>
+                  </button>
                 </div>
-              </CardContent>
-            </Card>
+              )}
+            </div>
           ))
         )}
       </div>

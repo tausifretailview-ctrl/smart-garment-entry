@@ -4,13 +4,9 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { MetricCardSkeleton, ListSkeleton } from "@/components/ui/skeletons";
 import { 
   ShoppingCart, 
   Users, 
-  IndianRupee, 
   Clock, 
   Plus, 
   ListOrdered,
@@ -93,122 +89,155 @@ const SalesmanDashboard = () => {
     }
   };
 
-  const statCards = [
-    { label: "Today's Orders", value: stats.todayOrders, icon: ShoppingCart, gradient: "from-orange-500 to-amber-500" },
-    { label: "Pending", value: stats.pendingOrders, icon: Clock, gradient: "from-yellow-500 to-orange-400" },
-    { label: "Customers", value: stats.customersVisited, icon: Users, gradient: "from-amber-500 to-yellow-500" },
-    { label: "Total Value", value: `₹${stats.todayValue.toLocaleString("en-IN")}`, icon: IndianRupee, gradient: "from-orange-600 to-amber-500" },
-  ];
-
   const quickActions = [
-    { label: "New Sales Order", icon: Plus, path: "/salesman/order/new", primary: true },
-    { label: "Customer List", icon: Users, path: "/salesman/customers", primary: false },
-    { label: "My Orders Today", icon: ListOrdered, path: "/salesman/orders", primary: false },
-    { label: "Outstanding Report", icon: Wallet, path: "/salesman/outstanding", primary: false },
+    { label: "Customers", hint: "Call, ledger, order", icon: Users, path: "/salesman/customers", tint: "bg-sky-100 text-sky-700" },
+    { label: "My Orders", hint: "Today and pending", icon: ListOrdered, path: "/salesman/orders", tint: "bg-violet-100 text-violet-700" },
+    { label: "Outstanding", hint: "Who has to pay", icon: Wallet, path: "/salesman/outstanding", tint: "bg-rose-100 text-rose-700" },
   ];
+  const rupees = (n: number) => `₹${(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
   if (loading) {
     return (
-      <div className="p-4 space-y-4 animate-in fade-in-0 duration-300">
-        <div className="space-y-1">
-          <div className="h-6 w-32 bg-muted animate-pulse rounded" />
-          <div className="h-4 w-48 bg-muted animate-pulse rounded" />
+      <div className="space-y-3 p-3 animate-in fade-in-0 duration-300">
+        <div className="h-12 w-48 animate-pulse rounded-xl bg-slate-200" />
+        <div className="h-36 animate-pulse rounded-3xl bg-slate-200" />
+        <div className="h-14 animate-pulse rounded-2xl bg-slate-200" />
+        <div className="grid grid-cols-3 gap-2">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-24 animate-pulse rounded-2xl bg-slate-200" />
+          ))}
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          {[1, 2, 3, 4].map(i => <MetricCardSkeleton key={i} />)}
-        </div>
-        <ListSkeleton items={4} showIcon={true} />
       </div>
     );
   }
 
   return (
-    <div className="p-3 space-y-3">
-      {/* Welcome */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-bold text-foreground">Hello, {employeeName?.split(' ')[0] || 'Salesman'}! 👋</h1>
-          <p className="text-xs text-muted-foreground">{format(new Date(), "EEEE, dd MMM yyyy")}</p>
+    <div className="space-y-4 p-3 pb-6" data-testid="fs-home">
+      {/* Greeting */}
+      <div className="flex items-center justify-between gap-2 px-1">
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-bold leading-tight text-slate-900">
+            Hello, {employeeName?.split(" ")[0] || "Salesman"} 👋
+          </h1>
+          <p className="text-xs text-slate-500">{format(new Date(), "EEEE, dd MMM yyyy")}</p>
         </div>
-        <Button variant="ghost" size="icon" onClick={fetchDashboardData} className="text-muted-foreground">
+        <button
+          type="button"
+          onClick={() => void fetchDashboardData()}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-slate-600 shadow-sm ring-1 ring-slate-200 active:bg-slate-100"
+          aria-label="Refresh"
+        >
           <RefreshCw className="h-4 w-4" />
-        </Button>
+        </button>
       </div>
 
-      {/* Stats Grid - Orange gradient cards */}
-      <div className="grid grid-cols-2 gap-2">
-        {statCards.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <Card key={stat.label} className={`bg-gradient-to-br ${stat.gradient} text-white border-0 shadow-lg`}>
-              <CardContent className="p-3">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-full bg-white/20">
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-lg font-bold">{stat.value}</p>
-                    <p className="text-[10px] text-white/80">{stat.label}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      {/* Today at a glance */}
+      <section className="overflow-hidden rounded-3xl bg-slate-900 p-4 text-white shadow-lg" data-testid="fs-today-card">
+        <p className="text-xs font-medium uppercase tracking-wider text-slate-400">Today's order value</p>
+        <p className="mt-1 break-all text-[32px] font-bold leading-none tracking-tight tabular-nums" data-testid="fs-today-value">
+          {rupees(stats.todayValue)}
+        </p>
+        <div className="mt-4 grid grid-cols-3 divide-x divide-white/10 rounded-2xl bg-white/5">
+          {[
+            { label: "Orders", value: stats.todayOrders, icon: ShoppingCart },
+            { label: "Pending", value: stats.pendingOrders, icon: Clock },
+            { label: "Customers", value: stats.customersVisited, icon: Users },
+          ].map((stat) => {
+            const Icon = stat.icon;
+            return (
+              <div key={stat.label} className="min-w-0 px-2.5 py-2.5">
+                <p className="flex items-center gap-1 text-[11px] font-medium text-slate-400">
+                  <Icon className="h-3 w-3 shrink-0 text-orange-400" />
+                  <span className="truncate">{stat.label}</span>
+                </p>
+                <p className="mt-0.5 text-xl font-bold leading-tight tabular-nums">{stat.value}</p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
-      {/* Quick Actions */}
-      <div className="space-y-2">
-        <h2 className="font-semibold text-sm text-foreground">Quick Actions</h2>
+      {/* Main action */}
+      <button
+        type="button"
+        onClick={() => navigate("/salesman/order/new")}
+        className="flex h-14 w-full items-center gap-3 rounded-2xl bg-gradient-to-r from-orange-500 to-orange-600 px-4 text-left text-white shadow-md shadow-orange-500/30 active:scale-[0.99]"
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/20">
+          <Plus className="h-5 w-5" strokeWidth={2.5} />
+        </span>
+        <span className="min-w-0 flex-1 text-base font-bold">New Sales Order</span>
+        <ChevronRight className="h-5 w-5 shrink-0 text-white/80" />
+      </button>
+
+      <div className="grid grid-cols-3 gap-2">
         {quickActions.map((action) => {
           const Icon = action.icon;
           return (
-            <Button
+            <button
               key={action.label}
-              variant={action.primary ? "default" : "outline"}
-              className={`w-full h-10 justify-start text-left text-sm ${
-                action.primary 
-                  ? "bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white border-0" 
-                  : "border-orange-500/30 hover:bg-orange-500/10 hover:text-orange-500"
-              }`}
+              type="button"
               onClick={() => navigate(action.path)}
+              className="flex min-w-0 flex-col items-start gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm active:bg-slate-50"
             >
-              <Icon className="h-4 w-4 mr-2" />
-              <span className="flex-1">{action.label}</span>
-              <ChevronRight className={`h-4 w-4 ${action.primary ? "text-white/70" : "text-muted-foreground"}`} />
-            </Button>
+              <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${action.tint}`}>
+                <Icon className="h-5 w-5" />
+              </span>
+              <span className="w-full min-w-0">
+                <span className="block truncate text-[13px] font-semibold leading-tight text-slate-900">{action.label}</span>
+                <span className="mt-0.5 block text-[11px] leading-tight text-slate-500">{action.hint}</span>
+              </span>
+            </button>
           );
         })}
       </div>
 
-      {/* Recent Orders */}
-      {recentOrders.length > 0 && (
-        <div className="space-y-2">
-          <h2 className="font-semibold text-sm text-foreground">Recent Orders</h2>
-          {recentOrders.map((order) => (
-            <Card
-              key={order.id}
-              className="border border-orange-500/20 shadow-sm cursor-pointer hover:bg-orange-500/5 transition-colors"
-              onClick={() => navigate(`/salesman/order/${order.id}`)}
-            >
-              <CardContent className="p-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-xs text-orange-500">{order.order_number}</p>
-                    <p className="text-xs text-muted-foreground">{order.customer_name}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-sm">₹{order.net_amount.toLocaleString("en-IN")}</p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {format(new Date(order.created_at), "hh:mm a")}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+      {/* Recent orders */}
+      <section>
+        <div className="mb-2 flex items-center justify-between px-1">
+          <h2 className="text-sm font-bold text-slate-900">Today's orders</h2>
+          {recentOrders.length > 0 && (
+            <button type="button" onClick={() => navigate("/salesman/orders")} className="text-xs font-semibold text-orange-600">
+              See all
+            </button>
+          )}
         </div>
-      )}
+        {recentOrders.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center">
+            <p className="text-sm font-semibold text-slate-700">No orders yet today</p>
+            <p className="mt-1 text-xs text-slate-500">Tap New Sales Order to book the first one.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            {recentOrders.map((order) => (
+              <button
+                key={order.id}
+                type="button"
+                className="flex w-full items-center gap-3 px-3 py-3 text-left active:bg-orange-50"
+                onClick={() => navigate(`/salesman/order/${order.id}`)}
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[15px] font-semibold leading-tight text-slate-900">{order.customer_name}</span>
+                  <span className="mt-0.5 block truncate text-xs leading-tight text-slate-500">
+                    {order.order_number} · {format(new Date(order.created_at), "hh:mm a")}
+                  </span>
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="block text-[15px] font-bold leading-tight tabular-nums text-slate-900">{rupees(order.net_amount)}</span>
+                  <span
+                    className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                      order.status === "pending" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
+                    }`}
+                  >
+                    {order.status}
+                  </span>
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" />
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 };

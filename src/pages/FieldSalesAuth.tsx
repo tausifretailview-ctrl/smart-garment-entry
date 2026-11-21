@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { FIELD_SALES_SAFE_TOP, useFieldSalesShell } from "@/hooks/useFieldSalesShell";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -36,6 +37,7 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 60000;
 
 export default function FieldSalesAuth() {
+  useFieldSalesShell();
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -278,7 +280,10 @@ export default function FieldSalesAuth() {
   const logoUrl = orgSettings?.bill_barcode_settings?.logo_url;
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 via-white to-orange-100">
+    <div
+      className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 via-white to-orange-100"
+      style={{ paddingTop: FIELD_SALES_SAFE_TOP }}
+    >
       {/* Header with Field Sales branding */}
       <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white py-4 px-6 shadow-lg">
         <div className="max-w-md mx-auto flex items-center gap-3">

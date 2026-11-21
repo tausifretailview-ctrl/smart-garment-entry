@@ -3,12 +3,6 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,10 +14,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { 
-  ArrowLeft, 
   Eye, 
   Share2, 
-  Calendar,
   ShoppingCart,
   RefreshCw,
   Plus,
@@ -110,15 +102,15 @@ const SalesmanOrders = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending":
-        return "bg-yellow-500/10 text-yellow-600";
+        return "bg-amber-100 text-amber-700";
       case "confirmed":
-        return "bg-blue-500/10 text-blue-600";
+        return "bg-sky-100 text-sky-700";
       case "fulfilled":
-        return "bg-green-500/10 text-green-600";
+        return "bg-emerald-100 text-emerald-700";
       case "cancelled":
-        return "bg-red-500/10 text-red-600";
+        return "bg-red-100 text-red-700";
       default:
-        return "bg-muted text-muted-foreground";
+        return "bg-slate-100 text-slate-600";
     }
   };
 
@@ -180,169 +172,181 @@ const SalesmanOrders = () => {
 
   if (loading) {
     return (
-      <div className="p-4 space-y-4">
-        <div className="flex items-center gap-3">
-          <Skeleton className="h-10 w-10" />
-          <Skeleton className="h-8 w-48" />
-        </div>
-        {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-28" />)}
+      <div className="space-y-3 p-3">
+        <div className="h-20 animate-pulse rounded-2xl bg-slate-200" />
+        <div className="h-12 animate-pulse rounded-2xl bg-slate-200" />
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-28 animate-pulse rounded-2xl bg-slate-200" />
+        ))}
       </div>
     );
   }
 
+  const todayCount = orders.filter((o) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return new Date(o.order_date) >= today;
+  }).length;
+  const displayOrders = orders.filter(
+    (o) =>
+      !searchQuery ||
+      o.order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      o.customer_name.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+  const tabs: Array<{ id: string; label: string }> = [
+    { id: "today", label: "Today" },
+    { id: "pending", label: "Pending" },
+    { id: "all", label: "All" },
+  ];
+
   return (
-    <div className="flex flex-col min-h-full">
-      {/* Header */}
-      <div className="p-4 bg-background border-b">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/salesman")}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="font-semibold text-lg">My Orders</h1>
-              <p className="text-sm text-muted-foreground">
-                {format(new Date(), "dd MMM yyyy")}
-              </p>
-            </div>
+    <div className="flex min-h-full flex-col" data-testid="fs-orders">
+      <div className="sticky top-0 z-10 space-y-2.5 bg-slate-50 px-3 pb-2 pt-3">
+        {/* Today's summary */}
+        <div className="flex items-center gap-3 rounded-2xl bg-slate-900 px-4 py-3 text-white shadow-sm">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+              Today · {todayCount} order{todayCount !== 1 ? "s" : ""}
+            </p>
+            <p className="truncate text-2xl font-bold leading-tight tabular-nums">₹{todayTotal.toLocaleString("en-IN")}</p>
           </div>
-          <Button variant="outline" size="icon" onClick={handleRefresh}>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 active:bg-white/20"
+            aria-label="Refresh"
+          >
             <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
-          </Button>
+          </button>
         </div>
 
-        {/* Today's Summary */}
-        <Card className="border-0 bg-primary/5">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Today's Orders</p>
-              <p className="text-2xl font-bold">{orders.filter(o => {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                return new Date(o.order_date) >= today;
-              }).length}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-muted-foreground">Total Value</p>
-              <p className="text-2xl font-bold text-primary">₹{todayTotal.toLocaleString("en-IN")}</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search + Tabs */}
-      <div className="flex-1 p-4">
-        {/* Search bar */}
-        <div className="relative mb-3">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search by order # or customer..." value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)} className="pl-10 h-10" />
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+          <input
+            placeholder="Search order no. or customer"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-11 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-3 text-base text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-200"
+          />
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full">
-            <TabsTrigger value="today" className="flex-1">Today</TabsTrigger>
-            <TabsTrigger value="pending" className="flex-1">Pending</TabsTrigger>
-            <TabsTrigger value="all" className="flex-1">All</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value={activeTab} className="mt-4 space-y-3">
-            {(() => {
-              const displayOrders = orders.filter(o =>
-                !searchQuery ||
-                o.order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                o.customer_name.toLowerCase().includes(searchQuery.toLowerCase())
-              );
-              return displayOrders.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <ShoppingCart className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No orders found</p>
-                  <Button className="mt-4" onClick={() => navigate("/salesman/order/new")}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create New Order
-                  </Button>
-                </div>
-              ) : (
-                displayOrders.map((order) => (
-                  <Card key={order.id} className={cn(
-                    "border-0 shadow-sm overflow-hidden",
-                    order.customer_accepted && "border-l-4 border-l-green-500"
-                  )}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <p className="font-semibold">{order.order_number}</p>
-                          <p className="text-sm text-muted-foreground">{order.customer_name}</p>
-                        </div>
-                        <Badge className={getStatusColor(order.status)}>
-                          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                        </Badge>
-                      </div>
-
-                      <div className="flex items-center justify-between text-sm text-muted-foreground mb-3">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {format(new Date(order.order_date), "dd MMM yyyy, hh:mm a")}
-                        </span>
-                        <span className="font-semibold text-foreground">
-                          ₹{order.net_amount.toLocaleString("en-IN")}
-                        </span>
-                      </div>
-
-                      <div className="space-y-2">
-                        {/* Full-width View button */}
-                        <Button variant="outline" className="w-full h-10"
-                          onClick={() => navigate(`/salesman/order/${order.id}`)}>
-                          <Eye className="h-4 w-4 mr-2" /> View Order Details
-                        </Button>
-                        {/* Accept + Share in one row */}
-                        <div className="flex gap-2">
-                          {order.customer_accepted ? (
-                            <Button variant="secondary" className="flex-1 h-10 bg-gray-400 text-white cursor-not-allowed" disabled>
-                              <Check className="h-4 w-4 mr-1" /> Accepted
-                            </Button>
-                          ) : (
-                            <Button className="flex-1 h-10 bg-blue-700 hover:bg-blue-800 text-white"
-                              onClick={() => setOrderToAccept(order)}>
-                              Accept Order
-                            </Button>
-                          )}
-                          <Button variant="outline" className="flex-1 h-10"
-                            onClick={() => shareOrder(order)} disabled={!order.customer_phone}>
-                            <Share2 className="h-4 w-4 mr-1" /> Share
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-              );
-            })()}
-          </TabsContent>
-        </Tabs>
+        <div className="grid grid-cols-3 gap-1 rounded-2xl bg-slate-200/70 p-1" role="tablist">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "h-9 rounded-xl text-sm font-semibold",
+                activeTab === tab.id ? "bg-white text-orange-600 shadow-sm" : "text-slate-600",
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* FAB for new order */}
-      <Button
-        className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg z-40"
-        onClick={() => navigate("/salesman/order/new")}
-      >
-        <Plus className="h-6 w-6" />
-      </Button>
+      <div className="flex-1 space-y-2.5 px-3 pb-6 pt-1">
+        {displayOrders.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 text-orange-500">
+              <ShoppingCart className="h-8 w-8" />
+            </span>
+            <p className="mt-3 text-[15px] font-semibold text-slate-800">No orders found</p>
+            <button
+              type="button"
+              onClick={() => navigate("/salesman/order/new")}
+              className="mt-4 inline-flex h-11 items-center gap-2 rounded-full bg-orange-500 px-5 text-sm font-bold text-white shadow-sm active:bg-orange-600"
+            >
+              <Plus className="h-4 w-4" />
+              New order
+            </button>
+          </div>
+        ) : (
+          displayOrders.map((order) => (
+            <div
+              key={order.id}
+              className={cn(
+                "overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm",
+                order.customer_accepted && "border-l-4 border-l-emerald-500",
+              )}
+              data-testid="fs-order"
+            >
+              <button
+                type="button"
+                className="flex w-full items-start gap-3 px-3 pb-2 pt-3 text-left active:bg-slate-50"
+                onClick={() => navigate(`/salesman/order/${order.id}`)}
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[15px] font-semibold leading-tight text-slate-900">{order.customer_name}</span>
+                  <span className="mt-0.5 block truncate text-xs leading-tight text-slate-500">
+                    {order.order_number} · {format(new Date(order.order_date), "dd MMM, hh:mm a")}
+                  </span>
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="block text-[15px] font-bold leading-tight tabular-nums text-slate-900">
+                    ₹{order.net_amount.toLocaleString("en-IN")}
+                  </span>
+                  <span className={cn("mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide", getStatusColor(order.status))}>
+                    {order.status}
+                  </span>
+                </span>
+              </button>
+
+              <div className="flex gap-2 border-t border-slate-100 px-3 py-2">
+                <button
+                  type="button"
+                  className="flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 active:bg-slate-100"
+                  onClick={() => navigate(`/salesman/order/${order.id}`)}
+                >
+                  <Eye className="h-4 w-4 shrink-0" />
+                  <span className="truncate">View</span>
+                </button>
+                <button
+                  type="button"
+                  className="flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 active:bg-slate-100 disabled:opacity-40"
+                  onClick={() => shareOrder(order)}
+                  disabled={!order.customer_phone}
+                >
+                  <Share2 className="h-4 w-4 shrink-0" />
+                  <span className="truncate">Share</span>
+                </button>
+                {order.customer_accepted ? (
+                  <span className="flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-50 text-sm font-semibold text-emerald-700">
+                    <Check className="h-4 w-4 shrink-0" />
+                    <span className="truncate">Accepted</span>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    className="flex h-10 min-w-0 flex-1 items-center justify-center rounded-xl bg-orange-500 text-sm font-bold text-white shadow-sm active:bg-orange-600"
+                    onClick={() => setOrderToAccept(order)}
+                  >
+                    <span className="truncate">Accept</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
 
       {/* Accept Order Dialog */}
       <AlertDialog open={!!orderToAccept} onOpenChange={() => setOrderToAccept(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-[320px] rounded-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Accept Sale Order?</AlertDialogTitle>
+            <AlertDialogTitle>Accept this order?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to accept this order ({orderToAccept?.order_number})?
+              {orderToAccept?.order_number} for {orderToAccept?.customer_name} will be marked as accepted by the customer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleAcceptOrder} disabled={isAccepting}>
-              {isAccepting ? <Loader2 className="h-4 w-4 animate-spin" /> : "OK"}
+            <AlertDialogAction className="bg-orange-500 hover:bg-orange-600" onClick={handleAcceptOrder} disabled={isAccepting}>
+              {isAccepting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Accept"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
