@@ -45,6 +45,7 @@ export const PAGE_TITLE_CONFIG: Record<string, { label: string; icon: string }> 
   "godown-transfer-entry": { label: "Godown Transfer", icon: "ArrowLeftRight" },
   "stock-report": { label: "Stock Report", icon: "BarChart3" },
   "stock-summary": { label: "Stock Summary", icon: "Package" },
+  "product-catalogue": { label: "Product Catalogue", icon: "BookOpen" },
   "stock-ageing": { label: "Stock Ageing", icon: "BarChart3" },
   "stock-analysis": { label: "Stock Analysis", icon: "BarChart3" },
   reports: { label: "Reports Hub", icon: "BarChart3" },

@@ -44,6 +44,7 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   "purchase-return-entry": "purchase_return",
   "stock-report": "stock_report",
   "stock-summary": "stock_report",
+  "product-catalogue": "stock_report",
   "item-wise-sales": "item_wise_sales",
   "item-wise-stock": "item_wise_stock",
   "stock-ageing": "stock_ageing",

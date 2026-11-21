@@ -16,6 +16,7 @@ export const PurchaseReturnEntry = lazyWithRetry(() => import("@/pages/PurchaseR
 export const BarcodePrinting = lazyWithRetry(() => import("@/pages/BarcodePrinting"));
 export const StockReport = lazyWithRetry(() => import("@/pages/StockReport"));
 export const StockSummary = lazyWithRetry(() => import("@/pages/StockSummary"));
+export const ProductCatalogue = lazyWithRetry(() => import("@/pages/ProductCatalogue"));
 export const Settings = lazyWithRetry(() => import("@/pages/Settings"));
 export const Manufacturing = lazyWithRetry(() => import("@/pages/Manufacturing"));
 export const Profile = lazyWithRetry(() => import("@/pages/Profile"));

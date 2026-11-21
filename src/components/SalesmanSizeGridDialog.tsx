@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ProductThumb } from "@/components/ProductThumb";
+import { isUsableImageUrl } from "@/lib/productImages";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +32,7 @@ interface Product {
   product_type?: string;
   default_sale_price?: number;
   size_group_id?: string | null;
+  image_url?: string | null;
 }
 
 interface CustomSizeEntry {
@@ -344,7 +347,12 @@ export function SalesmanSizeGridDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="mb-4">
+        <div className="mb-4 flex items-center gap-3">
+          {isUsableImageUrl(product.image_url) && (
+            <a href={product.image_url!} target="_blank" rel="noreferrer" title="Open photo">
+              <ProductThumb url={product.image_url} alt={product.product_name} size={72} />
+            </a>
+          )}
           <h3 className="font-semibold text-lg">{product.product_name}</h3>
         </div>
 

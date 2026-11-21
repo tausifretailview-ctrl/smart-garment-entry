@@ -472,6 +472,15 @@ export function HeaderMenubar({
                 Stock Summary
               </MenubarItem>
             )}
+            {can("stock_report") && (
+              <MenubarItem
+                {...tabPrefetchProps("product-catalogue")}
+                onClick={() => orgNavigate("/product-catalogue")}
+              >
+                <Package className="h-3.5 w-3.5 mr-2 opacity-60" />
+                Product Catalogue
+              </MenubarItem>
+            )}
             {can("sales_invoice_dashboard") && (
               <MenubarItem
                 {...tabPrefetchProps("sales-invoice-dashboard")}
