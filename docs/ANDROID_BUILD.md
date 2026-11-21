@@ -68,10 +68,10 @@ npm run build:apk:debug
 **Output file:**
 
 ```
-android/app/build/outputs/apk/debug/app-debug.apk
+android/app/build/outputs/apk/owner/debug/app-owner-debug.apk
 ```
 
-Copy `app-debug.apk` to phones. Users must allow **Install unknown apps** for the file manager or browser used to open the APK.
+Copy `app-owner-debug.apk` to phones. Users must allow **Install unknown apps** for the file manager or browser used to open the APK.
 
 Release APK (unsigned, for testing only):
 
@@ -79,7 +79,24 @@ Release APK (unsigned, for testing only):
 npm run build:apk:release
 ```
 
-Output: `android/app/build/outputs/apk/release/app-release-unsigned.apk` (sign before distribution).
+Output: `android/app/build/outputs/apk/owner/release/app-owner-release-unsigned.apk` (sign before distribution).
+
+## Field Sales app (salesmen)
+
+A second app built from the same project (Gradle flavor `fieldsales`): app id `com.ezzyerp.app.fieldsales`, name **Field Sales**, orange icon and splash. It installs **next to** the EzzyERP owner app and opens the salesman app instead of the owner dashboard.
+
+```bash
+npm run build:apk:field-sales
+```
+
+Output: `android/app/build/outputs/apk/fieldsales/debug/app-fieldsales-debug.apk`
+
+- Any shop (default): the salesman picks the shop, signs in with the salesman login from Employee Master (Field Sales access on), and lands in the salesman app. Next launches open the salesman app directly.
+- One shop: `CAPACITOR_ORG_SLUG=ella-noor npm run build:apk:field-sales` (PowerShell: `$env:CAPACITOR_ORG_SLUG="ella-noor"; npm run build:apk:field-sales`) opens that shop's Field Sales login.
+
+`npm run build:android` writes the Field Sales start page to `android/app/src/fieldsales/assets/capacitor.config.json` (`scripts/android-field-sales-config.mjs`) after `cap sync`. Both apps load the live site, so web changes reach them without a new APK.
+
+Android Studio: pick the build variant (`ownerDebug` / `fieldsalesDebug`) in **Build → Select Build Variant**.
 
 ## Live reload during development (optional)
 

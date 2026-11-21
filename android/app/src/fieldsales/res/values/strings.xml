@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- Field Sales app: installs next to the EzzyERP owner app (applicationId com.ezzyerp.app.fieldsales). -->
+    <string name="app_name">Field Sales</string>
+    <string name="title_activity_main">Field Sales</string>
+</resources>

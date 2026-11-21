@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-const src = path.join(root, "android/app/build/outputs/apk/debug/app-debug.apk");
+const src = path.join(root, "android/app/build/outputs/apk/owner/debug/app-owner-debug.apk");
 const dest = path.join(root, "public/downloads/EzzyERP-1.1.0.apk");
 
 if (!fs.existsSync(src)) {

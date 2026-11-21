@@ -24,6 +24,20 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~:!*.apk:!*.aab:!*.exe:!*.blockmap:!*.zip'
         }
     }
+    // owner = EzzyERP (shop owner / staff). fieldsales = Field Sales app for salesmen: its own
+    // app id, name, icon and start page, so both install side by side on one phone. The Field
+    // Sales start URL lives in src/fieldsales/assets/capacitor.config.json, written after
+    // `cap sync` by scripts/android-field-sales-config.mjs (npm run build:android does both).
+    flavorDimensions "app"
+    productFlavors {
+        owner {
+            dimension "app"
+        }
+        fieldsales {
+            dimension "app"
+            applicationIdSuffix ".fieldsales"
+        }
+    }
     signingConfigs {
         release {
             if (keystorePropertiesFile.exists()) {
