@@ -27,6 +27,15 @@ export function isMissingMarkdownSchema(error: unknown): boolean {
   );
 }
 
+/**
+ * brand_markdowns and products.markdown_percent come from the brand-markdown SQL
+ * (20270510120000). The generated database types are rebuilt from the live database and drop
+ * them until that SQL has run there, so this module reads and writes them through an untyped
+ * handle: it type-checks either way, and isMissingMarkdownSchema covers the "not run yet" case.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped on purpose, see above
+const markdownDb = supabase as unknown as { from: (table: string) => any };
+
 export const brandMarkdownsQueryKey = (orgId: string | undefined) => ["brand-markdowns", orgId] as const;
 export const productMarkdownsQueryKey = (orgId: string | undefined) => ["product-markdowns", orgId] as const;
 
@@ -34,7 +43,7 @@ export async function fetchBrandMarkdowns(orgId: string): Promise<BrandMarkdown[
   try {
     const rows = await fetchAllRows<BrandMarkdown>(
       () =>
-        supabase
+        markdownDb
           .from("brand_markdowns")
           .select("id, brand, markdown_percent")
           .eq("organization_id", orgId)
@@ -54,7 +63,7 @@ export async function fetchProductMarkdownMap(orgId: string): Promise<Map<string
   try {
     const rows = await fetchAllRows<{ id: string; markdown_percent: number | null }>(
       () =>
-        supabase
+        markdownDb
           .from("products")
           .select("id, markdown_percent")
           .eq("organization_id", orgId)
@@ -117,17 +126,17 @@ export async function saveBrandMarkdown(
   const pct = clampMarkdownPercent(markdownPercent);
   const same = existing.find((r) => normalizeBrandKey(r.brand) === normalizeBrandKey(name));
   const { error } = same
-    ? await supabase
+    ? await markdownDb
         .from("brand_markdowns")
         .update({ markdown_percent: pct, brand: name })
         .eq("id", same.id)
         .eq("organization_id", orgId)
-    : await supabase.from("brand_markdowns").insert({ organization_id: orgId, brand: name, markdown_percent: pct });
+    : await markdownDb.from("brand_markdowns").insert({ organization_id: orgId, brand: name, markdown_percent: pct });
   if (error) throw isMissingMarkdownSchema(error) ? new Error(MIGRATION_HINT) : error;
 }
 
 export async function deleteBrandMarkdown(orgId: string, id: string): Promise<void> {
-  const { error } = await supabase.from("brand_markdowns").delete().eq("id", id).eq("organization_id", orgId);
+  const { error } = await markdownDb.from("brand_markdowns").delete().eq("id", id).eq("organization_id", orgId);
   if (error) throw isMissingMarkdownSchema(error) ? new Error(MIGRATION_HINT) : error;
 }
 
@@ -140,7 +149,7 @@ export async function saveProductMarkdown(
   productId: string,
   markdownPercent: number | null,
 ): Promise<{ ok: boolean; reason?: string }> {
-  const { error } = await supabase
+  const { error } = await markdownDb
     .from("products")
     .update({ markdown_percent: markdownPercent === null ? null : clampMarkdownPercent(markdownPercent) })
     .eq("id", productId)
