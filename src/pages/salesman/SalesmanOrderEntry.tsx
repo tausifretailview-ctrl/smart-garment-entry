@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -14,25 +14,19 @@ import {
   fetchCustomerFinancialSnapshotMap,
 } from "@/utils/customerFinancialSnapshot";
 import { toast } from "sonner";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { 
-  Search, 
-  Plus, 
-  Minus, 
-  Trash2, 
-  User, 
-  ShoppingCart,
+import {
+  Search,
+  Trash2,
+  User,
   Save,
   Share2,
   ArrowLeft,
   Package,
-  Grid3X3
+  Pencil,
+  ChevronRight,
+  X,
+  StickyNote,
+  Loader2,
 } from "lucide-react";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { cn, sortSearchResults } from "@/lib/utils";
@@ -40,10 +34,12 @@ import { ProductThumb } from "@/components/ProductThumb";
 import { isUsableImageUrl } from "@/lib/productImages";
 import { SalesmanSizeGridDialog } from "@/components/SalesmanSizeGridDialog";
 import { variantsForSalesmanSizeGrid, salesmanSizeBoxCount } from "@/utils/salesmanOrderSizeGrid";
-import type { MergedSizeGridVariant } from "@/utils/mergeSizeColorVariantsForGrid";
+import { sizeColorKey, type MergedSizeGridVariant } from "@/utils/mergeSizeColorVariantsForGrid";
+import { compareSizes } from "@/utils/sizeSort";
+import { FieldSheet } from "@/components/fieldSales/FieldSheet";
+import { FIELD_SALES_SAFE_BOTTOM, FIELD_SALES_SAFE_TOP } from "@/hooks/useFieldSalesShell";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { DraftResumeDialog } from "@/components/DraftResumeDialog";
-import { Textarea } from "@/components/ui/textarea";
 
 interface Customer {
   id: string;
@@ -103,6 +99,43 @@ function asOrderVariants(cells: MergedSizeGridVariant[]): Variant[] {
   }));
 }
 
+type OrderGroup = {
+  name: string;
+  imageUrl: string | null;
+  quantity: number;
+  amount: number;
+  items: OrderItem[];
+  colors: Array<{ color: string; items: OrderItem[] }>;
+};
+
+/** Order lines as one group per product name, sizes in garment order within each colour. */
+function groupOrderItems(items: OrderItem[]): OrderGroup[] {
+  const groups = new Map<string, OrderGroup>();
+  for (const item of items) {
+    const name = item.product.product_name;
+    let group = groups.get(name);
+    if (!group) {
+      group = { name, imageUrl: null, quantity: 0, amount: 0, items: [], colors: [] };
+      groups.set(name, group);
+    }
+    group.items.push(item);
+    group.quantity += item.quantity;
+    group.amount += item.line_total;
+    if (!group.imageUrl && isUsableImageUrl(item.product.image_url)) group.imageUrl = item.product.image_url!;
+    const color = item.variant.color || "";
+    let row = group.colors.find((c) => c.color === color);
+    if (!row) {
+      row = { color, items: [] };
+      group.colors.push(row);
+    }
+    row.items.push(item);
+  }
+  for (const group of groups.values()) {
+    for (const row of group.colors) row.items.sort((a, b) => compareSizes(a.variant.size, b.variant.size));
+  }
+  return [...groups.values()];
+}
+
 const SalesmanOrderEntry = () => {
   const [searchParams] = useSearchParams();
   const { navigate } = useOrgNavigation();
@@ -135,6 +168,10 @@ const SalesmanOrderEntry = () => {
   const [showSizeGrid, setShowSizeGrid] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedProductVariants, setSelectedProductVariants] = useState<Variant[]>([]);
+  /** "Edit sizes" on a product already on the order: its quantities (size+colour → qty). */
+  const [editingQty, setEditingQty] = useState<Record<string, number> | null>(null);
+  const [editingName, setEditingName] = useState<string | null>(null);
+  const [showNotes, setShowNotes] = useState(false);
 
   // Draft save hook for mobile resilience
   const {
@@ -510,6 +547,8 @@ const SalesmanOrderEntry = () => {
 
   const openSizeGrid = (product: Product, variants: Variant[]) => {
     const loadId = ++sizeGridLoadRef.current;
+    setEditingQty(null);
+    setEditingName(null);
     setSelectedProduct(product);
     setSelectedProductVariants(asOrderVariants(variantsForSalesmanSizeGrid(variants)));
     setShowSizeGrid(true);
@@ -519,7 +558,31 @@ const SalesmanOrderEntry = () => {
     void loadFullSizeGrid(product, loadId);
   };
 
-  const loadFullSizeGrid = async (product: Product, loadId: number) => {
+  /** Reopen the size sheet for a product on the order, with its quantities filled in. */
+  const editSizes = (group: OrderGroup) => {
+    const gridItems = group.items.filter((item) => !item.isCustomSize);
+    const first = (gridItems[0] ?? group.items[0]).product;
+    const qty: Record<string, number> = {};
+    for (const item of gridItems) {
+      const key = sizeColorKey(item.variant.size, item.variant.color || "");
+      qty[key] = (qty[key] || 0) + item.quantity;
+    }
+    const loadId = ++sizeGridLoadRef.current;
+    setEditingQty(qty);
+    setEditingName(group.name);
+    setSelectedProduct(first);
+    setSelectedProductVariants(gridItems.map((item) => item.variant));
+    setShowSizeGrid(true);
+    // Stock as it is on the shelf: this product's own lines are being replaced, not added to.
+    void loadFullSizeGrid(first, loadId, true);
+  };
+
+  const removeGroup = (group: OrderGroup) => {
+    const ids = new Set(group.items.map((item) => item.id));
+    setOrderItems((prev) => prev.filter((item) => !ids.has(item.id)));
+  };
+
+  const loadFullSizeGrid = async (product: Product, loadId: number, editing = false) => {
     const orgId = currentOrganization?.id;
     if (!orgId) return;
     try {
@@ -569,7 +632,7 @@ const SalesmanOrderEntry = () => {
 
       const cartQtyByVariant = new Map<string, number>();
       for (const item of orderItems) {
-        if (!item.variant?.id || item.isCustomSize) continue;
+        if (editing || !item.variant?.id || item.isCustomSize) continue;
         cartQtyByVariant.set(item.variant.id, (cartQtyByVariant.get(item.variant.id) || 0) + item.quantity);
       }
       const sizeGroupId =
@@ -594,7 +657,14 @@ const SalesmanOrderEntry = () => {
 
   const handleSizeGridConfirm = (items: Array<{ variant: Variant; qty: number }>) => {
     if (!selectedProduct) return;
-    
+
+    // Editing: the sheet's quantities replace this product's size lines (extra sizes typed in
+    // for the order are kept).
+    if (editingName) {
+      const name = editingName;
+      setOrderItems((prev) => prev.filter((item) => item.isCustomSize || item.product.product_name !== name));
+    }
+
     items.forEach(({ variant, qty }) => {
       // For custom sizes, variant already has isCustomSize flag
       const fullVariant: Variant = {
@@ -615,18 +685,8 @@ const SalesmanOrderEntry = () => {
     setShowSizeGrid(false);
     setSelectedProduct(null);
     setSelectedProductVariants([]);
-  };
-
-  const updateQuantity = (itemId: string, delta: number) => {
-    const updated = orderItems.map(item => {
-      if (item.id === itemId) {
-        // Orders can be booked beyond stock (out-of-stock sizes included)
-        const newQty = Math.max(1, item.quantity + delta);
-        return { ...item, quantity: newQty, line_total: newQty * item.unit_price };
-      }
-      return item;
-    });
-    setOrderItems(updated);
+    setEditingQty(null);
+    setEditingName(null);
   };
 
   const removeItem = (itemId: string) => {
@@ -777,51 +837,84 @@ const SalesmanOrderEntry = () => {
     }
   };
 
+  // One card per product: its sizes grouped by colour, like the order is spoken ("PUL206, black, 6 of size 4…").
+  const orderGroups = useMemo(() => groupOrderItems(orderItems), [orderItems]);
+  const totalPieces = orderItems.reduce((sum, item) => sum + item.quantity, 0);
+  const rupees = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+
   return (
-    <div className="flex flex-col min-h-full">
-      {/* Header */}
-      <div className="p-4 bg-background border-b">
-        <div className="flex items-center gap-3 mb-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/salesman")}>
+    <div className="flex min-h-full flex-col bg-slate-50" data-testid="fs-order-entry">
+      {/* App bar + customer */}
+      <div
+        className="sticky top-0 z-20 bg-gradient-to-r from-orange-600 to-orange-500 text-white shadow-sm"
+        style={{ paddingTop: FIELD_SALES_SAFE_TOP }}
+      >
+        <div className="flex h-14 items-center gap-1 px-1.5">
+          <button
+            type="button"
+            onClick={() => navigate("/salesman")}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full active:bg-white/20"
+            aria-label="Back"
+          >
             <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="font-semibold">New Sales Order</h1>
-            <p className="text-sm text-muted-foreground">{orderNumber}</p>
+          </button>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-[17px] font-semibold leading-tight">New Order</h1>
+            <p className="truncate text-xs leading-tight text-white/80">{orderNumber || "…"}</p>
           </div>
+          {totalPieces > 0 && (
+            <span className="mr-2 shrink-0 rounded-full bg-white/20 px-3 py-1 text-xs font-bold tabular-nums">
+              {totalPieces} pcs
+            </span>
+          )}
         </div>
 
-        {/* Customer Selection */}
-        <Card className="border shadow-sm" onClick={() => setShowCustomerSearch(true)}>
-          <CardContent className="p-3">
-            {selectedCustomer ? (
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{selectedCustomer.customer_name}</p>
-                  <p className="text-sm text-muted-foreground">{selectedCustomer.phone}</p>
-                </div>
-                <Badge className={cn(
-                  selectedCustomer.balance > 0 ? "bg-red-500/10 text-red-600" : "bg-green-500/10 text-green-600"
-                )}>
-                  O/S: ₹{selectedCustomer.balance.toLocaleString("en-IN")}
-                </Badge>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <User className="h-5 w-5" />
-                <span>Select Customer</span>
-              </div>
+        <div className="px-3 pb-3">
+          <button
+            type="button"
+            onClick={() => setShowCustomerSearch(true)}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-2xl bg-white px-3 py-2.5 text-left text-slate-900 shadow-sm active:bg-slate-50",
+              !selectedCustomer && "ring-2 ring-white/60",
             )}
-          </CardContent>
-        </Card>
+            data-testid="fs-customer-card"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600">
+              <User className="h-5 w-5" />
+            </span>
+            {selectedCustomer ? (
+              <>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[15px] font-semibold leading-tight">{selectedCustomer.customer_name}</span>
+                  <span className="block truncate text-xs leading-tight text-slate-500">
+                    {selectedCustomer.phone || "No phone"}
+                    {" · "}
+                    <span className={selectedCustomer.balance > 0 ? "font-semibold text-red-600" : "font-semibold text-emerald-600"}>
+                      Due {rupees(selectedCustomer.balance)}
+                    </span>
+                  </span>
+                </span>
+                <span className="shrink-0 text-xs font-semibold text-orange-600">Change</span>
+              </>
+            ) : (
+              <>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[15px] font-semibold leading-tight">Select customer</span>
+                  <span className="block text-xs leading-tight text-slate-500">Who is this order for?</span>
+                </span>
+                <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
-      {/* Product Search */}
-      <div className="p-4 bg-muted/50">
+      {/* Product search */}
+      <div className="px-3 pt-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search product or scan barcode..."
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+          <input
+            placeholder="Search product or barcode"
             value={productSearch}
             onChange={(e) => {
               const val = e.target.value;
@@ -831,249 +924,282 @@ const SalesmanOrderEntry = () => {
               searchTimerRef.current = setTimeout(() => searchProducts(val), 300);
             }}
             onFocus={() => setShowProductSearch(true)}
-            className="pl-10 h-12"
+            enterKeyHint="search"
+            autoCapitalize="characters"
+            className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-11 text-base font-medium text-slate-900 shadow-sm outline-none placeholder:font-normal placeholder:text-slate-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-200"
+            data-testid="fs-product-search"
           />
+          {productSearch && (
+            <button
+              type="button"
+              onClick={() => {
+                setProductSearch("");
+                setProducts([]);
+                setShowProductSearch(false);
+              }}
+              className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 active:bg-slate-100"
+              aria-label="Clear search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
-        {/* Product Search Results */}
         {showProductSearch && products.length > 0 && (
-          <Card className="mt-2 max-h-72 overflow-auto bg-background shadow-lg border z-50">
-            {products.map(({ product, variants }) => (
-              <div
-                key={product.id}
-                className="border-b last:border-0 cursor-pointer hover:bg-primary/5"
-                onClick={() => openSizeGrid(product, variants)}
-              >
-                <div className="p-3 flex justify-between items-center gap-3">
-                  {productsHaveImages && <ProductThumb url={product.image_url} alt={product.product_name} size={52} />}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm">{product.product_name}</p>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {product.brand && (
-                        <Badge variant="outline" className="text-xs px-1.5 py-0">{product.brand}</Badge>
-                      )}
-                      {product.category && (
-                        <Badge variant="outline" className="text-xs px-1.5 py-0">{product.category}</Badge>
-                      )}
-                      <Badge variant="secondary" className="text-xs px-1.5 py-0 bg-blue-100 text-blue-700">
-                        {salesmanSizeBoxCount(variants)} sizes
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      {variants[0]?.mrp && variants[0]?.mrp !== variants[0]?.sale_price && (
-                        <p className="text-xs text-muted-foreground line-through">
-                          MRP: ₹{variants[0].mrp}
-                        </p>
-                      )}
-                      <p className="font-semibold text-primary">
-                        ₹{variants[0]?.sale_price || variants[0]?.mrp || 0}
-                      </p>
-                    </div>
-                    <Badge 
-                      className={cn(
-                        "min-w-[60px] justify-center",
-                        variants.reduce((s, v) => s + v.stock_qty, 0) > 0 
-                          ? "bg-cyan-500 hover:bg-cyan-600" 
-                          : "bg-red-500 hover:bg-red-600"
-                      )}
-                    >
-                      Stock: {variants.reduce((s, v) => s + v.stock_qty, 0)}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </Card>
+          <div className="mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg" data-testid="fs-product-results">
+            <div className="max-h-[52dvh] divide-y divide-slate-100 overflow-y-auto overscroll-contain">
+              {products.map(({ product, variants }) => {
+                const stock = variants.reduce((sum, v) => sum + v.stock_qty, 0);
+                const first = variants[0];
+                return (
+                  <button
+                    key={product.id}
+                    type="button"
+                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left active:bg-orange-50"
+                    onClick={() => openSizeGrid(product, variants)}
+                  >
+                    {productsHaveImages && <ProductThumb url={product.image_url} alt={product.product_name} size={48} />}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[15px] font-semibold leading-tight">{product.product_name}</span>
+                      <span className="mt-0.5 block truncate text-xs leading-tight text-slate-500">
+                        {[product.brand, product.category, `${salesmanSizeBoxCount(variants)} sizes`].filter(Boolean).join(" · ")}
+                      </span>
+                      <span className={cn("mt-0.5 block text-xs font-semibold leading-tight", stock > 0 ? "text-emerald-600" : "text-red-500")}>
+                        {stock > 0 ? `${stock} in stock` : "No stock"}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-right">
+                      <span className="block text-[15px] font-bold leading-tight text-slate-900">
+                        ₹{first?.sale_price || first?.mrp || 0}
+                      </span>
+                      {first?.mrp && first.mrp !== first.sale_price ? (
+                        <span className="block text-[11px] leading-tight text-slate-400 line-through">₹{first.mrp}</span>
+                      ) : null}
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Order Items - Compact Layout */}
-      <div className="flex-1 overflow-auto px-3 py-2">
-        {orderItems.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <Package className="h-10 w-10 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No items added yet</p>
-            <p className="text-xs">Search products above</p>
+      {/* Order items, one card per product */}
+      <div className="flex-1 space-y-2.5 px-3 py-3">
+        {orderGroups.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 text-orange-500">
+              <Package className="h-8 w-8" />
+            </span>
+            <p className="mt-3 text-[15px] font-semibold text-slate-800">No items yet</p>
+            <p className="mt-1 text-sm text-slate-500">Search a product above, then enter the quantity for each size.</p>
           </div>
         ) : (
-          <div className="divide-y">
-            {orderItems.map((item) => (
-              <div key={item.id} className="py-2 flex items-center gap-2">
-                {orderHasImages && <ProductThumb url={item.product.image_url} alt={item.product.product_name} size={40} />}
-                {/* Product Info - Compact */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1">
-                    <p className="font-medium text-sm truncate leading-tight">{item.product.product_name}</p>
-                    {item.isCustomSize && (
-                      <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-amber-200 text-amber-800 shrink-0">New</Badge>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1 text-xs text-muted-foreground leading-tight">
-                    <span className="bg-primary/10 text-primary px-1 rounded font-medium">{item.variant.size}</span>
-                    {item.variant.color && (
-                      <span className="bg-muted px-1 rounded">{item.variant.color}</span>
-                    )}
-                    {item.variant.mrp && item.variant.mrp !== item.unit_price && (
-                      <span className="line-through">MRP: ₹{item.variant.mrp}</span>
-                    )}
-                    <span>₹{item.unit_price}</span>
-                  </div>
+          orderGroups.map((group) => (
+            <div key={group.name} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm" data-testid="fs-order-group">
+              <div className="flex items-center gap-2.5">
+                {orderHasImages && <ProductThumb url={group.imageUrl} alt={group.name} size={44} />}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[15px] font-semibold leading-tight">{group.name}</p>
+                  <p className="mt-0.5 truncate text-xs leading-tight text-slate-500 tabular-nums">
+                    {group.quantity} pcs · {rupees(group.amount)}
+                  </p>
                 </div>
-                
-                {/* Quantity Controls - Compact */}
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-10 w-10 rounded-lg"
-                    onClick={() => updateQuantity(item.id, -1)}
-                    disabled={item.quantity <= 1}
-                  >
-                    <Minus className="h-4 w-4" />
-                  </Button>
-                  <span className="w-10 text-center font-bold text-base tabular-nums">{item.quantity}</span>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-10 w-10 rounded-lg"
-                    onClick={() => updateQuantity(item.id, 1)}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-                
-                {/* Total & Delete */}
-                <p className="font-semibold text-sm w-16 text-right">₹{item.line_total.toLocaleString("en-IN")}</p>
-                <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 text-destructive" onClick={() => removeItem(item.id)}>
+                <button
+                  type="button"
+                  onClick={() => editSizes(group)}
+                  className="flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-3 text-xs font-semibold text-orange-700 active:bg-orange-100"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Edit sizes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeGroup(group)}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-red-500 active:bg-red-50"
+                  aria-label={`Remove ${group.name}`}
+                >
                   <Trash2 className="h-4 w-4" />
-                </Button>
+                </button>
               </div>
-            ))}
-          </div>
+
+              <div className="mt-2.5 space-y-1.5">
+                {group.colors.map(({ color, items }) => (
+                  <div key={color || "-"} className="flex items-start gap-2">
+                    {(color || group.colors.length > 1) && (
+                      <span className="mt-1 w-16 shrink-0 truncate text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                        {color || "—"}
+                      </span>
+                    )}
+                    <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+                      {items.map((item) => (
+                        <span
+                          key={item.id}
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs tabular-nums",
+                            item.isCustomSize ? "border-amber-300 bg-amber-50 text-amber-900" : "border-slate-200 bg-slate-50 text-slate-800",
+                          )}
+                        >
+                          <span className="font-semibold">{item.variant.size}</span>
+                          <span className="text-slate-400">×</span>
+                          <span className="font-bold">{item.quantity}</span>
+                          {item.isCustomSize && (
+                            <button
+                              type="button"
+                              onClick={() => removeItem(item.id)}
+                              className="-mr-1 flex h-5 w-5 items-center justify-center rounded-full text-amber-700 active:bg-amber-200"
+                              aria-label={`Remove size ${item.variant.size}`}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))
         )}
       </div>
 
-      {/* Footer with Totals and Actions */}
+      {/* Totals + Save, always on screen once there is an item */}
       {orderItems.length > 0 && (
-        <div className="p-4 bg-background border-t space-y-4" style={{ paddingBottom: "env(safe-area-inset-bottom, 16px)" }}>
-          {/* Notes Input */}
-          <div>
-            <Label className="text-xs text-muted-foreground">Order Notes (optional)</Label>
-            <Textarea
-              placeholder="Add any notes for this order..."
+        <div
+          className="sticky bottom-0 z-20 border-t border-slate-200 bg-white px-3 pt-2.5 shadow-[0_-4px_12px_rgba(15,23,42,0.06)]"
+          style={{ paddingBottom: `calc(${FIELD_SALES_SAFE_BOTTOM} + 10px)` }}
+          data-testid="fs-order-footer"
+        >
+          {showNotes || notes ? (
+            <textarea
+              placeholder="Note for this order (optional)"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="resize-none h-16 text-sm mt-1"
               rows={2}
+              className="no-uppercase mb-2 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-200"
             />
+          ) : null}
+
+          <div className="flex items-end justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs leading-tight text-slate-500 tabular-nums">
+                {orderGroups.length} {orderGroups.length === 1 ? "product" : "products"} · {totalPieces} pcs
+                {gstAmount > 0 ? ` · GST ${rupees(Math.round(gstAmount * 100) / 100)}` : ""}
+              </p>
+              <p className="truncate text-2xl font-bold leading-tight tabular-nums text-slate-900" data-testid="fs-order-total">
+                {rupees(netAmount)}
+              </p>
+            </div>
+            {!showNotes && !notes && (
+              <button
+                type="button"
+                onClick={() => setShowNotes(true)}
+                className="flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold text-slate-600 active:bg-slate-100"
+              >
+                <StickyNote className="h-4 w-4" />
+                Add note
+              </button>
+            )}
           </div>
 
-          <div className="space-y-1">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Subtotal ({orderItems.length} items)</span>
-              <span>₹{grossAmount.toLocaleString("en-IN")}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">GST</span>
-              <span>₹{gstAmount.toLocaleString("en-IN")}</span>
-            </div>
-            <Separator />
-            <div className="flex justify-between font-bold text-lg text-primary">
-              <span>Total <span className="text-xs font-normal text-muted-foreground">(incl. GST)</span></span>
-              <span>₹{netAmount.toLocaleString("en-IN")}</span>
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              className="flex-1 h-14"
+          <div className="mt-2.5 flex gap-2">
+            <button
+              type="button"
               onClick={() => saveOrder(false)}
               disabled={saving}
+              className="flex h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white text-[15px] font-semibold text-slate-800 active:bg-slate-50 disabled:opacity-60"
             >
-              <Save className="h-5 w-5 mr-2" />
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               Save
-            </Button>
-            <Button
-              className="flex-1 h-14"
+            </button>
+            <button
+              type="button"
               onClick={() => saveOrder(true)}
               disabled={saving}
+              className="flex h-12 flex-[1.4] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 text-[15px] font-bold text-white shadow-md shadow-orange-500/30 active:scale-[0.99] disabled:opacity-60"
             >
-              <Share2 className="h-5 w-5 mr-2" />
-              Save & Share
-            </Button>
+              <Share2 className="h-4 w-4" />
+              Save &amp; Share
+            </button>
           </div>
         </div>
       )}
 
-      {/* Customer Search Dialog */}
-      <Dialog open={showCustomerSearch} onOpenChange={setShowCustomerSearch}>
-        <DialogContent className="max-w-md max-h-[60dvh] sm:max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>Select Customer</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name or phone..."
-                value={customerSearch}
-                onChange={(e) => {
-                  setCustomerSearch(e.target.value);
-                  searchCustomers(e.target.value);
-                }}
-                className="pl-10"
-                autoFocus
-              />
-            </div>
-            <div className="max-h-[50vh] overflow-auto space-y-2">
-              {customers.map((customer) => (
-                <Card
-                  key={customer.id}
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => {
-                    setSelectedCustomer(customer);
-                    setShowCustomerSearch(false);
-                    setCustomerSearch("");
-                    setCustomers([]);
-                  }}
-                >
-                  <CardContent className="p-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-medium">{customer.customer_name}</p>
-                        <p className="text-sm text-muted-foreground">{customer.phone}</p>
-                      </div>
-                      <Badge className={cn(
-                        customer.balance > 0 ? "bg-red-500/10 text-red-600" : "bg-green-500/10 text-green-600"
-                      )}>
-                        ₹{customer.balance.toLocaleString("en-IN")}
-                      </Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+      {/* Customer picker */}
+      <FieldSheet open={showCustomerSearch} onOpenChange={setShowCustomerSearch} title="Select customer" testId="fs-customer-sheet">
+        <div className="shrink-0 px-4 pb-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+            <input
+              placeholder="Name or phone number"
+              value={customerSearch}
+              onChange={(e) => {
+                setCustomerSearch(e.target.value);
+                searchCustomers(e.target.value);
+              }}
+              autoFocus
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-3 text-base text-slate-900 outline-none placeholder:text-slate-400 focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-200"
+            />
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+        <div className="min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto overscroll-contain px-2">
+          {customers.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-slate-500">
+              {customerSearch.trim().length < 2 ? "Type at least 2 letters of the name, or the phone number." : "No customer found."}
+            </p>
+          ) : (
+            customers.map((customer) => (
+              <button
+                key={customer.id}
+                type="button"
+                className="flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left active:bg-orange-50"
+                onClick={() => {
+                  setSelectedCustomer(customer);
+                  setShowCustomerSearch(false);
+                  setCustomerSearch("");
+                  setCustomers([]);
+                }}
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-bold uppercase text-slate-600">
+                  {customer.customer_name.trim().charAt(0) || "?"}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[15px] font-semibold leading-tight">{customer.customer_name}</span>
+                  <span className="block truncate text-xs leading-tight text-slate-500">{customer.phone || "No phone"}</span>
+                </span>
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full px-2.5 py-1 text-xs font-bold tabular-nums",
+                    customer.balance > 0 ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600",
+                  )}
+                >
+                  {rupees(customer.balance)}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      </FieldSheet>
 
-      {/* Size Grid Dialog */}
+      {/* Size-wise quantity */}
       <SalesmanSizeGridDialog
         open={showSizeGrid}
         onClose={() => {
           setShowSizeGrid(false);
           setSelectedProduct(null);
           setSelectedProductVariants([]);
+          setEditingQty(null);
+          setEditingName(null);
         }}
         product={selectedProduct}
         variants={selectedProductVariants}
         onConfirm={handleSizeGridConfirm}
         showStock={true}
         validateStock={false}
-        title="Enter Size-wise Quantity"
+        title="Enter size-wise quantity"
+        initialQty={editingQty ?? undefined}
       />
 
       {/* Draft Resume Dialog */}

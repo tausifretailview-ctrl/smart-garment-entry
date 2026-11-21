@@ -75,7 +75,7 @@ export function buildSizeGridColorByProduct(
   return result;
 }
 
-function sizeColorKey(
+export function sizeColorKey(
   size: string | null | undefined,
   color: string | null | undefined,
 ): string {

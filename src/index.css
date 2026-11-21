@@ -3654,6 +3654,12 @@ input.no-uppercase {
   text-transform: none;
 }
 
+/* Field Sales app: hints (placeholders) read as normal text; what is typed stays uppercase. */
+.field-sales-app input::placeholder,
+.field-sales-app textarea::placeholder {
+  text-transform: none;
+}
+
 /* ─── ERP Desktop Table Feel — compact rows like Tally/Busy ─── */
 .erp-desktop-table th {
   padding: 6px 10px;

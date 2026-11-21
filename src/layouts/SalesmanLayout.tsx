@@ -11,7 +11,7 @@ import {
   SALESMAN_CUSTOMER_LIST_QUERY_KEY,
 } from "@/utils/salesmanCustomerList";
 import { STALE_FREQUENT } from "@/lib/queryStaleTimes";
-import { Home, Users, ShoppingCart, ListOrdered, LogOut, Download, AlertCircle, Package, BookOpen, X } from "lucide-react";
+import { Home, Users, ListOrdered, LogOut, Download, AlertCircle, Package, BookOpen, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,17 @@ import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { FIELD_SALES_SAFE_BOTTOM, FIELD_SALES_SAFE_TOP, useFieldSalesShell } from "@/hooks/useFieldSalesShell";
 
 const LOADING_TIMEOUT = 8000; // 8 seconds max wait
 const INSTALL_BANNER_DISMISSED_KEY = "ezzy-field-sales-install-banner-dismissed";
@@ -52,6 +63,8 @@ const SalesmanLayout = () => {
   const { hasAccess, employeeName, isLoading } = useFieldSalesAccess();
   const { isOnline, pendingActions, isSyncing } = useOfflineSync();
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  useFieldSalesShell();
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   // Dashboard "Install App" opens /salesman?install=1 — always show the banner then.
   const installRequested = new URLSearchParams(location.search).get("install") === "1";
@@ -114,15 +127,31 @@ const SalesmanLayout = () => {
   }, []);
 
   const navItems = [
-    { icon: Home, label: "Home", path: "/salesman" },
-    { icon: Users, label: "Customers", path: "/salesman/customers" },
-    { icon: ShoppingCart, label: "New Order", path: "/salesman/order/new" },
-    { icon: ListOrdered, label: "Orders", path: "/salesman/orders" },
-    { icon: BookOpen, label: "Outstanding", path: "/salesman/outstanding" },
+    { icon: Home, label: "Home", path: "/salesman", primary: false },
+    { icon: Users, label: "Customers", path: "/salesman/customers", primary: false },
+    { icon: Plus, label: "New Order", path: "/salesman/order/new", primary: true },
+    { icon: ListOrdered, label: "Orders", path: "/salesman/orders", primary: false },
+    { icon: BookOpen, label: "Outstanding", path: "/salesman/outstanding", primary: false },
   ];
+
+  // Order booking is a full-screen flow with its own header and Save bar.
+  // An order's own page is the same: back arrow on top, Print / Share at the bottom.
+  const immersive = location.pathname.startsWith(getOrgPath("/salesman/order/"));
+  const isHome = location.pathname === getOrgPath("/salesman");
+  const initials = (employeeName || "FS")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("");
 
   const isActive = (path: string) => {
     const fullPath = getOrgPath(path);
+    // Home is active only on the home screen, not on every /salesman/... page.
+    if (path === "/salesman") return location.pathname === fullPath;
+    // A customer's account belongs to Customers, an order's page to Orders.
+    if (path === "/salesman/customers") return location.pathname.startsWith(getOrgPath("/salesman/customer"));
+    if (path === "/salesman/orders") return location.pathname.startsWith(getOrgPath("/salesman/order"));
     return location.pathname === fullPath || location.pathname.startsWith(fullPath + "/");
   };
 
@@ -237,94 +266,99 @@ const SalesmanLayout = () => {
   }
 
   return (
-    <div className="h-[100dvh] overflow-hidden bg-background flex flex-col">
-      {/* Offline Status Banner */}
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-slate-50 text-slate-900" data-testid="field-sales-app">
+      {/* Offline / sync strip */}
       {(!isOnline || pendingActions > 0) && (
-        <div className={cn(
-          "flex items-center justify-center gap-2 py-1.5 px-4 text-sm font-medium text-white",
-          !isOnline ? "bg-amber-500" : isSyncing ? "bg-blue-500" : "bg-orange-500"
-        )}>
+        <div
+          className={cn(
+            "flex shrink-0 items-center justify-center gap-2 px-4 py-1.5 text-xs font-semibold text-white",
+            !isOnline ? "bg-amber-500" : isSyncing ? "bg-blue-500" : "bg-orange-500",
+          )}
+          style={immersive ? { paddingTop: `calc(${FIELD_SALES_SAFE_TOP} + 6px)` } : undefined}
+        >
           {!isOnline ? (
             <>
-              <div className="h-2 w-2 rounded-full bg-white animate-pulse" />
-              <span>Offline Mode{pendingActions > 0 ? ` • ${pendingActions} pending` : ""}</span>
+              <div className="h-2 w-2 animate-pulse rounded-full bg-white" />
+              <span>Offline{pendingActions > 0 ? ` · ${pendingActions} waiting to sync` : ""}</span>
             </>
           ) : isSyncing ? (
             <>
-              <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              <span>Syncing {pendingActions} action{pendingActions !== 1 ? "s" : ""}...</span>
+              <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              <span>Syncing {pendingActions} order{pendingActions !== 1 ? "s" : ""}…</span>
             </>
           ) : (
             <>
               <div className="h-2 w-2 rounded-full bg-white" />
-              <span>{pendingActions} pending sync</span>
+              <span>{pendingActions} waiting to sync</span>
             </>
           )}
         </div>
       )}
-      
-      {/* Header - Orange gradient theme */}
-      <header className="sticky top-0 z-50 bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 text-white px-4 py-3 flex items-center justify-between shadow-md">
-        <div className="flex items-center gap-2">
-          <ShoppingCart className="h-6 w-6" />
-          <div>
-            <span className="font-semibold text-lg">Field Sales</span>
-            {employeeName && (
-              <p className="text-xs text-white/80">{employeeName}</p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setSizeStockOpen(true)}
-            className="text-white hover:bg-white/20"
-            title="Size Stock"
-          >
-            <Package className="h-5 w-5" />
-          </Button>
-          {!isInstalled && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleInstall}
-              className="h-9 px-2 text-white hover:bg-white/20"
-              title="Install App"
-            >
-              <Download className="h-5 w-5" />
-              <span className="ml-1 text-xs font-semibold">Install</span>
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => signOut()}
-            className="text-white hover:bg-white/20"
-            title="Logout"
-          >
-            <LogOut className="h-5 w-5" />
-          </Button>
-        </div>
-      </header>
 
-      {showInstallBanner && (
-        <div className="shrink-0 flex items-center gap-2 border-b border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-900">
+      {/* App bar (hidden on full-screen flows, which have their own) */}
+      {!immersive && (
+        <header
+          className="shrink-0 bg-gradient-to-r from-orange-600 to-orange-500 text-white shadow-sm"
+          style={{ paddingTop: FIELD_SALES_SAFE_TOP }}
+        >
+          <div className="flex h-14 items-center gap-2.5 px-3">
+            <div
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/20 text-sm font-bold uppercase"
+              aria-hidden
+            >
+              {initials}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[15px] font-semibold leading-tight">{employeeName || "Field Sales"}</p>
+              <p className="truncate text-[11px] leading-tight text-white/80">
+                Field Sales{currentOrganization?.name ? ` · ${currentOrganization.name}` : ""}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSizeStockOpen(true)}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full active:bg-white/20"
+              aria-label="Size stock"
+            >
+              <Package className="h-5 w-5" />
+            </button>
+            {!isInstalled && (
+              <button
+                type="button"
+                onClick={handleInstall}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full active:bg-white/20"
+                aria-label="Install app"
+              >
+                <Download className="h-5 w-5" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setConfirmLogout(true)}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full active:bg-white/20"
+              aria-label="Logout"
+            >
+              <LogOut className="h-5 w-5" />
+            </button>
+          </div>
+        </header>
+      )}
+
+      {showInstallBanner && isHome && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-orange-100 bg-orange-50 px-3 py-2 text-[13px] text-orange-900">
           <Download className="h-4 w-4 shrink-0 text-orange-500" />
-          <span className="flex-1 min-w-0 leading-tight">
-            Install the Field Sales app on this phone for one-tap access.
-          </span>
-          <Button
-            size="sm"
+          <span className="min-w-0 flex-1 leading-tight">Install this app on your phone for one-tap access.</span>
+          <button
+            type="button"
             onClick={handleInstall}
-            className="h-8 shrink-0 bg-orange-500 px-3 text-white hover:bg-orange-600"
+            className="h-8 shrink-0 rounded-full bg-orange-500 px-3.5 text-xs font-semibold text-white active:bg-orange-600"
           >
             Install
-          </Button>
+          </button>
           <button
             type="button"
             onClick={dismissInstallBanner}
-            className="shrink-0 rounded p-1 text-orange-700 hover:bg-orange-100"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-orange-700 active:bg-orange-100"
             aria-label="Dismiss install banner"
           >
             <X className="h-4 w-4" />
@@ -332,44 +366,79 @@ const SalesmanLayout = () => {
         </div>
       )}
 
-      {/* Size Stock Dialog */}
       <SizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />
 
-      {/* Main Content */}
-      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+      <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <Outlet />
       </main>
 
-      {/* Bottom Navigation - Orange active state */}
-      <nav
-        className="shrink-0 bg-background border-t border-border z-50"
-        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
-      >
-        <div className="flex items-stretch justify-around h-14 w-full overflow-hidden">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.path);
-            return (
-              <button
-                key={item.path}
-                type="button"
-                onClick={() => navigate(getOrgPath(item.path))}
-                className={cn(
-                  "flex flex-col items-center justify-center flex-1 min-w-0 h-full px-1 transition-colors",
-                  active
-                    ? "text-orange-500"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Icon className={cn("h-5 w-5 shrink-0", active && "fill-orange-500/20")} />
-                <span className="text-[10px] leading-tight mt-1 font-medium w-full text-center truncate">
-                  {item.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+      {/* Bottom navigation with the New Order button raised in the centre */}
+      {!immersive && (
+        <nav
+          className="shrink-0 border-t border-slate-200 bg-white"
+          style={{ paddingBottom: FIELD_SALES_SAFE_BOTTOM }}
+          aria-label="Field Sales"
+        >
+          <div className="grid h-16 grid-cols-5">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item.path);
+              if (item.primary) {
+                return (
+                  <button
+                    key={item.path}
+                    type="button"
+                    onClick={() => navigate(getOrgPath(item.path))}
+                    className="flex min-w-0 flex-col items-center justify-end pb-1.5"
+                    data-testid="fs-nav-new-order"
+                  >
+                    <span className="-mt-6 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/40 ring-4 ring-slate-50 active:scale-95">
+                      <Plus className="h-7 w-7" strokeWidth={2.5} />
+                    </span>
+                    <span className="mt-0.5 w-full truncate text-center text-[11px] font-semibold leading-tight text-orange-600">
+                      {item.label}
+                    </span>
+                  </button>
+                );
+              }
+              return (
+                <button
+                  key={item.path}
+                  type="button"
+                  onClick={() => navigate(getOrgPath(item.path))}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "flex min-w-0 flex-col items-center justify-center gap-0.5",
+                    active ? "text-orange-600" : "text-slate-500",
+                  )}
+                >
+                  <span className={cn("flex h-7 w-12 items-center justify-center rounded-full", active && "bg-orange-100")}>
+                    <Icon className="h-5 w-5 shrink-0" strokeWidth={active ? 2.4 : 2} />
+                  </span>
+                  <span className={cn("w-full truncate text-center text-[11px] leading-tight tracking-tight", active ? "font-semibold" : "font-medium")}>
+                    {item.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      )}
+
+      <AlertDialog open={confirmLogout} onOpenChange={setConfirmLogout}>
+        <AlertDialogContent className="max-w-[320px] rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Log out of Field Sales?</AlertDialogTitle>
+            <AlertDialogDescription>You will need your salesman login to open the app again.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Stay</AlertDialogCancel>
+            <AlertDialogAction className="bg-orange-500 hover:bg-orange-600" onClick={() => void signOut()}>
+              Log out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

@@ -4,15 +4,15 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Share2, Printer, Copy } from "lucide-react";
+import { ArrowLeft, Share2, Printer } from "lucide-react";
 import { format } from "date-fns";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { useSettings } from "@/hooks/useSettings";
+import { FIELD_SALES_SAFE_BOTTOM, FIELD_SALES_SAFE_TOP } from "@/hooks/useFieldSalesShell";
 
 interface OrderItem {
   id: string;
@@ -150,11 +150,11 @@ const SalesmanOrderView = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "pending": return "bg-yellow-500/10 text-yellow-600";
-      case "confirmed": return "bg-blue-500/10 text-blue-600";
-      case "fulfilled": return "bg-green-500/10 text-green-600";
-      case "cancelled": return "bg-red-500/10 text-red-600";
-      default: return "bg-muted text-muted-foreground";
+      case "pending": return "bg-amber-100 text-amber-800";
+      case "confirmed": return "bg-sky-100 text-sky-800";
+      case "fulfilled": return "bg-emerald-100 text-emerald-800";
+      case "cancelled": return "bg-red-100 text-red-800";
+      default: return "bg-white/90 text-slate-700";
     }
   };
 
@@ -162,7 +162,7 @@ const SalesmanOrderView = () => {
 
   if (loading) {
     return (
-      <div className="p-4 space-y-4">
+      <div className="space-y-4 p-4" style={{ paddingTop: `calc(${FIELD_SALES_SAFE_TOP} + 16px)` }}>
         <div className="flex items-center gap-3">
           <Skeleton className="h-10 w-10" />
           <Skeleton className="h-8 w-48" />
@@ -174,7 +174,7 @@ const SalesmanOrderView = () => {
 
   if (!order) {
     return (
-      <div className="p-4 text-center">
+      <div className="p-4 text-center" style={{ paddingTop: `calc(${FIELD_SALES_SAFE_TOP} + 48px)` }}>
         <p className="text-muted-foreground">Order not found</p>
         <Button className="mt-4" onClick={() => navigate("/salesman/orders")}>
           Back to Orders
@@ -184,30 +184,38 @@ const SalesmanOrderView = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-full bg-muted/30">
-      {/* Header */}
-      <div className="p-3 bg-background border-b flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => navigate("/salesman/orders")}>
+    <div className="flex min-h-full flex-col bg-slate-50" data-testid="fs-order-view">
+      {/* App bar */}
+      <div
+        className="sticky top-0 z-20 bg-gradient-to-r from-orange-600 to-orange-500 text-white shadow-sm"
+        style={{ paddingTop: FIELD_SALES_SAFE_TOP }}
+      >
+        <div className="flex h-14 items-center gap-1 px-1.5">
+          <button
+            type="button"
+            onClick={() => navigate("/salesman/orders")}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full active:bg-white/20"
+            aria-label="Back"
+          >
             <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="font-semibold text-sm">{order.order_number}</h1>
-            <p className="text-xs text-muted-foreground">{format(new Date(order.order_date), "dd MMM yyyy")}</p>
+          </button>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-[17px] font-semibold leading-tight">{order.customer_name}</h1>
+            <p className="truncate text-xs leading-tight text-white/80">
+              {order.order_number} · {format(new Date(order.order_date), "dd MMM yyyy")}
+            </p>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge className={cn("text-xs", getStatusColor(order.status))}>
-            {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-          </Badge>
+          <span className={cn("mr-2 shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide", getStatusColor(order.status))}>
+            {order.status}
+          </span>
         </div>
       </div>
 
       {/* Compact Order View - Printable */}
-      <div className="flex-1 overflow-auto p-2">
+      <div className="flex-1 p-3">
         <div 
           ref={printRef} 
-          className="bg-white rounded shadow-sm text-black"
+          className="overflow-hidden rounded-2xl border border-slate-200 bg-white text-black shadow-sm"
           style={{ fontSize: '10pt' }}
         >
           {/* Print Header */}
@@ -230,8 +238,8 @@ const SalesmanOrderView = () => {
           </div>
 
           {/* Items Table - Compact, scroll-safe */}
-          <div className="overflow-x-auto -mx-3">
-            <table className="w-full text-xs border-collapse min-w-[320px]">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-xs">
               <thead>
                 <tr className="bg-gray-100">
                   <th className="border border-gray-300 px-1 py-1 text-left w-6">#</th>
@@ -284,23 +292,27 @@ const SalesmanOrderView = () => {
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="p-3 bg-background border-t flex gap-2" style={{ paddingBottom: "env(safe-area-inset-bottom, 16px)" }}>
-        <Button
-          variant="outline"
-          className="flex-1 h-11"
+      {/* Actions, always on screen */}
+      <div
+        className="sticky bottom-0 z-20 flex gap-2 border-t border-slate-200 bg-white px-3 pt-2.5 shadow-[0_-4px_12px_rgba(15,23,42,0.06)]"
+        style={{ paddingBottom: `calc(${FIELD_SALES_SAFE_BOTTOM} + 10px)` }}
+      >
+        <button
+          type="button"
           onClick={() => handlePrint()}
+          className="flex h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white text-[15px] font-semibold text-slate-800 active:bg-slate-50"
         >
-          <Printer className="h-4 w-4 mr-2" />
+          <Printer className="h-4 w-4" />
           Print
-        </Button>
-        <Button
-          className="flex-1 h-11"
+        </button>
+        <button
+          type="button"
           onClick={shareOrder}
+          className="flex h-12 flex-[1.4] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 text-[15px] font-bold text-white shadow-md shadow-orange-500/30 active:scale-[0.99]"
         >
-          <Share2 className="h-4 w-4 mr-2" />
-          Share
-        </Button>
+          <Share2 className="h-4 w-4" />
+          Share on WhatsApp
+        </button>
       </div>
     </div>
   );

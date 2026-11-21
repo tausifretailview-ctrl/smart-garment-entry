@@ -13,8 +13,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   ArrowLeft, 
   Phone, 
-  MapPin, 
-  ShoppingCart, 
   Share2,
   IndianRupee,
   TrendingUp,
@@ -503,82 +501,96 @@ const SalesmanCustomerAccount = () => {
   ];
 
   return (
-    <div className="flex flex-col min-h-full">
-      {/* Header */}
-      <div className="p-4 bg-background border-b">
-        <div className="flex items-center gap-3 mb-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/salesman/customers")}>
+    <div className="flex min-h-full flex-col" data-testid="fs-customer-account">
+      {/* Customer + balance */}
+      <div className="space-y-3 px-3 pt-3">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate("/salesman/customers")}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 active:bg-slate-100"
+            aria-label="Back"
+          >
             <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="flex-1">
-            <h1 className="font-semibold text-lg">{customer.customer_name}</h1>
-            {customer.phone && (
-              <p className="text-sm text-muted-foreground flex items-center gap-1">
-                <Phone className="h-3 w-3" />
-                {customer.phone}
-              </p>
-            )}
+          </button>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-[17px] font-bold leading-tight text-slate-900">{customer.customer_name}</h1>
+            <p className="truncate text-xs leading-tight text-slate-500">
+              {[customer.phone, customer.address].filter(Boolean).join(" · ") || "No phone or address"}
+            </p>
           </div>
           {customer.phone && (
-            <Button variant="outline" size="icon" onClick={() => window.open(`tel:${customer.phone}`)}>
+            <a
+              href={`tel:${customer.phone}`}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm active:bg-emerald-600"
+              aria-label={`Call ${customer.customer_name}`}
+            >
               <Phone className="h-4 w-4" />
-            </Button>
+            </a>
           )}
         </div>
 
-        {customer.address && (
-          <p className="text-sm text-muted-foreground flex items-center gap-1 mb-4">
-            <MapPin className="h-4 w-4" />
-            {customer.address}
-          </p>
-        )}
-
-        {/* Outstanding Banner */}
-        <Card className={cn(
-          "border-0",
-          displayBalance > 0 ? "bg-red-500/10" : "bg-green-500/10"
-        )}>
-          <CardContent className="p-4 text-center">
-            <p className="text-sm text-muted-foreground mb-1">Outstanding Balance</p>
+        <div className="flex items-center gap-3 rounded-2xl bg-slate-900 px-4 py-3 text-white shadow-sm">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
+              {displayBalance < 0 ? "Advance with us" : "Outstanding balance"}
+            </p>
             {metricsLoading ? (
-              <Skeleton className="h-9 w-32 mx-auto" />
+              <Skeleton className="mt-1 h-8 w-32 bg-white/10" />
             ) : (
-              <p className={cn(
-                "text-3xl font-bold",
-                displayBalance > 0 ? "text-red-600" : "text-green-600"
-              )}>
+              <p
+                className={cn(
+                  "truncate text-[28px] font-bold leading-tight tabular-nums",
+                  displayBalance > 0 ? "text-rose-300" : "text-emerald-300",
+                )}
+              >
                 ₹{Math.abs(displayBalance).toLocaleString("en-IN")}
-                {displayBalance < 0 && " CR"}
               </p>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate(`/salesman/order/new?customerId=${customer.id}`)}
+            className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl bg-orange-500 px-3.5 text-sm font-bold text-white shadow-sm active:bg-orange-600"
+          >
+            New order
+          </button>
+        </div>
 
-      {/* Summary Cards */}
-      <div className="p-4 grid grid-cols-2 gap-3">
-        {summaryCards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <Card key={card.label} className="border-0 shadow-sm">
-              <CardContent className="p-3">
-                <div className="flex items-center gap-2 mb-1">
-                  <Icon className={cn("h-4 w-4", card.color)} />
-                  <span className="text-xs text-muted-foreground">{card.label}</span>
-                </div>
-                <p className="font-semibold">₹{Math.round(card.value).toLocaleString("en-IN")}</p>
-              </CardContent>
-            </Card>
-          );
-        })}
+        <button
+          type="button"
+          onClick={sendAllOutstandingReminder}
+          disabled={!customer.phone || pendingInvoices.length === 0}
+          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 text-sm font-semibold text-emerald-700 active:bg-emerald-100 disabled:opacity-40"
+        >
+          <MessageCircle className="h-4 w-4 shrink-0" />
+          Send outstanding on WhatsApp
+        </button>
+
+        <div className="grid grid-cols-2 gap-2">
+          {summaryCards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <div key={card.label} className="min-w-0 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
+                <p className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
+                  <Icon className={cn("h-3.5 w-3.5 shrink-0", card.color)} />
+                  <span className="truncate">{card.label}</span>
+                </p>
+                <p className="mt-0.5 truncate text-base font-bold tabular-nums text-slate-900">
+                  ₹{Math.round(card.value).toLocaleString("en-IN")}
+                </p>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Transactions */}
       <div className="flex-1 p-4">
         <Tabs defaultValue="transactions">
           <TabsList className="w-full">
-            <TabsTrigger value="transactions" className="flex-1">Transactions</TabsTrigger>
-            <TabsTrigger value="pending" className="flex-1">
+            <TabsTrigger value="transactions" className="flex-1 data-[state=active]:text-orange-600">Transactions</TabsTrigger>
+            <TabsTrigger value="pending" className="flex-1 data-[state=active]:text-orange-600">
               Outstanding ({pendingInvoices.length})
             </TabsTrigger>
           </TabsList>
@@ -719,25 +731,6 @@ const SalesmanCustomerAccount = () => {
         </Tabs>
       </div>
 
-      {/* Actions */}
-      <div className="p-4 bg-background border-t flex gap-3" style={{ paddingBottom: "env(safe-area-inset-bottom, 16px)" }}>
-        <Button
-          variant="outline"
-          className="flex-1 h-12 text-green-700 border-green-300 hover:bg-green-50"
-          onClick={sendAllOutstandingReminder}
-          disabled={!customer.phone || pendingInvoices.length === 0}
-        >
-          <MessageCircle className="h-5 w-5 mr-2" />
-          Send Outstanding
-        </Button>
-        <Button
-          className="flex-1 h-12"
-          onClick={() => navigate(`/salesman/order/new?customerId=${customer.id}`)}
-        >
-          <ShoppingCart className="h-5 w-5 mr-2" />
-          New Order
-        </Button>
-      </div>
     </div>
   );
 };
