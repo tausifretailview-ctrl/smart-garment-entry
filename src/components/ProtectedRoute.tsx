@@ -23,7 +23,8 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
 
   // Preserve Field Sales PWA context if navigating to salesman routes
-  if (location.pathname.includes('/salesman')) {
+  // The salesman app's own routes only (/:org/salesman/...), not e.g. /:org/salesman-commission.
+  if (/\/salesman(\/|$)/.test(location.pathname)) {
     sessionStorage.setItem('fieldSalesPWA', 'true');
   }
 
@@ -70,6 +71,11 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     const orgSlug = normalizedUrlSlug || resolveStartupOrgSlug();
 
     if (orgSlug) {
+      // The Field Sales app goes back to its own login (orange, salesman login), not the
+      // owner / staff login of the shop.
+      if (isFieldSalesPWA()) {
+        return <Navigate to={`/${orgSlug}/field-sales`} replace />;
+      }
       // Redirect to organization-specific login
       return <Navigate to={`/${orgSlug}`} replace />;
     }

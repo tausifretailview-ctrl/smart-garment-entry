@@ -13,6 +13,26 @@ export const isValidOrgSlug = (value?: string | null): boolean => {
   return true;
 };
 
+/**
+ * What someone types as their organisation code → the code to look up, or null when it cannot
+ * be one. Forgiving on purpose: a pasted link ("app.site/ks-footwear/…"), capitals and spaces
+ * ("KS Footwear") all work.
+ */
+export function orgCodeFromInput(value?: string | null): string | null {
+  let text = (value ?? "").trim().toLowerCase();
+  if (!text) return null;
+  text = text.replace(/^[a-z]+:\/\//, "");
+  if (text.includes("/")) {
+    const parts = text.split("/").filter(Boolean);
+    // "host/code/..." → code; "code/..." → code
+    text = parts.length > 1 && parts[0].includes(".") ? parts[1] : parts[0];
+  }
+  text = text
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return isValidOrgSlug(text) ? text : null;
+}
+
 // Cookie helpers for ultimate fallback persistence
 const COOKIE_NAME = "orgSlug";
 const COOKIE_MAX_AGE = 30 * 24 * 60 * 60; // 30 days in seconds

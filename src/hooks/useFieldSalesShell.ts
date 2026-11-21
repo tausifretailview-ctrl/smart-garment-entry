@@ -22,15 +22,20 @@ export function fieldSalesSafeTopFallbackPx(isNativeAndroid: boolean, userAgent:
   if (!isNativeAndroid) return 0;
   const version = Number(/Android (\d+)/.exec(userAgent)?.[1] ?? 0);
   // Edge-to-edge (page under the status bar) is enforced from Android 15.
-  return version >= 15 ? 32 : 0;
+  // Phones with a camera cut-out have status bars close to 40px.
+  return version >= 15 ? 40 : 0;
 }
 
-export function useFieldSalesShell(): void {
+/**
+ * Phone shell for a screen: clears the status bar in the Android app and, when `phoneText` is
+ * on, runs the screen at the phone text size. Used by the Field Sales app and the login pages.
+ */
+export function usePhoneShell(phoneText: boolean, rootClass?: string): void {
   useLayoutEffect(() => {
     const html = document.documentElement;
     const prevFont = html.style.fontSize;
-    html.style.fontSize = `${FIELD_SALES_ROOT_FONT_PX}px`;
-    html.classList.add("field-sales-app");
+    if (phoneText) html.style.fontSize = `${FIELD_SALES_ROOT_FONT_PX}px`;
+    if (rootClass) html.classList.add(rootClass);
     let nativeAndroid = false;
     try {
       nativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android";
@@ -39,9 +44,13 @@ export function useFieldSalesShell(): void {
     }
     html.style.setProperty("--fs-safe-top-fallback", `${fieldSalesSafeTopFallbackPx(nativeAndroid, navigator.userAgent)}px`);
     return () => {
-      html.style.fontSize = prevFont;
-      html.classList.remove("field-sales-app");
+      if (phoneText) html.style.fontSize = prevFont;
+      if (rootClass) html.classList.remove(rootClass);
       html.style.removeProperty("--fs-safe-top-fallback");
     };
-  }, []);
+  }, [phoneText, rootClass]);
+}
+
+export function useFieldSalesShell(): void {
+  usePhoneShell(true, "field-sales-app");
 }
