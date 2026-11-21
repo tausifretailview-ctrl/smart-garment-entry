@@ -121,6 +121,12 @@ export function InvoiceTemplateSelectItems({
             Wholesale GST A4 — Per-rate CGST/SGST
           </span>
         </SelectItem>
+        <SelectItem value="wholesale-size-a4">
+          <span className="flex items-center gap-2">
+            <span className="text-teal-800 font-bold text-xs w-5">WSZ</span>
+            Wholesale Size-wise A4 — Logo, transport, ship-to, size columns
+          </span>
+        </SelectItem>
         <SelectItem value="klear-a4">
           <span className="flex items-center gap-2">
             <span className="text-amber-800 font-bold text-xs w-5">KLR</span>
