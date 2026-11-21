@@ -1,5 +1,6 @@
 ﻿import { useState, useMemo } from "react";
 import { receiptsForDcView } from "@/utils/dcReceiptShare";
+import { saleReturnsForDcView } from "@/utils/dcSaleReturnShare";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
@@ -263,7 +264,7 @@ const DailyCashierReport = () => {
   });
 
   const { data: drawerSaleReturnsData, isLoading: drawerSaleReturnsLoading } = useQuery({
-    queryKey: ["cashier-report-drawer-sale-returns", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period],
+    queryKey: ["cashier-report-drawer-sale-returns", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period, hideDc, onlyDc],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       try {
@@ -275,7 +276,8 @@ const DailyCashierReport = () => {
           .lte("return_date", rangeEndYmd)
           .is("deleted_at", null);
         if (error) return [];
-        return data || [];
+        // DC returns follow the DC view like the bills (DC User: only DC; Hide DC: no DC).
+        return saleReturnsForDcView(supabase, currentOrganization.id, data || [], { hideDc, onlyDc }, rangeStartYmd, rangeEndYmd);
       } catch {
         return [];
       }
@@ -366,7 +368,7 @@ const DailyCashierReport = () => {
 
   // Fetch cash refund sale returns for selected period
   const { data: cashRefundData, isLoading: refundsLoading } = useQuery({
-    queryKey: ["cashier-report-cash-refunds", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period],
+    queryKey: ["cashier-report-cash-refunds", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period, hideDc, onlyDc],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
@@ -387,7 +389,7 @@ const DailyCashierReport = () => {
           console.error("Cash refund query error:", error);
           return [];
         }
-        return data || [];
+        return saleReturnsForDcView(supabase, currentOrganization.id, data || [], { hideDc, onlyDc }, startDateStr, endDateStr);
       } catch (e) {
         console.error("Cash refund query failed:", e);
         return [];
@@ -398,9 +400,12 @@ const DailyCashierReport = () => {
 
   // Customer overpayment / CN cash refunds (payment vouchers) ΓÇö drawer outflow by mode
   const { data: customerRefundVouchers, isLoading: customerRefundsLoading } = useQuery({
-    queryKey: ["cashier-report-customer-refunds", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period],
+    queryKey: ["cashier-report-customer-refunds", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period, onlyDc],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
+      // Customer refunds are not tied to a DC bill or return: like on-account receipts, the
+      // DC User login leaves them out.
+      if (onlyDc) return [];
       const startDateStr = format(startDate, "yyyy-MM-dd");
       const endDateStr = format(endDate, "yyyy-MM-dd");
       try {
