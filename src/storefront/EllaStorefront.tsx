@@ -23,7 +23,10 @@ export function EllaStorefront({
   sections = [],
   menus = [],
   initialProductId,
+  trialRoom = false,
 }: {
+  /** AI Trial Room switched on by the shop: "Try it on" on the product sheet. */
+  trialRoom?: boolean;
   shop: PublicStorefrontShop;
   orgSlug: string;
   products: PublicStorefrontProduct[];
@@ -120,6 +123,8 @@ export function EllaStorefront({
 
       {selected && isEllaProductPurchasable(selected.stock) ? (
         <EllaProductSheet
+          orgSlug={orgSlug}
+          trialRoom={trialRoom}
           product={selected}
           cart={cart}
           onAddToCart={setCart}

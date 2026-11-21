@@ -9,15 +9,19 @@ import { storefrontHomePath, storefrontProductUrl } from "@/lib/storefrontPath";
 import type { PublicStorefrontProduct, PublicStorefrontShop } from "@/lib/websiteTypes";
 import { StorefrontShell } from "./StorefrontChrome";
 import { EnquiryForm } from "./EnquiryForm";
+import { TryOnButton } from "./TrialRoom";
 
 export function StorefrontProduct({
   shop,
   orgSlug,
   product,
+  trialRoom = false,
 }: {
   shop: PublicStorefrontShop;
   orgSlug: string;
   product: PublicStorefrontProduct;
+  /** AI Trial Room switched on by the shop: shows "Try it on". */
+  trialRoom?: boolean;
 }) {
   const [photoIndex, setPhotoIndex] = useState(0);
   const photos = product.photo_urls.length > 0 ? product.photo_urls : [];
@@ -131,6 +135,17 @@ export function StorefrontProduct({
             </ul>
           </div>
         ) : null}
+
+        <div className="mt-5 empty:hidden">
+          <TryOnButton
+            enabled={trialRoom}
+            slug={orgSlug}
+            productId={product.product_id}
+            productName={product.name}
+            productCategory={product.category}
+            productPhoto={photo}
+          />
+        </div>
 
         {shop.whatsapp_number ? (
           <div className="mt-5 flex gap-2">

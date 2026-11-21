@@ -8,6 +8,7 @@ import { parseStorefrontVideos } from "@/lib/storefrontVideos";
 import { parseStorefrontShowcase } from "@/lib/storefrontShowcase";
 import { parsePublicProductReviews } from "@/lib/productReviewsPublic";
 import { parseStorefrontSizeHelper } from "@/lib/sizeHelper";
+import { storefrontTrialRoomForStore } from "@/lib/trialRoom";
 import { applyProductSpins } from "@/lib/productSpin";
 import { parseStorefrontSignals } from "@/lib/storefrontSignals";
 import { parseStorefrontRequests, type StorefrontRequestKind } from "@/lib/storefrontRequests";
@@ -65,6 +66,7 @@ export async function loadPublicStorefront(slug: string): Promise<PublicStorefro
   payload.showcase = parseStorefrontShowcase(orgInfo?.settings);
   payload.sizeHelper = parseStorefrontSizeHelper(orgInfo?.settings);
   payload.requests = parseStorefrontRequests(orgInfo);
+  payload.trialRoom = storefrontTrialRoomForStore(orgInfo);
   payload.strips = parseStorefrontStrips(orgInfo?.settings);
   payload.currency = parseStorefrontCurrency(orgInfo?.settings);
   payload.signals = parseStorefrontSignals(signalsRes.error ? null : signalsRes.data);
@@ -204,5 +206,35 @@ export async function checkShopOfferCode(slug: string, code: string): Promise<Of
     return offer ? { status: "valid", offer } : { status: "invalid" };
   } catch {
     return { status: "unavailable" };
+  }
+}
+
+/**
+ * AI Trial Room: the shopper's photo + a product → a preview of them wearing it
+ * (storefront-try-on edge function). The photo is sent for this one preview and not stored.
+ */
+export async function requestTryOn(payload: {
+  slug: string;
+  productId: string;
+  /** The product photo on screen; the server uses it only if it belongs to the product. */
+  photoUrl?: string | null;
+  /** JPEG data URL, already scaled down by the store. */
+  photo: string;
+}): Promise<{ ok: boolean; image?: string; error?: string }> {
+  const fallback = "The trial room is not available right now. Please try again.";
+  try {
+    const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/storefront-try-on`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: key, Authorization: `Bearer ${key}` },
+      body: JSON.stringify(payload),
+    });
+    const data = (await res.json().catch(() => null)) as { image?: unknown; error?: unknown } | null;
+    if (res.ok && typeof data?.image === "string" && data.image.startsWith("data:image/")) {
+      return { ok: true, image: data.image };
+    }
+    return { ok: false, error: typeof data?.error === "string" && data.error ? data.error : fallback };
+  } catch {
+    return { ok: false, error: "No internet connection. Please try again." };
   }
 }

@@ -34,6 +34,7 @@ import {
 } from "@/lib/storefrontVideos";
 import { useWebsiteSections } from "@/hooks/useWebsiteSections";
 import { StoreSizeHelperSettings } from "@/components/website/StoreSizeHelperSettings";
+import { StoreTrialRoomSettings } from "@/components/website/StoreTrialRoomSettings";
 import { StoreSignalsSettings } from "@/components/website/StoreSignalsSettings";
 import { StoreRequestsSettings } from "@/components/website/StoreRequestsSettings";
 import { StoreStripsSettings } from "@/components/website/StoreStripsSettings";
@@ -304,6 +305,7 @@ export function WebsiteThemePanel({
           <StoreStripsSettings orgId={orgId} />
 
           <StoreSizeHelperSettings orgId={orgId} />
+          <StoreTrialRoomSettings orgId={orgId} />
 
           <StoreSignalsSettings orgId={orgId} />
 

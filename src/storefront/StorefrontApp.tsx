@@ -179,6 +179,7 @@ export function StorefrontApp() {
         showcase={payload.showcase !== false}
         reviews={payload.reviews}
         sizeHelper={payload.sizeHelper}
+        trialRoom={payload.trialRoom?.enabled === true}
         signals={payload.signals}
         requests={payload.requests}
         strips={payload.strips}
@@ -196,6 +197,7 @@ export function StorefrontApp() {
   if (ella) {
     return (
       <EllaStorefront
+        trialRoom={payload.trialRoom?.enabled === true}
         shop={payload.shop!}
         orgSlug={canonicalSlug}
         products={products}
@@ -221,6 +223,7 @@ export function StorefrontApp() {
   if (selected) {
     return (
       <StorefrontProduct
+        trialRoom={payload.trialRoom?.enabled === true}
         shop={payload.shop!}
         orgSlug={canonicalSlug}
         product={selected}
