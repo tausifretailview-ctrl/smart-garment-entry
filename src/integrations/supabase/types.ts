@@ -2022,41 +2022,6 @@ export type Database = {
           },
         ]
       }
-      brand_markdowns: {
-        Row: {
-          brand: string
-          created_at: string
-          id: string
-          markdown_percent: number
-          organization_id: string
-          updated_at: string
-        }
-        Insert: {
-          brand: string
-          created_at?: string
-          id?: string
-          markdown_percent: number
-          organization_id: string
-          updated_at?: string
-        }
-        Update: {
-          brand?: string
-          created_at?: string
-          id?: string
-          markdown_percent?: number
-          organization_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "brand_markdowns_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       customer_brand_discounts: {
         Row: {
           brand: string
@@ -2573,9 +2538,16 @@ export type Database = {
           portal_otp: string | null
           portal_otp_expires_at: string | null
           portal_price_type: string | null
+          print_address: string | null
+          print_country: string | null
+          print_name: string | null
+          print_pincode: string | null
+          print_place: string | null
+          print_state: string | null
           shipping_addresses: Json
           total_points_earned: number | null
           transport_details: string | null
+          transporter_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -2605,9 +2577,16 @@ export type Database = {
           portal_otp?: string | null
           portal_otp_expires_at?: string | null
           portal_price_type?: string | null
+          print_address?: string | null
+          print_country?: string | null
+          print_name?: string | null
+          print_pincode?: string | null
+          print_place?: string | null
+          print_state?: string | null
           shipping_addresses?: Json
           total_points_earned?: number | null
           transport_details?: string | null
+          transporter_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -2637,9 +2616,16 @@ export type Database = {
           portal_otp?: string | null
           portal_otp_expires_at?: string | null
           portal_price_type?: string | null
+          print_address?: string | null
+          print_country?: string | null
+          print_name?: string | null
+          print_pincode?: string | null
+          print_place?: string | null
+          print_state?: string | null
           shipping_addresses?: Json
           total_points_earned?: number | null
           transport_details?: string | null
+          transporter_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -2656,6 +2642,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_dashboard_counts"
             referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "customers_transporter_id_fkey"
+            columns: ["transporter_id"]
+            isOneToOne: false
+            referencedRelation: "transporters"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -6931,7 +6924,6 @@ export type Database = {
           hsn_code: string | null
           id: string
           image_url: string | null
-          markdown_percent: number | null
           organization_id: string
           pricing_sale_disc_percent: number | null
           product_name: string
@@ -6967,7 +6959,6 @@ export type Database = {
           hsn_code?: string | null
           id?: string
           image_url?: string | null
-          markdown_percent?: number | null
           organization_id: string
           pricing_sale_disc_percent?: number | null
           product_name: string
@@ -7003,7 +6994,6 @@ export type Database = {
           hsn_code?: string | null
           id?: string
           image_url?: string | null
-          markdown_percent?: number | null
           organization_id?: string
           pricing_sale_disc_percent?: number | null
           product_name?: string
@@ -8362,7 +8352,6 @@ export type Database = {
           is_dc_item: boolean | null
           item_notes: string | null
           line_total: number
-          markdown_percent: number | null
           mrp: number
           net_after_discount: number
           organization_id: string
@@ -8391,7 +8380,6 @@ export type Database = {
           is_dc_item?: boolean | null
           item_notes?: string | null
           line_total: number
-          markdown_percent?: number | null
           mrp: number
           net_after_discount?: number
           organization_id: string
@@ -8420,7 +8408,6 @@ export type Database = {
           is_dc_item?: boolean | null
           item_notes?: string | null
           line_total?: number
-          markdown_percent?: number | null
           mrp?: number
           net_after_discount?: number
           organization_id?: string
@@ -10429,6 +10416,87 @@ export type Database = {
           },
         ]
       }
+      storefront_signals_cache: {
+        Row: {
+          computed_at: string
+          organization_id: string
+          payload: Json
+        }
+        Insert: {
+          computed_at?: string
+          organization_id: string
+          payload: Json
+        }
+        Update: {
+          computed_at?: string
+          organization_id?: string
+          payload?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "storefront_signals_cache_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "storefront_signals_cache_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      storefront_tryons: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: string
+          model: string | null
+          ok: boolean
+          organization_id: string
+          product_id: string | null
+          visitor_hash: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          model?: string | null
+          ok?: boolean
+          organization_id: string
+          product_id?: string | null
+          visitor_hash: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          model?: string | null
+          ok?: boolean
+          organization_id?: string
+          product_id?: string | null
+          visitor_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "storefront_tryons_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "storefront_tryons_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       student_balance_audit: {
         Row: {
           academic_year_id: string | null
@@ -11145,6 +11213,96 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "team_chat_messages"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      transporters: {
+        Row: {
+          address: string | null
+          alternate_phone: string | null
+          booking_station: string | null
+          city: string | null
+          contact_person: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          delivery_area: string | null
+          email: string | null
+          id: string
+          is_active: boolean
+          notes: string | null
+          organization_id: string
+          phone: string | null
+          pincode: string | null
+          state: string | null
+          transport_mode: string
+          transporter_gstin: string | null
+          transporter_name: string
+          updated_at: string
+          vehicle_number: string | null
+        }
+        Insert: {
+          address?: string | null
+          alternate_phone?: string | null
+          booking_station?: string | null
+          city?: string | null
+          contact_person?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          delivery_area?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          organization_id: string
+          phone?: string | null
+          pincode?: string | null
+          state?: string | null
+          transport_mode?: string
+          transporter_gstin?: string | null
+          transporter_name: string
+          updated_at?: string
+          vehicle_number?: string | null
+        }
+        Update: {
+          address?: string | null
+          alternate_phone?: string | null
+          booking_station?: string | null
+          city?: string | null
+          contact_person?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          delivery_area?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          organization_id?: string
+          phone?: string | null
+          pincode?: string | null
+          state?: string | null
+          transport_mode?: string
+          transporter_gstin?: string | null
+          transporter_name?: string
+          updated_at?: string
+          vehicle_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transporters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transporters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
           },
         ]
       }
@@ -14472,6 +14630,7 @@ export type Database = {
         Args: { p_phone: string; p_slug: string }
         Returns: Json
       }
+      get_public_storefront_signals: { Args: { p_slug: string }; Returns: Json }
       get_purchase_bill_dashboard_stats: {
         Args: {
           p_dc_filter?: string
