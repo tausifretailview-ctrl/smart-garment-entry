@@ -6,7 +6,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapApp } from "@capacitor/app";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Camera, Loader2, Minus, Plus, Trash2, X, Share2, CheckCircle2, MessageCircle } from "lucide-react";
+import {
+  Search, Camera, Loader2, Minus, Plus, Trash2, X, Share2, CheckCircle2, MessageCircle,
+  ChevronRight, Percent, ScanBarcode, SlidersHorizontal, User,
+} from "lucide-react";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { MOBILE_SALES_PATH } from "@/lib/mobileShell";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -154,6 +159,7 @@ type SaveSuccess = {
 
 export default function MobilePosBilling() {
   const theme = useMobileUiTheme();
+  const { orgNavigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
   const { data: settingsData } = useSettings();
   const { calculateRedemptionValue } = useCustomerPoints();
@@ -357,8 +363,11 @@ export default function MobilePosBilling() {
       if (result.error) {
         toast.warning(result.error.message);
       } else {
+        // Top of the screen: a bottom toast would cover the total and the payment buttons.
         toast.success(result.merged ? "Quantity updated" : "Added to cart", {
           description: hit.product.product_name,
+          position: "top-center",
+          duration: 1500,
         });
       }
       setSearchInput("");
@@ -696,6 +705,9 @@ export default function MobilePosBilling() {
             <Share2 className="mr-2 h-4 w-4" />
             Download / Share Invoice
           </Button>
+          <Button variant="ghost" className="h-11 w-full max-w-sm" onClick={() => orgNavigate(MOBILE_SALES_PATH)}>
+            Back to sales
+          </Button>
         </div>
         <MobileSalePrintPreviewDialog
           saleId={success.saleId}
@@ -713,32 +725,44 @@ export default function MobilePosBilling() {
         {saving && (
           <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center gap-3 bg-[var(--ez-ground)]/85 backdrop-blur-sm">
             <Loader2 className="h-10 w-10 animate-spin text-[var(--ez-accent)]" />
-            <p className="text-[13px] font-bold">Saving bill…</p>
-            <p className="text-[11px] font-medium text-[var(--ez-muted)]">Please wait — do not go back</p>
+            <p className="text-[15px] font-semibold">Saving bill…</p>
+            <p className="text-[13px] font-medium text-[var(--ez-muted)]">Please wait — do not go back</p>
           </div>
         )}
 
-        {/* ── SHELL: bill no + customer ── */}
+        {/* ── HEADER: back, title, options + customer ── */}
         <ShellHeader
           title="New sale"
           kicker={items.length ? `${items.length} line${items.length === 1 ? "" : "s"} · unsaved` : "New bill"}
-          action={<ShellButton onClick={() => setOptionsOpen(true)}>Options</ShellButton>}
+          onBack={() => orgNavigate(MOBILE_SALES_PATH)}
+          action={
+            <ShellButton onClick={() => setOptionsOpen(true)}>
+              <span className="flex items-center gap-1.5">
+                <SlidersHorizontal className="h-4 w-4" aria-hidden />
+                Options
+              </span>
+            </ShellButton>
+          }
         >
           <button
             type="button"
             onClick={() => setCustomerPickerOpen(true)}
-            className="w-full border-2 border-[var(--ez-shell-line)] px-2.5 py-2.5 text-left"
+            className="ez-press flex w-full items-center gap-3 rounded-2xl bg-[var(--ez-shell-fill)] px-3.5 py-2.5 text-left ring-1 ring-inset ring-[var(--ez-shell-line)] active:bg-white/25"
           >
-            <p className="text-[8.5px] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--ez-shell-muted)]">
-              Customer
-            </p>
-            <p className="mt-1 truncate text-[12px] font-semibold leading-none">
-              {selectedCustomer
-                ? selectedCustomer.phone
-                  ? `${selectedCustomer.customer_name} · ${selectedCustomer.phone}`
-                  : selectedCustomer.customer_name
-                : WALK_IN_CUSTOMER_NAME}
-            </p>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/20">
+              <User className="h-[18px] w-[18px]" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[11.5px] font-medium leading-none text-[var(--ez-shell-muted)]">Customer</span>
+              <span className="mt-1 block truncate text-[14.5px] font-semibold leading-tight">
+                {selectedCustomer
+                  ? selectedCustomer.phone
+                    ? `${selectedCustomer.customer_name} · ${selectedCustomer.phone}`
+                    : selectedCustomer.customer_name
+                  : WALK_IN_CUSTOMER_NAME}
+              </span>
+            </span>
+            <ChevronRight className="h-5 w-5 shrink-0 text-[var(--ez-shell-muted)]" aria-hidden />
           </button>
         </ShellHeader>
 
@@ -786,16 +810,16 @@ export default function MobilePosBilling() {
             <PosFastPicks items={fastPicks} searchTerm={debouncedSearch} loading={searchLoading} />
           ) : null}
 
-          <div className={cn(debouncedSearch.length >= 1 || showFastPicks ? "border-t-2 border-[var(--ez-rule)]" : "")}>
+          <div>
             <SectionHead
               title={`Bill lines · ${items.length}`}
               right={
-                <div className="flex items-baseline gap-4">
+                <div className="flex shrink-0 items-center gap-1">
                   {debouncedSearch.length === 0 ? (
                     <button
                       type="button"
                       onClick={toggleFastPicks}
-                      className="ez-btn-label text-[10px] text-[var(--ez-accent-700)]"
+                      className="ez-press ez-btn-label flex h-8 items-center rounded-full px-2.5 text-[var(--ez-accent-700)] active:bg-[var(--ez-tint)]"
                     >
                       {showFastPicks ? "Hide fast picks" : "Fast picks"}
                     </button>
@@ -807,7 +831,7 @@ export default function MobilePosBilling() {
                         clearCart();
                         setSelIndex(null);
                       }}
-                      className="ez-btn-label text-[10px] text-[var(--ez-debit)]"
+                      className="ez-press ez-btn-label flex h-8 items-center rounded-full px-2.5 text-[var(--ez-debit)] active:bg-red-50"
                     >
                       Clear
                     </button>
@@ -816,63 +840,100 @@ export default function MobilePosBilling() {
               }
             />
             {items.length === 0 ? (
-              <p className="border-t border-[var(--ez-rule-thin)] px-3.5 pb-5 pt-4 text-[12px] font-medium leading-[1.5] text-[var(--ez-muted)]">
-                No lines yet. Scan a barcode or tap a product above — the camera stays armed while this screen is open.
-              </p>
+              <div className="ez-card mx-3 flex flex-col items-center px-5 py-7 text-center">
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--ez-tint)] text-[var(--ez-accent)]">
+                  <ScanBarcode className="h-6 w-6" aria-hidden />
+                </span>
+                <p className="mt-3 text-[14.5px] font-semibold">No lines yet</p>
+                <p className="mt-1 text-[13px] font-medium leading-[1.45] text-[var(--ez-muted)]">
+                  Scan a barcode or search a product above. The camera stays ready while this screen is open.
+                </p>
+              </div>
             ) : (
-              items.map((item, index) => {
-                const discRs = posLineDiscountRupees(item);
-                const discPct = Number(item.discountPercent) || 0;
-                const hasDisc = discRs > 0.005 || discPct > 0.005;
-                return (
-                  <div
-                    key={`${item.id}-${index}`}
-                    className={cn(
-                      "flex items-stretch border-t border-[var(--ez-rule-thin)]",
-                      selIndex === index ? "bg-[var(--ez-tint)]" : "bg-[var(--ez-ground)]",
-                    )}
-                  >
-                    <button
-                      type="button"
-                      disabled={saving}
-                      onClick={() => {
-                        setSelIndex(index);
-                        setKpMode("qty");
-                      }}
-                      className="min-w-0 flex-1 py-2.5 pl-3.5 pr-2 text-left"
+              <div className="space-y-2 px-3">
+                {items.map((item, index) => {
+                  const discRs = posLineDiscountRupees(item);
+                  const discPct = Number(item.discountPercent) || 0;
+                  const hasDisc = discRs > 0.005 || discPct > 0.005;
+                  const minQty = minQtyForUom(item);
+                  const stepQty = (delta: number) => {
+                    const r = updateQty(index, Math.max(minQty, item.quantity + delta));
+                    if (r?.error) toast.warning(r.error.message);
+                  };
+                  return (
+                    <div
+                      key={`${item.id}-${index}`}
+                      className={cn(
+                        "ez-card ez-pop overflow-hidden transition-colors duration-150",
+                        selIndex === index && "border-[var(--ez-accent)] bg-[var(--ez-tint)] ring-1 ring-[var(--ez-accent)]",
+                      )}
                     >
-                      <div className="flex justify-between gap-2.5">
-                        <p className="flex min-w-0 items-center gap-1 text-[12.5px] font-bold leading-[1.3]">
-                          <span className="truncate">{item.productName}</span>
-                          <PosSchemeAppliedTag applied={item.categoryTierApplied} />
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => {
+                          setSelIndex(index);
+                          setKpMode("qty");
+                        }}
+                        className="block w-full px-3.5 pb-2 pt-3 text-left"
+                      >
+                        <div className="flex justify-between gap-3">
+                          <p className="flex min-w-0 items-center gap-1 text-[14.5px] font-semibold leading-[1.3]">
+                            <span className="truncate">{item.productName}</span>
+                            <PosSchemeAppliedTag applied={item.categoryTierApplied} />
+                          </p>
+                          <p className="num shrink-0 text-[15px] font-bold leading-[1.3]">₹{formatInr(item.netAmount)}</p>
+                        </div>
+                        <p className="num mt-1 text-[12.5px] font-medium leading-tight text-[var(--ez-muted)]">
+                          Qty {item.quantity} × ₹{formatInr(item.unitCost)}
+                          {item.size ? ` · ${item.size}` : ""}
                         </p>
-                        <p className="num shrink-0 text-[13px] font-extrabold leading-[1.3]">₹{formatInr(item.netAmount)}</p>
+                        {hasDisc ? (
+                          <p className="num mt-1 text-[12.5px] font-semibold leading-tight text-[var(--ez-credit)]">
+                            Disc{discPct > 0.005 ? ` ${Number(discPct.toFixed(2))}%` : ""} −₹{formatInr(discRs)}
+                          </p>
+                        ) : null}
+                      </button>
+                      <div className="flex items-center justify-between gap-2 px-3 pb-2.5">
+                        <div className="flex items-center rounded-full bg-[var(--ez-ground)] p-0.5">
+                          <button
+                            type="button"
+                            disabled={saving || item.quantity <= minQty}
+                            aria-label={`Less ${item.productName}`}
+                            onClick={() => stepQty(-1)}
+                            className="ez-press flex h-9 w-9 items-center justify-center rounded-full bg-white text-[var(--ez-ink)] shadow-sm disabled:opacity-40"
+                          >
+                            <Minus className="h-4 w-4" strokeWidth={2.4} />
+                          </button>
+                          <span className="num min-w-[2.75rem] px-1 text-center text-[15px] font-bold">{item.quantity}</span>
+                          <button
+                            type="button"
+                            disabled={saving}
+                            aria-label={`More ${item.productName}`}
+                            onClick={() => stepQty(1)}
+                            className="ez-press flex h-9 w-9 items-center justify-center rounded-full bg-[var(--ez-accent)] text-white shadow-sm"
+                          >
+                            <Plus className="h-4 w-4" strokeWidth={2.4} />
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={saving}
+                          aria-label={`Discount on ${item.productName}`}
+                          onClick={() => {
+                            setSelIndex(index);
+                            setKpMode("disc");
+                          }}
+                          className="ez-press ez-btn-label flex h-9 items-center gap-1 rounded-full bg-[var(--ez-tint)] px-3.5 text-[var(--ez-accent-700)]"
+                        >
+                          <Percent className="h-3.5 w-3.5" aria-hidden />
+                          Disc
+                        </button>
                       </div>
-                      <p className="num mt-[3px] text-[10.5px] font-medium leading-none text-[var(--ez-muted-2)]">
-                        Qty {item.quantity} × ₹{formatInr(item.unitCost)}
-                        {item.size ? ` · ${item.size}` : ""}
-                      </p>
-                      {hasDisc ? (
-                        <p className="num mt-[3px] text-[10.5px] font-semibold leading-none text-[var(--ez-credit)]">
-                          Disc{discPct > 0.005 ? ` ${Number(discPct.toFixed(2))}%` : ""} −₹{formatInr(discRs)}
-                        </p>
-                      ) : null}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={saving}
-                      aria-label={`Discount on ${item.productName}`}
-                      onClick={() => {
-                        setSelIndex(index);
-                        setKpMode("disc");
-                      }}
-                      className="ez-btn-label shrink-0 border-l border-[var(--ez-rule-thin)] px-3 text-[10px] text-[var(--ez-accent-700)]"
-                    >
-                      Disc
-                    </button>
-                  </div>
-                );
-              })
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
           <div className="h-4" />
@@ -917,9 +978,9 @@ export default function MobilePosBilling() {
           <button
             type="button"
             onClick={() => setOptionsOpen(true)}
-            className="ez shrink-0 border-t border-[var(--ez-rule-thin)] bg-[var(--ez-surface)] px-3.5 py-1.5 text-left"
+            className="ez shrink-0 border-t border-[var(--ez-rule)] bg-[var(--ez-surface)] px-4 py-2 text-left"
           >
-            <p className="num truncate text-[10.5px] font-semibold leading-[1.4] text-[var(--ez-muted-2)]">
+            <p className="num truncate text-[12px] font-semibold leading-[1.4] text-[var(--ez-muted-2)]">
               {[
                 totals.flatDiscountAmount > 0.005
                   ? `Bill disc ${flatDiscountMode === "percent" ? `${flatDiscountValue}% ` : ""}−₹${formatInr(totals.flatDiscountAmount)}`
@@ -931,14 +992,14 @@ export default function MobilePosBilling() {
                 .join(" · ")}
             </p>
             {totals.flatDiscountCapped ? (
-              <p className="text-[10.5px] font-semibold leading-[1.4] text-[var(--ez-debit)]">
+              <p className="text-[12px] font-semibold leading-[1.4] text-[var(--ez-debit)]">
                 Bill discount was capped at the maximum allowed for this bill.
               </p>
             ) : null}
           </button>
         ) : null}
         {saveError ? (
-          <p className="ez shrink-0 border-t border-[var(--ez-rule-thin)] bg-[var(--ez-surface)] px-3.5 py-1.5 text-[11px] font-semibold text-[var(--ez-debit)]">
+          <p className="ez shrink-0 border-t border-red-100 !bg-red-50 px-4 py-2 text-[12.5px] font-semibold text-[var(--ez-debit)]">
             {saveError}
           </p>
         ) : null}

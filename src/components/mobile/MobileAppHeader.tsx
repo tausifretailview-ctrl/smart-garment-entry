@@ -3,6 +3,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useHideMobileAppHeader } from "@/hooks/useMobileChrome";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { cn } from "@/lib/utils";
+import { useMobileUiTheme } from "@/hooks/useMobileUiTheme";
 import { OwnerNotificationsButton } from "@/components/OwnerNotificationsButton";
 import { ShopChatButton } from "@/components/shop-chat/ShopChatButton";
 
@@ -17,6 +18,7 @@ interface MobileAppHeaderProps {
 export function MobileAppHeader({ title, className }: MobileAppHeaderProps) {
   const { currentOrganization } = useOrganization();
   const hide = useHideMobileAppHeader();
+  const theme = useMobileUiTheme();
   const { orgNavigate } = useOrgNavigation();
 
   if (hide) return null;
@@ -27,8 +29,9 @@ export function MobileAppHeader({ title, className }: MobileAppHeaderProps) {
     <header
       className={cn(
         "lg:hidden sticky top-0 z-30 shrink-0",
-        "bg-primary text-primary-foreground safe-area-pt",
-        "border-b border-primary-foreground/10 shadow-sm",
+        "text-primary-foreground safe-area-pt",
+        // App look: the same blue gradient band as Home, POS and Purchase.
+        theme === "premium" ? "ez-shell shadow-md" : "bg-primary border-b border-primary-foreground/10 shadow-sm",
         className,
       )}
     >

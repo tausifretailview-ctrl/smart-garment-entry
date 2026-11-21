@@ -88,7 +88,7 @@ export const MobileAccountsSummary = () => {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-3">
         {/* Today's Collection */}
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden rounded-2xl border-border/60 shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center">
@@ -107,7 +107,7 @@ export const MobileAccountsSummary = () => {
         </Card>
 
         {/* Outstanding Receivables */}
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden rounded-2xl border-border/60 shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
@@ -126,7 +126,7 @@ export const MobileAccountsSummary = () => {
         </Card>
 
         {/* Outstanding Payables */}
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden rounded-2xl border-border/60 shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
@@ -145,7 +145,7 @@ export const MobileAccountsSummary = () => {
         </Card>
 
         {/* Net Position */}
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden rounded-2xl border-border/60 shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -171,7 +171,7 @@ export const MobileAccountsSummary = () => {
       <div className="grid grid-cols-2 gap-3">
         <Button
           variant="outline"
-          className="h-14 flex flex-col items-center justify-center gap-1"
+          className="h-16 flex flex-col items-center justify-center gap-1 rounded-2xl bg-card shadow-sm active:scale-95 transition-transform"
           onClick={() => orgNavigate("/accounts")}
         >
           <ArrowDownLeft className="h-5 w-5 text-green-500" />
@@ -180,7 +180,7 @@ export const MobileAccountsSummary = () => {
         
         <Button
           variant="outline"
-          className="h-14 flex flex-col items-center justify-center gap-1"
+          className="h-16 flex flex-col items-center justify-center gap-1 rounded-2xl bg-card shadow-sm active:scale-95 transition-transform"
           onClick={() => orgNavigate("/accounts")}
         >
           <ArrowUpRight className="h-5 w-5 text-red-500" />
@@ -189,7 +189,7 @@ export const MobileAccountsSummary = () => {
         
         <Button
           variant="outline"
-          className="h-14 flex flex-col items-center justify-center gap-1"
+          className="h-16 flex flex-col items-center justify-center gap-1 rounded-2xl bg-card shadow-sm active:scale-95 transition-transform"
           onClick={() => orgNavigate("/accounts")}
         >
           <BookOpen className="h-5 w-5 text-purple-500" />
@@ -198,7 +198,7 @@ export const MobileAccountsSummary = () => {
         
         <Button
           variant="outline"
-          className="h-14 flex flex-col items-center justify-center gap-1"
+          className="h-16 flex flex-col items-center justify-center gap-1 rounded-2xl bg-card shadow-sm active:scale-95 transition-transform"
           onClick={() => orgNavigate("/accounts")}
         >
           <Building2 className="h-5 w-5 text-orange-500" />

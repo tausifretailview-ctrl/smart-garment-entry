@@ -13,8 +13,8 @@ export const MobilePageHeader = ({ title, backTo, onBackClick, rightContent, sub
   const { orgNavigate } = useOrgNavigation();
   const showBack = Boolean(onBackClick || backTo);
   return (
-    <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border pt-[max(1.75rem,env(safe-area-inset-top,0px))]">
-      <div className="flex items-center justify-between px-3 py-2.5">
+    <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border safe-area-pt">
+      <div className="flex items-center justify-between px-3 pb-2.5 pt-3">
         <div className="flex items-center gap-2 min-w-0">
           {showBack && (
             <button

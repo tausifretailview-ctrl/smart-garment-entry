@@ -1,5 +1,5 @@
 /**
- * PosFastPicks — "FAST PICKS · TOP SELLERS" 2-up grid above the bill lines.
+ * PosFastPicks — "Fast picks · top sellers" product tiles above the bill lines.
  * Path: src/components/mobile/premium/PosFastPicks.tsx
  *
  * Feed it either the live search hits (when searchTerm is set) or the
@@ -8,7 +8,8 @@
  * dashboard already runs ("owner-top-selling") or a variant list ordered
  * by stock_qty, mapped to this shape.
  */
-import { SectionHead } from "./index";
+import { Plus } from "lucide-react";
+import { EmptyNote, SectionHead } from "./index";
 
 export type FastPick = {
   id: string;
@@ -29,37 +30,40 @@ export function PosFastPicks({
   searchTerm?: string;
   loading?: boolean;
 }) {
-  const title = searchTerm?.trim()
-    ? `Matches · ${searchTerm.trim()}`
-    : "Fast picks · top sellers";
+  const title = searchTerm?.trim() ? `Matches · ${searchTerm.trim()}` : "Fast picks · top sellers";
 
   return (
     <>
       <SectionHead
         title={title}
-        right={<p className="text-[10px] font-medium text-[var(--ez-muted)]">{loading ? "searching…" : "tap to add"}</p>}
+        right={<p className="shrink-0 text-[12px] font-medium text-[var(--ez-muted)]">{loading ? "Searching…" : "Tap to add"}</p>}
       />
-      <div className="grid grid-cols-2 border-t border-[var(--ez-rule-thin)]">
-        {items.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            onClick={p.onAdd}
-            className="border-b border-r border-[var(--ez-rule-thin)] bg-[var(--ez-ground)] px-2.5 pb-2.5 pt-2.5 text-left active:bg-[var(--ez-tint)]"
-          >
-            <p className="truncate text-[12px] font-bold leading-[1.25]">{p.name}</p>
-            <p className="mt-[3px] text-[9.5px] font-medium uppercase leading-none tracking-[0.06em] text-[var(--ez-muted)]">
-              {p.meta}
-            </p>
-            <p className="num mt-1.5 text-[15px] font-extrabold leading-none text-[var(--ez-accent-600)]">{p.price}</p>
-          </button>
-        ))}
-        {items.length === 0 ? (
-          <p className="col-span-2 border-b border-[var(--ez-rule-thin)] px-3.5 py-4 text-[12px] font-medium text-[var(--ez-muted)]">
-            {loading ? "Searching…" : "No products found"}
-          </p>
-        ) : null}
-      </div>
+      {items.length === 0 ? (
+        <div className="ez-card mx-3">
+          <EmptyNote>{loading ? "Searching…" : "No products found"}</EmptyNote>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2 px-3">
+          {items.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={p.onAdd}
+              className="ez-card ez-press ez-pop relative min-w-0 px-3 py-2.5 text-left active:bg-[var(--ez-tint)]"
+            >
+              <p className="truncate pr-6 text-[13.5px] font-semibold leading-[1.25]">{p.name}</p>
+              <p className="mt-0.5 truncate text-[11.5px] font-medium leading-tight text-[var(--ez-muted)]">{p.meta}</p>
+              <p className="num mt-1.5 text-[15px] font-bold leading-none text-[var(--ez-accent-600)]">{p.price}</p>
+              <span
+                className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--ez-tint)] text-[var(--ez-accent)]"
+                aria-hidden
+              >
+                <Plus className="h-3.5 w-3.5" strokeWidth={2.6} />
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </>
   );
 }

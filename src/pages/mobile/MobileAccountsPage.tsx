@@ -1,3 +1,4 @@
+import { MobileHubHeader } from "@/components/mobile/MobileHubHeader";
 import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
@@ -36,10 +37,7 @@ export default function MobileAccountsPage() {
       {...pullHandlers}
     >
       <PullToRefreshIndicator visible={isRefreshing} />
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-4 py-4">
-        <h1 className="text-xl font-semibold text-foreground">Accounts Summary</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">Receivables, payables & collection overview</p>
-      </div>
+      <MobileHubHeader title="Accounts" subtitle="Receivables, payables and collection" />
 
       <div className="px-4 py-4 space-y-5">
         <div className="bg-white dark:bg-card rounded-2xl border border-border/40 shadow-sm overflow-hidden">

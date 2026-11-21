@@ -9,7 +9,7 @@ import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import {
   TrendingUp, BarChart3, AlertTriangle, WifiOff, RefreshCw,
   IndianRupee, ShoppingCart, Wallet, Users, Building2, ArrowUpRight,
-  ArrowDownRight, Clock, Star, AlertCircle,
+  ArrowDownRight, Clock, Star, AlertCircle, ReceiptText, Package,
 } from "lucide-react";
 import { format, subDays, formatDistanceToNow, startOfMonth, endOfMonth } from "date-fns";
 import { formatLastFetchedLabel } from "@/utils/formatLastFetched";
@@ -21,7 +21,14 @@ import {
 } from "@/utils/netProfitKpis";
 import { fetchErpDashboardStatsAfterSr } from "@/utils/saleReturnAdjustTotal";
 import { localDayBounds, saleRowCalendarYmd, todayLocalYmd } from "@/lib/localDayBounds";
-import { MOBILE_HOME_SALE_TYPES, MOBILE_SALES_PATH, MOBILE_REPORTS_PATH } from "@/lib/mobileShell";
+import {
+  MOBILE_ACCOUNTS_PATH,
+  MOBILE_HOME_SALE_TYPES,
+  MOBILE_POS_PATH,
+  MOBILE_PURCHASE_ENTRY_PATH,
+  MOBILE_REPORTS_PATH,
+  MOBILE_SALES_PATH,
+} from "@/lib/mobileShell";
 import { useEffect, useState } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
@@ -42,7 +49,7 @@ import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
 import { useMobileUiTheme } from "@/hooks/useMobileUiTheme";
 import { OwnerNotificationsButton } from "@/components/OwnerNotificationsButton";
 import { ShopChatButton } from "@/components/shop-chat/ShopChatButton";
-import { ShellHeader, ShellButton, StatCell, SectionHead, ListRow } from "@/components/mobile/premium";
+import { ShellHeader, StatCell, SectionHead, ListRow, Panel, EmptyNote } from "@/components/mobile/premium";
 
 /* ─── helpers ─── */
 const fmt = (v: number) =>
@@ -513,84 +520,96 @@ export const OwnerDashboard = () => {
   }
 
   if (theme === "premium") {
+    const quickActions = [
+      { label: "New bill", icon: ReceiptText, path: MOBILE_POS_PATH, tint: "bg-blue-50 text-blue-600" },
+      { label: "Purchase", icon: ShoppingCart, path: MOBILE_PURCHASE_ENTRY_PATH, tint: "bg-amber-50 text-amber-600" },
+      { label: "Stock", icon: Package, path: "/owner-stock", tint: "bg-emerald-50 text-emerald-600" },
+      { label: "Accounts", icon: Wallet, path: MOBILE_ACCOUNTS_PATH, tint: "bg-violet-50 text-violet-600" },
+    ];
+    const shellIconButton =
+      "ez-press h-10 w-10 rounded-full bg-[var(--ez-shell-fill)] text-[var(--ez-shell-text)] ring-1 ring-inset ring-[var(--ez-shell-line)] hover:bg-white/20 hover:text-white active:bg-white/25";
     return (
       <div
         ref={scrollRef}
-        className="ez h-full min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain bg-[var(--ez-ground)] pb-[calc(4.25rem+env(safe-area-inset-bottom,0px)+1rem)]"
+        className="ez h-full min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain bg-[var(--ez-ground)] pb-[calc(4.25rem+env(safe-area-inset-bottom,0px)+1.5rem)]"
         {...pullHandlers}
       >
         <PullToRefreshIndicator visible={isRefreshing} />
 
-        {/* ── SHELL: greeting + today's four numbers ── */}
+        {/* ── HEADER: greeting + the period's two headline numbers ── */}
         <ShellHeader
-          title={`${greeting}`}
+          title={greeting}
           kicker={`${currentOrganization?.name ?? ""} · ${format(new Date(), "EEE, d MMM")}`}
           action={
-            <div className="flex shrink-0 items-center gap-2">
-              <ShopChatButton
-                className="h-[36px] w-[36px] border-2 border-[var(--ez-shell-line)] text-[var(--ez-shell-text)] active:bg-[#1c1f25]"
-                badgeClassName="-top-1.5 -right-1.5"
-              />
+            <div className="flex shrink-0 items-center gap-1.5">
+              <ShopChatButton className={shellIconButton} iconClassName="h-5 w-5" badgeClassName="-top-0.5 -right-0.5" />
               <OwnerNotificationsButton
-                className="h-[36px] w-[36px] border-2 border-[var(--ez-shell-line)] text-[var(--ez-shell-text)] active:bg-[#1c1f25]"
-                badgeClassName="-top-1.5 -right-1.5"
+                className={shellIconButton}
+                iconClassName="h-5 w-5"
+                badgeClassName="-top-0.5 -right-0.5"
               />
-              <ShellButton onClick={handleRefresh} ariaLabel="Refresh dashboard">
-                <span className="flex items-center gap-1.5">
-                  <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
-                  {lastFetchedLabel || (dashLoading ? "Loading" : "Refresh")}
-                </span>
-              </ShellButton>
+              <button
+                type="button"
+                onClick={handleRefresh}
+                aria-label="Refresh dashboard"
+                className={cn(shellIconButton, "flex items-center justify-center")}
+              >
+                <RefreshCw className={cn("h-[18px] w-[18px]", isRefreshing && "animate-spin")} />
+              </button>
             </div>
           }
         >
-          <div className="mb-2.5 flex border-2 border-[var(--ez-shell-line)]">
-            {(["today", "month"] as const).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setHeroPeriod(p)}
-                className={cn(
-                  "ez-btn-label min-h-[36px] flex-1 px-3 py-2",
-                  heroPeriod === p
-                    ? "bg-[var(--ez-accent)] text-white"
-                    : "bg-transparent text-[var(--ez-shell-text)]",
-                )}
-              >
-                {p === "today" ? "Today" : "This month"}
-              </button>
-            ))}
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex flex-1 rounded-full bg-[var(--ez-shell-fill)] p-1 ring-1 ring-inset ring-[var(--ez-shell-line)]">
+              {(["today", "month"] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setHeroPeriod(p)}
+                  aria-pressed={heroPeriod === p}
+                  className={cn(
+                    "h-9 flex-1 rounded-full px-3 text-[13px] font-semibold transition-colors duration-200",
+                    heroPeriod === p ? "bg-white text-[var(--ez-accent-700)] shadow-sm" : "text-[var(--ez-shell-text)]",
+                  )}
+                >
+                  {p === "today" ? "Today" : "This month"}
+                </button>
+              ))}
+            </div>
+            {lastFetchedLabel ? (
+              <p className="shrink-0 text-right text-[11px] font-medium leading-tight text-[var(--ez-shell-muted)]">
+                {lastFetchedLabel}
+              </p>
+            ) : null}
           </div>
-          <div className="grid grid-cols-2 border-t-2 border-[var(--ez-shell-line)]">
-            <div className="border-r-2 border-[var(--ez-shell-line)] py-2.5 pr-3">
-              <p className="text-[9.5px] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--ez-shell-muted)]">
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="min-w-0 rounded-2xl bg-[var(--ez-shell-fill)] px-3.5 py-3 ring-1 ring-inset ring-[var(--ez-shell-line)]">
+              <p className="truncate text-[12px] font-medium leading-tight text-[var(--ez-shell-muted)]">
                 {periodIsMonth ? "Revenue this month" : "Revenue today"}
               </p>
-              <p className="mt-0.5 text-[9px] font-medium leading-tight text-[var(--ez-shell-muted)]">
-                {STORED_NET_CAPTION}
-              </p>
-              <p className="num mt-1.5 text-[27px] font-extrabold leading-none tracking-[-0.02em]">
+              <p className="num mt-1.5 truncate text-[26px] font-bold leading-none tracking-[-0.02em]">
                 {dashLoading ? "—" : fmtShort(totalSales)}
               </p>
+              <p className="mt-1.5 line-clamp-2 text-[10.5px] font-medium leading-tight text-[var(--ez-shell-muted)]">
+                {STORED_NET_CAPTION}
+              </p>
             </div>
-            <div className="py-2.5 pl-3">
-              <p className="text-[9.5px] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--ez-shell-muted)]">
-                Gross profit
-              </p>
-              <p className="mt-0.5 text-[9px] font-medium leading-tight text-[var(--ez-shell-muted)]">
-                {profitView.caption}
-              </p>
+            <div className="min-w-0 rounded-2xl bg-[var(--ez-shell-fill)] px-3.5 py-3 ring-1 ring-inset ring-[var(--ez-shell-line)]">
+              <p className="truncate text-[12px] font-medium leading-tight text-[var(--ez-shell-muted)]">Gross profit</p>
               <p
                 className={cn(
-                  "num mt-1.5 text-[27px] font-extrabold leading-none tracking-[-0.02em]",
+                  "num mt-1.5 truncate text-[26px] font-bold leading-none tracking-[-0.02em]",
                   grossProfit >= 0 ? "text-[var(--ez-shell-credit)]" : "text-[var(--ez-shell-debit)]",
                 )}
               >
                 {profitLoading ? "—" : fmtShort(grossProfit)}
               </p>
+              <p className="mt-1.5 line-clamp-2 text-[10.5px] font-medium leading-tight text-[var(--ez-shell-muted)]">
+                {profitView.caption}
+              </p>
             </div>
           </div>
-          <div className="num flex flex-wrap gap-x-3.5 gap-y-1 border-t border-[var(--ez-shell-line)] pt-2 text-[11px] font-medium leading-[1.4] text-[var(--ez-shell-muted)]">
+          <div className="num mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[12px] font-medium leading-[1.4] text-[var(--ez-shell-muted)]">
             <span>
               Bills <strong className="font-semibold text-[var(--ez-shell-text)]">{salesCount}</strong> sales ·{" "}
               <strong className="font-semibold text-[var(--ez-shell-text)]">{purchaseCount}</strong> purchases
@@ -607,130 +626,168 @@ export const OwnerDashboard = () => {
           </div>
         </ShellHeader>
 
-        {/* ── KPI GRID — the same six statCards, 3-up, no gradients ── */}
-        <div className="grid grid-cols-3 border-b-2 border-[var(--ez-rule)]">
-          {statCards.map((card) => (
-            <StatCell
-              key={card.label}
-              label={card.label}
-              value={fmtShort(card.value)}
-              sub={card.sub}
-              tone={
-                card.valueClass?.includes("destructive")
-                  ? "debit"
-                  : card.valueClass?.includes("emerald")
-                    ? "credit"
-                    : "ink"
-              }
-              loading={card.loading}
-              onClick={() => orgNavigate(card.path)}
-            />
-          ))}
-        </div>
-
-        {/* ── 7-DAY STRIP (replaces the Recharts card on mobile) ── */}
-        {salesTrend && salesTrend.length > 0 ? (
-          <div className="border-b-2 border-[var(--ez-rule)] px-3.5 pb-3.5 pt-3">
-            <div className="mb-2.5 flex items-baseline justify-between">
-              <p className="ez-section">Sales · last 7 days</p>
-              <p className="text-[10px] font-medium text-[var(--ez-muted)]">
-                avg {fmtShort(salesTrend.reduce((s, d) => s + d.sales, 0) / salesTrend.length)}
-              </p>
-            </div>
-            {(() => {
-              const peak = Math.max(...salesTrend.map((d) => d.sales), 1);
-              return (
-                <>
-                  <div className="grid h-[78px] grid-cols-7 items-end gap-1.5">
-                    {salesTrend.map((d) => (
-                      <div
-                        key={d.name}
-                        style={{ height: `${Math.max(3, (d.sales / peak) * 100)}%` }}
-                        className={d.sales >= peak ? "bg-[var(--ez-accent)]" : "bg-[#a8c6fb]"}
-                      />
-                    ))}
-                  </div>
-                  <div className="mt-1.5 grid grid-cols-7 gap-1.5">
-                    {salesTrend.map((d) => (
-                      <p key={d.name} className="text-[9px] font-semibold uppercase leading-none text-[var(--ez-muted)]">
-                        {d.name}
-                      </p>
-                    ))}
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-        ) : null}
-
-        {/* ── RECENT ACTIVITY ── */}
-        <SectionHead title="Recent activity" />
-        <div className="border-b-2 border-[var(--ez-rule)]">
-          {activityLoading ? (
-            <p className="px-3.5 py-4 text-[12px] font-medium text-[var(--ez-muted)]">Loading…</p>
-          ) : recentActivity && recentActivity.length > 0 ? (
-            recentActivity.map((item) => (
-              <ListRow
-                key={item.id}
-                label={item.desc}
-                sub={item.time ? formatDistanceToNow(new Date(item.time), { addSuffix: true }) : undefined}
-                value={item.type === "purchase" ? `-${fmtShort(item.amount)}` : fmtShort(item.amount)}
-                tone={item.type === "purchase" ? "debit" : item.type === "payment" ? "credit" : "ink"}
-                onClick={() => {
-                  if (item.type === "sale") orgNavigate(MOBILE_SALES_PATH);
-                  else if (item.type === "purchase") orgNavigate("/owner-purchases");
-                  else orgNavigate(`${MOBILE_REPORTS_PATH}?report=payment-collection`);
-                }}
-              />
-            ))
-          ) : (
-            <p className="px-3.5 py-4 text-[12px] font-medium text-[var(--ez-muted)]">No activity today</p>
+        <div className="ez-stagger space-y-3 px-3 pt-3">
+          {!isOnline && (
+            <p className="rounded-2xl bg-red-50 px-3.5 py-3 text-[13px] font-semibold text-[var(--ez-debit)]">
+              Offline — showing cached data
+            </p>
           )}
-        </div>
 
-        {/* ── NEEDS ATTENTION (low stock + top selling, one list) ── */}
-        <SectionHead title="Needs attention" right={
-          <button type="button" onClick={() => orgNavigate("/owner-stock")} className="ez-btn-label text-[10px] text-[var(--ez-accent-700)]">
-            All stock
-          </button>
-        } />
-        <div className="border-b-2 border-[var(--ez-rule)]">
-          {(lowStock ?? []).map((item) => (
-            <ListRow
-              key={item.id}
-              label={`${item.name}${item.color ? ` (${item.color})` : ""}`}
-              sub={`${item.brand ?? ""} • ${item.size ?? ""}`}
-              value={`${item.qty} pc`}
-              tone="debit"
-              onClick={() => orgNavigate("/owner-stock")}
-            />
-          ))}
-          {(lowStock?.length ?? 0) === 0 ? (
-            <p className="px-3.5 py-4 text-[12px] font-medium text-[var(--ez-muted)]">All stock levels OK</p>
+          {/* ── QUICK ACTIONS: the entries used most, one tap from Home ── */}
+          <div className="ez-card grid grid-cols-4 gap-1 px-2 py-3" data-testid="home-quick-actions">
+            {quickActions.map((a) => (
+              <button
+                key={a.label}
+                type="button"
+                onClick={() => orgNavigate(a.path)}
+                className="ez-press flex min-w-0 flex-col items-center gap-1.5 rounded-xl py-1"
+              >
+                <span className={cn("flex h-12 w-12 items-center justify-center rounded-2xl", a.tint)}>
+                  <a.icon className="h-[22px] w-[22px]" strokeWidth={2} />
+                </span>
+                <span className="w-full truncate text-center text-[12px] font-semibold leading-tight text-[var(--ez-ink)]">
+                  {a.label}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* ── KPI CARDS — the same six statCards, 2-up ── */}
+          <div className="grid grid-cols-2 gap-2.5">
+            {statCards.map((card) => (
+              <StatCell
+                key={card.label}
+                label={card.label}
+                value={fmtShort(card.value)}
+                sub={card.sub}
+                icon={
+                  <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full", card.iconBg)}>
+                    <card.icon className={cn("h-3.5 w-3.5", card.iconColor)} />
+                  </span>
+                }
+                tone={
+                  card.valueClass?.includes("destructive")
+                    ? "debit"
+                    : card.valueClass?.includes("emerald")
+                      ? "credit"
+                      : "ink"
+                }
+                loading={card.loading}
+                onClick={() => orgNavigate(card.path)}
+              />
+            ))}
+          </div>
+
+          {/* ── 7-DAY BARS ── */}
+          {salesTrend && salesTrend.length > 0 ? (
+            <Panel className="px-3.5 pb-3.5 pt-3">
+              <div className="mb-3 flex items-baseline justify-between">
+                <p className="ez-section">Sales · last 7 days</p>
+                <p className="text-[12px] font-medium text-[var(--ez-muted)]">
+                  avg {fmtShort(salesTrend.reduce((s, d) => s + d.sales, 0) / salesTrend.length)}
+                </p>
+              </div>
+              {(() => {
+                const peak = Math.max(...salesTrend.map((d) => d.sales), 1);
+                return (
+                  <>
+                    <div className="grid h-[84px] grid-cols-7 items-end gap-2">
+                      {salesTrend.map((d) => (
+                        <div
+                          key={d.name}
+                          style={{ height: `${Math.max(4, (d.sales / peak) * 100)}%` }}
+                          className={cn(
+                            "rounded-t-md transition-[height] duration-500 ease-out",
+                            d.sales >= peak ? "bg-[var(--ez-accent)]" : "bg-[#bfdbfe]",
+                          )}
+                        />
+                      ))}
+                    </div>
+                    <div className="mt-2 grid grid-cols-7 gap-2">
+                      {salesTrend.map((d) => (
+                        <p key={d.name} className="text-center text-[11px] font-medium leading-none text-[var(--ez-muted)]">
+                          {d.name}
+                        </p>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
+            </Panel>
           ) : null}
-        </div>
 
-        <SectionHead title="Top selling today" />
-        <div className="border-b-2 border-[var(--ez-rule)]">
-          {(topSelling ?? []).map((item, idx) => (
-            <ListRow
-              key={`${item.name}-${item.size}`}
-              label={`${idx + 1}. ${item.name}`}
-              sub={`Size ${item.size} · Qty ${item.qty}`}
-              value={fmtShort(item.revenue)}
-              onClick={() => orgNavigate(`${MOBILE_REPORTS_PATH}?report=item-wise-sales`)}
+          {/* ── RECENT ACTIVITY ── */}
+          <div>
+            <SectionHead title="Recent activity" />
+            <Panel>
+              {activityLoading ? (
+                <EmptyNote>Loading…</EmptyNote>
+              ) : recentActivity && recentActivity.length > 0 ? (
+                recentActivity.map((item) => (
+                  <ListRow
+                    key={item.id}
+                    label={item.desc}
+                    sub={item.time ? formatDistanceToNow(new Date(item.time), { addSuffix: true }) : undefined}
+                    value={item.type === "purchase" ? `-${fmtShort(item.amount)}` : fmtShort(item.amount)}
+                    tone={item.type === "purchase" ? "debit" : item.type === "payment" ? "credit" : "ink"}
+                    onClick={() => {
+                      if (item.type === "sale") orgNavigate(MOBILE_SALES_PATH);
+                      else if (item.type === "purchase") orgNavigate("/owner-purchases");
+                      else orgNavigate(`${MOBILE_REPORTS_PATH}?report=payment-collection`);
+                    }}
+                  />
+                ))
+              ) : (
+                <EmptyNote>No activity today</EmptyNote>
+              )}
+            </Panel>
+          </div>
+
+          {/* ── NEEDS ATTENTION (low stock) ── */}
+          <div>
+            <SectionHead
+              title="Needs attention"
+              right={
+                <button
+                  type="button"
+                  onClick={() => orgNavigate("/owner-stock")}
+                  className="ez-btn-label shrink-0 text-[var(--ez-accent-700)]"
+                >
+                  All stock
+                </button>
+              }
             />
-          ))}
-          {(topSelling?.length ?? 0) === 0 ? (
-            <p className="px-3.5 py-4 text-[12px] font-medium text-[var(--ez-muted)]">No sales today yet</p>
-          ) : null}
-        </div>
+            <Panel>
+              {(lowStock ?? []).map((item) => (
+                <ListRow
+                  key={item.id}
+                  label={`${item.name}${item.color ? ` (${item.color})` : ""}`}
+                  sub={`${item.brand ?? ""} • ${item.size ?? ""}`}
+                  value={`${item.qty} pc`}
+                  tone="debit"
+                  onClick={() => orgNavigate("/owner-stock")}
+                />
+              ))}
+              {(lowStock?.length ?? 0) === 0 ? <EmptyNote>All stock levels OK</EmptyNote> : null}
+            </Panel>
+          </div>
 
-        {!isOnline && (
-          <p className="border-b-2 border-[var(--ez-rule)] bg-[#f9ecea] px-3.5 py-3 text-[12px] font-semibold text-[var(--ez-debit)]">
-            Offline — showing cached data
-          </p>
-        )}
+          <div>
+            <SectionHead title="Top selling today" />
+            <Panel>
+              {(topSelling ?? []).map((item, idx) => (
+                <ListRow
+                  key={`${item.name}-${item.size}`}
+                  label={`${idx + 1}. ${item.name}`}
+                  sub={`Size ${item.size} · Qty ${item.qty}`}
+                  value={fmtShort(item.revenue)}
+                  onClick={() => orgNavigate(`${MOBILE_REPORTS_PATH}?report=item-wise-sales`)}
+                />
+              ))}
+              {(topSelling?.length ?? 0) === 0 ? <EmptyNote>No sales today yet</EmptyNote> : null}
+            </Panel>
+          </div>
+        </div>
       </div>
     );
   }
