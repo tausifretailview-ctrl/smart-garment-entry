@@ -3,19 +3,14 @@ import { FIELD_SALES_SAFE_TOP, useFieldSalesShell } from "@/hooks/useFieldSalesS
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, AlertCircle, ArrowRight, MapPin, ShoppingBag, Users } from "lucide-react";
+import { Loader2, AlertCircle, ArrowRight, Eye, EyeOff, Lock, Mail, ShoppingBag, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { validateAuth } from "@/lib/validations";
 import { storeOrgSlug } from "@/lib/orgSlug";
 import { useFieldSalesManifest } from "@/hooks/useFieldSalesManifest";
 import { FieldSalesInstallCard } from "@/components/fieldSales/FieldSalesInstallCard";
-
-const FIELD_SALES_COLOR = "#F97316"; // Orange-500
+import { ChangeOrganization } from "@/components/orgLogin/ChangeOrganization";
 
 interface Organization {
   id: string;
@@ -44,6 +39,7 @@ export default function FieldSalesAuth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [orgLoading, setOrgLoading] = useState(true);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [orgSettings, setOrgSettings] = useState<OrgSettings | null>(null);
@@ -74,29 +70,21 @@ export default function FieldSalesAuth() {
       }
 
       try {
-        const { data, error } = await supabase
-          .from("organizations")
-          .select("id, name, slug, settings")
-          .eq("slug", orgSlug)
-          .single();
+        // The public shop lookup (same as the shop login): works before sign-in, where the
+        // organizations and settings tables are not readable, and accepts "ellanoor" for "ella-noor".
+        const { data, error } = await supabase.rpc("get_org_public_info" as never, { p_slug: orgSlug } as never);
+        const info = data as
+          | { id?: string; name?: string; slug?: string; settings?: unknown; business_name?: string; bill_barcode_settings?: OrgSettings["bill_barcode_settings"] }
+          | null;
 
-        if (error || !data) {
+        if (error || !info?.id || !info.slug) {
           setError("Organization not found");
           setOrgLoading(false);
           return;
         }
 
-        setOrganization(data);
-
-        const { data: settingsData } = await supabase
-          .from("settings")
-          .select("business_name, bill_barcode_settings")
-          .eq("organization_id", data.id)
-          .single();
-
-        if (settingsData) {
-          setOrgSettings(settingsData as OrgSettings);
-        }
+        setOrganization({ id: info.id, name: info.name || info.business_name || info.slug, slug: info.slug, settings: info.settings });
+        setOrgSettings({ business_name: info.business_name, bill_barcode_settings: info.bill_barcode_settings });
       } catch (err) {
         console.error("Error fetching organization:", err);
         setError("Failed to load organization");
@@ -252,24 +240,41 @@ export default function FieldSalesAuth() {
 
   if (orgLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-orange-100">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+      <div className="flex h-dvh items-center justify-center bg-gradient-to-br from-orange-600 to-orange-500">
+        <Loader2 className="h-8 w-8 animate-spin text-white" />
       </div>
     );
   }
 
+  const band = (
+    <div
+      className="shrink-0 px-5 pb-10 text-white"
+      style={{ paddingTop: `calc(${FIELD_SALES_SAFE_TOP} + 18px)` }}
+    >
+      <div className="mx-auto flex max-w-[440px] items-center gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/20">
+          <ShoppingBag className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold leading-tight">Field Sales</h1>
+          <p className="text-xs leading-tight text-orange-100">Orders, customers and outstanding</p>
+        </div>
+      </div>
+    </div>
+  );
+
   if (!organization) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-orange-100 p-4">
-        <Card className="w-full max-w-md shadow-xl border-orange-200">
-          <div className="p-6 text-center">
-            <AlertCircle className="h-12 w-12 text-orange-500 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Organization Not Found</h2>
-            <p className="text-muted-foreground mb-4">
-              The organization URL you're trying to access doesn't exist.
-            </p>
-          </div>
-        </Card>
+      <div className="flex h-dvh flex-col overflow-y-auto bg-gradient-to-br from-orange-600 to-orange-500">
+        {band}
+        <div className="-mt-5 flex flex-1 flex-col items-center rounded-t-[28px] bg-white px-5 pt-10 text-center">
+          <AlertCircle className="h-12 w-12 text-orange-500" />
+          <h2 className="mt-3 text-xl font-bold text-slate-900">Organisation not found</h2>
+          <p className="mt-1 max-w-xs text-sm text-slate-500">
+            This shop link does not exist. Enter the correct organisation code to continue.
+          </p>
+          <ChangeOrganization fieldSales accent="orange" className="mt-4 border border-orange-200 bg-orange-50" />
+        </div>
       </div>
     );
   }
@@ -278,135 +283,129 @@ export default function FieldSalesAuth() {
     || orgSettings?.business_name 
     || organization.name;
   const logoUrl = orgSettings?.bill_barcode_settings?.logo_url;
+  const inputClass =
+    "no-uppercase h-12 w-full rounded-xl border border-slate-300 bg-white pl-11 pr-3 text-base text-slate-900 outline-none placeholder:text-slate-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-200 disabled:opacity-60";
 
   return (
     <div
-      className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 via-white to-orange-100"
-      style={{ paddingTop: FIELD_SALES_SAFE_TOP }}
+      className="flex h-dvh flex-col overflow-y-auto bg-gradient-to-br from-orange-600 to-orange-500"
+      data-testid="field-sales-login"
     >
-      {/* Header with Field Sales branding */}
-      <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white py-4 px-6 shadow-lg">
-        <div className="max-w-md mx-auto flex items-center gap-3">
-          <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-            <ShoppingBag className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="font-bold text-lg">Field Sales</h1>
-            <p className="text-orange-100 text-xs">Mobile Order Management</p>
-          </div>
-        </div>
-      </div>
+      {band}
 
-      {/* Main content */}
-      <div className="flex-1 flex items-center justify-center p-4">
-        <div className="w-full max-w-md space-y-6">
-          {/* Organization branding */}
+      <div
+        className="-mt-5 flex flex-1 flex-col rounded-t-[28px] bg-white px-5 pt-6 shadow-[0_-8px_24px_rgba(154,52,18,0.25)]"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 24px)" }}
+      >
+        <div className="mx-auto w-full max-w-[440px] space-y-5">
+          {/* Shop */}
           <div className="text-center">
-            {logoUrl ? (
-              <img 
-                src={logoUrl} 
-                alt={displayName} 
-                className="h-16 w-auto mx-auto object-contain mb-3"
-              />
-            ) : (
-              <div className="mx-auto w-16 h-16 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center mb-3 shadow-lg">
-                <Users className="h-8 w-8 text-white" />
-              </div>
-            )}
-            <h2 className="text-2xl font-bold text-gray-900">{displayName}</h2>
-            <p className="text-muted-foreground text-sm mt-1">
-              Sign in to access your Field Sales account
-            </p>
-          </div>
-
-          {/* Features preview */}
-          <div className="flex justify-center gap-6 text-center">
-            <div className="flex flex-col items-center gap-1">
-              <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
-                <ShoppingBag className="h-5 w-5 text-orange-600" />
-              </div>
-              <span className="text-xs text-muted-foreground">Quick Orders</span>
-            </div>
-            <div className="flex flex-col items-center gap-1">
-              <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
-                <Users className="h-5 w-5 text-orange-600" />
-              </div>
-              <span className="text-xs text-muted-foreground">Customers</span>
-            </div>
-            <div className="flex flex-col items-center gap-1">
-              <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
-                <MapPin className="h-5 w-5 text-orange-600" />
-              </div>
-              <span className="text-xs text-muted-foreground">Route Plan</span>
-            </div>
-          </div>
-
-          {/* Login form */}
-          <Card className="shadow-xl border-orange-100">
-            <CardContent className="p-6 space-y-4">
-              {error && (
-                <Alert variant="destructive" className="rounded-lg">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
+            <div className="mx-auto flex h-[84px] w-[84px] items-center justify-center rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
+              {logoUrl ? (
+                <img src={logoUrl} alt={displayName} className="max-h-full max-w-full object-contain" />
+              ) : (
+                <Users className="h-9 w-9 text-orange-500" />
               )}
-              
-              <form onSubmit={handleSignIn} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="font-medium">Email Address</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={loading}
-                    required
-                    className="h-11 border-orange-200 focus:border-orange-400 focus:ring-orange-400"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="font-medium">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={loading}
-                    required
-                    className="h-11 border-orange-200 focus:border-orange-400 focus:ring-orange-400"
-                  />
-                </div>
+            </div>
+            <h2 className="mt-3 text-lg font-bold uppercase tracking-wide text-slate-900">{displayName}</h2>
+            <p className="text-sm text-slate-500">Sign in with your salesman login</p>
+            <ChangeOrganization currentName={displayName} fieldSales accent="orange" className="mt-1" />
+          </div>
 
-                <Button 
-                  type="submit" 
-                  className="w-full h-11 text-base font-semibold bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-lg shadow-orange-500/25" 
+          {error && (
+            <Alert variant="destructive" className="rounded-xl">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <form onSubmit={handleSignIn} className="space-y-4">
+            <div className="space-y-1.5">
+              <label htmlFor="email" className="block text-sm font-semibold text-slate-700">
+                Email address
+              </label>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="email"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="username"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}
+                  required
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="password" className="block text-sm font-semibold text-slate-700">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={loading}
+                  required
+                  className={`${inputClass} pr-12`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 active:bg-slate-100"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Signing in...
-                    </>
-                  ) : (
-                    <>
-                      Sign In
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </>
-                  )}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 text-base font-bold text-white shadow-md shadow-orange-500/30 active:scale-[0.99] disabled:opacity-60"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                <>
+                  Sign In
+                  <ArrowRight className="h-5 w-5" />
+                </>
+              )}
+            </button>
+          </form>
 
           <FieldSalesInstallCard />
 
-          {/* Footer */}
-          <p className="text-center text-muted-foreground text-xs">
-            Don't have access? Contact your organization administrator.
-          </p>
+          <div className="space-y-1 pb-2 text-center text-xs text-slate-500">
+            <p>No salesman login? Ask the shop owner to turn on Field Sales for you in Employee Master.</p>
+            <p>
+              Shop owner or staff?{" "}
+              <button
+                type="button"
+                className="font-semibold text-slate-800 underline underline-offset-2"
+                onClick={() => {
+                  sessionStorage.removeItem("fieldSalesPWA");
+                  navigate(`/${organization.slug}`);
+                }}
+              >
+                Open the shop login
+              </button>
+            </p>
+          </div>
         </div>
       </div>
     </div>

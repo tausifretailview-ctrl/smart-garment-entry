@@ -11,8 +11,8 @@ describe("Field Sales app shell", () => {
     expect(FIELD_SALES_SAFE_TOP).toContain("env(safe-area-inset-top");
     expect(FIELD_SALES_SAFE_TOP).toContain("--fs-safe-top-fallback");
     const ua = (v: number) => `Mozilla/5.0 (Linux; Android ${v}; Pixel) AppleWebKit/537.36 Chrome/140 Mobile Safari/537.36`;
-    expect(fieldSalesSafeTopFallbackPx(true, ua(15))).toBe(32);
-    expect(fieldSalesSafeTopFallbackPx(true, ua(16))).toBe(32);
+    expect(fieldSalesSafeTopFallbackPx(true, ua(15))).toBe(40);
+    expect(fieldSalesSafeTopFallbackPx(true, ua(16))).toBe(40);
     // Before Android 15 the page is not drawn under the status bar.
     expect(fieldSalesSafeTopFallbackPx(true, ua(14))).toBe(0);
     // Browser / installed PWA: the browser keeps the status bar separate.

@@ -15,6 +15,7 @@ import { signInWithGoogleOAuth } from "@/lib/googleOAuthSignIn";
 import { hideAppBootSplash } from "@/lib/appBootSplash";
 import { useCompactLoginLayout } from "@/hooks/use-mobile";
 import { OrgLoginShell, OrgLoginTrustBadges } from "@/components/orgLogin/OrgLoginShell";
+import { ChangeOrganization } from "@/components/orgLogin/ChangeOrganization";
 import { logSuccessfulOrgLogin } from "@/utils/orgLoginAudit";
 
 interface Organization {
@@ -528,6 +529,9 @@ export default function OrgAuth() {
     || normalizeOrgSlug(orgSlug).replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   const logoUrl = orgSettings?.bill_barcode_settings?.logo_url;
 
+  // Smaller logo tile on phones so the whole form fits above the fold.
+  const logoBox = compactLogin ? "h-[84px] w-[84px]" : "h-[120px] w-[120px]";
+
   // Network error banner (shown inside the login form, not blocking)
   const showNetworkWarning = orgFetchErrorType === "network" && !organization;
 
@@ -541,14 +545,14 @@ export default function OrgAuth() {
       <div className="text-center">
               {orgLoading ? (
                 <div
-                  className="mx-auto mb-4 flex h-[120px] w-[120px] animate-pulse items-center justify-center bg-white p-3"
+                  className={`mx-auto mb-3 flex ${logoBox} animate-pulse items-center justify-center bg-white p-3`}
                   style={{ border: "1px solid #e2e8f0", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,0.08)" }}
                 >
                   <Building2 className="h-12 w-12 text-muted-foreground" />
                 </div>
               ) : logoUrl ? (
                 <div
-                  className="mx-auto mb-4 flex h-[120px] w-[120px] items-center justify-center bg-white p-3"
+                  className={`mx-auto mb-3 flex ${logoBox} items-center justify-center bg-white p-3`}
                   style={{ border: "1px solid #e2e8f0", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,0.08)" }}
                 >
                   <img
@@ -559,7 +563,7 @@ export default function OrgAuth() {
                 </div>
               ) : (
                 <div
-                  className="mx-auto mb-4 flex h-[120px] w-[120px] items-center justify-center bg-white p-3"
+                  className={`mx-auto mb-3 flex ${logoBox} items-center justify-center bg-white p-3`}
                   style={{ border: "1px solid #e2e8f0", borderRadius: 14, boxShadow: "0 1px 3px rgba(15,23,42,0.08)" }}
                 >
                   <Building2 className="h-12 w-12" style={{ color: "#1e3a8a" }} />
@@ -569,7 +573,9 @@ export default function OrgAuth() {
               <h2 className="uppercase" style={{ color: "#1e3a8a", fontSize: 18, fontWeight: 600, letterSpacing: "0.04em" }}>
                 {displayName}
               </h2>
-              <div className="mx-auto mt-4 h-px w-full" style={{ background: "#e2e8f0" }} />
+              {/* The app remembers this shop; this is the way to another one (no address bar in the apps). */}
+              <ChangeOrganization currentName={displayName} className="mt-1" />
+              <div className="mx-auto mt-3 h-px w-full" style={{ background: "#e2e8f0" }} />
             </div>
 
             <div className="space-y-4">

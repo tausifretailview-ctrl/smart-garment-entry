@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Receipt, Package, BarChart3, ShieldCheck, MapPin, Store } from "lucide-react";
 import { useCompactLoginLayout } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { FIELD_SALES_SAFE_TOP, usePhoneShell } from "@/hooks/useFieldSalesShell";
 
 const LEFT_FEATURE_CARDS = [
   { icon: Receipt, title: "POS & Sales Billing", desc: "Fast billing, GST invoices" },
@@ -180,32 +181,50 @@ export function OrgLoginShell({
 }) {
   const compactFromHook = useCompactLoginLayout();
   const compactLogin = compactLoginProp ?? compactFromHook;
+  // Phones: phone text size (the web root is 18–19px) and room for the status bar.
+  usePhoneShell(compactLogin);
+
+  if (compactLogin) {
+    return (
+      <div
+        className="login-page flex h-dvh w-full flex-col overflow-y-auto"
+        style={{ background: "linear-gradient(160deg, #0B1B3A 0%, #13294f 55%, #1e3a8a 100%)" }}
+        data-testid="login-phone"
+      >
+        {/* Brand band; the form sheet overlaps its lower edge */}
+        <div className="shrink-0 px-5 pb-10" style={{ paddingTop: `calc(${FIELD_SALES_SAFE_TOP} + 18px)` }}>
+          <EzzyBrandRow large />
+        </div>
+        <div
+          className="login-form-col -mt-5 flex flex-1 flex-col rounded-t-[28px] bg-card px-5 pt-6 shadow-[0_-8px_24px_rgba(11,27,58,0.25)]"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 24px)" }}
+        >
+          <div className="mx-auto w-full max-w-[440px] space-y-5">
+            <div className="text-center">
+              <h1 className="font-bold" style={{ fontSize: 24, letterSpacing: "-0.01em", color: "#0f172a" }}>
+                {title}
+              </h1>
+              <p className="mt-1" style={{ fontSize: 14, color: "#64748b" }}>
+                {subtitle}
+              </p>
+            </div>
+            {children}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="login-page flex h-screen w-full overflow-hidden bg-background">
-      <OrgLoginMarketingPanel hidden={compactLogin} />
+      <OrgLoginMarketingPanel hidden={false} />
 
-      <div
-        className={cn(
-          "flex h-dvh min-h-0 w-full flex-1 flex-col overflow-y-auto bg-card",
-          !compactLogin && "md:w-1/2",
-        )}
-      >
+      <div className="flex h-dvh min-h-0 w-full flex-1 flex-col overflow-y-auto bg-card md:w-1/2">
         <div
-          className={cn(
-            "login-form-col mx-auto flex w-full max-w-[500px] flex-1 flex-col justify-center",
-            compactLogin
-              ? "px-4 py-8 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))]"
-              : "px-8 py-10 md:px-10",
-          )}
+          className="login-form-col mx-auto flex w-full max-w-[500px] flex-1 flex-col px-8 py-10 md:px-10"
         >
-          {compactLogin && (
-            <div className="mb-6">
-              <EzzyBrandRow centered onLightBackground large />
-            </div>
-          )}
-
-          <div className="space-y-6">
+          {/* my-auto, not justify-center: a form taller than the window stays reachable from the top */}
+          <div className="my-auto space-y-6">
             <div className="text-center">
               <h1 className="font-bold" style={{ fontSize: 32, letterSpacing: "-0.01em", color: "#0f172a" }}>
                 {title}

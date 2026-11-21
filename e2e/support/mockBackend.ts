@@ -71,7 +71,13 @@ function baseTables(): Record<string, Row[]> {
 
 export class MockBackend {
   readonly tables: Record<string, Row[]> = baseTables();
-  readonly rpcHandlers: Record<string, RpcHandler> = {};
+  readonly rpcHandlers: Record<string, RpcHandler> = {
+    // Public shop lookup used by the login pages (before sign-in). Tests may replace it.
+    get_org_public_info: (args) =>
+      String(args.p_slug ?? "").toLowerCase() === E2E_ORG_SLUG
+        ? { id: E2E_ORG_ID, name: e2eOrganization.name, slug: E2E_ORG_SLUG, settings: {}, business_name: e2eOrganization.name, bill_barcode_settings: {} }
+        : null,
+  };
   /** Every write and RPC the app sent, in order. */
   readonly calls: RecordedCall[] = [];
   /** Requests to any host other than the app and the fake Supabase (all aborted). */

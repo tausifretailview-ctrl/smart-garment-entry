@@ -1,6 +1,7 @@
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Outlet, useParams, useLocation } from "react-router-dom";
+import { Navigate, Outlet, useParams, useLocation } from "react-router-dom";
+import { isFieldSalesLoggedOutPath } from "@/lib/fieldSalesPaths";
 import { Capacitor } from "@capacitor/core";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -150,6 +151,7 @@ function OrgAuthChunk() {
     />
   );
 }
+
 
 export const OrgLayout = () => {
   const { orgSlug: rawOrgSlug } = useParams<{ orgSlug: string }>();
@@ -843,6 +845,11 @@ export const OrgLayout = () => {
   // If not logged in, render org login page immediately (don't wait for orgLoading).
   // Auth gates still run first — LazyChunkGate only loads OrgAuth after !user / wrong-org.
   if (!user) {
+    // Logged out of the Field Sales app (a salesman screen, or the app's own start link):
+    // back to the Field Sales login, not the shop's owner / staff login.
+    if (orgSlug && isFieldSalesLoggedOutPath(location.pathname, location.search)) {
+      return <Navigate to={`/${orgSlug}/field-sales`} replace />;
+    }
     return <OrgAuthChunk />;
   }
 
