@@ -27,7 +27,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, Smartphone } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Smartphone, Link2, MessageCircle } from "lucide-react";
+import { fieldSalesInstallLink } from "@/lib/orgPwaManifest";
+import { whatsappShareUrl } from "@/lib/storefrontShare";
 import { useToast } from "@/hooks/use-toast";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { Badge } from "@/components/ui/badge";
@@ -82,6 +84,24 @@ const EmployeeMaster = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
+  /** What the salesman receives: open in Chrome, log in, install the Field Sales app. */
+  const fieldSalesInviteText = (employee: { employee_name?: string | null }) => {
+    const link = fieldSalesInstallLink(currentOrganization?.slug || "");
+    return [
+      `Hi ${employee.employee_name || ""}, install the ${currentOrganization?.name || ""} Field Sales app:`.replace(/\s+/g, " "),
+      `1. Open this link in Chrome on your phone: ${link}`,
+      "2. Log in with your Field Sales ID and password.",
+      "3. Tap \"Install Field Sales app\" (iPhone: Safari → Share → Add to Home Screen).",
+    ].join("\n");
+  };
+  const copyFieldSalesLink = async (employee: { employee_name?: string | null }) => {
+    try {
+      await navigator.clipboard.writeText(fieldSalesInviteText(employee));
+      toast({ title: "Field Sales app link copied", description: fieldSalesInstallLink(currentOrganization?.slug || "") });
+    } catch {
+      toast({ title: "Copy this link", description: fieldSalesInstallLink(currentOrganization?.slug || "") });
+    }
+  };
 
   const isDesktop = useIsDesktop();
   const rowContextMenu = useContextMenu<Employee>();
@@ -278,14 +298,52 @@ const EmployeeMaster = () => {
       cell: ({ row }) =>
         row.original.field_sales_access ? (
           row.original.user_id ? (
-            <Badge
-              variant="default"
-              className="bg-green-600 text-sm px-2.5 py-0.5"
-              title={orgUsers.find((u) => u.id === row.original.user_id)?.email || "Linked"}
-            >
-              <Smartphone className="h-3.5 w-3.5 mr-1" />
-              Enabled
-            </Badge>
+            <div className="flex items-center gap-1">
+              <Badge
+                variant="default"
+                className="bg-green-600 text-sm px-2.5 py-0.5"
+                title={orgUsers.find((u) => u.id === row.original.user_id)?.email || "Linked"}
+              >
+                <Smartphone className="h-3.5 w-3.5 mr-1" />
+                Enabled
+              </Badge>
+              {currentOrganization?.slug ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-orange-600"
+                    title="Copy Field Sales app link"
+                    aria-label={`Copy Field Sales app link for ${row.original.employee_name}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void copyFieldSalesLink(row.original);
+                    }}
+                  >
+                    <Link2 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-green-600"
+                    title="Send Field Sales app link on WhatsApp"
+                    aria-label={`Send Field Sales app link to ${row.original.employee_name} on WhatsApp`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(
+                        whatsappShareUrl(fieldSalesInviteText(row.original), row.original.phone),
+                        "_blank",
+                        "noopener,noreferrer",
+                      );
+                    }}
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                  </Button>
+                </>
+              ) : null}
+            </div>
           ) : (
             <Badge
               variant="outline"
@@ -301,7 +359,7 @@ const EmployeeMaster = () => {
             Disabled
           </Badge>
         ),
-      size: 130,
+      size: 190,
     },
     {
       id: "actions",
