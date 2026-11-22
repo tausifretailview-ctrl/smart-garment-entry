@@ -1,5 +1,5 @@
-import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { createStore, del, get, set } from "idb-keyval";
+import { createIdleCachePersister } from "@/lib/idleCachePersister";
 
 const idbStore = createStore("ezzy-rq-cache", "persist");
 
@@ -9,10 +9,13 @@ const storage = {
   removeItem: (key: string) => del(key, idbStore),
 };
 
-/** IndexedDB-backed persister — async, large cache, throttled writes. */
-export const persister = createAsyncStoragePersister({
+/**
+ * IndexedDB-backed persister. Writes at most every 5 seconds, in an idle moment, and only
+ * re-serialises the queries that changed (see idleCachePersister.ts).
+ */
+export const persister = createIdleCachePersister({
   storage,
-  throttleTime: 2000,
+  intervalMs: 5000,
   key: "EZZY_RQ_CACHE",
 });
 
@@ -110,6 +113,24 @@ export function holdsMapOrSet(data: unknown): boolean {
     if (v instanceof Map || v instanceof Set) return true;
   }
   return false;
+}
+
+const volatileByHash = new Map<string, boolean>();
+
+/**
+ * {@link isVolatileOrSensitiveKey} for a query in the cache, remembered by its hash. The
+ * cache is filtered on every change to it (hundreds of queries, several times per fetch), and
+ * a query's key never changes, so the string work is done once per query.
+ */
+export function isVolatileOrSensitiveQuery(query: { queryKey: readonly unknown[]; queryHash?: string }): boolean {
+  const hash = query.queryHash;
+  if (typeof hash !== "string") return isVolatileOrSensitiveKey(query.queryKey);
+  const known = volatileByHash.get(hash);
+  if (known !== undefined) return known;
+  if (volatileByHash.size >= 5000) volatileByHash.clear();
+  const volatile = isVolatileOrSensitiveKey(query.queryKey);
+  volatileByHash.set(hash, volatile);
+  return volatile;
 }
 
 /** Changes every deploy — mismatched cache is discarded on restore. */
