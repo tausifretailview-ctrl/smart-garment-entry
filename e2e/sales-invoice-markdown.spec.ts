@@ -103,4 +103,30 @@ test("Sale Bill edit: a saved markdown line opens as Markdown 25% + Disc 5% agai
   await expect(line.getByLabel(/Markdown % for/)).toHaveValue("25");
   await expect(line.getByTestId("sale-line-markdown").locator("xpath=following-sibling::td[1]//input")).toHaveValue("5");
   await expect(line).toContainText("₹1282.50");
+
+  // Saving the edit: lines and header go to the database in ONE call (all or nothing), never
+  // as separate delete / insert / update requests from the browser.
+  backend.onRpc("save_document_with_lines", (body) => ({
+    success: true,
+    lines_deleted: 1,
+    lines_inserted: 1,
+    header: { id: "sale-9", ...(body.p_header as Record<string, unknown>) },
+  }));
+  await page.keyboard.press("Control+s");
+  await expect.poll(() => backend.rpcCalls("save_document_with_lines").length, { timeout: 30_000 }).toBe(1);
+  const [edit] = backend.rpcCalls("save_document_with_lines") as Array<{
+    p_kind: string;
+    p_document_id: string;
+    p_header: Record<string, unknown>;
+    p_lines: Record<string, unknown>[];
+  }>;
+  expect(edit.p_kind).toBe("sale");
+  expect(edit.p_document_id).toBe("sale-9");
+  // The header keeps the markdown in its discount: same total as the line (it was saved as
+  // discount 90 / net 1711 when the opened bill was saved without touching the line).
+  expect(edit.p_header).toMatchObject({ gross_amount: 1800, discount_amount: 517.5, net_amount: 1283, customer_id: "cust-1" });
+  expect(edit.p_lines).toHaveLength(1);
+  expect(edit.p_lines[0]).toMatchObject({ variant_id: "v1", quantity: 1, markdown_percent: 25, line_total: 1282.5 });
+  expect(backend.calls.filter((c) => c.name === "sale_items" && c.kind !== "rpc")).toEqual([]);
+  expect(backend.calls.filter((c) => c.name === "sales" && c.kind === "update" && "net_amount" in ((c.body ?? {}) as object))).toEqual([]);
 });
