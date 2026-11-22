@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -152,7 +153,7 @@ const TeacherMaster = () => {
       phone: "",
       address: "",
       status: "active",
-      joining_date: new Date().toISOString().split("T")[0],
+      joining_date: istCalendarYmd(),
     });
     setIsDialogOpen(true);
   };

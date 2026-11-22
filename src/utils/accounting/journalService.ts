@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { supabase } from "@/integrations/supabase/client";
 import { bestEffortWrite, rollbackStep } from "@/lib/rollbackStep";
 import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
@@ -1008,7 +1009,7 @@ export async function repostJournalForRestoredVoucher(voucherId: string, client:
   const disc = Number(v.discount_amount || 0);
   const desc = String(v.description || "");
   const vDate =
-    v.voucher_date != null ? String(v.voucher_date).slice(0, 10) : new Date().toISOString().slice(0, 10);
+    v.voucher_date != null ? String(v.voucher_date).slice(0, 10) : istCalendarYmd();
   const orgId = v.organization_id as string;
 
   if (vt === "expense" || rt === "expense") {
@@ -1237,7 +1238,7 @@ export async function recordSaleJournalEntry(
   const journalDate =
     entryDate && /^\d{4}-\d{2}-\d{2}/.test(entryDate)
       ? entryDate.slice(0, 10)
-      : new Date().toISOString().slice(0, 10);
+      : istCalendarYmd();
   const result = await postJournalEntry({
     organizationId,
     date: journalDate,
@@ -1263,7 +1264,7 @@ export function postSaleJournalInBackground(
   void (async () => {
     try {
       const saleJournalDate =
-        saleDate != null ? String(saleDate).slice(0, 10) : new Date().toISOString().slice(0, 10);
+        saleDate != null ? String(saleDate).slice(0, 10) : istCalendarYmd();
       await recordSaleJournalEntry(
         saleId,
         organizationId,
@@ -1384,7 +1385,7 @@ export async function recordPurchaseJournalEntry(
   const journalDate =
     entryDate && /^\d{4}-\d{2}-\d{2}/.test(entryDate)
       ? entryDate.slice(0, 10)
-      : new Date().toISOString().slice(0, 10);
+      : istCalendarYmd();
   const result = await postJournalEntry({
     organizationId,
     date: journalDate,

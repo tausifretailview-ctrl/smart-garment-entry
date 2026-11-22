@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { insertVoucherRetryingNumber } from "@/utils/voucherNumberRetry";
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
@@ -322,7 +323,7 @@ export const FloatingSaleReturn = ({
 
     const acctPos = await getAccountingEngineSettingsRow(organizationId, supabase);
     if (isAccountingEngineEnabled(acctPos as { accounting_engine_enabled?: boolean } | null)) {
-      const cnVoucherDate = new Date().toISOString().split("T")[0];
+      const cnVoucherDate = istCalendarYmd();
       const cnDescription = `Credit note ${cnMeta.returnNumber} applied via POS`;
       await recordCustomerCreditNoteApplicationJournalEntry(
         voucherEntryId,
@@ -1190,7 +1191,7 @@ export const FloatingSaleReturn = ({
         organization_id: organizationId,
         customer_id: effectiveCustomerId || null,
         customer_name: effectiveCustomerName || "Walk-in Customer",
-        return_date: new Date().toISOString().split("T")[0],
+        return_date: istCalendarYmd(),
         gross_amount: grossAmount,
         gst_amount: gstAmount,
         net_amount: grossAmount,
@@ -1262,7 +1263,7 @@ export const FloatingSaleReturn = ({
       const returnData = savedReturn;
 
       const returnDateYmd =
-        (returnData as { return_date?: string }).return_date || new Date().toISOString().split("T")[0];
+        (returnData as { return_date?: string }).return_date || istCalendarYmd();
       const acctSaleReturn = await getAccountingEngineSettingsRow(organizationId, supabase);
       if (isAccountingEngineEnabled(acctSaleReturn as { accounting_engine_enabled?: boolean } | null)) {
         try {

@@ -1,3 +1,4 @@
+import { fetchAllRows } from "@/lib/data/fetchInIdBatches";
 import { supabase } from "@/integrations/supabase/client";
 
 export const settlementSessionStorageKey = (orgId: string) =>
@@ -94,17 +95,22 @@ export async function fetchOpenScansByVariantIds(
 }
 
 export async function fetchAllOpenSettlementVariantIds(orgId: string): Promise<Set<string>> {
-  const { data, error } = await (supabase as any)
-    .from("stock_settlement_scans")
-    .select("variant_id")
-    .eq("organization_id", orgId)
-    .eq("settled", false);
-
-  if (error) {
+  // Every open scan, page by page. One request returns at most 1,000 rows: in a full stock
+  // count with more open scans, the items past that were not locked and could be sold.
+  try {
+    const rows = await fetchAllRows<{ id: string; variant_id: string }>(() =>
+      (supabase as any)
+        .from("stock_settlement_scans")
+        .select("id, variant_id")
+        .eq("organization_id", orgId)
+        .eq("settled", false)
+        .order("id"),
+    );
+    return new Set(rows.map((r) => r.variant_id));
+  } catch (error) {
     console.error("fetchAllOpenSettlementVariantIds:", error);
     return new Set();
   }
-  return new Set((data || []).map((r: { variant_id: string }) => r.variant_id));
 }
 
 export async function fetchSettlementScanLog(

@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -863,7 +864,7 @@ function ManufacturingKpis({ orgId }: { orgId: string }) {
   const { data: fabric = [] } = useFabricStock(orgId);
 
   const k = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = istCalendarYmd();
     const month = today.slice(0, 7);
     let cutting = 0, inProcess = 0, finishedLots = 0, finishedPcs = 0;
     for (const l of lots) {

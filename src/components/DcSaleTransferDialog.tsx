@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -67,7 +68,7 @@ export const DcSaleTransferDialog = ({
         .from("delivery_challans")
         .insert({
           challan_number: challanNumber,
-          challan_date: new Date().toISOString().split("T")[0],
+          challan_date: istCalendarYmd(),
           customer_id: customerId || null,
           customer_name: customerName,
           organization_id: currentOrganization.id,

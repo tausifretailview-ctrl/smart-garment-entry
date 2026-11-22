@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -59,7 +60,7 @@ const initialFormData: StudentFormData = {
   parent_email: "",
   parent_relation: "",
   emergency_contact: "",
-  admission_date: new Date().toISOString().split("T")[0],
+  admission_date: istCalendarYmd(),
   status: "active",
   notes: "",
   closing_fees_balance: "",

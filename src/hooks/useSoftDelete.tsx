@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { findLiveReturnsLinkedToSale, saleDeleteBlockedByReturnMessage } from "@/utils/saleDeleteReturnGuard";
 import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { hardDeleteDocument, isOneStepHardDeleteEntity } from "@/lib/hardDeleteDocument";
@@ -451,7 +452,7 @@ export function useSoftDelete() {
                     srRow.organization_id,
                     Number(srRow.net_amount) || 0,
                     srRow.refund_type || "credit_note",
-                    srRow.return_date || new Date().toISOString().slice(0, 10),
+                    srRow.return_date || istCalendarYmd(),
                     `Sale return ${srRow.return_number || id.slice(0, 8)}`,
                     supabase,
                     srRow.payment_method ?? null
@@ -506,7 +507,7 @@ export function useSoftDelete() {
                     id,
                     prRow.organization_id,
                     Number(prRow.net_amount) || 0,
-                    prRow.return_date || new Date().toISOString().slice(0, 10),
+                    prRow.return_date || istCalendarYmd(),
                     `Purchase return ${prRow.return_number || id.slice(0, 8)}`,
                     supabase,
                     prRow.payment_method ?? null

@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
@@ -435,7 +436,7 @@ export async function runHistoricalAccountingBackfill(
           continue;
         }
         const dateStr =
-          row.return_date != null ? String(row.return_date).slice(0, 10) : new Date().toISOString().slice(0, 10);
+          row.return_date != null ? String(row.return_date).slice(0, 10) : istCalendarYmd();
         await recordSaleReturnJournalEntry(
           id,
           organizationId,
@@ -492,7 +493,7 @@ export async function runHistoricalAccountingBackfill(
           continue;
         }
         const dateStr =
-          row.return_date != null ? String(row.return_date).slice(0, 10) : new Date().toISOString().slice(0, 10);
+          row.return_date != null ? String(row.return_date).slice(0, 10) : istCalendarYmd();
         await recordPurchaseReturnJournalEntry(
           id,
           organizationId,

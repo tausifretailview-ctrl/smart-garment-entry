@@ -2007,7 +2007,7 @@ export default function POSSales() {
   const buildPosVoucherDate = useCallback((): string => {
     return posAllowDateChange
       ? format(posInvoiceDate, "yyyy-MM-dd")
-      : new Date().toISOString().split("T")[0];
+      : istCalendarYmd();
   }, [posAllowDateChange, posInvoiceDate]);
 
   // Derive POS bill format / invoice template / preview flag from cached settings (no extra DB call)

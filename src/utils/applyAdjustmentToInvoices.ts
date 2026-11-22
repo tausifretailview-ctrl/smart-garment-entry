@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase as defaultClient } from "@/integrations/supabase/client";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
@@ -114,7 +115,7 @@ export async function applyAdjustmentToInvoices(
 
   if (adjustmentAmount <= 0.5) return empty;
 
-  const voucherDate = new Date().toISOString().split("T")[0];
+  const voucherDate = istCalendarYmd();
   const allocations: AdjustmentAllocation[] = [];
   const voucherIds: string[] = [];
   let remaining = adjustmentAmount;

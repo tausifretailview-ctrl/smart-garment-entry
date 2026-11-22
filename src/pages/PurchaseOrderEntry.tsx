@@ -513,7 +513,7 @@ export default function PurchaseOrderEntry() {
         organization_id: currentOrganization?.id,
         order_number: orderNumber,
         order_date: orderDate.toISOString(),
-        expected_delivery_date: expectedDelivery.toISOString().split('T')[0],
+        expected_delivery_date: format(expectedDelivery, "yyyy-MM-dd"),
         supplier_id: selectedSupplierId || null,
         supplier_name: selectedSupplier?.supplier_name || 'Walk in Supplier',
         supplier_phone: selectedSupplier?.phone || null,

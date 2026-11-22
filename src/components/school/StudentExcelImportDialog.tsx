@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { useState, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -304,7 +305,7 @@ export const StudentExcelImportDialog = ({
                 parent_relation: student.parent_relation || null,
                 address: student.address || null,
                 emergency_contact: student.emergency_contact || null,
-                admission_date: student.admission_date || new Date().toISOString().split("T")[0],
+                admission_date: student.admission_date || istCalendarYmd(),
                 status: student.status || "active",
               });
 

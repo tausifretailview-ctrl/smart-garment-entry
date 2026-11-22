@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -208,8 +209,8 @@ const FeeCollection = () => {
     queryFn: async () => {
       if (!activeYear) return { today: 0, month: 0, pending: 0 };
 
-      const today = new Date().toISOString().split("T")[0];
-      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0];
+      const today = istCalendarYmd();
+      const monthStart = `${istCalendarYmd().slice(0, 7)}-01`;
 
       // Every row, page by page (the server answers at most 1,000 rows; the rest were dropped
       // and the totals came out short for a busy school).

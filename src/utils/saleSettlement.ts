@@ -3,6 +3,7 @@
  * paid_amount / payment_status, receipt vouchers, advance FIFO, CN availability, pre-save checks.
  */
 
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 import { posSaveMark } from "@/lib/posSaveTiming";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -325,7 +326,7 @@ export async function createReceiptVoucher(
     );
   }
   const referenceType = params.referenceType ?? "sale";
-  const voucherDate = params.voucherDate || new Date().toISOString().split("T")[0];
+  const voucherDate = params.voucherDate || istCalendarYmd();
 
   // Keep counter cash/card/UPI on the bill from being dropped by the recompute
   // when the balance is collected later as a receipt.
@@ -572,7 +573,7 @@ export async function consumeAdvanceFIFO(
   let remaining = room;
 
   const voucherIds: string[] = [];
-  const voucherDate = params.voucherDate || new Date().toISOString().split("T")[0];
+  const voucherDate = params.voucherDate || istCalendarYmd();
 
   // One voucher per iteration; refetch after each INSERT so used_amount reflects
   // trg_sync_customer_advances_used (single writer — no app-side used_amount bump).

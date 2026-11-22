@@ -1,3 +1,4 @@
+import { fetchAllRows } from "@/lib/data/fetchInIdBatches";
 import { insertVoucherRetryingNumber } from "@/utils/voucherNumberRetry";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
@@ -830,15 +831,19 @@ const PurchaseBillDashboard = () => {
   >({
     queryKey: ["purchase-return-bill-adjusts"],
     queryFn: async (orgId) => {
-      const { data, error } = await supabase
-        .from("purchase_returns" as any)
-        .select("linked_bill_id, net_amount, credit_available_balance, credit_status, return_date")
-        .eq("organization_id", orgId)
-        .is("deleted_at", null)
-        .not("linked_bill_id", "is", null)
-        .in("credit_status", ["adjusted", "partially_adjusted"]);
-      if (error) throw error;
-      return buildPurchaseReturnAdjustByBillId((data || []) as any[]);
+      // Page by page: with more than 1,000 adjusted returns the bills past that showed the
+      // wrong paid / outstanding amount.
+      const rows = await fetchAllRows<any>(() =>
+        supabase
+          .from("purchase_returns" as any)
+          .select("id, linked_bill_id, net_amount, credit_available_balance, credit_status, return_date")
+          .eq("organization_id", orgId)
+          .is("deleted_at", null)
+          .not("linked_bill_id", "is", null)
+          .in("credit_status", ["adjusted", "partially_adjusted"])
+          .order("id") as never,
+      );
+      return buildPurchaseReturnAdjustByBillId(rows);
     },
     options: { staleTime: 2 * 60 * 1000 },
   });

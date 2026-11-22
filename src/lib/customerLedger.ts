@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { supabase } from "@/integrations/supabase/client";
 import { logError } from "@/lib/errorLogger";
 import { saleRestoreLedgerAmounts } from "@/utils/saleRestoreNumber";
@@ -104,7 +105,7 @@ export async function ensureCustomerLedgerAfterSaleRestore(sale: {
   const { saleDebit, receiptCredit } = saleRestoreLedgerAmounts(sale);
   const transactionDate = sale.sale_date
     ? String(sale.sale_date).slice(0, 10)
-    : new Date().toISOString().slice(0, 10);
+    : istCalendarYmd();
   await insertLedgerDebit({
     organizationId,
     customerId,
