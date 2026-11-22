@@ -90,6 +90,7 @@ import { linkOrCreateCustomerFromSaleParty } from "@/utils/salePartyCustomerMast
 import { salePrintFirmPatch, type PrintFirm } from "@/utils/secondFirm";
 import { getInvoiceWhatsAppSettings } from "@/lib/data/invoiceWhatsAppSettings";
 import { saveSaleEditWithLines } from "@/lib/data/saveSaleEdit";
+import { SALE_REQUEST_ID_KEY, confirmSameSavedBill, createSaleRequestTracker, saleRequestFingerprint } from "@/lib/saleRequestId";
 import { isDuplicateReceiptSubmission } from "@/utils/receiptIdempotency";
 import { insertVoucherRetryingNumber } from "@/utils/voucherNumberRetry";
 
@@ -286,6 +287,8 @@ export const useSaveSale = () => {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const savingLockRef = useRef(false); // Synchronous lock to prevent duplicate saves
+  // Request id of the bill being saved; kept across a failed attempt so a retry is not a second bill.
+  const saleRequestsRef = useRef(createSaleRequestTracker());
   const { awardPoints, redeemPoints, isPointsEnabled, calculatePoints } = useCustomerPoints();
   const queryClient = useQueryClient();
 
@@ -1513,12 +1516,16 @@ export const useSaveSale = () => {
         const atomicItems = buildSaleItemInsertRows(ATOMIC_SALE_ID_PLACEHOLDER, saleData, perLineSalesman);
         let atomic: Awaited<ReturnType<typeof saveSaleWithItemsAtomic>> = null;
         if (numberInSave) {
+          // The same bill saved again (the first reply was lost) must not become a second bill:
+          // it carries the request id of the first attempt (see saleRequestId.ts).
+          const fingerprint = saleRequestFingerprint(saleInsertRow, atomicItems);
           const numbered = await saveSaleWithItemsNumbered(
             supabase,
             currentOrganization.id,
-            saleInsertRow,
+            { ...saleInsertRow, [SALE_REQUEST_ID_KEY]: saleRequestsRef.current.idFor(fingerprint) },
             atomicItems,
             buildSaleNumberRequest(saleSettings, numberKind),
+            { isSameBill: confirmSameSavedBill, freshRequestId: () => saleRequestsRef.current.fresh(fingerprint) },
           );
           if (numbered) {
             atomic = numbered;
@@ -2051,6 +2058,8 @@ export const useSaveSale = () => {
         })();
       }
 
+      // Saved, with every follow-up step done: the next bill gets a new request id.
+      saleRequestsRef.current.saved();
       return {
         ...sale,
         pointsAwarded,

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SaleNumberRequest } from "@/utils/saleNumber";
+import { SALE_REQUEST_ID_KEY } from "@/lib/saleRequestId";
 
 /**
  * Plan Phase 2, step 1: save a bill header and its lines in one database transaction
@@ -28,6 +29,8 @@ export type AtomicSaleSaveResult = {
   droppedItemKeys: string[];
   /** paid_amount / payment_status already settled in the same transaction (step 3 SQL). */
   settledInSave: boolean;
+  /** This bill was already in the database from an earlier attempt whose reply was lost. */
+  recovered?: boolean;
 };
 
 type RpcError = { code?: string; message?: string; hint?: string } | null;
@@ -38,6 +41,63 @@ export function isMissingAtomicSaleSaveRpc(err: RpcError): boolean {
     err?.code === "42883" ||
     /save_sale_with_items_(atomic|numbered)/i.test(String(err?.message || err?.hint || "")) && /not find|does not exist/i.test(String(err?.message || ""))
   );
+}
+
+/** The unique rule on sales (organization_id, client_request_id), migration 20270514120000. */
+export const SALE_REQUEST_INDEX = "uq_sales_client_request";
+
+/** A bill with this request id is already saved (the reply of that save was lost). */
+export function isDuplicateSaleRequest(err: unknown): boolean {
+  const e = err as { code?: string; message?: string; details?: string | null } | null;
+  if (!e || e.code !== "23505") return false;
+  return `${e.message || ""} ${e.details || ""}`.includes(SALE_REQUEST_INDEX);
+}
+
+/**
+ * What to do when the bill being saved was already saved under the same request id.
+ * The cashier decides, because the cart may also be a new sale that only looks the same
+ * (same item, walk-in, cash) rung after the first one was found in the list.
+ */
+export type DuplicateSaleHandling = {
+  /** True = it is the same bill: use the saved one, write nothing. False = save a new bill. */
+  isSameBill: (existing: Record<string, unknown>) => boolean | Promise<boolean>;
+  /** A new request id for "save a new bill". */
+  freshRequestId: () => string;
+};
+
+type LooseClient = {
+  from: (table: string) => {
+    select: (cols: string, opts?: { count?: "exact"; head?: boolean }) => {
+      eq: (k: string, v: string) => {
+        eq: (k: string, v: string) => { maybeSingle: () => PromiseLike<{ data: Record<string, unknown> | null; error: unknown }> };
+        is: (k: string, v: null) => PromiseLike<{ count: number | null; error: unknown }>;
+      };
+    };
+  };
+};
+
+/** The bill saved under this request id and how many lines it holds; null when there is none. */
+export async function findSaleByRequestId(
+  client: SupabaseClient,
+  organizationId: string,
+  requestId: string,
+): Promise<{ sale: Record<string, unknown> & { id: string }; lines: number } | null> {
+  const db = client as unknown as LooseClient;
+  const { data: sale, error } = await db
+    .from("sales")
+    .select("*")
+    .eq("organization_id", organizationId)
+    .eq(SALE_REQUEST_ID_KEY, requestId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!sale || typeof sale.id !== "string") return null;
+  const { count, error: countError } = await db
+    .from("sale_items")
+    .select("id", { count: "exact", head: true })
+    .eq("sale_id", sale.id)
+    .is("deleted_at", null);
+  if (countError) throw countError;
+  return { sale: sale as Record<string, unknown> & { id: string }, lines: count ?? 0 };
 }
 
 export function parseAtomicSaleSaveResult(data: unknown, expectedLines: number): AtomicSaleSaveResult {
@@ -91,18 +151,46 @@ export async function saveSaleWithItemsNumbered(
   sale: Record<string, unknown>,
   items: Record<string, unknown>[],
   numbering: SaleNumberRequest,
+  duplicate?: DuplicateSaleHandling,
 ): Promise<(AtomicSaleSaveResult & { saleNumber: string }) | null> {
-  const { data, error } = await client.rpc("save_sale_with_items_numbered" as never, {
-    p_organization_id: organizationId,
-    p_sale: sale,
-    p_items: items,
-    p_numbering: numbering,
-  } as never);
-  if (error) {
+  const save = (row: Record<string, unknown>) =>
+    client.rpc("save_sale_with_items_numbered" as never, {
+      p_organization_id: organizationId,
+      p_sale: row,
+      p_items: items,
+      p_numbering: numbering,
+    } as never);
+
+  let parsed: AtomicSaleSaveResult;
+  const { data, error } = await save(sale);
+  if (!error) {
+    parsed = parseAtomicSaleSaveResult(data, items.length);
+  } else {
     if (isMissingAtomicSaleSaveRpc(error as RpcError)) return null;
-    throw error;
+    const requestId = typeof sale[SALE_REQUEST_ID_KEY] === "string" ? (sale[SALE_REQUEST_ID_KEY] as string) : "";
+    if (!(requestId && duplicate && isDuplicateSaleRequest(error))) throw error;
+
+    // An earlier attempt saved a bill under this request id and its reply never arrived.
+    // Nothing was written now (the whole save rolled back, no number was used).
+    const existing = await findSaleByRequestId(client, organizationId, requestId);
+    const same = !!existing && existing.lines === items.length && (await duplicate.isSameBill(existing.sale));
+    if (same && existing) {
+      parsed = {
+        sale: existing.sale,
+        itemsInserted: existing.lines,
+        droppedSaleKeys: [],
+        droppedItemKeys: [],
+        // Not known for the earlier attempt: the caller settles again (same result when repeated).
+        settledInSave: false,
+        recovered: true,
+      };
+    } else {
+      // A different sale that only looks the same: save it as a new bill.
+      const retry = await save({ ...sale, [SALE_REQUEST_ID_KEY]: duplicate.freshRequestId() });
+      if (retry.error) throw retry.error;
+      parsed = parseAtomicSaleSaveResult(retry.data, items.length);
+    }
   }
-  const parsed = parseAtomicSaleSaveResult(data, items.length);
   const saleNumber = String(parsed.sale.sale_number ?? "").trim();
   if (!saleNumber) {
     throw new Error("Bill save returned no bill number. Check the sales list before saving again.");

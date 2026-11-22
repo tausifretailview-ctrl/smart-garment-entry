@@ -1,3 +1,4 @@
+import { SALE_REQUEST_ID_KEY, confirmSameSavedBill, createSaleRequestTracker, saleRequestFingerprint } from "@/lib/saleRequestId";
 import { saveSaleEditWithLines, SaleLinesNotRestoredError } from "@/lib/data/saveSaleEdit";
 import { SaleLineStockBadge } from "@/components/sales/SaleLineStockBadge";
 import { LIVE_STOCK_REFRESH_MS, fetchVariantStock, qtyByVariant, saleLineLiveStock } from "@/lib/saleLineLiveStock";
@@ -506,6 +507,8 @@ export default function SalesInvoice() {
   const fromQuotationRef = useRef<{ id: string; number: string } | null>(null);
   const creditLimitAcknowledgedRef = useRef(false);
   const savingLockRef = useRef(false); // Synchronous lock to prevent duplicate saves from rapid clicks
+  // Request id of the invoice being saved; kept across a failed attempt so a retry is not a second invoice.
+  const saleRequestsRef = useRef(createSaleRequestTracker());
   const printRef = useRef<HTMLDivElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
@@ -3992,14 +3995,20 @@ Thank you for choosing us!`;
         const tenderCoversPaid = invoiceTenderCoversPaid(paymentOverride);
         if (isAtomicBillSaveEnabled(saleSettingsForSave) && tenderCoversPaid) {
           const atomicItems = buildInvoiceSaleItems(ATOMIC_SALE_ID_PLACEHOLDER) as Record<string, unknown>[];
+          // The same invoice saved again (the first reply was lost) must not become a second
+          // invoice: it carries the request id of the first attempt (see saleRequestId.ts).
+          const fingerprint = saleRequestFingerprint(saleHeaderRow, atomicItems);
           const numbered = await saveSaleWithItemsNumbered(
             supabase,
             currentOrganization!.id,
-            saleHeaderRow,
+            { ...saleHeaderRow, [SALE_REQUEST_ID_KEY]: saleRequestsRef.current.idFor(fingerprint) },
             atomicItems,
             buildSaleNumberRequest(saleSettingsForSave, "sale"),
+            { isSameBill: confirmSameSavedBill, freshRequestId: () => saleRequestsRef.current.fresh(fingerprint) },
           );
           if (numbered) {
+            // The invoice is in the database: the next one gets a new request id.
+            saleRequestsRef.current.saved();
             savedSale = numbered.sale as unknown as Tables<"sales">;
             saleNumber = numbered.saleNumber;
           } else {
