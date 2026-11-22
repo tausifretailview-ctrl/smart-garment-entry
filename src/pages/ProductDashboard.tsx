@@ -1,3 +1,4 @@
+import { adjustVariantStock } from "@/lib/data/adjustVariantStock";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isStatementTimeout } from "@/utils/statementTimeout";
@@ -1428,24 +1429,21 @@ const ProductDashboard = () => {
       for (let i = 0; i < stockImportPreview.length; i += CHUNK) {
         const chunk = stockImportPreview.slice(i, i + CHUNK);
         await Promise.all(chunk.map(async item => {
-          const { error } = await supabase
-            .from("product_variants")
-            .update({ stock_qty: item.new_qty, opening_qty: item.new_qty })
-            .eq("id", item.variant_id)
-            .eq("organization_id", currentOrganization.id);
-          if (error) { errors++; return; }
-          await bestEffortWrite(
-            "stock-import:movement-log",
-            () =>
-              supabase.from("stock_movements").insert({
-                variant_id: item.variant_id,
-                quantity: item.new_qty - item.current_qty,
-                movement_type: "reconciliation",
-                notes: `Closing stock import — set to ${item.new_qty} (was ${item.current_qty})`,
-                organization_id: currentOrganization.id,
-              }),
-            { organizationId: currentOrganization.id, recordId: item.variant_id },
-          );
+          // Stock and opening are set to the counted figure; the movement records the real
+          // difference from the stock at that moment (it used the figure read when the file
+          // was loaded, and was not checked).
+          try {
+            await adjustVariantStock({
+              organizationId: currentOrganization.id,
+              variantId: item.variant_id,
+              setTo: item.new_qty,
+              notes: "Closing stock import",
+            });
+          } catch (importErr) {
+            console.error("Closing stock import failed for", item.barcode, importErr);
+            errors++;
+            return;
+          }
           done++;
         }));
         setStockImportProgress({ done: Math.min(i + CHUNK, stockImportPreview.length), total: stockImportPreview.length });
