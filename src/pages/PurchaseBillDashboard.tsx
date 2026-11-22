@@ -1,3 +1,4 @@
+import { insertVoucherRetryingNumber } from "@/utils/voucherNumberRetry";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -1514,16 +1515,13 @@ const PurchaseBillDashboard = () => {
         newStatus = 'partial';
       }
 
-      const { data: voucherNumber, error: voucherNumberError } = await supabase.rpc(
-        "generate_voucher_number",
-        { p_type: "payment", p_date: paymentDate }
-      );
-
-      if (voucherNumberError) throw voucherNumberError;
-
       const paymentDescription = `Payment for Bill: ${selectedBillForPayment.software_bill_no || selectedBillForPayment.supplier_invoice_no} | Supplier: ${selectedBillForPayment.supplier_name}${paymentNotes ? ` | ${paymentNotes}` : ''}`;
       
-      const { data: voucherRow, error: voucherError } = await supabase
+      const { data: voucherRow, error: voucherError } = await insertVoucherRetryingNumber(supabase, {
+        type: "payment",
+        date: paymentDate,
+        // A number another cashier took in the meantime is replaced by a fresh one.
+        write: (voucherNumber) => supabase
         .from("voucher_entries")
         .insert({
           organization_id: currentOrganization.id,
@@ -1538,7 +1536,8 @@ const PurchaseBillDashboard = () => {
           created_by: user?.id ?? null,
         })
         .select("id")
-        .single();
+        .single(),
+      });
 
       if (voucherError) throw voucherError;
 

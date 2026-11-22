@@ -1,3 +1,4 @@
+import { insertVoucherRetryingNumber } from "@/utils/voucherNumberRetry";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -339,13 +340,11 @@ export default function ThirdPartyVoucherEntry() {
         return { voucherId: editingVoucherId, updated: true as const };
       }
 
-      const { data: voucherNumber, error: numberError } = await supabase.rpc("generate_voucher_number", {
-        p_type: voucherType,
-        p_date: entryDate,
-      });
-      if (numberError) throw numberError;
-
-      const { data: inserted, error: voucherError } = await supabase
+      const { data: inserted, error: voucherError } = await insertVoucherRetryingNumber(supabase, {
+        type: voucherType,
+        date: entryDate,
+        // A number another cashier took in the meantime is replaced by a fresh one.
+        write: (voucherNumber) => supabase
         .from("voucher_entries")
         .insert({
           organization_id: currentOrganization.id,
@@ -359,7 +358,8 @@ export default function ThirdPartyVoucherEntry() {
           total_amount: amountNum,
         })
         .select("id")
-        .single();
+        .single(),
+      });
       if (voucherError) throw voucherError;
       if (!inserted?.id) throw new Error("Failed to create voucher row");
 

@@ -1,3 +1,4 @@
+import { generateVoucherNumber, insertVoucherRetryingNumber } from "@/utils/voucherNumberRetry";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -557,8 +558,9 @@ export function SupplierPaymentTab({
         }
       }
 
-      const { data: voucherNumber, error: numberError } = await supabase.rpc("generate_voucher_number", { p_type: "payment", p_date: format(voucherDate, "yyyy-MM-dd") });
-      if (numberError) throw numberError;
+      // Replaced below if another cashier takes the number first (insertVoucherRetryingNumber).
+      const paymentDateYmd = format(voucherDate, "yyyy-MM-dd");
+      let voucherNumber = await generateVoucherNumber(supabase, "payment", paymentDateYmd);
 
       const billNumbers = processedBills.map(p => p.bill.supplier_invoice_no || p.bill.software_bill_no || p.bill.id.slice(0, 8)).join(', ');
       let paymentDetails = '';
@@ -599,7 +601,7 @@ export function SupplierPaymentTab({
         try {
           for (let i = 0; i < processedBills.length; i++) {
             const processed = processedBills[i];
-            const vNum = processedBills.length > 1 ? `${voucherNumber}-${i + 1}` : voucherNumber;
+            const numberFor = (base: string) => (processedBills.length > 1 ? `${base}-${i + 1}` : base);
             const billRef =
               processed.bill.supplier_invoice_no ||
               processed.bill.software_bill_no ||
@@ -612,11 +614,15 @@ export function SupplierPaymentTab({
             const voucherDescription = description
               ? `${description} | ${baseDescription}${billDiscountSuffix}`
               : `${baseDescription}${billDiscountSuffix}`;
-            const { data: ins, error: voucherError } = await supabase
+            const { data: ins, error: voucherError, voucherNumber: usedNumber } = await insertVoucherRetryingNumber(supabase, {
+              type: "payment",
+              date: paymentDateYmd,
+              baseNumber: voucherNumber,
+              write: (base) => supabase
               .from("voucher_entries")
               .insert({
                 organization_id: organizationId,
-                voucher_number: vNum,
+                voucher_number: numberFor(base),
                 voucher_type: "payment",
                 voucher_date: format(voucherDate, "yyyy-MM-dd"),
                 reference_type: "supplier",
@@ -629,9 +635,11 @@ export function SupplierPaymentTab({
                 created_by: user?.id ?? null,
               })
               .select(SAVED_VOUCHER_COLUMNS)
-              .single();
+              .single(),
+            });
             if (voucherError) throw voucherError;
             if (!ins?.id) throw new Error("Supplier payment voucher insert failed");
+            voucherNumber = usedNumber;
             createdSupplierVoucherIds.push(ins.id);
             savedVoucherRows.push(ins as SupplierVoucherCacheRow);
             if (postLedger) {
@@ -666,11 +674,15 @@ export function SupplierPaymentTab({
         await syncPurchaseBillPaymentsFromVouchersBatch(billIds, organizationId, supabase);
       } else {
         const obDescription = finalDescription + discountSuffix;
-        const { data: ins, error } = await supabase
+        const { data: ins, error } = await insertVoucherRetryingNumber(supabase, {
+          type: "payment",
+          date: paymentDateYmd,
+          baseNumber: voucherNumber,
+          write: (base) => supabase
           .from("voucher_entries")
           .insert({
             organization_id: organizationId,
-            voucher_number: voucherNumber,
+            voucher_number: base,
             voucher_type: "payment",
             voucher_date: format(voucherDate, "yyyy-MM-dd"),
             reference_type: "supplier",
@@ -683,7 +695,8 @@ export function SupplierPaymentTab({
             created_by: user?.id ?? null,
           })
           .select(SAVED_VOUCHER_COLUMNS)
-          .single();
+          .single(),
+        });
         if (error) throw error;
         if (ins?.id) savedVoucherRows.push(ins as SupplierVoucherCacheRow);
         if (postLedger && ins?.id) {

@@ -1,3 +1,4 @@
+import { insertVoucherRetryingNumber } from "@/utils/voucherNumberRetry";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
@@ -1390,15 +1391,14 @@ export default function SaleReturnDashboard() {
                       data: { user },
                     } = await supabase.auth.getUser();
                     const refundDate = new Date().toISOString().split("T")[0];
-                    const { data: rfNumber, error: rfNumErr } = await supabase.rpc(
-                      "generate_voucher_number",
-                      { p_type: "cn_refund", p_date: refundDate },
-                    );
-                    if (rfNumErr) throw rfNumErr;
                     const noteSuffix = refundNote.trim() ? ` — ${refundNote.trim()}` : "";
                     const returnNo = selectedReturnForRefund.return_number || "sale return";
                     const refundDescription = `Credit note refund for ${returnNo} to ${selectedReturnForRefund.customer_name}${noteSuffix}`;
-                    const { data: refundVoucher, error: voucherError } = await supabase
+                    const { data: refundVoucher, error: voucherError } = await insertVoucherRetryingNumber(supabase, {
+        type: "cn_refund",
+        date: refundDate,
+        // A number another cashier took in the meantime is replaced by a fresh one.
+        write: (rfNumber) => supabase
                       .from("voucher_entries")
                       .insert({
                         organization_id: currentOrganization.id,
@@ -1413,7 +1413,8 @@ export default function SaleReturnDashboard() {
                         created_by: user?.id || null,
                       })
                       .select("id")
-                      .single();
+                      .single(),
+      });
                     if (voucherError) throw voucherError;
                     // Ledger: the credit note sits in Debtors; paying it out is Dr Debtors, Cr Cash/Bank.
                     await postCustomerRefundVoucherJournal({

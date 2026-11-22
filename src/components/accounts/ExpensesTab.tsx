@@ -1,3 +1,4 @@
+import { insertVoucherRetryingNumber } from "@/utils/voucherNumberRetry";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { Button } from "@/components/ui/button";
@@ -321,15 +322,13 @@ export function ExpensesTab({
       if (!selectedCategory) throw new Error("Please select an expense category");
       if (!amount || parseFloat(amount) <= 0) throw new Error("Please enter a valid amount");
 
-      const { data: voucherNumber, error: numberError } = await supabase.rpc(
-        "generate_voucher_number",
-        { p_type: "expense", p_date: format(voucherDate, "yyyy-MM-dd") }
-      );
-      if (numberError) throw numberError;
-
       const notesField = [paidBy && `Paid by: ${paidBy}`, billNo && `Bill#: ${billNo}`].filter(Boolean).join(" | ");
 
-      const { data: inserted, error } = await supabase
+      const { data: inserted, error } = await insertVoucherRetryingNumber(supabase, {
+        type: "expense",
+        date: format(voucherDate, "yyyy-MM-dd"),
+        // A number another cashier took in the meantime is replaced by a fresh one.
+        write: (voucherNumber) => supabase
         .from("voucher_entries")
         .insert({
           organization_id: organizationId,
@@ -346,7 +345,8 @@ export function ExpensesTab({
           receipt_number: billNo || null,
         })
         .select("id")
-        .single();
+        .single(),
+      });
       if (error) throw error;
 
       const acctSettings = await getAccountingEngineSettingsRow(organizationId, supabase);

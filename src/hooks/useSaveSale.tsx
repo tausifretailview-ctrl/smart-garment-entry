@@ -90,6 +90,8 @@ import { linkOrCreateCustomerFromSaleParty } from "@/utils/salePartyCustomerMast
 import { salePrintFirmPatch, type PrintFirm } from "@/utils/secondFirm";
 import { getInvoiceWhatsAppSettings } from "@/lib/data/invoiceWhatsAppSettings";
 import { saveSaleEditWithLines } from "@/lib/data/saveSaleEdit";
+import { isDuplicateReceiptSubmission } from "@/utils/receiptIdempotency";
+import { insertVoucherRetryingNumber } from "@/utils/voucherNumberRetry";
 
 type SalesRow = Tables<"sales">;
 
@@ -518,17 +520,16 @@ export const useSaveSale = () => {
       requestId: string | null,
     ) => {
       if (amount <= 0 || !currentOrganization?.id) return;
-      const { data: voucherNumber, error: numberError } = await supabase.rpc('generate_voucher_number' as any, {
-        p_type: 'payment',
-        p_date: params.txnDate,
-      } as any);
-      if (numberError) throw numberError;
-
-      const { data: inserted, error } = await supabase
+      const organizationId = currentOrganization.id;
+      // A number another cashier took in the meantime is replaced by a fresh one.
+      const { data: inserted, error } = await insertVoucherRetryingNumber(supabase, {
+        type: 'payment',
+        date: params.txnDate,
+        write: (voucherNumber) => supabase
         .from('voucher_entries')
         .insert({
-          organization_id: currentOrganization.id,
-          voucher_number: voucherNumber as string,
+          organization_id: organizationId,
+          voucher_number: voucherNumber,
           voucher_type: 'payment',
           voucher_date: params.txnDate,
           reference_type: 'customer',
@@ -539,10 +540,13 @@ export const useSaveSale = () => {
           ...(requestId ? { client_request_id: requestId } : {}),
         } as any)
         .select('id')
-        .single();
+        .single(),
+      });
       // An active voucher with this key already exists for the bill (a retry of the same
-      // save): the refund is already on the books, so do not write it twice.
-      if (error && (error as { code?: string }).code === "23505" && requestId) return;
+      // save): the refund is already on the books, so do not write it twice. Only that index
+      // means "already saved": any other duplicate error used to be taken for it as well, so a
+      // voucher-number clash left the refund unwritten with no message.
+      if (error && requestId && isDuplicateReceiptSubmission(error)) return;
       if (error) throw error;
       // Ledger: the return credited the customer; the cash paid back (or the credit written off
       // as round off) uses that credit up: Dr Debtors, Cr Cash/Bank (or Round Off).
