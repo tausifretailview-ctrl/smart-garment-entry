@@ -1,3 +1,4 @@
+import { adjustVariantStock } from "@/lib/data/adjustVariantStock";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
@@ -302,39 +303,19 @@ const StockAdjustment = () => {
         // Opening and stock always move together (see handleStockChange / handleOpeningChange),
         // so one movement records the whole change.
         const finalStockQty = v.stockQtyChanged ? v.newStockQty : v.calculatedStock;
-        const finalOpeningQty = v.opening_qty + (finalStockQty - v.stock_qty);
         const stockDiff = finalStockQty - v.stock_qty;
 
-        const { error: updateError } = await supabase
-          .from("product_variants")
-          .update({
-            opening_qty: finalOpeningQty,
-            stock_qty: finalStockQty,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", v.id);
+        if (stockDiff === 0) continue;
 
-        if (updateError) throw updateError;
-
-        if (stockDiff !== 0) {
-          const { error: movementError } = await supabase
-            .from("stock_movements")
-            .insert({
-              variant_id: v.id,
-              organization_id: currentOrganization.id,
-              movement_type: "reconciliation",
-              quantity: stockDiff,
-              notes: `Stock Adjustment: stock ${v.stock_qty} → ${finalStockQty}, opening ${v.opening_qty} → ${finalOpeningQty}`,
-              user_id: userId,
-              bill_number: `ADJ-${format(new Date(), "yyyyMMdd-HHmmss")}`,
-            });
-
-          if (movementError) {
-            throw new Error(
-              `Stock movement insert failed (movement_type=reconciliation, qty=${stockDiff}): ${movementError.message}`
-            );
-          }
-        }
+        // The change is applied in the database to the stock as it is now, with its movement
+        // row. Writing "loaded stock + change" lost any bill saved while this screen was open.
+        await adjustVariantStock({
+          organizationId: currentOrganization.id,
+          variantId: v.id,
+          delta: stockDiff,
+          billNumber: `ADJ-${format(new Date(), "yyyyMMdd-HHmmss")}`,
+          userId,
+        });
       }
 
       return changedVariants.length;

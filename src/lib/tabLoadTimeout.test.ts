@@ -23,6 +23,10 @@ describe("tab load timeout", () => {
     expect(resolveTabCachePath("/purchase-entry")).toBe("purchase-entry");
     expect(resolveTabCachePath("purchase-bills")).toBe("purchase-bills");
     expect(resolveTabCachePath("purchase-bill-dashboard")).toBe("purchase-bills");
+    // One cache key for the main dashboard, whichever address opened it.
+    expect(resolveTabCachePath("dashboard")).toBe("");
+    expect(resolveTabCachePath("/dashboard")).toBe("");
+    expect(resolveTabCachePath("")).toBe("");
 
     for (const path of [
       "purchase-entry",

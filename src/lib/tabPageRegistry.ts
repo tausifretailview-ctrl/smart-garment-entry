@@ -384,6 +384,9 @@ for (const [alias, target] of Object.entries(URL_ALIASES)) {
  * Tab cache + window tabs use the short route; registry still loads the same chunk.
  */
 const TAB_CACHE_CANONICAL_PATH: Record<string, string> = {
+  // "/" and "/dashboard" are the same page. As two cache keys they were mounted as two copies
+  // when both were among the open windows: the dashboard loaded and refreshed twice.
+  dashboard: "",
   "purchase-bill-dashboard": "purchase-bills",
   "product-dashboard": "products",
   "purchase-return-dashboard": "purchase-returns",
