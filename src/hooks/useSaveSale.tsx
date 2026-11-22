@@ -54,7 +54,7 @@ import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentSta
 import { posTenderDueAfterAdvance } from "@/utils/posApplyAdvance";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
 import { formatCnApplyError, isSaleReturnConsumedAtBilling } from "@/utils/saleReturnCnBalance";
-import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
+import { allocateMixPaymentToBill, mixPaymentUnpaidOnBill } from "@/utils/mixPaymentAllocation";
 import {
   assertMixPaymentHasBreakdown,
   MIX_PAYMENT_BREAKDOWN_REQUIRED_MESSAGE,
@@ -1352,11 +1352,13 @@ export const useSaveSale = () => {
     // Mix payment with unpaid credit balance must have a named customer.
     // Remainder covered by advance (consumed after save) is not Mix credit.
     if (paymentMethod === "multiple" && paymentBreakdown) {
-      const mixCreditAmount = Math.max(
-        0,
-        posTenderDueAfterAdvance(saleData.netAmount, saleData.advanceApplied || 0) -
-          paymentBreakdown.totalPaid,
-      );
+      const mixCreditAmount = mixPaymentUnpaidOnBill({
+        netAmount: saleData.netAmount,
+        saleReturnAdjust: saleData.saleReturnAdjust,
+        creditApplied: saleData.creditApplied,
+        advanceApplied: saleData.advanceApplied,
+        totalPaid: paymentBreakdown.totalPaid,
+      });
       if (mixCreditAmount > 0.01 && !hasNamedCustomer()) {
         savingLockRef.current = false;
         toast({
@@ -2209,11 +2211,13 @@ export const useSaveSale = () => {
     }
 
     if (paymentMethod === "multiple" && paymentBreakdown) {
-      const mixCreditAmount = Math.max(
-        0,
-        posTenderDueAfterAdvance(saleData.netAmount, saleData.advanceApplied || 0) -
-          paymentBreakdown.totalPaid,
-      );
+      const mixCreditAmount = mixPaymentUnpaidOnBill({
+        netAmount: saleData.netAmount,
+        saleReturnAdjust: saleData.saleReturnAdjust,
+        creditApplied: saleData.creditApplied,
+        advanceApplied: saleData.advanceApplied,
+        totalPaid: paymentBreakdown.totalPaid,
+      });
       if (mixCreditAmount > 0.01 && !hasNamedCustomer()) {
         savingLockRef.current = false;
         toast({

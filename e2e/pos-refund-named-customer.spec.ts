@@ -118,8 +118,16 @@ test("paying straight from the box (no blur) asks the same question", async ({ p
   await expect(page.getByRole("dialog").filter({ hasText: /Mix Payment|Refund Mode/ })).toHaveCount(0);
 });
 
-test("amount no saved return covers (the shop's case): asks to record it first", async ({ page, backend }) => {
+test("amount no saved return covers (another shop's return): recorded, then refunded in cash with F1", async ({ page, backend }) => {
+  backend.keepInserts("sale_returns", "credit_notes");
   backend.onRpc("generate_sale_return_number", () => "SR/26-27/9");
+  backend.onRpc("generate_credit_note_number", () => "CN/26-27/9");
+  backend.onRpc("generate_voucher_number", () => "PAY/26-27/1");
+  backend.onRpc("save_sale_with_items_numbered", (args) => {
+    const sale = args.p_sale as Record<string, unknown>;
+    return { sale: { ...sale, id: "sale-1", sale_number: "POS/26-27/1" }, items_inserted: 1, settled: true };
+  });
+  // The shop's photo, scaled to this bill: saved credit covers the bill only, the rest is typed.
   const { sr, prompt } = await billFor(page, backend, 999);
 
   await sr.fill("2400");
@@ -130,16 +138,78 @@ test("amount no saved return covers (the shop's case): asks to record it first",
   await prompt.getByRole("button", { name: "Record & refund" }).click();
   await expect(prompt).toBeHidden();
 
-  // The uncovered part is recorded as an amount-only sale return for this customer.
+  // The uncovered part is now a sale return (amount only) with its credit note, for this customer.
   const recorded = backend.calls.filter((c) => c.kind === "insert" && c.name === "sale_returns");
   expect(recorded).toHaveLength(1);
   expect(recorded[0].body).toMatchObject({ customer_id: "cust-1", net_amount: 1401, refund_type: "credit_note", credit_status: "pending" });
+  const creditNote = backend.calls.filter((c) => c.kind === "insert" && c.name === "credit_notes");
+  expect(creditNote).toHaveLength(1);
+  expect(creditNote[0].body).toMatchObject({ customer_id: "cust-1", credit_amount: 1401, credit_note_number: "CN/26-27/9" });
+  expect(backend.calls.filter((c) => c.kind === "delete" && c.name === "sale_returns")).toEqual([]);
 
-  // The mocked database does not keep the new return, so its credit note cannot be made:
-  // the recording is undone, and no refund is offered for an amount that is not recorded.
+  // The whole ₹2,400 is on the bill and backed: ₹999 settles it, ₹1,401 is due back.
+  await expect(sr).toHaveValue("2400");
+  await expect(page.getByText("S/R Adj · CN ₹2,400").filter({ visible: true })).toBeVisible();
+  await expect(page.getByText(/Return ₹2400 · Applied ₹999 · Refund due ₹1401/).filter({ visible: true })).toBeVisible();
+
+  // Cash (F1) saves the bill and pays the refund in cash.
+  await page.keyboard.press("F1");
+  await expect.poll(() => backend.rpcCalls("save_sale_with_items_numbered").length).toBe(1);
+  const { p_sale } = backend.rpcCalls("save_sale_with_items_numbered")[0] as { p_sale: Record<string, unknown> };
+  expect(p_sale).toMatchObject({ customer_id: "cust-1", gross_amount: 999, net_amount: 999, refund_amount: 1401 });
+  await expect
+    .poll(() => backend.calls.filter((c) => c.kind === "insert" && c.name === "voucher_entries").length)
+    .toBe(1);
+  expect(backend.calls.find((c) => c.kind === "insert" && c.name === "voucher_entries")!.body).toMatchObject({
+    voucher_type: "payment",
+    reference_type: "customer",
+    reference_id: "cust-1",
+    total_amount: 1401,
+    payment_method: "cash",
+  });
+  await expect.poll(() => backend.rpcCalls("apply_pos_credit_fifo").length).toBe(1);
+  expect(backend.rpcCalls("apply_pos_credit_fifo")[0]).toMatchObject({ p_customer_id: "cust-1", p_amount: 999 });
+});
+
+test("recording the uncovered amount fails: nothing is refunded", async ({ page, backend }) => {
+  // The return is not kept here, so its credit note cannot be made and the recording is undone.
+  backend.onRpc("generate_sale_return_number", () => "SR/26-27/9");
+  const { sr, prompt } = await billFor(page, backend, 999);
+
+  await sr.fill("2400");
+  await sr.press("Tab");
+  await prompt.getByRole("button", { name: "Record & refund" }).click();
+  await expect(prompt).toBeHidden();
+
   await expect(page.getByText("Could not record the old sale return").first()).toBeVisible();
   expect(backend.calls.filter((c) => c.kind === "delete" && c.name === "sale_returns")).toHaveLength(1);
   await expect(sr).toHaveValue("999");
   await page.keyboard.press("F6");
   await expect(page.getByRole("dialog").filter({ hasText: /Refund Mode/ })).toHaveCount(0);
+});
+
+test("walk-in bill: a typed return above the bill is refunded in cash with F1, no question asked", async ({ page, backend }) => {
+  backend.addRows("products", [product]).addRows("product_variants", [variant]);
+  backend.onRpc("save_sale_with_items_numbered", (args) => {
+    const sale = args.p_sale as Record<string, unknown>;
+    return { sale: { ...sale, id: "sale-1", sale_number: "POS/26-27/1" }, items_inserted: 1, settled: true };
+  });
+  await page.goto(`/${E2E_ORG_SLUG}/pos-sales`);
+  const scan = page.getByPlaceholder(/^Scan barcode or search/).filter({ visible: true });
+  await expect(scan).toBeVisible({ timeout: 60_000 });
+  await scan.fill("100001");
+  await scan.press("Enter");
+  await expect(page.locator("tr", { hasText: "100001" })).toHaveCount(1);
+
+  const sr = page.getByTestId("pos-sr-adjust").filter({ visible: true });
+  await sr.fill("2400");
+  await sr.press("Tab");
+  await expect(page.getByTestId("pos-manual-sr-prompt")).toHaveCount(0);
+  await expect(sr).toHaveValue("2400");
+  await expect(page.getByText(/Return ₹2400 · Applied ₹999 · Refund due ₹1401/).filter({ visible: true })).toBeVisible();
+
+  await page.keyboard.press("F1");
+  await expect.poll(() => backend.rpcCalls("save_sale_with_items_numbered").length).toBe(1);
+  const { p_sale } = backend.rpcCalls("save_sale_with_items_numbered")[0] as { p_sale: Record<string, unknown> };
+  expect(p_sale).toMatchObject({ gross_amount: 999, refund_amount: 1401 });
 });
