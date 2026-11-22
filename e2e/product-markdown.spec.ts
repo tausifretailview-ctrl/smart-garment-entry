@@ -12,8 +12,15 @@ test("Add New Product shows the brand markdown and adds one from the Brand list"
   const md = page.getByTestId("product-markdown-input");
   await expect(md).toBeVisible({ timeout: 60_000 });
 
-  await page.locator("#default_pur_price").fill("1000");
-  await expect(page.locator("#default_pur_price")).toHaveValue(/1000/);
+  // The form resets itself once, just after the window first paints (it loads the last product's
+  // defaults) and then puts the cursor in Product Name. A fill that lands before that reset is
+  // wiped, which no person can do but a loaded CI machine did. Wait for the cursor (the reset is
+  // done), then type the price; retried in case the first try still raced it.
+  await expect(page.locator("#product_name")).toBeFocused({ timeout: 15_000 });
+  await expect(async () => {
+    await page.locator("#default_pur_price").fill("1000");
+    await expect(page.locator("#default_pur_price")).toHaveValue(/1000/, { timeout: 1_500 });
+  }).toPass({ timeout: 20_000 });
   // Markup prices the product from the committed purchase price; under load the first markup
   // keystrokes can land before it, so re-enter the markup until the sale price is 1800.
   await expect(async () => {
