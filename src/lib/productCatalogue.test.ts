@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { buildCatalogueItems, cataloguePriceLine, type CatalogueProduct, type CatalogueVariant } from "./productCatalogue";
+import {
+  buildCatalogueItems,
+  cataloguePriceLine,
+  catalogueStockCounts,
+  catalogueStockStatus,
+  passesCatalogueStockFilter,
+  type CatalogueProduct,
+  type CatalogueVariant,
+} from "./productCatalogue";
 import { fitImageInBox, isUsableImageUrl } from "./productImages";
 
 const products: CatalogueProduct[] = [
@@ -43,6 +51,42 @@ describe("buildCatalogueItems", () => {
     expect(all[0].sizes).toEqual(["S", "M", "XL"]);
     const inStock = buildCatalogueItems(products, variants, { onlyInStock: true, onlyWithPhoto: false });
     expect(inStock.map((i) => i.id)).toEqual(["p1", "p2"]);
+  });
+});
+
+describe("catalogue stock filter", () => {
+  it("in stock = quantity above 0 (low stock included); low = 1 to 5; out = 0", () => {
+    expect(catalogueStockStatus(0)).toBe("out");
+    expect(catalogueStockStatus(5)).toBe("low");
+    expect(catalogueStockStatus(6)).toBe("in");
+    expect(passesCatalogueStockFilter(3, "in")).toBe(true);
+    expect(passesCatalogueStockFilter(0, "in")).toBe(false);
+    expect(passesCatalogueStockFilter(3, "low")).toBe(true);
+    expect(passesCatalogueStockFilter(9, "low")).toBe(false);
+    expect(passesCatalogueStockFilter(0, "out")).toBe(true);
+    expect(passesCatalogueStockFilter(0, "all")).toBe(true);
+  });
+
+  it("each button lists its own products, with quantity per size", () => {
+    const stock = (filter: "in" | "low" | "out" | "all") =>
+      buildCatalogueItems(products, variants, { stock: filter, onlyWithPhoto: false });
+    expect(stock("in").map((i) => i.id)).toEqual(["p1", "p2"]);
+    expect(stock("low").map((i) => i.id)).toEqual(["p1", "p2"]);
+    expect(stock("out").map((i) => i.id)).toEqual(["p3"]);
+    expect(stock("all").map((i) => i.id)).toEqual(["p1", "p2", "p3"]);
+    // In stock: only sizes with stock, each with its quantity.
+    expect(stock("in")[0].sizeStock).toEqual([
+      { size: "M", qty: 3 },
+      { size: "XL", qty: 2 },
+    ]);
+    // Out of stock: every size is listed, at 0.
+    expect(stock("out")[0].sizeStock).toEqual([{ size: "40", qty: 0 }]);
+    expect(stock("out")[0].stock).toBe(0);
+  });
+
+  it("counts for the buttons follow the photo switch", () => {
+    expect(catalogueStockCounts(products, variants, { onlyWithPhoto: false })).toEqual({ in: 2, low: 2, out: 1, all: 3 });
+    expect(catalogueStockCounts(products, variants, { onlyWithPhoto: true })).toEqual({ in: 1, low: 1, out: 0, all: 1 });
   });
 });
 

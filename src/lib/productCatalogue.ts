@@ -33,8 +33,10 @@ export type CatalogueItem = {
   category: string;
   style: string;
   imageUrl: string | null;
-  /** Sizes with stock (all sizes when "only in stock" is off), garment order. */
+  /** Sizes with stock (every size when the stock filter is All or Out of stock), garment order. */
   sizes: string[];
+  /** Quantity in hand per size, same order as `sizes`. */
+  sizeStock: Array<{ size: string; qty: number }>;
   colors: string[];
   stock: number;
   salePrice: { min: number; max: number } | null;
@@ -43,16 +45,43 @@ export type CatalogueItem = {
 
 export type CataloguePriceMode = "sale" | "mrp" | "both" | "none";
 
+/** Stock filter buttons: in stock (default), low stock, out of stock, or everything. */
+export type CatalogueStockFilter = "in" | "low" | "out" | "all";
+/** A product with this many pieces or fewer (but some) counts as low stock. */
+export const CATALOGUE_LOW_STOCK = 5;
+
+export function catalogueStockStatus(stock: number): Exclude<CatalogueStockFilter, "all"> {
+  if (stock <= 0) return "out";
+  return stock <= CATALOGUE_LOW_STOCK ? "low" : "in";
+}
+
+/** Does a product with `stock` pieces pass the filter? "In stock" includes low stock. */
+export function passesCatalogueStockFilter(stock: number, filter: CatalogueStockFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "out") return stock <= 0;
+  if (filter === "low") return catalogueStockStatus(stock) === "low";
+  return stock > 0;
+}
+
 const range = (values: number[]) => {
   const v = values.filter((n) => Number.isFinite(n) && n > 0);
   return v.length ? { min: Math.min(...v), max: Math.max(...v) } : null;
 };
 
+export type CatalogueBuildOptions = {
+  /** Stock filter; `onlyInStock` is the older on/off form (true = "in", false = "all"). */
+  stock?: CatalogueStockFilter;
+  onlyInStock?: boolean;
+  onlyWithPhoto: boolean;
+  images?: ReadonlyMap<string, string>;
+};
+
 export function buildCatalogueItems(
   products: CatalogueProduct[],
   variants: CatalogueVariant[],
-  opts: { onlyInStock: boolean; onlyWithPhoto: boolean; images?: ReadonlyMap<string, string> },
+  opts: CatalogueBuildOptions,
 ): CatalogueItem[] {
+  const filter: CatalogueStockFilter = opts.stock ?? (opts.onlyInStock ? "in" : "all");
   const byProduct = new Map<string, CatalogueVariant[]>();
   for (const v of variants) {
     const list = byProduct.get(v.product_id) ?? [];
@@ -65,9 +94,17 @@ export function buildCatalogueItems(
     if (opts.onlyWithPhoto && !imageUrl) continue;
     const all = byProduct.get(p.id) ?? [];
     const inStock = all.filter((v) => (Number(v.stock_qty) || 0) > 0);
-    const shown = opts.onlyInStock ? inStock : all;
-    if (opts.onlyInStock && inStock.length === 0) continue;
-    const sizes = sortSizes([...new Set(shown.map((v) => sizeMatrixKey(v.size)).filter((s) => s && s !== "—"))]);
+    const stock = inStock.reduce((sum, v) => sum + (Number(v.stock_qty) || 0), 0);
+    if (!passesCatalogueStockFilter(stock, filter)) continue;
+    // In stock / low stock: only the sizes the shop can sell. All / out of stock: every size.
+    const shown = filter === "in" || filter === "low" ? inStock : all;
+    const qtyBySize = new Map<string, number>();
+    for (const v of shown) {
+      const size = sizeMatrixKey(v.size);
+      if (!size || size === "—") continue;
+      qtyBySize.set(size, (qtyBySize.get(size) ?? 0) + Math.max(0, Number(v.stock_qty) || 0));
+    }
+    const sizes = sortSizes([...qtyBySize.keys()]);
     const colors = [...new Set(shown.map((v) => (v.color || "").trim()).filter(Boolean))];
     if (colors.length === 0 && p.color?.trim()) colors.push(p.color.trim());
     items.push({
@@ -78,13 +115,30 @@ export function buildCatalogueItems(
       style: (p.style || "").trim(),
       imageUrl,
       sizes,
+      sizeStock: sizes.map((size) => ({ size, qty: qtyBySize.get(size) ?? 0 })),
       colors,
-      stock: inStock.reduce((s, v) => s + (Number(v.stock_qty) || 0), 0),
+      stock,
       salePrice: range(shown.map((v) => Number(v.sale_price))) ?? range([Number(p.default_sale_price)]),
       mrp: range(shown.map((v) => Number(v.mrp))),
     });
   }
   return items;
+}
+
+/** How many of the loaded products fall under each stock filter button. */
+export function catalogueStockCounts(
+  products: CatalogueProduct[],
+  variants: CatalogueVariant[],
+  opts: Pick<CatalogueBuildOptions, "onlyWithPhoto" | "images">,
+): Record<CatalogueStockFilter, number> {
+  const counts: Record<CatalogueStockFilter, number> = { in: 0, low: 0, out: 0, all: 0 };
+  for (const item of buildCatalogueItems(products, variants, { ...opts, stock: "all" })) {
+    counts.all += 1;
+    if (item.stock > 0) counts.in += 1;
+    if (catalogueStockStatus(item.stock) === "low") counts.low += 1;
+    if (item.stock <= 0) counts.out += 1;
+  }
+  return counts;
 }
 
 const rupees = (r: { min: number; max: number } | null) =>
