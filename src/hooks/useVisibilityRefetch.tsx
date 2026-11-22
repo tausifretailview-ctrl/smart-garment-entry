@@ -1,3 +1,4 @@
+import { coalesceRefresh } from "@/utils/coalesceRefresh";
 import { useState, useEffect, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -40,10 +41,18 @@ export const useVisibilityInvalidate = (queryKeys: string[][]) => {
       if (document.hidden) {
         setWasHidden(true);
       } else if (wasHidden) {
-        // Tab became visible after being hidden - invalidate queries
-        queryKeys.forEach((key) => {
-          queryClient.invalidateQueries({ queryKey: key });
-        });
+        // Tab became visible after being hidden - invalidate queries. Several kept-open
+        // screens mount this hook with the same list; only the first one in a moment runs.
+        coalesceRefresh(
+          queryClient,
+          `visible:${JSON.stringify(queryKeys)}`,
+          () => {
+            queryKeys.forEach((key) => {
+              void queryClient.invalidateQueries({ queryKey: key });
+            });
+          },
+          { gapMs: 1000, trailing: false },
+        );
         setWasHidden(false);
       }
     };

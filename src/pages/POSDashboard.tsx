@@ -1272,10 +1272,9 @@ const POSDashboard = () => {
         }
       }
 
-      invalidateAndRefetchWithQueryFn(queryClient, [
-        "pos-dashboard-sales",
-        currentOrganization?.id,
-      ]);
+      // Same refresh as the save and the live listener ask for: they share one window, so a
+      // bill reloads this dashboard once (plus one follow-up), not once per request.
+      invalidatePosDashboardQueries(queryClient, currentOrganization?.id);
     };
     window.addEventListener(POS_SALES_REFRESH_EVENT, onPosSalesChanged);
     return () => window.removeEventListener(POS_SALES_REFRESH_EVENT, onPosSalesChanged);

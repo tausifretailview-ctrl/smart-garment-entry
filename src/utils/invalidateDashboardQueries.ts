@@ -1,3 +1,4 @@
+import { coalesceRefresh } from "@/utils/coalesceRefresh";
 import type { QueryClient } from "@tanstack/react-query";
 import {
   invalidateSalesQueriesNow,
@@ -17,8 +18,13 @@ import {
 
 /** Sales invoice list + unified dashboard table pages. */
 export function invalidateInvoiceDashboardQueries(queryClient: QueryClient) {
-  invalidateAndRefetchWithQueryFn(queryClient, ["sales-invoice-dashboard"]);
-  invalidateAndRefetchWithQueryFn(queryClient, ["invoice-dashboard-unified"]);
+  // Stale at once; the reload itself runs once per short window (see coalesceRefresh).
+  void queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"], refetchType: "none" });
+  void queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"], refetchType: "none" });
+  coalesceRefresh(queryClient, "invoice-dashboard", () => {
+    invalidateAndRefetchWithQueryFn(queryClient, ["sales-invoice-dashboard"]);
+    invalidateAndRefetchWithQueryFn(queryClient, ["invoice-dashboard-unified"]);
+  });
 }
 
 /** Status bar stock + receivables tile (get_dashboard_stock_summary / v_dashboard_receivables). */
@@ -34,6 +40,17 @@ export function invalidateStatusBarSummary(queryClient: QueryClient, organizatio
  * invalidate so cards re-read SUM(product_variants.stock_qty).
  */
 export function invalidateStockReportQueries(
+  queryClient: QueryClient,
+  organizationId?: string,
+) {
+  // Eleven groups of cached stock screens are reloaded here; bills saved one after another
+  // share one reload per short window instead of one each (see coalesceRefresh).
+  coalesceRefresh(queryClient, `stock-report:${organizationId ?? ""}`, () =>
+    runStockReportInvalidation(queryClient, organizationId),
+  );
+}
+
+function runStockReportInvalidation(
   queryClient: QueryClient,
   organizationId?: string,
 ) {

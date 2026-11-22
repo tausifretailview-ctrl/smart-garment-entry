@@ -1,3 +1,4 @@
+import { coalesceRefresh } from "@/utils/coalesceRefresh";
 import type { QueryClient } from "@tanstack/react-query";
 import {
   CUSTOMER_FINANCIAL_SNAPSHOT_QUERY_KEY,
@@ -13,8 +14,21 @@ export const MONEY_VIEW_FRESHNESS_DEBOUNCE_MS = 400;
 /** Realtime-only: coalesce a POS save's sale + items + voucher events into one refetch. */
 export const MONEY_VIEW_REALTIME_DEBOUNCE_MS = 1500;
 
-/** Invalidate derived money views — never patch cache from raw Realtime payloads. */
+/**
+ * Invalidate derived money views — never patch cache from raw Realtime payloads.
+ * Asked for by the live listener, by every save and when the browser tab is shown again; the
+ * first request runs at once and repeats inside a short window become one more run.
+ */
 export function invalidateMoneyViewFreshness(
+  queryClient: QueryClient,
+  organizationId: string,
+) {
+  coalesceRefresh(queryClient, `money-views:${organizationId}`, () =>
+    runMoneyViewFreshness(queryClient, organizationId),
+  );
+}
+
+function runMoneyViewFreshness(
   queryClient: QueryClient,
   organizationId: string,
 ) {
