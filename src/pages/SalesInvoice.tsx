@@ -1,3 +1,4 @@
+import { saveSaleEditWithLines, SaleLinesNotRestoredError } from "@/lib/data/saveSaleEdit";
 import { SaleLineStockBadge } from "@/components/sales/SaleLineStockBadge";
 import { LIVE_STOCK_REFRESH_MS, fetchVariantStock, qtyByVariant, saleLineLiveStock } from "@/lib/saleLineLiveStock";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
@@ -2765,7 +2766,21 @@ export default function SalesInvoice() {
           }
         }
 
-        const normalizedItems = transformedItems.map((base: any) => {
+        const normalizedItems = transformedItems.map((loaded: any) => {
+          // A saved markdown line comes back as Markdown % + extra Disc %. The bill totals add
+          // each line's markdown and discount in rupees, so work those out here as well:
+          // without them an edited bill saved its header with the markdown left out
+          // (line ₹1,282.50, bill total ₹1,711) unless the line was touched first.
+          let base = loaded;
+          if ((loaded.markdownPercent || 0) > 0) {
+            const md = markdownLineAmounts({
+              base: loaded.salePrice * getMtrMultiplier(loaded),
+              markdownPercent: loaded.markdownPercent,
+              discountPercent: loaded.discountPercent,
+              discountAmount: loaded.discountAmount,
+            });
+            base = { ...loaded, markdownAmount: md.markdownAmount, discountAmount: md.extraDiscountAmount };
+          }
           const storedLt = Number(base.lineTotal);
           if (storedLt > 0.005) {
             return base;
@@ -3715,22 +3730,9 @@ Thank you for choosing us!`;
         // 1. Delete sale_items (triggers stock restoration via handle_sale_item_delete)
         // 2. Insert new sale_items (triggers stock deduction via update_stock_on_sale)
         // 3. Update sales record
-        // Snapshot before delete so we can restore if insert fails (avoids header-only invoice).
-        const { data: saleItemsSnapshot, error: snapError } = await supabase
-          .from('sale_items')
-          .select('*')
-          .eq('sale_id', editingInvoiceId);
-        if (snapError) throw snapError;
-
-        // Step 1: Delete existing sale items (triggers stock restoration)
-        const { error: deleteError } = await supabase
-          .from('sale_items')
-          .delete()
-          .eq('sale_id', editingInvoiceId);
-
-        if (deleteError) throw deleteError;
-
-        // Step 2: Insert updated sale items (triggers stock deduction)
+        // Lines and header are saved together, all or nothing (save_document_with_lines 'sale').
+        // The separate requests used before could stop half way; the "restore" then re-added
+        // the old lines on top of the new ones that had saved, taking their stock twice.
         const saleItems = filledItems.map(item => {
           const itemGross = item.lineTotal;
           const discountShare = persistedGrossAmount > 0
@@ -3761,43 +3763,12 @@ Thank you for choosing us!`;
           };
         });
 
-        let itemsError: unknown = null;
         try {
-          await insertSaleItemsInChunks(supabase, saleItems as Record<string, unknown>[]);
-        } catch (err) {
-          itemsError = err;
-        }
-
-        if (itemsError) {
-          if (saleItemsSnapshot && saleItemsSnapshot.length > 0) {
-            const restoreRows = saleItemsSnapshot.map((row: Record<string, unknown>) => {
-              const { id: _id, created_at: _c, ...rest } = row;
-              return rest;
-            });
-            const { error: restoreErr } = await supabase.from('sale_items').insert(restoreRows as any);
-            if (restoreErr) {
-              console.error('Failed to restore sale_items after insert error:', restoreErr);
-              toast({
-                variant: 'destructive',
-                title: 'Critical: invoice lines lost',
-                description: 'Insert failed and automatic restore failed. Restore from backup or re-enter lines.',
-              });
-            } else {
-              toast({
-                variant: 'destructive',
-                title: 'Save failed',
-                description: 'Previous line items were restored. Fix the error and try again.',
-              });
-              return;
-            }
-          }
-          throw itemsError as Error;
-        }
-
-        // Step 3: Update the sales record
-        const { error: updateError } = await supabase
-          .from('sales')
-          .update({
+          await saveSaleEditWithLines({
+            kind: "sale",
+            organizationId: currentOrganization!.id,
+            documentId: editingInvoiceId,
+            header: {
             sale_date: format(invoiceDate, "yyyy-MM-dd"),
             customer_id: selectedCustomerId,
             customer_name: selectedCustomer.customer_name,
@@ -3822,10 +3793,19 @@ Thank you for choosing us!`;
             tax_type: taxType,
             ...b2bPatch,
             updated_at: new Date().toISOString(),
-          })
-          .eq('id', editingInvoiceId);
-
-        if (updateError) throw updateError;
+          },
+            rows: saleItems as Record<string, unknown>[],
+          });
+        } catch (editErr) {
+          if (editErr instanceof SaleLinesNotRestoredError) {
+            toast({
+              variant: 'destructive',
+              title: 'Critical: invoice lines lost',
+              description: 'The save failed and the previous lines could not be put back. Keep this bill open and save it again.',
+            });
+          }
+          throw editErr;
+        }
 
         // Recalculate payment_status if net_amount changed
         const { data: updatedSale } = await supabase

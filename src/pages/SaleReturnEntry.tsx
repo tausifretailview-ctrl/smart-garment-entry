@@ -1,3 +1,4 @@
+import { saveSaleEditWithLines } from "@/lib/data/saveSaleEdit";
 import { useState, useEffect, useRef } from "react";
 import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -947,20 +948,23 @@ export default function SaleReturnEntry() {
       const totals = calculateTotals();
 
       if (isEditMode && editId) {
+        const returnHeader = {
+          customer_id: selectedCustomer || null,
+          customer_name: customer?.customer_name || "Walk-in Customer",
+          original_sale_number: originalSaleNumber || null,
+          return_date: returnDate,
+          gross_amount: totals.grossAmount,
+          gst_amount: totals.gstAmount,
+          net_amount: totals.netAmount,
+          notes,
+        };
         // Header-only edit (customer, date, notes, bill no.): keep the saved lines
         // as they are, so stock is not reversed and re-added.
         if (!editLinesUnchanged) {
-          // Hard-delete items directly so the DB trigger fires normally
-          // (trigger sees deleted_at IS NULL → reverses stock correctly)
-          // This matches the sale edit pattern in useSaveSale.tsx
-          for (const itemId of originalItemIds) {
-            const { error: delError } = await supabase
-              .from("sale_return_items")
-              .delete()
-              .eq("id", itemId);
-            if (delError) throw delError;
-          }
-
+          // Lines and header together, all or nothing (save_document_with_lines 'sale_return').
+          // The old lines are hard-deleted there too, so the stock trigger reverses them as
+          // before. Separate requests could delete the lines and then fail to add the new
+          // ones: a return with no items that still gave the customer its full credit.
           const itemsToInsert = returnItems.map((item) => ({
             return_id: editId,
             product_id: item.productId,
@@ -976,28 +980,21 @@ export default function SaleReturnEntry() {
             hsn_code: item.hsnCode || null,
           }));
 
-          const { error: insertError } = await supabase
-            .from("sale_return_items")
-            .insert(itemsToInsert);
+          await saveSaleEditWithLines({
+            kind: "sale_return",
+            organizationId: currentOrganization!.id,
+            documentId: editId,
+            header: returnHeader,
+            rows: itemsToInsert,
+          });
+        } else {
+          const { error: updateError } = await supabase
+            .from("sale_returns")
+            .update(returnHeader)
+            .eq("id", editId);
 
-          if (insertError) throw insertError;
+          if (updateError) throw updateError;
         }
-
-        const { error: updateError } = await supabase
-          .from("sale_returns")
-          .update({
-            customer_id: selectedCustomer || null,
-            customer_name: customer?.customer_name || "Walk-in Customer",
-            original_sale_number: originalSaleNumber || null,
-            return_date: returnDate,
-            gross_amount: totals.grossAmount,
-            gst_amount: totals.gstAmount,
-            net_amount: totals.netAmount,
-            notes,
-          })
-          .eq("id", editId);
-
-        if (updateError) throw updateError;
 
         // Keep an unused credit note on the same customer as the return.
         if (customerChanged && originalCredit?.credit_note_id) {

@@ -89,6 +89,9 @@ import { saleItemSalesmanInsertField } from "@/utils/posLineSalesman";
 import { linkOrCreateCustomerFromSaleParty } from "@/utils/salePartyCustomerMaster";
 import { salePrintFirmPatch, type PrintFirm } from "@/utils/secondFirm";
 import { getInvoiceWhatsAppSettings } from "@/lib/data/invoiceWhatsAppSettings";
+import { saveSaleEditWithLines } from "@/lib/data/saveSaleEdit";
+
+type SalesRow = Tables<"sales">;
 
 interface CartItem {
   id: string;
@@ -2384,31 +2387,16 @@ export const useSaveSale = () => {
           ? { sale_date: saleDateIsoIst() }
           : {};
 
-      // Step 1: Delete existing sale_items (triggers stock restoration via handle_sale_item_delete)
-      const { error: deleteError } = await supabase
-        .from('sale_items')
-        .delete()
-        .eq('sale_id', saleId);
-
-      if (deleteError) throw deleteError;
-
-      // Step 2: Insert new sale_items with proportional bill discount + round-off distribution
+      // Lines and header are saved together, all or nothing (save_document_with_lines 'sale').
+      // Separate requests (delete lines, insert 5 at a time, update header) could stop half
+      // way on a dropped connection and leave the bill with missing lines under the old totals.
       const perLineSalesman = isPerLineSalesmanEnabled(orgSettings);
       const saleItems = buildSaleItemInsertRows(saleId, saleData, perLineSalesman);
-      const lineInsert = await insertSaleItemsResilient(supabase, saleItems);
-      if (lineInsert.salesmanColumnMissing) {
-        toast({
-          title: "Bill updated — per-line salesman not stored yet",
-          description:
-            "The database migration for sale_items.salesman is pending. Header salesman was saved; apply migration 20260916180000 to enable per-line assignment.",
-          variant: "destructive",
-        });
-      }
-
-      // Step 3: Update the sales record
-      const { data: sale, error: saleError } = await supabase
-        .from('sales')
-        .update({
+      const editSave = await saveSaleEditWithLines({
+        kind: "sale",
+        organizationId: currentOrganization.id,
+        documentId: saleId,
+        header: {
           ...(promotedSaleNumber
             ? {
                 sale_number: promotedSaleNumber,
@@ -2442,12 +2430,19 @@ export const useSaveSale = () => {
           ...salePrintFirmPatch(saleData.printFirm),
           updated_at: new Date().toISOString(),
           ...saleDatePatch,
-        })
-        .eq('id', saleId)
-        .select()
-        .single();
-
-      if (saleError) throw saleError;
+        },
+        rows: saleItems,
+      });
+      if (editSave.salesmanColumnMissing) {
+        toast({
+          title: "Bill updated — per-line salesman not stored yet",
+          description:
+            "The database migration for sale_items.salesman is pending. Header salesman was saved; apply migration 20260916180000 to enable per-line assignment.",
+          variant: "destructive",
+        });
+      }
+      const sale = editSave.header as SalesRow | null;
+      if (!sale) throw new Error("The bill was saved but could not be read back. Please reopen it.");
 
       if (accountingEngineOn) {
         void (async () => {
@@ -2893,29 +2888,16 @@ export const useSaveSale = () => {
         consumeSrAmount,
       } = resolveSalePaymentFields(saleData, paymentMethod, paymentBreakdown);
 
-      const { error: deleteHeldItemsError } = await supabase
-        .from("sale_items")
-        .delete()
-        .eq("sale_id", heldSaleId);
-      if (deleteHeldItemsError) throw deleteHeldItemsError;
-
-      // Insert sale items with proportional bill discount + round-off distribution (NOW affects stock via triggers)
+      // Lines (these now take stock, through the triggers) and the header (new POS number, date,
+      // completed status) are saved together, all or nothing: a stop half way used to leave the
+      // bill on Hold with only some of its lines taking stock.
       const perLineSalesman = isPerLineSalesmanEnabled(orgSettings);
       const saleItems = buildSaleItemInsertRows(heldSaleId, saleData, perLineSalesman);
-      const lineInsert = await insertSaleItemsResilient(supabase, saleItems);
-      if (lineInsert.salesmanColumnMissing) {
-        toast({
-          title: "Bill saved — per-line salesman not stored yet",
-          description:
-            "The database migration for sale_items.salesman is pending. Header salesman was saved; apply migration 20260916180000 to enable per-line assignment.",
-          variant: "destructive",
-        });
-      }
-
-      // Update the held sale: assign NEW POS number + current date + completed status
-      const { data: sale, error: saleError } = await supabase
-        .from('sales')
-        .update({
+      const heldSave = await saveSaleEditWithLines({
+        kind: "sale",
+        organizationId: currentOrganization.id,
+        documentId: heldSaleId,
+        header: {
           sale_number: newSaleNumber,
           ...(heldDcNumber ? { is_dc_bill: true } : {}),
           sale_date: saleData.saleDate || saleDateIsoIst(),
@@ -2944,12 +2926,19 @@ export const useSaveSale = () => {
           ...salePrintFirmPatch(saleData.printFirm),
           held_cart_data: null,
           updated_at: new Date().toISOString(),
-        })
-        .eq('id', heldSaleId)
-        .select()
-        .single();
-
-      if (saleError) throw saleError;
+        },
+        rows: saleItems,
+      });
+      if (heldSave.salesmanColumnMissing) {
+        toast({
+          title: "Bill saved — per-line salesman not stored yet",
+          description:
+            "The database migration for sale_items.salesman is pending. Header salesman was saved; apply migration 20260916180000 to enable per-line assignment.",
+          variant: "destructive",
+        });
+      }
+      const sale = heldSave.header as SalesRow | null;
+      if (!sale) throw new Error("The bill was saved but could not be read back. Please reopen it.");
 
       if (accountingEngineOn) {
         // Wait for the delete: the post skips a sale that still has a journal, and a delete that

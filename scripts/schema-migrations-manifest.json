@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-11-21",
-  "count": 957,
-  "fileCount": 975,
+  "generatedAt": "2026-11-22",
+  "count": 958,
+  "fileCount": 976,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -960,7 +960,8 @@
     "20270509120000",
     "20270510120000",
     "20270511120000",
-    "20270512120000"
+    "20270512120000",
+    "20270513120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1937,7 +1938,8 @@
     "20270509120000_sale_return_ceiling_counts_stock_transfers.sql",
     "20270510120000_brand_markdown.sql",
     "20270511120000_storefront_trial_room.sql",
-    "20270512120000_lock_dynamic_sql_definer_functions.sql"
+    "20270512120000_lock_dynamic_sql_definer_functions.sql",
+    "20270513120000_save_document_with_lines_sales.sql"
   ],
   "duplicateVersions": [
     {
