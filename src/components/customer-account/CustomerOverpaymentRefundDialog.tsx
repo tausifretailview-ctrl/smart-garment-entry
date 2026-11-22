@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
@@ -135,7 +136,7 @@ export function CustomerOverpaymentRefundDialog({
                   data: { user },
                 } = await supabase.auth.getUser();
                 const voucherNum = `REFUND-${Date.now()}`;
-                const refundDate = new Date().toISOString().split("T")[0];
+                const refundDate = istCalendarYmd();
                 const refundDescription = note || `Overpayment refund to ${customerName}`;
                 const { data: refundVoucher, error } = await supabase
                   .from("voucher_entries")

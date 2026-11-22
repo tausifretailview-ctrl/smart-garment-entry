@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,7 +55,7 @@ const defaultFormData: GiftFormData = {
   gift_name: "",
   description: "",
   points_required: 100,
-  valid_from: new Date().toISOString().split("T")[0],
+  valid_from: istCalendarYmd(),
   valid_until: "",
   stock_qty: 10,
   is_active: true,

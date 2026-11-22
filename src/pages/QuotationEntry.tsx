@@ -860,7 +860,7 @@ export default function QuotationEntry() {
         organization_id: currentOrganization?.id,
         quotation_number: quotationNumber,
         quotation_date: quotationDate.toISOString(),
-        valid_until: validUntil.toISOString().split("T")[0],
+        valid_until: format(validUntil, "yyyy-MM-dd"),
         customer_id: selectedCustomerId || null,
         customer_name: selectedCustomer?.customer_name || "Walk in Customer",
         customer_phone: selectedCustomer?.phone || null,

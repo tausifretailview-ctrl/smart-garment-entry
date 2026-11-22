@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -48,7 +49,7 @@ export function PendingWorkTab({ orgId, onOpenLot }: { orgId: string; onOpenLot:
   const [shortCard, setShortCard] = useState<MfgJobCard | null>(null);
 
   const rows = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = istCalendarYmd();
     return cards
       .filter((c) => c.lot?.status === "cut")
       .map((c) => {

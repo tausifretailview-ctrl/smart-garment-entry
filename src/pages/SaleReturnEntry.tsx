@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { saveSaleEditWithLines } from "@/lib/data/saveSaleEdit";
 import { useState, useEffect, useRef } from "react";
 import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
@@ -123,7 +124,7 @@ export default function SaleReturnEntry() {
   const [selectedCustomer, setSelectedCustomer] = useState<string>("");
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
   const [customerSearchTerm, setCustomerSearchTerm] = useState("");
-  const [returnDate, setReturnDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [returnDate, setReturnDate] = useState<string>(istCalendarYmd());
   const [originalSaleNumber, setOriginalSaleNumber] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   const [nextReturnNumber, setNextReturnNumber] = useState<string>("");
@@ -256,7 +257,7 @@ export default function SaleReturnEntry() {
 
       setNextReturnNumber(returnData.return_number || "");
       setSelectedCustomer(returnData.customer_id || "");
-      setReturnDate(returnData.return_date?.split("T")[0] || new Date().toISOString().split("T")[0]);
+      setReturnDate(returnData.return_date?.split("T")[0] || istCalendarYmd());
       setOriginalSaleNumber(returnData.original_sale_number || "");
       setNotes(returnData.notes || "");
 

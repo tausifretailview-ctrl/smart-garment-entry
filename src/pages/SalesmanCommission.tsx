@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -362,7 +363,7 @@ export default function SalesmanCommission() {
       // A busy salesman has hundreds of pending bills: one .in("id", ids) puts every
       // id in the URL, which grows past the server limit and the request fails.
       // Send the ids in chunks, like the sale_items fetch above.
-      const paidDate = new Date().toISOString().split("T")[0];
+      const paidDate = istCalendarYmd();
       for (let i = 0; i < ids.length; i += 150) {
         const { error } = await (supabase.from("salesman_commissions" as any) as any)
           .update({ payment_status: "paid", paid_date: paidDate })

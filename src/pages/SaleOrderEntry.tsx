@@ -1282,7 +1282,7 @@ export default function SaleOrderEntry() {
         organization_id: currentOrganization?.id,
         order_number: savedOrderNumber,
         order_date: orderDate.toISOString(),
-        expected_delivery_date: expectedDelivery.toISOString().split('T')[0],
+        expected_delivery_date: format(expectedDelivery, "yyyy-MM-dd"),
         customer_id: selectedCustomerId || null,
         customer_name: selectedCustomer?.customer_name || 'Walk in Customer',
         customer_phone: selectedCustomer?.phone || null,

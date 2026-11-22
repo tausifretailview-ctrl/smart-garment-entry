@@ -1,3 +1,4 @@
+import { fetchAllRows } from "@/lib/data/fetchInIdBatches";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -86,20 +87,23 @@ export default function HourlySalesAnalysis() {
       const fromDate = startOfDay(dateRange.from).toISOString();
       const toDate = endOfDay(dateRange.to).toISOString();
 
-      let query = supabase
-        .from("sales")
-        .select("id, net_amount, sale_date")
-        .eq("organization_id", currentOrganization.id)
-        .gte("sale_date", fromDate)
-        .lte("sale_date", toDate)
-        .is("deleted_at", null)
-        .eq("is_cancelled", false);
-      // DC hidden: all-DC bills out, DC share of mixed bills out.
-      if (hideDc) query = query.eq("is_dc_bill", false);
-      const { data: fetched, error } = await query;
-
-      if (error) throw error;
-      const data = await saleRowsForDcView(supabase, fetched || [], { hideDc, onlyDc });
+      // Every bill of the range, page by page: one request returns at most 1,000 rows, so a
+      // longer range counted only part of its bills.
+      const orgId = currentOrganization.id;
+      const fetched = await fetchAllRows<{ id: string; net_amount: number | null; sale_date: string }>(() => {
+        let query = supabase
+          .from("sales")
+          .select("id, net_amount, sale_date")
+          .eq("organization_id", orgId)
+          .gte("sale_date", fromDate)
+          .lte("sale_date", toDate)
+          .is("deleted_at", null)
+          .eq("is_cancelled", false);
+        // DC hidden: all-DC bills out, DC share of mixed bills out.
+        if (hideDc) query = query.eq("is_dc_bill", false);
+        return query.order("id") as never;
+      });
+      const data = await saleRowsForDcView(supabase, fetched, { hideDc, onlyDc });
 
       // Group by hour
       const hourlyMap = new Map<number, { sales: number; count: number }>();

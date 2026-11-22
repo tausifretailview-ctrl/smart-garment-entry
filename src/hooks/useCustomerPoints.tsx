@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { bestEffortWrite } from "@/lib/rollbackStep";
@@ -283,7 +284,7 @@ export function useCustomerPoints() {
     if (!currentOrganization?.id) return [];
     
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = istCalendarYmd();
       const { data, error } = await supabase
         .from('gift_rewards')
         .select('*')

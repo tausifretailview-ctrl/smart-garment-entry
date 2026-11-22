@@ -1,3 +1,5 @@
+import { format } from "date-fns";
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { supabase } from "@/integrations/supabase/client";
 import {
   fetchCustomerFinancialSnapshotMap,
@@ -94,7 +96,7 @@ function normalizePhone(phone: string): string {
 function invoiceDateFrom(): string {
   const d = new Date();
   d.setDate(d.getDate() - INVOICE_LOOKBACK_DAYS);
-  return d.toISOString().slice(0, 10);
+  return format(d, "yyyy-MM-dd");
 }
 
 function throwIfAborted(signal?: AbortSignal): void {
@@ -230,7 +232,7 @@ export async function searchCommandPaletteInvoices(
       p_org_id: organizationId,
       p_search: term,
       p_date_from: invoiceDateFrom(),
-      p_date_to: new Date().toISOString().slice(0, 10),
+      p_date_to: istCalendarYmd(),
       p_limit: GROUP_LIMIT,
     });
     throwIfAborted(signal);

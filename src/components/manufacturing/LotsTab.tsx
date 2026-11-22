@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -40,7 +41,7 @@ interface VariantRow {
   color: string | null;
 }
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const todayIso = () => istCalendarYmd();
 
 function NewLotDialog({
   orgId,

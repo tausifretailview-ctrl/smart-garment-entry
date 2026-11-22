@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useVisibilityInvalidate } from "@/hooks/useVisibilityRefetch";
 import { getMoneyViewVisibilityQueryKeys } from "@/utils/moneyViewFreshnessInvalidation";
@@ -9,7 +10,7 @@ import { downloadJsPdf } from "@/utils/mobileDocumentDelivery";
 import { useQueryClient, useMutation, useQuery, keepPreviousData } from "@tanstack/react-query";
 import { STALE_DASHBOARD_TAB_RETURN, STALE_FREQUENT, STALE_REFERENCE } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
+import { fetchAllRows, fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 import { postCustomerRefundVoucherJournal } from "@/utils/accounting/journalService";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { useOrgLedgerReferenceFetcher } from "@/hooks/useOrgLedgerReferenceData";
@@ -613,13 +614,15 @@ export function CustomerLedger({
       // For school orgs: one ledger row per student (fee data lives on students).
       // `student.customer_id` is often unset — do not require it to match a customer row.
       if (isSchool) {
-        const { data: studentsRows } = await supabase
-          .from('students')
-          .select('id, student_name, parent_phone, parent_email, customer_id, admission_number, closing_fees_balance, class_id, division, academic_year_id, fees_opening_is_net, is_new_admission, school_classes(class_name)')
-          .eq('organization_id', organizationId)
-          .is('deleted_at', null);
-
-        const studentsList = studentsRows || [];
+        // Page by page: a school with more than 1,000 students lost the rest from the ledger.
+        const studentsList = await fetchAllRows<any>(() =>
+          supabase
+            .from('students')
+            .select('id, student_name, parent_phone, parent_email, customer_id, admission_number, closing_fees_balance, class_id, division, academic_year_id, fees_opening_is_net, is_new_admission, school_classes(class_name)')
+            .eq('organization_id', organizationId)
+            .is('deleted_at', null)
+            .order('id') as never,
+        );
         const customerById = new Map<string, any>(customersData.map((c: any) => [c.id, c]));
 
         // Resolve target academic year from selected range (full FY resolution)
@@ -681,13 +684,18 @@ export function CustomerLedger({
         // Year-scoped receipts (for balance math vs structures / opening)
         let feeTotalsYear: any[] = [];
         if (effectiveTargetYear?.id) {
-          const { data } = await supabase
-            .from('student_fees')
-            .select('student_id, paid_amount, status')
-            .eq('organization_id', organizationId)
-            .eq('academic_year_id', effectiveTargetYear.id)
-            .neq('status', 'deleted');
-          feeTotalsYear = data || [];
+          // Page by page: one request returns at most 1,000 rows, so a school with more fee
+          // receipts in the year showed students as unpaid.
+          const yearId = effectiveTargetYear.id;
+          feeTotalsYear = await fetchAllRows<any>(() =>
+            supabase
+              .from('student_fees')
+              .select('id, student_id, paid_amount, status')
+              .eq('organization_id', organizationId)
+              .eq('academic_year_id', yearId)
+              .neq('status', 'deleted')
+              .order('id') as never,
+          );
         }
 
         const studentPaidInYear = new Map<string, number>();
@@ -3382,7 +3390,7 @@ Please clear your dues at the earliest. Thank you!`;
                 const { data: { user } } = await supabase.auth.getUser();
                 const voucherNum = `REFUND-${Date.now()}`;
                 const refundMode = overpaymentRefundMode || "cash";
-                const refundDate = new Date().toISOString().split('T')[0];
+                const refundDate = istCalendarYmd();
                 const refundDescription =
                   overpaymentRefundNote ||
                   `Overpayment refund to ${selectedCustomer.customer_name} (${refundMode})`;

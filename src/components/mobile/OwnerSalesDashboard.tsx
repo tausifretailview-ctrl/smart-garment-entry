@@ -1,3 +1,4 @@
+import { fetchAllRows, fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -59,6 +60,31 @@ const PIE_COLORS = [
   "hsl(var(--destructive))",
 ];
 
+type OwnerSaleRow = {
+  id: string;
+  sale_number: string | null;
+  net_amount: number | null;
+  gross_amount: number | null;
+  discount_amount: number | null;
+  payment_method: string | null;
+  customer_name: string | null;
+  customer_id: string | null;
+  cash_amount: number | null;
+  upi_amount: number | null;
+  card_amount: number | null;
+  total_qty: number | null;
+  sale_date: string;
+  payment_status: string | null;
+};
+type OwnerSaleItemRow = {
+  id: string;
+  product_name: string | null;
+  product_id: string | null;
+  size: string | null;
+  quantity: number | null;
+  line_total: number | null;
+};
+
 export const OwnerSalesDashboard = ({ period, setPeriod, customRange, setCustomRange, onViewAllBills, onViewBill }: Props) => {
   const { currentOrganization } = useOrganization();
   const { start, end } = getDateRange(period, customRange);
@@ -71,16 +97,21 @@ export const OwnerSalesDashboard = ({ period, setPeriod, customRange, setCustomR
     queryKey: ["owner-sales-dash", currentOrganization?.id, start, end],
     queryFn: async () => {
       if (!currentOrganization) return null;
-      const { data: sales } = await supabase
-        .from("sales")
-        .select("id, sale_number, net_amount, gross_amount, discount_amount, payment_method, customer_name, customer_id, cash_amount, upi_amount, card_amount, total_qty, sale_date, payment_status")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .eq("is_cancelled", false)
-        .gte("sale_date", startIso)
-        .lte("sale_date", endIso)
-        .order("sale_date", { ascending: false });
-      return sales || [];
+      // Every bill of the period, page by page: one request returns at most 1,000 rows, so a
+      // month with more bills showed Total / Cash / UPI / Card for the latest 1,000 only.
+      const orgId = currentOrganization.id;
+      return fetchAllRows<OwnerSaleRow>(() =>
+        supabase
+          .from("sales")
+          .select("id, sale_number, net_amount, gross_amount, discount_amount, payment_method, customer_name, customer_id, cash_amount, upi_amount, card_amount, total_qty, sale_date, payment_status")
+          .eq("organization_id", orgId)
+          .is("deleted_at", null)
+          .eq("is_cancelled", false)
+          .gte("sale_date", startIso)
+          .lte("sale_date", endIso)
+          .order("sale_date", { ascending: false })
+          .order("id") as never,
+      );
     },
     enabled: !!currentOrganization,
     staleTime: 30000,
@@ -91,15 +122,19 @@ export const OwnerSalesDashboard = ({ period, setPeriod, customRange, setCustomR
     queryKey: ["owner-sales-items", currentOrganization?.id, start, end],
     queryFn: async () => {
       if (!currentOrganization) return [];
-      const { data } = await supabase
-        .from("sale_items")
-        .select("product_name, product_id, size, quantity, line_total, sales!inner(organization_id, sale_date, deleted_at, is_cancelled)")
-        .eq("sales.organization_id", currentOrganization.id)
-        .is("sales.deleted_at", null)
-        .eq("sales.is_cancelled", false)
-        .gte("sales.sale_date", startIso)
-        .lte("sales.sale_date", endIso);
-      return data || [];
+      // Page by page as well: top products were built from the first 1,000 lines only.
+      const orgId = currentOrganization.id;
+      return fetchAllRows<OwnerSaleItemRow>(() =>
+        supabase
+          .from("sale_items")
+          .select("id, product_name, product_id, size, quantity, line_total, sales!inner(organization_id, sale_date, deleted_at, is_cancelled)")
+          .eq("sales.organization_id", orgId)
+          .is("sales.deleted_at", null)
+          .eq("sales.is_cancelled", false)
+          .gte("sales.sale_date", startIso)
+          .lte("sales.sale_date", endIso)
+          .order("id") as never,
+      );
     },
     enabled: !!currentOrganization,
     staleTime: 30000,
@@ -110,13 +145,13 @@ export const OwnerSalesDashboard = ({ period, setPeriod, customRange, setCustomR
     queryKey: ["owner-sales-brands", currentOrganization?.id, start, end],
     queryFn: async () => {
       if (!currentOrganization || !itemsData?.length) return [];
-      const productIds = [...new Set(itemsData.map((i) => i.product_id))];
+      const productIds = [...new Set(itemsData.map((i) => i.product_id).filter((id): id is string => !!id))];
       if (!productIds.length) return [];
-      const { data } = await supabase
-        .from("products")
-        .select("id, brand")
-        .in("id", productIds.slice(0, 500));
-      return data || [];
+      // In batches: 500 ids in one request is past what the server accepts, and products after
+      // the first 500 had no brand.
+      return fetchInIdBatches<{ id: string; brand: string | null }>(productIds, (batch) =>
+        supabase.from("products").select("id, brand").in("id", batch).order("id") as never,
+      );
     },
     enabled: !!currentOrganization && (itemsData?.length || 0) > 0,
     staleTime: 60000,
@@ -169,7 +204,7 @@ export const OwnerSalesDashboard = ({ period, setPeriod, customRange, setCustomR
     const prodBrand = new Map(brandData.map((p) => [p.id, p.brand || "Unknown"]));
     const map = new Map<string, number>();
     itemsData.forEach((i) => {
-      const brand = prodBrand.get(i.product_id) || "Unknown";
+      const brand = (i.product_id && prodBrand.get(i.product_id)) || "Unknown";
       map.set(brand, (map.get(brand) || 0) + (i.line_total || 0));
     });
     return [...map.entries()].map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total);

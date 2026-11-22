@@ -1,3 +1,5 @@
+import { format } from "date-fns";
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -79,11 +81,11 @@ export function LotStatusBadge({ status }: { status: MfgLotStatus }) {
   return <Badge variant={STATUS_VARIANT[status] || "outline"}>{MFG_LOT_STATUS_LABEL[status] || status}</Badge>;
 }
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const todayIso = () => istCalendarYmd();
 const addDays = (iso: string, days: number) => {
   const d = new Date(`${iso}T00:00:00`);
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return format(d, "yyyy-MM-dd");
 };
 const num = (v: string | number | null | undefined) => {
   const x = Number(v);

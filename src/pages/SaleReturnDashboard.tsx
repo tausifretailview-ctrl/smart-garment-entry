@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { insertVoucherRetryingNumber } from "@/utils/voucherNumberRetry";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -1390,7 +1391,7 @@ export default function SaleReturnDashboard() {
                     const {
                       data: { user },
                     } = await supabase.auth.getUser();
-                    const refundDate = new Date().toISOString().split("T")[0];
+                    const refundDate = istCalendarYmd();
                     const noteSuffix = refundNote.trim() ? ` — ${refundNote.trim()}` : "";
                     const returnNo = selectedReturnForRefund.return_number || "sale return";
                     const refundDescription = `Credit note refund for ${returnNo} to ${selectedReturnForRefund.customer_name}${noteSuffix}`;

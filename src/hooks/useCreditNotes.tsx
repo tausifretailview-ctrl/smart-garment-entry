@@ -1,3 +1,4 @@
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { insertVoucherRetryingNumber } from "@/utils/voucherNumberRetry";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -58,7 +59,7 @@ async function writeIssuanceVoucher(params: {
     return;
   }
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = istCalendarYmd();
   // A number another cashier took in the meantime is replaced by a fresh one.
   const { error: insertError } = await insertVoucherRetryingNumber(supabase, {
     type: "credit_note",
@@ -163,7 +164,7 @@ export function useCreditNotes() {
       } catch (parentErr) {
         console.error("Exchange-excess sale return RPC failed:", parentErr);
         try {
-          const today = new Date().toISOString().split("T")[0];
+          const today = istCalendarYmd();
           const { data: returnNumber, error: numberError } = await supabase.rpc(
             "generate_sale_return_number",
             { p_organization_id: currentOrganization.id },

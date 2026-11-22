@@ -1,3 +1,5 @@
+import { format } from "date-fns";
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -136,8 +138,8 @@ function buildHistoryFromSettledScans(
         (a, b) => new Date(b.scanned_at).getTime() - new Date(a.scanned_at).getTime(),
       );
       const sessionDate = sorted[0]?.scanned_at
-        ? new Date(sorted[0].scanned_at).toISOString().split("T")[0]
-        : new Date().toISOString().split("T")[0];
+        ? format(new Date(sorted[0].scanned_at), "yyyy-MM-dd")
+        : istCalendarYmd();
       let matched = 0;
       let surplus = 0;
       let shortage = 0;
