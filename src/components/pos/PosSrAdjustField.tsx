@@ -1,11 +1,11 @@
 import { memo, useCallback, useState, type Dispatch, type SetStateAction } from "react";
-import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
+import { ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { resolveSrAdjustOnBlur, srAdjustTyped } from "./posSrAdjust";
+import { resolveSrAdjustOnBlur, srAdjustTyped, type ManualSrPrompt } from "./posSrAdjust";
 
 function formatINR2(value: number): string {
   const parsed = Number(value);
@@ -39,7 +39,7 @@ export type PosSrAdjustFieldProps = {
   /** Stable state setters. */
   setSaleReturnAdjust: (value: number) => void;
   setSameBillReturnGross: Dispatch<SetStateAction<number>>;
-  setManualSrPrompt: (prompt: { requested: number; shortfall: number } | null) => void;
+  setManualSrPrompt: (prompt: ManualSrPrompt | null) => void;
   /** Stable: cap to maxSrAllowed (warns unless silent) and set S/R. */
   onClampSaleReturnAdjust: (requested: number, opts?: { silent?: boolean }) => unknown;
   /** Stable: open the bill a credit note was adjusted in. */
@@ -112,8 +112,9 @@ export const PosSrAdjustField = memo(function PosSrAdjustField({
         toast.warning(action.capWarning);
         setSaleReturnAdjust(action.forBill);
       }
-      // Customer's old return that was never entered (old CN balance / other shop):
-      // record it now (amount-only sale return + credit note), then it is used here.
+      // Customer's old return that was never entered (old CN balance / other shop): record
+      // it now (amount-only sale return + credit note), then it is used here. An amount
+      // above the bill asks first whether the rest is to be refunded.
       if (action.prompt) {
         setManualSrPrompt(action.prompt);
         return;
@@ -147,6 +148,7 @@ export const PosSrAdjustField = memo(function PosSrAdjustField({
       <div className="flex items-center h-10">
         <Input
           type="number"
+          data-testid="pos-sr-adjust"
           className="w-24 h-10 bg-white text-foreground text-center text-lg font-semibold border-0 rounded-md"
           value={saleReturnAdjust || ""}
           placeholder="0"

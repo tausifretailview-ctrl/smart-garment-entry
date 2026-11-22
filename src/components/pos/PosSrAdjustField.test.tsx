@@ -7,7 +7,7 @@ const warning = vi.fn();
 vi.mock("sonner", () => ({ toast: { warning: (...a: unknown[]) => warning(...a) } }));
 
 import { PosSrAdjustField, type PosSrAdjustFieldProps } from "./PosSrAdjustField";
-import { resolveSrAdjustOnBlur, srAdjustTyped } from "./posSrAdjust";
+import { resolveSrAdjustOnBlur, srAdjustTyped, srOverBillPrompt } from "./posSrAdjust";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -47,6 +47,25 @@ describe("srAdjustTyped", () => {
   });
 });
 
+describe("srOverBillPrompt (named customer, S/R above the bill)", () => {
+  it("is null when the amount fits the bill or nothing is billed yet", () => {
+    expect(srOverBillPrompt({ requested: 500, maxSrFromBill: 500, availableSrCredit: 0 })).toBeNull();
+    expect(srOverBillPrompt({ requested: 500.004, maxSrFromBill: 500, availableSrCredit: 0 })).toBeNull();
+    expect(srOverBillPrompt({ requested: 800, maxSrFromBill: 0, availableSrCredit: 800 })).toBeNull();
+  });
+  it("splits the amount into what to record and what to refund", () => {
+    expect(srOverBillPrompt({ requested: 2400, maxSrFromBill: 1300, availableSrCredit: 2400 })).toEqual({
+      requested: 2400, shortfall: 0, refundDue: 1100,
+    });
+    expect(srOverBillPrompt({ requested: 2400, maxSrFromBill: 1300, availableSrCredit: 1300 })).toEqual({
+      requested: 2400, shortfall: 1100, refundDue: 1100,
+    });
+    expect(srOverBillPrompt({ requested: 2400, maxSrFromBill: 1300, availableSrCredit: 0 })).toEqual({
+      requested: 2400, shortfall: 2400, refundDue: 1100,
+    });
+  });
+});
+
 describe("resolveSrAdjustOnBlur", () => {
   const base = { hasCustomer: true, sameBillReturnGross: 0, maxSrFromBill: 500, availableSrCredit: 200 };
   it("≤ 0 clears", () => {
@@ -56,12 +75,50 @@ describe("resolveSrAdjustOnBlur", () => {
     expect(resolveSrAdjustOnBlur({ ...base, sameBillReturnGross: 900, requested: 900 })).toEqual({ kind: "exchange", amount: 900 });
     expect(resolveSrAdjustOnBlur({ ...base, hasCustomer: false, requested: 700 })).toEqual({ kind: "exchange", amount: 700 });
   });
-  it("named customer: caps to the bill, then prompts for the part not backed by a credit note", () => {
+  it("named customer over the bill: asks about the refund, and records what no credit note backs", () => {
+    // Credit 200, bill 500, typed 800: 600 to record, 300 to refund. Nothing is cut silently.
     expect(resolveSrAdjustOnBlur({ ...base, requested: 800 })).toEqual({
       kind: "credit",
       forBill: 500,
-      capWarning: "Only ₹500 of S/R can be adjusted on this bill",
-      prompt: { requested: 500, shortfall: 300 },
+      capWarning: null,
+      prompt: { requested: 800, shortfall: 600, refundDue: 300 },
+    });
+  });
+  it("named customer over the bill with enough saved credit: refund prompt, nothing to record", () => {
+    // The shop's case the other way round: credit 2400, bill 1300 → refund 1100.
+    expect(
+      resolveSrAdjustOnBlur({ ...base, maxSrFromBill: 1300, availableSrCredit: 2400, requested: 2400 }),
+    ).toEqual({
+      kind: "credit",
+      forBill: 1300,
+      capWarning: null,
+      prompt: { requested: 2400, shortfall: 0, refundDue: 1100 },
+    });
+  });
+  it("the shop's photo: credit 1300, bill 1300, typed 2400 → record 1100 and refund 1100", () => {
+    expect(
+      resolveSrAdjustOnBlur({ ...base, maxSrFromBill: 1300, availableSrCredit: 1300, requested: 2400 }),
+    ).toEqual({
+      kind: "credit",
+      forBill: 1300,
+      capWarning: null,
+      prompt: { requested: 2400, shortfall: 1100, refundDue: 1100 },
+    });
+  });
+  it("named customer, nothing billed yet: no refund prompt, the amount is dropped with a note", () => {
+    expect(resolveSrAdjustOnBlur({ ...base, maxSrFromBill: 0, requested: 800 })).toEqual({
+      kind: "credit",
+      forBill: 0,
+      capWarning: "Add the items first: S/R is adjusted against the bill",
+      prompt: null,
+    });
+  });
+  it("named customer within the bill but above the credit: asks to record the missing part", () => {
+    expect(resolveSrAdjustOnBlur({ ...base, requested: 350 })).toEqual({
+      kind: "credit",
+      forBill: 350,
+      capWarning: null,
+      prompt: { requested: 350, shortfall: 150, refundDue: 0 },
     });
   });
   it("named customer within credit: applies without warning or prompt", () => {
@@ -116,19 +173,31 @@ describe("PosSrAdjustField", () => {
     expect(p.setSaleReturnAdjust).toHaveBeenCalledWith(350);
     act(() => root.render(<PosSrAdjustField {...p} saleReturnAdjust={350} />)); // parent stores it
     blur(input());
-    expect(p.setManualSrPrompt).toHaveBeenCalledWith({ requested: 350, shortfall: 150 });
+    expect(p.setManualSrPrompt).toHaveBeenCalledWith({ requested: 350, shortfall: 150, refundDue: 0 });
     expect(p.onClampSaleReturnAdjust).not.toHaveBeenCalled();
   });
 
-  it("over the bill warns, sets the bill amount and prompts", () => {
+  it("over the bill asks about the refund and leaves the typed amount in the box meanwhile", () => {
     const p = props();
     act(() => root.render(<PosSrAdjustField {...p} />));
     typeInto(input(), "800");
     act(() => root.render(<PosSrAdjustField {...p} saleReturnAdjust={800} />));
     blur(input());
-    expect(warning).toHaveBeenCalledWith("Only ₹500 of S/R can be adjusted on this bill");
-    expect(p.setSaleReturnAdjust).toHaveBeenLastCalledWith(500);
-    expect(p.setManualSrPrompt).toHaveBeenCalledWith({ requested: 500, shortfall: 300 });
+    expect(warning).not.toHaveBeenCalled();
+    expect(p.setSaleReturnAdjust).toHaveBeenLastCalledWith(800);
+    expect(p.setManualSrPrompt).toHaveBeenCalledWith({ requested: 800, shortfall: 600, refundDue: 300 });
+    expect(p.onClampSaleReturnAdjust).not.toHaveBeenCalled();
+  });
+
+  it("nothing billed yet: the amount is dropped with a note, no prompt", () => {
+    const p = props({ maxSrFromBill: 0 });
+    act(() => root.render(<PosSrAdjustField {...p} />));
+    typeInto(input(), "800");
+    act(() => root.render(<PosSrAdjustField {...p} saleReturnAdjust={800} />));
+    blur(input());
+    expect(warning).toHaveBeenCalledWith("Add the items first: S/R is adjusted against the bill");
+    expect(p.setSaleReturnAdjust).toHaveBeenLastCalledWith(0);
+    expect(p.setManualSrPrompt).not.toHaveBeenCalled();
   });
 
   it("within the credit applies through the clamp", () => {

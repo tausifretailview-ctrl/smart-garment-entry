@@ -256,6 +256,7 @@ import {
 import { CreditNotePrint } from "@/components/CreditNotePrint";
 import { StockIssueAlertDialog } from "@/components/StockIssueAlertDialog";
 import { createManualSaleReturnCredit, manualSrShortfall } from "@/utils/manualSaleReturnCredit";
+import { srOverBillPrompt, type ManualSrPrompt } from "@/components/pos/posSrAdjust";
 import {
   buildInsufficientStockIssue,
   buildMultipleStockIssues,
@@ -831,7 +832,7 @@ export default function POSSales() {
   const [openingBalanceRemaining, setOpeningBalanceRemaining] = useState(0);
   const [pendingSaleReturnCredits, setPendingSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; credit_note_id: string | null }>>([]);
   /** S/R typed above the customer's saved return credit → confirm recording an old return. */
-  const [manualSrPrompt, setManualSrPrompt] = useState<{ requested: number; shortfall: number } | null>(null);
+  const [manualSrPrompt, setManualSrPrompt] = useState<ManualSrPrompt | null>(null);
   const [creatingManualSr, setCreatingManualSr] = useState(false);
   const [recentAdjustedSaleReturnCredits, setRecentAdjustedSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; linked_sale_id: string | null; linked_sale_number?: string }>>([]);
   /** Full return value from same-bill S/R dialog this session — may exceed bill (exchange excess). */
@@ -5447,25 +5448,27 @@ export default function POSSales() {
   };
 
   /**
-   * New bill with a customer: S/R Adj must be backed by saved sale-return credit,
-   * because save applies it from the customer's credit notes. The S/R box only
-   * checks on blur, and paying straight from the box skipped that (bill saved
-   * "partial" with the S/R unapplied). Returns true when payment must stop.
+   * Bill with a customer: S/R Adj must be backed by saved sale-return credit, because save
+   * applies it from the customer's credit notes. The S/R box only checks on blur, and paying
+   * straight from the box skipped that (bill saved "partial" with the S/R unapplied).
+   * Returns true when payment must stop.
+   *
+   * An amount above the bill (new bill or edit) asks first: refund the rest, or use only what
+   * the bill takes. It used to be cut to the bill, so the footer showed "Refund due" and Mix
+   * Payment then opened at ₹0 with no refund to choose.
    */
   const blockUnbackedSaleReturnAdjust = (): boolean => {
-    if (!customerId || currentSaleId || isSameBillExchangeSr) return false;
-    const requested = Math.min(Math.max(0, saleReturnAdjust), maxSrFromBill);
-    if (saleReturnAdjust > requested + 0.01) {
-      // Typed S/R above the bill (e.g. a line was deleted after typing): cap it first.
-      setSaleReturnAdjust(requested);
-      toast.warning(
-        `S/R Adj reduced to the bill amount ₹${requested.toLocaleString("en-IN", { maximumFractionDigits: 2 })}. Check and press pay again.`,
-      );
+    if (!customerId || isSameBillExchangeSr) return false;
+    const overBill = srOverBillPrompt({ requested: saleReturnAdjust, maxSrFromBill, availableSrCredit });
+    if (overBill) {
+      setManualSrPrompt(overBill);
       return true;
     }
+    if (currentSaleId) return false;
+    const requested = Math.max(0, saleReturnAdjust);
     const shortfall = manualSrShortfall(requested, availableSrCredit);
     if (shortfall <= 0) return false;
-    setManualSrPrompt({ requested, shortfall });
+    setManualSrPrompt({ requested, shortfall, refundDue: 0 });
     return true;
   };
 
@@ -5657,6 +5660,13 @@ export default function POSSales() {
     // (Threshold `< 0` kept as it was here; the amount is the shared rule.)
     if (finalAmount < 0 || exchangeRefundDue > 0.005) {
       setRefundAmount(posRefundDueAmount(finalAmount, exchangeRefundDue));
+    } else if (Math.abs(mixDialogBillAmount) <= 0.005) {
+      // S/R, advance or credit covers the whole bill: Mix Payment has nothing to split and
+      // its Save stays disabled (it used to open at ₹0 and leave the cashier stuck).
+      toast.info("Nothing to collect on this bill", {
+        description: "It is fully covered. Press Cash (F1) to save it.",
+      });
+      return;
     }
     setShowMixPaymentDialog(true);
   };
@@ -7164,22 +7174,35 @@ export default function POSSales() {
     }
     setCreatingManualSr(true);
     try {
-      const created = await createManualSaleReturnCredit(supabase, {
-        organizationId: currentOrganization.id,
-        customerId,
-        customerName: customerName || "Customer",
-        amount: prompt.shortfall,
-      });
-      const { returns: cnPool } = await getAvailableCN(supabase, customerId, currentOrganization.id, {
-        includeUnlinkedAdjusted: true,
-      });
-      setPendingSaleReturnCredits(
-        [...cnPool]
-          .sort((x, y) => String(y.return_date || "").localeCompare(String(x.return_date || "")))
-          .map((r) => ({ id: r.id, return_number: r.return_number || "", net_amount: r.available, credit_note_id: null })),
-      );
+      let recorded: string | null = null;
+      if (prompt.shortfall > 0.01) {
+        const created = await createManualSaleReturnCredit(supabase, {
+          organizationId: currentOrganization.id,
+          customerId,
+          customerName: customerName || "Customer",
+          amount: prompt.shortfall,
+        });
+        recorded = created.returnNumber;
+        const { returns: cnPool } = await getAvailableCN(supabase, customerId, currentOrganization.id, {
+          includeUnlinkedAdjusted: true,
+        });
+        setPendingSaleReturnCredits(
+          [...cnPool]
+            .sort((x, y) => String(y.return_date || "").localeCompare(String(x.return_date || "")))
+            .map((r) => ({ id: r.id, return_number: r.return_number || "", net_amount: r.available, credit_note_id: null })),
+        );
+      }
+      // Above the bill: the bill becomes an exchange, so the rest shows as refund due and
+      // Cash / Mix Payment settle it (same path as a return saved from this bill).
+      if (prompt.refundDue > 0.01) setSameBillReturnGross(prompt.requested);
       setSaleReturnAdjust(prompt.requested);
-      toast.success(`Old sale return ${created.returnNumber} recorded — ₹${formatINR2(prompt.shortfall)} credit applied to this bill`);
+      if (prompt.refundDue > 0.01) {
+        toast.success(`Refund due ₹${formatINR2(prompt.refundDue)}`, {
+          description: `${recorded ? `Old sale return ${recorded} recorded. ` : ""}Press Cash (F1) to refund in cash, or Mix Pay (F6) for UPI, bank or a credit note.`,
+        });
+      } else {
+        toast.success(`Old sale return ${recorded} recorded — ₹${formatINR2(prompt.shortfall)} credit applied to this bill`);
+      }
     } catch (err) {
       console.error("Manual S/R credit failed:", err);
       toast.error(err instanceof Error ? err.message : "Could not record the old sale return");
@@ -7190,13 +7213,17 @@ export default function POSSales() {
     }
   };
 
+  /** What stays on the bill when the cashier declines: the saved credit, up to the bill. */
+  const manualSrKeepOnCancel = Math.max(0, Math.round(Math.min(maxSrFromBill, availableSrCredit) * 100) / 100);
+  const manualSrRefund = (manualSrPrompt?.refundDue ?? 0) > 0.01;
+  const manualSrRecords = (manualSrPrompt?.shortfall ?? 0) > 0.01;
   const manualSrDialog = (
     <AlertDialog
       open={!!manualSrPrompt}
       onOpenChange={(open) => {
         if (!open && !creatingManualSr && manualSrPrompt) {
-          // Cancel: keep only what the saved returns cover.
-          if (availableSrCredit > 0.01) clampSaleReturnAdjust(manualSrPrompt.requested);
+          // Cancel: keep only what the saved returns cover, and no more than the bill.
+          if (availableSrCredit > 0.01) clampSaleReturnAdjust(manualSrPrompt.requested, { silent: manualSrRefund });
           else {
             setSaleReturnAdjust(0);
             setSameBillReturnGross(0);
@@ -7205,19 +7232,43 @@ export default function POSSales() {
         }
       }}
     >
-      <AlertDialogContent>
+      <AlertDialogContent data-testid="pos-manual-sr-prompt">
         <AlertDialogHeader>
-          <AlertDialogTitle>Record old sale return?</AlertDialogTitle>
+          <AlertDialogTitle>
+            {manualSrRefund
+              ? `Refund ₹${formatINR2(manualSrPrompt?.refundDue ?? 0)} to the customer?`
+              : "Record old sale return?"}
+          </AlertDialogTitle>
           <AlertDialogDescription>
             {availableSrCredit > 0.01
               ? `${customerName || "This customer"} has ₹${formatINR2(availableSrCredit)} saved return credit. `
               : `${customerName || "This customer"} has no saved sale return. `}
-            Record ₹{formatINR2(manualSrPrompt?.shortfall ?? 0)} as an old sale return (amount only, stock not
-            changed) and use ₹{formatINR2(manualSrPrompt?.requested ?? 0)} S/R on this bill?
+            {manualSrRefund ? (
+              <>
+                S/R ₹{formatINR2(manualSrPrompt?.requested ?? 0)} is ₹{formatINR2(manualSrPrompt?.refundDue ?? 0)} more
+                than this bill.{" "}
+                {manualSrRecords
+                  ? `₹${formatINR2(manualSrPrompt?.shortfall ?? 0)} is not covered by a saved return and will be recorded as an old sale return (amount only, stock not changed). `
+                  : ""}
+                The ₹{formatINR2(manualSrPrompt?.refundDue ?? 0)} is then due back to the customer: Cash (F1) refunds
+                it in cash, Mix Pay (F6) offers UPI, bank or a credit note.
+              </>
+            ) : (
+              <>
+                Record ₹{formatINR2(manualSrPrompt?.shortfall ?? 0)} as an old sale return (amount only, stock not
+                changed) and use ₹{formatINR2(manualSrPrompt?.requested ?? 0)} S/R on this bill?
+              </>
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={creatingManualSr}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={creatingManualSr}>
+            {manualSrRefund
+              ? manualSrKeepOnCancel > 0.01
+                ? `No, use ₹${formatINR2(manualSrKeepOnCancel)} only`
+                : "No refund"
+              : "Cancel"}
+          </AlertDialogCancel>
           <AlertDialogAction
             disabled={creatingManualSr}
             onClick={(e) => {
@@ -7225,7 +7276,13 @@ export default function POSSales() {
               void confirmManualSr();
             }}
           >
-            {creatingManualSr ? "Saving…" : "Record & apply"}
+            {creatingManualSr
+              ? "Saving…"
+              : manualSrRefund
+                ? manualSrRecords
+                  ? "Record & refund"
+                  : `Refund ₹${formatINR2(manualSrPrompt?.refundDue ?? 0)}`
+                : "Record & apply"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
