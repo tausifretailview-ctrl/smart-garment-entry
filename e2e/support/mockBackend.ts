@@ -83,6 +83,18 @@ export class MockBackend {
   /** Requests to any host other than the app and the fake Supabase (all aborted). */
   readonly blocked: string[] = [];
 
+  /** Tables whose inserted rows are kept, so later reads, updates and deletes see them. */
+  private readonly keptTables = new Set<string>();
+
+  /**
+   * Keep what the app inserts into `table` (off by default: most tests only check what was
+   * sent). Updates and deletes filtered by `col=eq.value` then apply to the kept rows too.
+   */
+  keepInserts(...tables: string[]): this {
+    for (const table of tables) this.keptTables.add(table);
+    return this;
+  }
+
   addRows(table: string, rows: Row[]): this {
     (this.tables[table] ??= []).push(...rows);
     return this;
@@ -177,10 +189,31 @@ export class MockBackend {
           ? { id: `${table}-${this.calls.length}-${i + 1}`, ...(row as Row) }
           : row,
       );
+      if (this.keptTables.has(table)) this.applyWrite(table, kind, rows as Row[], url);
       const single = (request.headers()["accept"] || "").includes("vnd.pgrst.object");
       return route.fulfill({ json: single ? (rows[0] ?? {}) : rows });
     }
     return route.abort();
+  }
+
+  /** keepInserts tables only: make the write visible to later reads. */
+  private applyWrite(table: string, kind: RecordedCall["kind"], rows: Row[], url: URL): void {
+    const stored = (this.tables[table] ??= []);
+    if (kind === "insert") {
+      stored.push(...rows.filter((r) => r && typeof r === "object"));
+      return;
+    }
+    const filters = [...url.searchParams].flatMap(([col, raw]) => {
+      const m = /^eq\.(.*)$/.exec(raw);
+      return m ? [[col, m[1]] as const] : [];
+    });
+    if (filters.length === 0) return; // never touch every row on an unfiltered write
+    const matches = (r: Row) => filters.every(([col, value]) => String(r[col]) === value);
+    if (kind === "update") {
+      for (const r of stored) if (matches(r)) Object.assign(r, rows[0] ?? {});
+    } else if (kind === "delete") {
+      this.tables[table] = stored.filter((r) => !matches(r));
+    }
   }
 
   /** Very small PostgREST: `col=eq.value` filters on the table's rows; everything else ignored. */

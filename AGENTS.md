@@ -19,6 +19,7 @@ EzzyERP — one Vite + React + TypeScript web app (multi-tenant retail POS / bil
 ### Console / load performance
 - Do **not** add `console.log` / `console.info` on POS, dashboard, or paginated-fetch hot paths — DevTools serializes them on the main thread and the app feels frozen. New probes must use `diagConsoleInfo` (`src/lib/diagConsole.ts`) behind a `localStorage` flag. Details: `docs/console-perf-protections.md`, `.cursor/rules/console-hot-paths.mdc`.
 - CI: `npm run check:console-guard`. Do not enable Vite `drop_console` (hides real `console.error`).
+- The POS scan box keeps its own text (`defaultValue`, `noteScanBoxTyped` in `POSSales.tsx`): a key typed there must not set screen state, or every scanned character redraws the whole POS screen. Set the text from code with `setSearchInput`; on Enter read the box, not the state. The query cache goes to disk through `src/lib/idleCachePersister.ts` (every 5 s at most, when idle, only changed queries re-serialised); cached data must stay immutable, since unchanged objects reuse their saved JSON.
 - A window tab that is open but hidden does not reload or re-render: `HiddenTabQueryPause` (in `CachedTabPane`) unsubscribes its `useQuery` hooks and holds the queries only it was showing; they are refetched once when a screen shows them again (`src/lib/hiddenTabQueries.ts`). Do not drive background work from a hidden screen's `useQuery` data or `refetchInterval`; a dialog the hidden tab draws wakes it.
 
 ### Boot resilience

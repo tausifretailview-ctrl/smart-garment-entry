@@ -441,7 +441,14 @@ interface PosProductRow {
 const posSearchAndAddInFlight = new Set<string>();
 
 /** POS dropdown: wait this long after the last keystroke before searching again. */
-const POS_PRODUCT_SEARCH_TYPING_PAUSE_MS = 250;
+/**
+ * How long the scan box waits after the last key before telling the screen what was typed.
+ * Scanner keys arrive 5–20 ms apart, so a whole scan is one update; a person typing a name
+ * pauses longer than this between most keys.
+ */
+const POS_SCAN_BOX_SETTLE_MS = 80;
+/** Typing pause before a search while the list is open: 250 ms in all, the settle time included. */
+const POS_PRODUCT_SEARCH_TYPING_PAUSE_MS = 250 - POS_SCAN_BOX_SETTLE_MS;
 
 function posVariantBaseQuery(orgId: string) {
   return supabase
@@ -873,7 +880,7 @@ export default function POSSales() {
   const [customerPhone, setCustomerPhone] = useState(_savedCart?.customerPhone || "");
   /** Phone that produced the current customerId link (combobox or phone match). */
   const linkedCustomerPhoneRef = useRef(_savedCart?.customerPhone || "");
-  const [searchInput, setSearchInput] = useState("");
+  const [searchInput, setSearchInputState] = useState("");
   const [showMobilePaymentSheet, setShowMobilePaymentSheet] = useState(false);
   const [selectedProductType, setSelectedProductType] = useState<string>("all");
   
@@ -1132,6 +1139,39 @@ export default function POSSales() {
   const invoicePrintRef = useRef<HTMLDivElement>(null);
   const printBtnRef = useRef<HTMLButtonElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+  /**
+   * Text of the scan box. On the desktop layout the box is not driven by this state: it shows
+   * what is typed by itself, and the screen hears about it after a short pause
+   * (noteScanBoxTyped). A scanner sends about 13 characters in a burst, and each one used to
+   * redraw the whole POS screen and the hidden invoice copy, so scans lagged on a long cart
+   * (speed review item S3). Enter reads the box itself, so it never waits for this state.
+   *
+   * setSearchInput is for code (clear after an add, keep a search term): it sets the box and
+   * the state together and drops a typing update that has not been delivered yet.
+   */
+  const scanBoxSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setSearchInput = useCallback((value: string) => {
+    if (scanBoxSettleTimerRef.current) {
+      clearTimeout(scanBoxSettleTimerRef.current);
+      scanBoxSettleTimerRef.current = null;
+    }
+    const box = barcodeInputRef.current;
+    if (box && box.value !== value) box.value = value;
+    setSearchInputState(value);
+  }, []);
+  const noteScanBoxTyped = useCallback((value: string) => {
+    if (scanBoxSettleTimerRef.current) clearTimeout(scanBoxSettleTimerRef.current);
+    scanBoxSettleTimerRef.current = setTimeout(() => {
+      scanBoxSettleTimerRef.current = null;
+      setSearchInputState(value);
+    }, POS_SCAN_BOX_SETTLE_MS);
+  }, []);
+  useEffect(
+    () => () => {
+      if (scanBoxSettleTimerRef.current) clearTimeout(scanBoxSettleTimerRef.current);
+    },
+    [],
+  );
   const itemsContainerRef = useRef<HTMLDivElement>(null);
   const [cartPadRowCount, setCartPadRowCount] = useState(POS_CART_MIN_DISPLAY_ROWS);
 
@@ -3019,7 +3059,7 @@ export default function POSSales() {
     const value = e.target.value;
     
     recordKeystroke();
-    setSearchInput(value);
+    noteScanBoxTyped(value);
     
     if (dropdownDebounceTimer.current) {
       clearTimeout(dropdownDebounceTimer.current);
@@ -3033,10 +3073,11 @@ export default function POSSales() {
       }, 300);
     } else {
       setOpenProductSearch(false);
-      setProductSearchResults([]);
+      // Keep the same empty list: a new one would redraw the screen on every first character.
+      setProductSearchResults((prev) => (prev.length === 0 ? prev : []));
       setIsProductSearchLoading(false);
     }
-  }, [recordKeystroke, cancelAutoSubmit]);
+  }, [recordKeystroke, cancelAutoSubmit, noteScanBoxTyped]);
 
   useEffect(() => {
     const term = searchInput.trim();
@@ -7859,7 +7900,8 @@ export default function POSSales() {
                     <Input
                       ref={barcodeInputRef}
                       placeholder={mobileERP.enabled && mobileERP.imei_scan_enforcement ? "Scan IMEI Number" : "Scan barcode or search: name / brand / category / style / color / size / price (use spaces to combine)"}
-                      value={searchInput}
+                      // Not `value`: the box keeps its own text while typing (see setSearchInput).
+                      defaultValue={searchInput}
                       onChange={handleBarcodeInputChange}
                       onBlur={handleBarcodeInputBlur}
                       onKeyDown={(e) => {

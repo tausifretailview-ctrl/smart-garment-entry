@@ -32,6 +32,30 @@ export function mixPaymentCreditDue(payableBill: number, totalPaid: number): num
   return due < MIX_CREDIT_MIN_RUPEE ? 0 : due;
 }
 
+/**
+ * Balance a Mix Payment leaves unpaid on the bill, which is what needs a named customer.
+ * The bill is first reduced by the sale return and credit used on it, then by the advance
+ * (consumed after save), exactly as the amounts to store are worked out.
+ *
+ * The save used to compare the tender with the full bill. A walk-in bill settled by a sale
+ * return was then seen as "on credit": Mix Payment after an S/R adjust, and the refund of a
+ * return worth more than the bill, were refused with "Customer Name Required".
+ */
+export function mixPaymentUnpaidOnBill(p: {
+  netAmount: number;
+  saleReturnAdjust?: number;
+  creditApplied?: number;
+  advanceApplied?: number;
+  totalPaid: number;
+}): number {
+  const afterReturns = Math.max(
+    0,
+    round2((Number(p.netAmount) || 0) - Math.max(0, Number(p.saleReturnAdjust) || 0) - Math.max(0, Number(p.creditApplied) || 0)),
+  );
+  const payable = Math.max(0, round2(afterReturns - Math.max(0, Number(p.advanceApplied) || 0)));
+  return mixPaymentCreditDue(payable, p.totalPaid);
+}
+
 export type MixPaymentTenderInput = {
   billAmount: number;
   cashAmount: number;

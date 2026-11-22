@@ -6,7 +6,7 @@ import {
 } from "@/utils/statementTimeout";
 import { toast as showToast } from "@/hooks/use-toast";
 import { clearMissingQueryFnError, isMissingQueryFnError } from "@/utils/refetchQueriesWithFn";
-import { APP_BUILD_BUSTER, holdsMapOrSet, isVolatileOrSensitiveKey, persister } from "@/lib/queryPersister";
+import { APP_BUILD_BUSTER, holdsMapOrSet, isVolatileOrSensitiveQuery, persister } from "@/lib/queryPersister";
 import { isOutdatedHeldQuery } from "@/lib/hiddenTabQueries";
 
 /**
@@ -82,9 +82,9 @@ export const appPersistOptions = {
   maxAge: 1000 * 60 * 60 * 24,
   buster: APP_BUILD_BUSTER,
   dehydrateOptions: {
-    shouldDehydrateQuery: (q: { state: { status: string; data: unknown }; queryKey: readonly unknown[] }) =>
+    shouldDehydrateQuery: (q: { state: { status: string; data: unknown }; queryKey: readonly unknown[]; queryHash?: string }) =>
       q.state.status === "success" &&
-      !isVolatileOrSensitiveKey(q.queryKey) &&
+      !isVolatileOrSensitiveQuery(q) &&
       !holdsMapOrSet(q.state.data) &&
       // Went out of date while its tab was hidden: after a reload it must load fresh, not show
       // the old rows on a screen that does not refetch on mount.
