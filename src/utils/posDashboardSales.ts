@@ -1,3 +1,5 @@
+import { invalidateAndRefetchWithQueryFn } from "@/utils/refetchQueriesWithFn";
+import { coalesceRefresh } from "@/utils/coalesceRefresh";
 import { format, subMonths } from "date-fns";
 import type { QueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -1993,14 +1995,36 @@ export function invalidatePosDashboardQueries(
   organizationId?: string,
   options?: { refetchType?: "all" | "active" | "none" },
 ) {
-  queryClient.invalidateQueries({
-    queryKey: organizationId
-      ? [POS_DASHBOARD_QUERY_KEY, organizationId]
-      : [POS_DASHBOARD_QUERY_KEY],
-    // Default "all" so inactive tab-cached dashboard queries refresh after POS save.
-    refetchType: options?.refetchType ?? "all",
+  const queryKey = organizationId ? [POS_DASHBOARD_QUERY_KEY, organizationId] : [POS_DASHBOARD_QUERY_KEY];
+  // Default "all" so inactive tab-cached dashboard queries refresh after POS save.
+  const refetchType = options?.refetchType ?? "all";
+  if (refetchType === "none") {
+    void queryClient.invalidateQueries({ queryKey, refetchType: "none" });
+    return;
+  }
+  // One bill asks for this refresh five or more times within two seconds (the save, the POS
+  // page, a window event, two live listeners) and each one restarted the dashboard's fetch
+  // chain. The first runs at once; the rest are merged into one run (see coalesceRefresh).
+  const scope = organizationId ?? "";
+  let pendingByScope = strongestPendingRefetch.get(queryClient);
+  if (!pendingByScope) {
+    pendingByScope = new Map();
+    strongestPendingRefetch.set(queryClient, pendingByScope);
+  }
+  const pending = pendingByScope;
+  // "all" (cached screens too) beats "active" when both were asked inside the window.
+  if (refetchType === "all" || !pending.has(scope)) pending.set(scope, refetchType);
+  coalesceRefresh(queryClient, `pos-dashboard:${scope}`, () => {
+    const type = pending.get(scope) ?? refetchType;
+    pending.delete(scope);
+    // Only queries a screen has subscribed: a disk-restored one has no queryFn yet.
+    invalidateAndRefetchWithQueryFn(queryClient, queryKey, type);
   });
+  // Stale at once, even when the refetch itself waits for the end of the window.
+  void queryClient.invalidateQueries({ queryKey, refetchType: "none" });
 }
+
+const strongestPendingRefetch = new WeakMap<QueryClient, Map<string, "all" | "active">>();
 
 /** @deprecated Use fetchPosDashboardPage for the dashboard table. */
 export async function fetchPosDashboardSales(

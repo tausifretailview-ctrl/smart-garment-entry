@@ -1,3 +1,4 @@
+import { coalesceRefresh } from "@/utils/coalesceRefresh";
 import type { QueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -416,6 +417,18 @@ export function formatSnapshotInr(n: number, fractionDigits = 2): string {
 
 /** Invalidate snapshot queries after any sale, receipt, SR, CN, or advance write. */
 export function invalidateCustomerFinancialSnapshot(
+  queryClient: QueryClient,
+  organizationId?: string | null,
+  customerId?: string | null,
+) {
+  // Asked for by the save, the deferred sales refresh and the live listener; the first runs at
+  // once, repeats inside a short window become one more run (see coalesceRefresh).
+  coalesceRefresh(queryClient, `customer-snapshot:${organizationId ?? ""}:${customerId ?? ""}`, () =>
+    runCustomerFinancialSnapshotInvalidation(queryClient, organizationId, customerId),
+  );
+}
+
+function runCustomerFinancialSnapshotInvalidation(
   queryClient: QueryClient,
   organizationId?: string | null,
   customerId?: string | null,

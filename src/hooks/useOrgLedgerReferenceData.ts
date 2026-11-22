@@ -1,3 +1,4 @@
+import { coalesceRefresh } from "@/utils/coalesceRefresh";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
@@ -67,6 +68,14 @@ export function invalidateOrgLedgerReferenceData(
   organizationId?: string | null,
 ) {
   if (!organizationId) return;
+  // These are whole-shop lists (every customer, every sale). Several callers ask for them
+  // after one bill; the first runs at once, repeats inside a short window become one more run.
+  coalesceRefresh(queryClient, `org-ledger-reference:${organizationId}`, () =>
+    runOrgLedgerReferenceInvalidation(queryClient, organizationId),
+  );
+}
+
+function runOrgLedgerReferenceInvalidation(queryClient: QueryClient, organizationId: string) {
   queryClient.invalidateQueries({ queryKey: orgLedgerCustomersQueryKey(organizationId) });
   queryClient.invalidateQueries({ queryKey: orgLedgerSalesSummaryQueryKey(organizationId) });
   // Legacy keys still used by some invalidation call sites
