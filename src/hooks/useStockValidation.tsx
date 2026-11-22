@@ -21,6 +21,29 @@ interface StockCheckResult {
   checkFailed?: boolean;
 }
 
+/**
+ * Stock of a variant that the caller read from the server a moment ago (a barcode scan's own
+ * lookup returns it). Passing it to checkStock skips the second read of the same row.
+ */
+export type KnownVariantStock = {
+  stockQty: number;
+  productName: string;
+  size: string;
+  /** "service" and "combo" do not track stock. */
+  productType: string | null | undefined;
+};
+
+/** The answer checkStock gives after reading the variant, worked out from a known row. */
+export function stockCheckFromKnown(known: KnownVariantStock, requestedQty: number, freedQty = 0): StockCheckResult {
+  const productName = known.productName || "Product";
+  const productType = known.productType || "goods";
+  if (productType === "service" || productType === "combo") {
+    return { isAvailable: true, availableStock: 999999, productName, size: known.size };
+  }
+  const availableStock = (Number(known.stockQty) || 0) + freedQty;
+  return { isAvailable: availableStock >= requestedQty, availableStock, productName, size: known.size };
+}
+
 interface OldItem {
   variantId: string;
   quantity: number;
@@ -61,11 +84,15 @@ export const useStockValidation = () => {
   const checkStockStrict = useCallback(async (
     variantId: string,
     requestedQty: number,
-    freedQty: number = 0
+    freedQty: number = 0,
+    known?: KnownVariantStock | null,
   ): Promise<StockCheckResult> => {
     if (shouldUseOfflineCatalog(currentOrganization?.id)) {
       return offlineStockCheck(variantId, requestedQty, freedQty);
     }
+    // Just read by the caller: no second trip to the server, and no "checking" state change
+    // (that redraws the whole screen twice per scan).
+    if (known) return stockCheckFromKnown(known, requestedQty, freedQty);
     setChecking(true);
     try {
       if (!currentOrganization?.id) {
@@ -285,9 +312,10 @@ export const useStockValidation = () => {
   const checkStock = useCallback(async (
     variantId: string,
     requestedQty: number,
-    freedQty: number = 0
+    freedQty: number = 0,
+    known?: KnownVariantStock | null,
   ): Promise<StockCheckResult> => {
-    const result = await checkStockStrict(variantId, requestedQty, freedQty);
+    const result = await checkStockStrict(variantId, requestedQty, freedQty, known);
     if (!allowNegativeStock || result.isAvailable || result.checkFailed) return result;
     toast({
       title: "Selling without stock",
