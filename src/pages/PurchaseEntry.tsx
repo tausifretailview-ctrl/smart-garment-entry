@@ -5771,14 +5771,16 @@ const PurchaseEntry = () => {
     setLoading(true);
     saveLockTimeoutRef.current = setTimeout(() => {
       if (savingRef.current) {
-        console.warn("[PurchaseEntry] Save lock timeout — releasing stale lock");
-        releaseSaveLock();
+        // The save request is still running. Opening the lock here let a second Save start
+        // before the first one finished: two purchase bills, stock added twice (review item
+        // B9). The lock now stays until the request ends (the `finally` below releases it).
+        console.warn("[PurchaseEntry] Save is taking longer than expected — lock kept");
         toast({
-          title: "Save timed out",
+          title: "Still saving…",
           description:
-            "The save took too long or may have stalled. Your draft is preserved — please try again.",
+            "This is taking longer than usual. Do not save again: the bill may already be saved. Wait, or reload this page and check Purchase Bills first. Your draft is kept.",
           variant: "destructive",
-          duration: 12000,
+          duration: 20000,
         });
       }
     }, SAVE_LOCK_MAX_MS);
@@ -6528,10 +6530,39 @@ const PurchaseEntry = () => {
           // Insert in chunks of 100 to avoid statement timeout on large bills
           const EDIT_CHUNK_SIZE = 100;
           const allInserted: InsertedPurchaseItemRow[] = [];
-          for (let ci = 0; ci < itemsToInsert.length; ci += EDIT_CHUNK_SIZE) {
-            const chunk = itemsToInsert.slice(ci, ci + EDIT_CHUNK_SIZE);
-            const inserted = await insertPurchaseItemsRows(chunk);
-            allInserted.push(...inserted);
+          try {
+            for (let ci = 0; ci < itemsToInsert.length; ci += EDIT_CHUNK_SIZE) {
+              const chunk = itemsToInsert.slice(ci, ci + EDIT_CHUNK_SIZE);
+              const inserted = await insertPurchaseItemsRows(chunk);
+              allInserted.push(...inserted);
+              // Mark this group at once. The marker used to be set only after every group had
+              // saved, so when a later group failed and the user saved again, the groups that
+              // had saved were inserted a second time and their stock was added twice (B3).
+              newItemEntries.slice(ci, ci + EDIT_CHUNK_SIZE).forEach((entry) => {
+                editSaveInsertedTempIdsRef.current.add(entry.item.temp_id);
+              });
+            }
+          } catch (chunkErr) {
+            // Some groups saved before this one failed: show those rows as saved lines now, so
+            // the next Save updates them instead of leaving them out or adding them again.
+            const savedIds = new Map<string, string>();
+            const savedCount = Math.min(allInserted.length, newItemEntries.length);
+            for (let i = 0; i < savedCount; i++) {
+              const dbId = allInserted[i]?.id;
+              if (dbId) savedIds.set(newItemEntries[i].item.temp_id, dbId);
+            }
+            if (savedIds.size > 0) {
+              const asSaved = (item: LineItem): LineItem => {
+                const dbId = savedIds.get(item.temp_id);
+                return dbId ? { ...item, temp_id: dbId } : item;
+              };
+              setLineItems((prev) => prev.map(asSaved));
+              setOriginalLineItems((prev) => [
+                ...prev,
+                ...newItemEntries.filter((entry) => savedIds.has(entry.item.temp_id)).map((entry) => asSaved({ ...entry.item })),
+              ]);
+            }
+            throw chunkErr;
           }
 
           // Block re-insert of these client rows if a later step fails and user retries.
