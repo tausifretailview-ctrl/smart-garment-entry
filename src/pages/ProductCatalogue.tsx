@@ -22,17 +22,58 @@ import {
   buildCatalogueItems,
   buildProductCataloguePdf,
   cataloguePriceLine,
+  catalogueStockCounts,
+  catalogueStockStatus,
+  CATALOGUE_LOW_STOCK,
   type CatalogueProduct,
+  type CatalogueStockFilter,
   type CatalogueVariant,
   type CataloguePriceMode,
 } from "@/lib/productCatalogue";
 
-const MAX_PRODUCTS = 600;
+/** Products read for one view (the server answers at most 1,000 rows per request). */
+const MAX_PRODUCTS = 1000;
+/** Gallery rows scanned to find products whose only photo is in the gallery. */
+const MAX_GALLERY_ROWS = 5000;
+const PRODUCT_COLUMNS = "id, product_name, brand, category, style, color, image_url, default_sale_price";
+const STOCK_FILTERS: Array<{ key: CatalogueStockFilter; label: string; hint: string }> = [
+  { key: "in", label: "In stock", hint: "Quantity more than 0" },
+  { key: "low", label: "Low stock", hint: `${CATALOGUE_LOW_STOCK} pieces or fewer` },
+  { key: "out", label: "Out of stock", hint: "Quantity 0" },
+  { key: "all", label: "All", hint: "Every product" },
+];
 const MAX_IN_PDF = 240;
 const ALL = "__all__";
 
+const STOCK_BADGE = {
+  in: "bg-emerald-100 text-emerald-800",
+  low: "bg-amber-100 text-amber-800",
+  out: "bg-red-100 text-red-700",
+} as const;
+
+/** Products that have a gallery photo (first MAX_GALLERY_ROWS rows). The gallery is optional. */
+async function fetchGalleryProductIds(orgId: string): Promise<string[]> {
+  const ids = new Set<string>();
+  try {
+    for (let from = 0; from < MAX_GALLERY_ROWS; from += 1000) {
+      const { data, error } = await supabase
+        .from("product_images")
+        .select("id, product_id")
+        .eq("organization_id", orgId)
+        .order("id")
+        .range(from, from + 999);
+      if (error) break;
+      for (const row of data ?? []) if (row.product_id) ids.add(row.product_id);
+      if (!data || data.length < 1000) break;
+    }
+  } catch {
+    /* no gallery table: main photos only */
+  }
+  return [...ids];
+}
+
 /**
- * Product Catalogue — pick products (brand / category / search, in stock, with photo) and send
+ * Product Catalogue — pick products (brand / category / search, stock filter, with photo) and send
  * the customer an A4 PDF with photo, sizes in stock and price: WhatsApp / share / download.
  */
 export default function ProductCatalogue() {
@@ -43,7 +84,8 @@ export default function ProductCatalogue() {
   const [debounced, setDebounced] = useState("");
   const [brand, setBrand] = useState(ALL);
   const [category, setCategory] = useState(ALL);
-  const [onlyInStock, setOnlyInStock] = useState(true);
+  // Opens on products that have a photo and stock in hand: what a customer can be shown and sold.
+  const [stockFilter, setStockFilter] = useState<CatalogueStockFilter>("in");
   const [onlyWithPhoto, setOnlyWithPhoto] = useState(true);
   const [showSizes, setShowSizes] = useState(true);
   const [showStock, setShowStock] = useState(false);
@@ -79,28 +121,57 @@ export default function ProductCatalogue() {
   });
 
   const { data, isFetching } = useQuery({
-    queryKey: ["catalogue-products", orgId, debounced, brand, category],
+    queryKey: ["catalogue-products", orgId, debounced, brand, category, onlyWithPhoto],
     enabled: !!orgId,
     staleTime: STALE_FREQUENT,
     queryFn: async () => {
-      let q = supabase
-        .from("products")
-        .select("id, product_name, brand, category, style, color, image_url, default_sale_price")
-        .eq("organization_id", orgId!)
-        .eq("status", "active")
-        .is("deleted_at", null)
-        .neq("product_type", "service")
-        .order("product_name")
-        .limit(MAX_PRODUCTS);
-      if (brand !== ALL) q = q.eq("brand", brand);
-      if (category !== ALL) q = q.eq("category", category);
-      if (debounced) {
-        const t = debounced.replace(/[%,()]/g, " ");
-        q = q.or(`product_name.ilike.%${t}%,brand.ilike.%${t}%,category.ilike.%${t}%,style.ilike.%${t}%`);
+      const filtered = () => {
+        let q = supabase
+          .from("products")
+          .select(PRODUCT_COLUMNS)
+          .eq("organization_id", orgId!)
+          .eq("status", "active")
+          .is("deleted_at", null)
+          .neq("product_type", "service");
+        if (brand !== ALL) q = q.eq("brand", brand);
+        if (category !== ALL) q = q.eq("category", category);
+        if (debounced) {
+          const t = debounced.replace(/[%,()]/g, " ");
+          q = q.or(`product_name.ilike.%${t}%,brand.ilike.%${t}%,category.ilike.%${t}%,style.ilike.%${t}%`);
+        }
+        return q;
+      };
+
+      let list: CatalogueProduct[];
+      let capped = false;
+      if (onlyWithPhoto) {
+        // Ask the server for the products that have a photo. Reading the first products by name
+        // and dropping the ones without a photo showed little or nothing in a shop with
+        // thousands of products and photos on a few of them.
+        const { data: main, error } = await filtered()
+          .not("image_url", "is", null)
+          .neq("image_url", "")
+          .order("product_name")
+          .limit(MAX_PRODUCTS);
+        if (error) throw error;
+        list = (main ?? []) as CatalogueProduct[];
+        capped = list.length >= MAX_PRODUCTS;
+        // Products whose only photo is in the gallery (no main photo set).
+        const have = new Set(list.map((p) => p.id));
+        const galleryOnly = (await fetchGalleryProductIds(orgId!)).filter((id) => !have.has(id));
+        if (galleryOnly.length > 0) {
+          const extra = await fetchInIdBatches<CatalogueProduct>(galleryOnly, (batch) =>
+            filtered().in("id", batch).order("id") as never,
+          );
+          list = [...list, ...extra].sort((a, b) => a.product_name.localeCompare(b.product_name));
+        }
+      } else {
+        const { data: products, error } = await filtered().order("product_name").limit(MAX_PRODUCTS);
+        if (error) throw error;
+        list = (products ?? []) as CatalogueProduct[];
+        capped = list.length >= MAX_PRODUCTS;
       }
-      const { data: products, error } = await q;
-      if (error) throw error;
-      const list = (products ?? []) as CatalogueProduct[];
+
       const productIds = list.map((p) => p.id);
       const [variants, images] = await Promise.all([
         fetchInIdBatches<CatalogueVariant & { id: string }>(productIds, (batch) =>
@@ -115,7 +186,7 @@ export default function ProductCatalogue() {
         // Products with no main photo may still have one in the gallery.
         fetchProductImageMap(orgId!, list.filter((p) => !p.image_url).map((p) => p.id)),
       ]);
-      return { products: list, variants, images: Object.fromEntries(images) as Record<string, string> };
+      return { products: list, variants, images: Object.fromEntries(images) as Record<string, string>, capped };
     },
   });
 
@@ -123,12 +194,22 @@ export default function ProductCatalogue() {
     () =>
       data
         ? buildCatalogueItems(data.products, data.variants, {
-            onlyInStock,
+            stock: stockFilter,
             onlyWithPhoto,
             images: new Map(Object.entries(data.images)),
           })
         : [],
-    [data, onlyInStock, onlyWithPhoto],
+    [data, stockFilter, onlyWithPhoto],
+  );
+  const stockCounts = useMemo(
+    () =>
+      data
+        ? catalogueStockCounts(data.products, data.variants, {
+            onlyWithPhoto,
+            images: new Map(Object.entries(data.images)),
+          })
+        : null,
+    [data, onlyWithPhoto],
   );
   const selected = items.filter((i) => !deselected.has(i.id));
 
@@ -270,12 +351,35 @@ export default function ProductCatalogue() {
             </SelectContent>
           </Select>
         </div>
+        <div className="flex flex-wrap items-center gap-2 md:col-span-2 xl:col-span-4">
+          <span className="text-sm font-medium">Stock</span>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Stock filter">
+            {STOCK_FILTERS.map((f) => {
+              const on = stockFilter === f.key;
+              return (
+                <Button
+                  key={f.key}
+                  type="button"
+                  size="sm"
+                  variant={on ? "default" : "outline"}
+                  aria-pressed={on}
+                  title={f.hint}
+                  onClick={() => setStockFilter(f.key)}
+                  className={on ? "bg-teal-700 text-white hover:bg-teal-800" : ""}
+                  data-testid={`catalogue-stock-${f.key}`}
+                >
+                  {f.label}
+                  {stockCounts ? <span className="ml-1.5 tabular-nums opacity-80">{stockCounts[f.key]}</span> : null}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 md:col-span-2 xl:col-span-4">
           {[
-            ["Only in stock", onlyInStock, setOnlyInStock, "catalogue-in-stock"],
             ["Only with photo", onlyWithPhoto, setOnlyWithPhoto, "catalogue-with-photo"],
             ["Show sizes", showSizes, setShowSizes, "catalogue-sizes"],
-            ["Show stock qty", showStock, setShowStock, "catalogue-stock"],
+            ["Size-wise qty (and stock in PDF)", showStock, setShowStock, "catalogue-stock"],
           ].map(([label, value, set, id]) => (
             <label key={id as string} className="flex items-center gap-2 text-sm">
               <Switch id={id as string} checked={value as boolean} onCheckedChange={set as (v: boolean) => void} />
@@ -293,6 +397,11 @@ export default function ProductCatalogue() {
         <span className="text-sm font-semibold" data-testid="catalogue-count">
           {isFetching && !data ? "Loading…" : `${selected.length} of ${items.length} products selected`}
         </span>
+        {data?.capped ? (
+          <span className="text-xs text-amber-700" data-testid="catalogue-capped">
+            Showing the first {MAX_PRODUCTS} products — narrow by brand, category or search to see the rest.
+          </span>
+        ) : null}
         {items.length > 0 && (
           <>
             <Button variant="ghost" size="sm" onClick={() => setDeselected(new Set())}>Select all</Button>
@@ -326,7 +435,12 @@ export default function ProductCatalogue() {
       <div className="min-h-0 flex-1 overflow-y-auto">
         {items.length === 0 && !isFetching ? (
           <p className="py-10 text-center text-sm text-muted-foreground" data-testid="catalogue-empty">
-            No products match. {onlyWithPhoto ? "Turn off “Only with photo” or add photos in Product Dashboard." : ""}
+            No products match.{" "}
+            {onlyWithPhoto
+              ? "Turn off “Only with photo” or add photos in Product Dashboard."
+              : stockFilter !== "all"
+                ? "Try the “All” stock button."
+                : ""}
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6" data-testid="catalogue-grid">
@@ -341,6 +455,13 @@ export default function ProductCatalogue() {
                   data-testid="catalogue-card"
                 >
                   <Checkbox checked={on} className="absolute left-3 top-3 z-10 bg-white" aria-label={`Include ${item.name}`} />
+                  {/* Stock in hand, on the photo corner: always on screen, in the PDF only when switched on. */}
+                  <span
+                    className={`absolute right-3 top-3 z-10 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums shadow-sm ${STOCK_BADGE[catalogueStockStatus(item.stock)]}`}
+                    data-testid="catalogue-card-stock"
+                  >
+                    {item.stock > 0 ? `Stock ${item.stock}` : "Out of stock"}
+                  </span>
                   <div className="flex aspect-square items-center justify-center overflow-hidden rounded-md bg-muted">
                     {item.imageUrl ? (
                       <img src={item.imageUrl} alt={item.name} loading="lazy" className="h-full w-full object-contain" />
@@ -352,11 +473,13 @@ export default function ProductCatalogue() {
                   <p className="truncate text-xs text-muted-foreground">
                     {[item.brand, item.category, item.colors.slice(0, 3).join("/")].filter(Boolean).join(" · ")}
                   </p>
-                  {showSizes && item.sizes.length > 0 && <p className="truncate text-xs">Sizes: {item.sizes.join(", ")}</p>}
-                  <div className="mt-0.5 flex items-center justify-between">
-                    <span className="text-sm font-bold text-teal-800">{price}</span>
-                    {showStock && <span className="text-xs text-muted-foreground">Stock {item.stock}</span>}
-                  </div>
+                  {showSizes && item.sizes.length > 0 && (
+                    <p className="truncate text-xs" title={item.sizeStock.map((s) => `${s.size}: ${s.qty}`).join(", ")}>
+                      Sizes:{" "}
+                      {showStock ? item.sizeStock.map((s) => `${s.size} (${s.qty})`).join(", ") : item.sizes.join(", ")}
+                    </p>
+                  )}
+                  <p className="mt-0.5 truncate text-sm font-bold text-teal-800">{price}</p>
                 </Card>
               );
             })}

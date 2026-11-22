@@ -22,9 +22,11 @@ const variant = (id: string, p: ReturnType<typeof product>, size: string, stock:
 test("Product Catalogue lists products with photos and downloads a PDF", async ({ page, backend }, testInfo) => {
   const withPhoto = product("p1", "SILK KURTA", PHOTO);
   const noPhoto = product("p2", "PLAIN KURTA", null);
+  const soldOut = product("p3", "COTTON KURTA", PHOTO);
   backend
-    .addRows("products", [withPhoto, noPhoto])
+    .addRows("products", [withPhoto, noPhoto, soldOut])
     .addRows("product_variants", [
+      variant("v5", soldOut, "L", 0, 900),
       variant("v1", withPhoto, "XL", 2, 1200),
       variant("v2", withPhoto, "M", 3, 1100),
       variant("v3", withPhoto, "S", 0, 1100),
@@ -39,6 +41,21 @@ test("Product Catalogue lists products with photos and downloads a PDF", async (
   await expect(page.getByTestId("catalogue-card")).toContainText("SILK KURTA");
   await expect(page.getByTestId("catalogue-card")).toContainText("Sizes: M, XL");
   await expect(page.getByTestId("catalogue-card")).toContainText("Rs.1,100 - 1,200");
+
+  // Opens on photo + in stock; the stock badge on the card shows the quantity in hand.
+  await expect(page.getByTestId("catalogue-stock-in")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("catalogue-card-stock")).toHaveText("Stock 5");
+
+  // Stock filter buttons: the out-of-stock product (with a photo) only under Out of stock / All.
+  await page.getByTestId("catalogue-stock-out").click();
+  await expect(page.getByTestId("catalogue-card")).toHaveCount(1);
+  await expect(page.getByTestId("catalogue-card")).toContainText("COTTON KURTA");
+  await expect(page.getByTestId("catalogue-card-stock")).toHaveText("Out of stock");
+  await page.getByTestId("catalogue-stock-all").click();
+  await expect(page.getByTestId("catalogue-card")).toHaveCount(2);
+  await page.getByTestId("catalogue-stock-in").click();
+  await expect(page.getByTestId("catalogue-card")).toHaveCount(1);
+  await expect(page.getByTestId("catalogue-card")).toContainText("SILK KURTA");
 
   await page.locator("#catalogue-with-photo").click();
   await expect(page.getByTestId("catalogue-card")).toHaveCount(2);
