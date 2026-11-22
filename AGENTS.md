@@ -19,6 +19,7 @@ EzzyERP — one Vite + React + TypeScript web app (multi-tenant retail POS / bil
 ### Console / load performance
 - Do **not** add `console.log` / `console.info` on POS, dashboard, or paginated-fetch hot paths — DevTools serializes them on the main thread and the app feels frozen. New probes must use `diagConsoleInfo` (`src/lib/diagConsole.ts`) behind a `localStorage` flag. Details: `docs/console-perf-protections.md`, `.cursor/rules/console-hot-paths.mdc`.
 - CI: `npm run check:console-guard`. Do not enable Vite `drop_console` (hides real `console.error`).
+- A window tab that is open but hidden does not reload or re-render: `HiddenTabQueryPause` (in `CachedTabPane`) unsubscribes its `useQuery` hooks and holds the queries only it was showing; they are refetched once when a screen shows them again (`src/lib/hiddenTabQueries.ts`). Do not drive background work from a hidden screen's `useQuery` data or `refetchInterval`; a dialog the hidden tab draws wakes it.
 
 ### Boot resilience
 - Boot dynamic imports in `src/main.tsx` must keep their `.catch(onBootImportFailed)`: a failed `import()` fires no script/link error event, so the inline boot guard in `index.html` cannot see it and the tab blanks (2026-10-27: `erpBootstrap-*.js`). Recovery lives in `index.html` (`__ezzyBootImportFailed`); keep `test/bootAssetGuard.test.ts` green.

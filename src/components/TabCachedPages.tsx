@@ -30,6 +30,7 @@ import {
 import { isCacheableEntryTabPath, isEntryTabPath } from "@/lib/entryPageLayout";
 import { RoleProtectedRoute } from "@/components/RoleProtectedRoute";
 import { TabPaneErrorBoundary } from "@/components/TabPaneErrorBoundary";
+import { HiddenTabQueryPause, useHiddenTabLiveness } from "@/components/HiddenTabQueryPause";
 import { Layout } from "@/components/Layout";
 import { FullScreenLayout } from "@/components/FullScreenLayout";
 import { POSLayout } from "@/components/POSLayout";
@@ -458,6 +459,7 @@ function CachedTabPane({
   const hasPaneMountedRef = useRef(false);
   const softRetriedRef = useRef(false);
   const [loadKey, setLoadKey] = useState(0);
+  const tabData = useHiddenTabLiveness(active);
 
   const handlePaneReady = useCallback(() => {
     hasPaneMountedRef.current = true;
@@ -572,11 +574,16 @@ function CachedTabPane({
       )}
       aria-hidden={!active}
       data-tab-cache-path={path}
+      // A dialog drawn by this tab stays on screen when the tab is hidden: using it wakes the tab.
+      onPointerDownCapture={tabData.wake}
+      onKeyDownCapture={tabData.wake}
+      onFocusCapture={tabData.wake}
       data-tab-cache-dimmed={dimOutgoing ? "true" : undefined}
     >
       <TabCacheLayoutContext.Provider value>
         <TabCachePanePathContext.Provider value={path}>
-          {withRole}
+          {/* A hidden tab stops reloading and re-rendering until the user returns to it. */}
+          <HiddenTabQueryPause live={tabData.live}>{withRole}</HiddenTabQueryPause>
         </TabCachePanePathContext.Provider>
       </TabCacheLayoutContext.Provider>
     </div>
