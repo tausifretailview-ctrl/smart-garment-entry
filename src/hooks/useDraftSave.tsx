@@ -184,6 +184,14 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentDataRef = useRef<any>(null);
+  /**
+   * The bill object that was last saved as a draft. Pages hand over a new object only when the
+   * bill changes (updateCurrentData), so "same object" means "nothing changed": the 30-second
+   * auto-save then has nothing to do. It used to rewrite the whole bill every time (browser
+   * backup, database row and three re-renders of the entry page), which paused typing on a
+   * large bill (speed review item S4).
+   */
+  const lastSavedDataRef = useRef<unknown>(null);
   const draftClearedRef = useRef(false); // Track when draft was intentionally cleared
   // Draft writes run one at a time, so an autosave still in flight can't re-create a draft
   // that a later delete (bill saved) already removed.
@@ -291,6 +299,7 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
       setLastSaved(null);
       currentDataRef.current = null;
       draftClearedRef.current = true;
+      lastSavedDataRef.current = null;
     };
 
     window.addEventListener(PURCHASE_DRAFT_SAVED_EVENT, onPurchaseDraftCleared);
@@ -315,6 +324,7 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
     if (isExtraWindow) {
       // Extra window: keep the bill in this browser tab only (window 1 owns the database draft).
       writeResumeCopy(orgId, userId, draftType, data, windowInstance);
+      lastSavedDataRef.current = data;
       return true;
     }
     writeLocalBackup(orgId, userId, draftType, data);
@@ -336,6 +346,7 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
 
       if (error) throw error;
 
+      lastSavedDataRef.current = data;
       const savedAt = Date.now();
       setHasDraft(true);
       setDraftData(draftPayload);
@@ -376,6 +387,7 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
     // meanwhile gets its pending data wiped and never autosaves.
     currentDataRef.current = null;
     draftClearedRef.current = true;
+    lastSavedDataRef.current = null;
     if (isExtraWindow) {
       // Saved / new bill in an extra window: forget only this window's kept bill.
       clearResumeCopy(orgId, userId, draftType, windowInstance);
@@ -421,7 +433,9 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
     }
 
     autoSaveTimerRef.current = setInterval(() => {
-      if (currentDataRef.current) {
+      // Unchanged since the last successful save: nothing to write. A failed save did not
+      // record the bill, so it is tried again here.
+      if (currentDataRef.current && currentDataRef.current !== lastSavedDataRef.current) {
         reportIfFails(saveDraft(currentDataRef.current, false), "save the draft", { silent: true });
       }
     }, autoSaveInterval);
