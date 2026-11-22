@@ -1,3 +1,4 @@
+import { insertVoucherRetryingNumber } from "@/utils/voucherNumberRetry";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { Button } from "@/components/ui/button";
@@ -103,13 +104,11 @@ export function EmployeeSalaryTab({
       if (!referenceId) throw new Error("Please select an employee");
       if (!amount || parseFloat(amount) <= 0) throw new Error("Please enter a valid amount");
 
-      const { data: voucherNumber, error: numberError } = await supabase.rpc(
-        "generate_voucher_number",
-        { p_type: "payment", p_date: format(voucherDate, "yyyy-MM-dd") }
-      );
-      if (numberError) throw numberError;
-
-      const { data: inserted, error } = await supabase
+      const { data: inserted, error } = await insertVoucherRetryingNumber(supabase, {
+        type: "payment",
+        date: format(voucherDate, "yyyy-MM-dd"),
+        // A number another cashier took in the meantime is replaced by a fresh one.
+        write: (voucherNumber) => supabase
         .from("voucher_entries")
         .insert({
           organization_id: organizationId,
@@ -123,7 +122,8 @@ export function EmployeeSalaryTab({
           payment_method: paymentMethod,
         })
         .select("id")
-        .single();
+        .single(),
+      });
 
       if (error) throw error;
 

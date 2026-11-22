@@ -1,3 +1,4 @@
+import { generateVoucherNumber, insertVoucherRetryingNumber } from "@/utils/voucherNumberRetry";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -450,7 +451,10 @@ function CustomerPaymentForm({
         }
       }
 
-      const { data: voucherNumber } = await supabase.rpc("generate_voucher_number", { p_type: "receipt", p_date: format(voucherDate, "yyyy-MM-dd") });
+      // Checked (a failed request used to pass an empty number on to the insert). A number another
+      // cashier takes before our insert lands is replaced below (insertVoucherRetryingNumber).
+      const receiptDateYmd = format(voucherDate, "yyyy-MM-dd");
+      let voucherNumber = await generateVoucherNumber(supabase, "receipt", receiptDateYmd);
 
       let paymentDetails = '';
       if (paymentMethod === 'cheque' && chequeNumber) paymentDetails = ` | Cheque No: ${chequeNumber}`;
@@ -512,13 +516,17 @@ function CustomerPaymentForm({
         if (!isOpeningBalancePayment && processedInvoices.length > 0) {
           for (let i = 0; i < processedInvoices.length; i++) {
             const p = processedInvoices[i];
-            const vNum = processedInvoices.length > 1 ? `${voucherNumber}-${i + 1}` : voucherNumber;
+            const numberFor = (base: string) => (processedInvoices.length > 1 ? `${base}-${i + 1}` : base);
             const desc = `Payment for ${p.invoice.sale_number}${paymentDetails}`;
-            const { data: vrow, error: vInsErr } = await supabase
+            const { data: vrow, error: vInsErr, voucherNumber: usedNumber } = await insertVoucherRetryingNumber(supabase, {
+              type: "receipt",
+              date: receiptDateYmd,
+              baseNumber: voucherNumber,
+              write: (base) => supabase
               .from("voucher_entries")
               .insert({
                 organization_id: organizationId,
-                voucher_number: vNum,
+                voucher_number: numberFor(base),
                 voucher_type: "receipt",
                 voucher_date: format(voucherDate, "yyyy-MM-dd"),
                 reference_type: 'sale',
@@ -529,9 +537,12 @@ function CustomerPaymentForm({
                 client_request_id: receiptRequestId(receiptSubmissionId, p.invoice.id),
               })
               .select("id")
-              .single();
+              .single(),
+            });
             if (vInsErr) throw vInsErr;
             if (!vrow?.id) throw new Error("Receipt voucher insert failed");
+            voucherNumber = usedNumber;
+            const vNum = numberFor(usedNumber);
             createdIds.push(vrow.id);
             createdVoucherNumbers.push(vNum);
             if (postLedger) {
@@ -550,11 +561,15 @@ function CustomerPaymentForm({
         } else {
           const customerName = customersWithBalance?.find(c => c.id === referenceId)?.customer_name || 'Customer';
           const desc = description || `Opening Balance Payment from ${customerName}${paymentDetails}`;
-          const { data: vrow, error: vInsErr } = await supabase
+          const { data: vrow, error: vInsErr, voucherNumber: usedNumber } = await insertVoucherRetryingNumber(supabase, {
+            type: "receipt",
+            date: receiptDateYmd,
+            baseNumber: voucherNumber,
+            write: (base) => supabase
             .from("voucher_entries")
             .insert({
               organization_id: organizationId,
-              voucher_number: voucherNumber,
+              voucher_number: base,
               voucher_type: "receipt",
               voucher_date: format(voucherDate, "yyyy-MM-dd"),
               reference_type: isOpeningBalancePayment ? 'customer' : 'sale',
@@ -565,9 +580,11 @@ function CustomerPaymentForm({
               client_request_id: receiptRequestId(receiptSubmissionId, "single"),
             })
             .select("id")
-            .single();
+            .single(),
+          });
           if (vInsErr) throw vInsErr;
           if (!vrow?.id) throw new Error("Receipt voucher insert failed");
+          voucherNumber = usedNumber;
           createdIds.push(vrow.id);
           createdVoucherNumbers.push(voucherNumber);
           if (postLedger) {
@@ -908,7 +925,8 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
         }
       }
 
-      const { data: voucherNumber } = await supabase.rpc("generate_voucher_number", { p_type: "payment", p_date: format(voucherDate, "yyyy-MM-dd") });
+      // Checked, and replaced below if another cashier takes the number first.
+      let voucherNumber = await generateVoucherNumber(supabase, "payment", format(voucherDate, "yyyy-MM-dd"));
 
       let paymentDetails = '';
       if (paymentMethod === 'cheque' && chequeNumber) paymentDetails = ` | Cheque No: ${chequeNumber}`;
@@ -943,9 +961,13 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
           supplierName,
           paymentDetails,
         });
-        const { data: ins, error: voucherError } = await supabase.from("voucher_entries").insert({
+        const { data: ins, error: voucherError, voucherNumber: usedNumber } = await insertVoucherRetryingNumber(supabase, {
+          type: "payment",
+          date: voucherDateYmd,
+          baseNumber: voucherNumber,
+          write: (base) => supabase.from("voucher_entries").insert({
           organization_id: organizationId,
-          voucher_number: `${voucherNumber}${row.voucherNumberSuffix}`,
+          voucher_number: `${base}${row.voucherNumberSuffix}`,
           voucher_type: "payment",
           voucher_date: voucherDateYmd,
           reference_type: "supplier",
@@ -954,11 +976,13 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
           total_amount: row.amount,
           payment_method: paymentMethod,
           created_by: user?.id ?? null,
-        }).select("id").single();
+        }).select("id").single(),
+        });
         if (voucherError || !ins?.id) {
           await undoInserted();
           throw voucherError ?? new Error("Supplier payment voucher insert failed");
         }
+        voucherNumber = usedNumber;
         insertedVoucherIds.push(ins.id);
         if (postLedger) {
           try {
@@ -1180,12 +1204,11 @@ function ExpenseForm({ organizationId }: { organizationId: string }) {
     mutationFn: async () => {
       if (!selectedCategoryName) throw new Error("Select an expense category");
       if (!amount || parseFloat(amount) <= 0) throw new Error("Enter valid amount");
-      const { data: voucherNumber, error: numErr } = await supabase.rpc("generate_voucher_number", {
-        p_type: "expense",
-        p_date: format(voucherDate, "yyyy-MM-dd"),
-      });
-      if (numErr) throw numErr;
-      const { data: inserted, error: insErr } = await supabase
+      const { data: inserted, error: insErr } = await insertVoucherRetryingNumber(supabase, {
+        type: "expense",
+        date: format(voucherDate, "yyyy-MM-dd"),
+        // A number another cashier took in the meantime is replaced by a fresh one.
+        write: (voucherNumber) => supabase
         .from("voucher_entries")
         .insert({
           organization_id: organizationId,
@@ -1199,7 +1222,8 @@ function ExpenseForm({ organizationId }: { organizationId: string }) {
           payment_method: paymentMethod,
         })
         .select("id")
-        .single();
+        .single(),
+      });
       if (insErr) throw insErr;
 
       if (category === "__custom__" && customCategory.trim()) {

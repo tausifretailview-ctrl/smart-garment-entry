@@ -1,3 +1,4 @@
+import { insertVoucherRetryingNumber } from "@/utils/voucherNumberRetry";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -58,25 +59,26 @@ async function writeIssuanceVoucher(params: {
   }
 
   const today = new Date().toISOString().split("T")[0];
-  const { data: voucherNumber, error: numberError } = await supabase.rpc(
-    "generate_voucher_number" as never,
-    { p_type: "credit_note", p_date: today } as never,
-  );
-  if (numberError) throw numberError;
-
-  const row = buildCreditNoteIssuanceVoucher({
-    organizationId: params.organizationId,
-    voucherNumber: String(voucherNumber || ""),
-    customerId: params.customerId,
-    creditNoteNumber: params.creditNoteNumber,
-    saleNumber: params.saleNumber,
-    creditAmount: amount,
-    voucherDate: today,
-    createdBy: params.createdBy,
+  // A number another cashier took in the meantime is replaced by a fresh one.
+  const { error: insertError } = await insertVoucherRetryingNumber(supabase, {
+    type: "credit_note",
+    date: today,
+    write: async (voucherNumber) => {
+      const row = buildCreditNoteIssuanceVoucher({
+        organizationId: params.organizationId,
+        voucherNumber,
+        customerId: params.customerId,
+        creditNoteNumber: params.creditNoteNumber,
+        saleNumber: params.saleNumber,
+        creditAmount: amount,
+        voucherDate: today,
+        createdBy: params.createdBy,
+      });
+      if (!row) return { error: null };
+      const { error } = await supabase.from("voucher_entries").insert(row as never);
+      return { error };
+    },
   });
-  if (!row) return;
-
-  const { error: insertError } = await supabase.from("voucher_entries").insert(row as never);
   if (insertError) throw insertError;
 }
 

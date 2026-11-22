@@ -1,3 +1,4 @@
+import { insertVoucherRetryingNumber } from "@/utils/voucherNumberRetry";
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { getAccountingEngineSettingsRow } from "@/lib/data/orgSettings";
 import { useQuery } from "@tanstack/react-query";
@@ -1293,12 +1294,11 @@ export const FloatingSaleReturn = ({
       if (refundType === "cash_refund" && effectiveCustomerId) {
         try {
           const refundDateYmd = returnDateYmd;
-          const { data: rfNumber, error: rfNumErr } = await supabase.rpc("generate_voucher_number", {
-            p_type: "cn_refund",
-            p_date: refundDateYmd,
-          });
-          if (rfNumErr) throw rfNumErr;
-          const { error: refundVoucherErr } = await supabase.from("voucher_entries").insert({
+          const { error: refundVoucherErr } = await insertVoucherRetryingNumber(supabase, {
+        type: "cn_refund",
+        date: refundDateYmd,
+        // A number another cashier took in the meantime is replaced by a fresh one.
+        write: (rfNumber) => supabase.from("voucher_entries").insert({
             organization_id: organizationId,
             voucher_number: String(rfNumber || `RF/${refundDateYmd}`),
             voucher_type: "payment",
@@ -1308,7 +1308,8 @@ export const FloatingSaleReturn = ({
             description: `Refund paid for sale return: ${returnNumber}`,
             total_amount: grossAmount,
             payment_method: directRefundPaymentMethod,
-          });
+          }),
+      });
           if (refundVoucherErr) throw refundVoucherErr;
         } catch (vErr) {
           console.error("Refund voucher failed:", vErr);

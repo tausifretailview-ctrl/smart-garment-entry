@@ -1,3 +1,4 @@
+import { insertVoucherRetryingNumber } from "@/utils/voucherNumberRetry";
 import { useState, useRef, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
@@ -535,14 +536,6 @@ export default function PaymentsDashboard() {
 
     try {
       // Generate voucher number
-      const { data: voucherNumber, error: voucherError } = await supabase
-        .rpc('generate_voucher_number', {
-          p_type: 'receipt',
-          p_date: format(paymentDate, 'yyyy-MM-dd')
-        });
-
-      if (voucherError) throw voucherError;
-
       // Build payment details for description
       let paymentDetails = '';
       if (paymentMethod === 'cheque' && chequeNumber) {
@@ -557,13 +550,17 @@ export default function PaymentsDashboard() {
       // Create voucher entry
       const receiptSubmissionId = newReceiptSubmissionId();
       const receiptDescription = `Payment received from ${selectedInvoice.customer_name} for invoice ${selectedInvoice.sale_number}${paymentDetails}`;
-      const { data: receiptRow, error: voucherEntryError } = await supabase
+      const { data: receiptRow, error: voucherEntryError, voucherNumber } = await insertVoucherRetryingNumber(supabase, {
+        type: 'receipt',
+        date: format(paymentDate, 'yyyy-MM-dd'),
+        // A number another cashier took in the meantime is replaced by a fresh one.
+        write: (nextNumber) => supabase
         .from('voucher_entries')
         .insert({
           client_request_id: receiptRequestId(receiptSubmissionId, selectedInvoice.id),
           organization_id: currentOrganization?.id,
           voucher_type: 'receipt',
-          voucher_number: voucherNumber,
+          voucher_number: nextNumber,
           voucher_date: format(paymentDate, 'yyyy-MM-dd'),
           reference_type: 'customer',
           reference_id: selectedInvoice.id,
@@ -572,7 +569,8 @@ export default function PaymentsDashboard() {
           description: receiptDescription,
         })
         .select('id')
-        .single();
+        .single(),
+      });
 
       if (voucherEntryError) throw voucherEntryError;
 
