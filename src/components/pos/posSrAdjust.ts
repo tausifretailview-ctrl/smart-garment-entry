@@ -1,7 +1,8 @@
 /**
  * Rules of the POS footer S/R Adj box (PosSrAdjustField), kept apart for unit tests.
- * Same-bill exchange may exceed the bill (excess goes to Mix refund / credit note); a named
- * customer's typed old credit is capped to this bill and must be backed by a saved credit note.
+ * Same-bill exchange may exceed the bill (excess goes to Mix refund / credit note). A named
+ * customer's typed amount must be backed by a saved credit note: what is missing is recorded
+ * first, and an amount above the bill is only kept after the cashier confirms the refund.
  */
 import { manualSrShortfall } from "@/utils/manualSaleReturnCredit";
 
@@ -24,20 +25,50 @@ export function srAdjustTyped(
   };
 }
 
+/**
+ * What the cashier is asked before a named customer's typed S/R is used:
+ * - `shortfall`: the part no saved return covers; recorded as an old sale return on confirm;
+ * - `refundDue`: the part above the bill; on confirm the bill becomes an exchange with that
+ *   refund due (Cash refunds it, Mix Pay offers UPI / bank / credit note).
+ */
+export type ManualSrPrompt = { requested: number; shortfall: number; refundDue: number };
+
+const money = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+
+/**
+ * Named customer, S/R typed above the bill: the prompt to raise. Null when the amount fits
+ * the bill. Until now such an amount was silently cut to the bill, so the footer showed
+ * "Refund due" while typing and Mix Payment then opened at ₹0 with no refund to choose.
+ */
+export function srOverBillPrompt(p: {
+  requested: number;
+  maxSrFromBill: number;
+  availableSrCredit: number;
+}): ManualSrPrompt | null {
+  // Nothing billed yet: there is no bill to exchange against.
+  if (p.maxSrFromBill <= 0.005) return null;
+  const requested = money(p.requested);
+  const refundDue = money(requested - p.maxSrFromBill);
+  if (refundDue <= 0.01) return null;
+  return { requested, shortfall: manualSrShortfall(requested, p.availableSrCredit), refundDue };
+}
+
 export type SrAdjustBlurAction =
   /** Nothing or ≤ 0: S/R and same-bill return gross back to 0. */
   | { kind: "clear" }
   /** Exchange / over-bill S/R: keep it all (blur often fires on a cart-line delete click). */
   | { kind: "exchange"; amount: number }
   /**
-   * Old credit for this bill. A named customer's amount is capped to the bill (warning), then
-   * either a missing part is recorded first (prompt) or the amount is applied (clamp).
+   * Old credit for this bill: either a missing part is recorded first (prompt) or the amount
+   * is applied (clamp). A named customer's amount above the bill always asks (prompt with
+   * refundDue); the typed amount stays in the box until the cashier answers.
    */
   | {
       kind: "credit";
       forBill: number;
+      /** Set when the amount was cut (named customer, nothing billed yet). */
       capWarning: string | null;
-      prompt: { requested: number; shortfall: number } | null;
+      prompt: ManualSrPrompt | null;
     };
 
 export function resolveSrAdjustOnBlur(p: {
@@ -52,16 +83,16 @@ export function resolveSrAdjustOnBlur(p: {
   if (p.sameBillReturnGross > 0.005 || (!p.hasCustomer && requested > p.maxSrFromBill + 0.005)) {
     return { kind: "exchange", amount: requested };
   }
-  const forBill = p.hasCustomer ? Math.min(requested, p.maxSrFromBill) : requested;
-  const capWarning =
-    p.hasCustomer && requested > forBill + 0.01
-      ? `Only ₹${forBill.toLocaleString("en-IN", { maximumFractionDigits: 2 })} of S/R can be adjusted on this bill`
-      : null;
-  const shortfall = p.hasCustomer ? manualSrShortfall(forBill, p.availableSrCredit) : 0;
+  if (p.hasCustomer && requested > p.maxSrFromBill + 0.01) {
+    const overBill = srOverBillPrompt(p);
+    if (overBill) return { kind: "credit", forBill: p.maxSrFromBill, capWarning: null, prompt: overBill };
+    return { kind: "credit", forBill: 0, capWarning: "Add the items first: S/R is adjusted against the bill", prompt: null };
+  }
+  const shortfall = p.hasCustomer ? manualSrShortfall(requested, p.availableSrCredit) : 0;
   return {
     kind: "credit",
-    forBill,
-    capWarning,
-    prompt: shortfall > 0 ? { requested: forBill, shortfall } : null,
+    forBill: requested,
+    capWarning: null,
+    prompt: shortfall > 0 ? { requested, shortfall, refundDue: 0 } : null,
   };
 }

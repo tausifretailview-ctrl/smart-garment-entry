@@ -13,8 +13,9 @@ export const QUOTATION_VIEW_QUERY_KEYS = [
 export const QUOTATION_VIEWS_CHANGED_KEY = "quotation_views_changed_v1";
 
 /**
- * Refresh quotation lists in this tab. refetchType "all" also refreshes a
- * dashboard that is kept mounted but hidden behind another window tab.
+ * Refresh quotation lists in this tab. refetchType "all" also refreshes the cached lists of a
+ * dashboard that is closed. One kept open but hidden behind another window tab is only marked
+ * out of date, and reloads when the user returns to it (src/lib/hiddenTabQueries.ts).
  */
 export function invalidateQuotationViews(queryClient: QueryClient, organizationId: string) {
   for (const key of QUOTATION_VIEW_QUERY_KEYS) {

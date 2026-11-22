@@ -7,6 +7,7 @@ import {
 import { toast as showToast } from "@/hooks/use-toast";
 import { clearMissingQueryFnError, isMissingQueryFnError } from "@/utils/refetchQueriesWithFn";
 import { APP_BUILD_BUSTER, holdsMapOrSet, isVolatileOrSensitiveKey, persister } from "@/lib/queryPersister";
+import { isOutdatedHeldQuery } from "@/lib/hiddenTabQueries";
 
 /**
  * The app's React Query client and its on-disk cache settings, moved out of App.tsx
@@ -82,6 +83,11 @@ export const appPersistOptions = {
   buster: APP_BUILD_BUSTER,
   dehydrateOptions: {
     shouldDehydrateQuery: (q: { state: { status: string; data: unknown }; queryKey: readonly unknown[] }) =>
-      q.state.status === "success" && !isVolatileOrSensitiveKey(q.queryKey) && !holdsMapOrSet(q.state.data),
+      q.state.status === "success" &&
+      !isVolatileOrSensitiveKey(q.queryKey) &&
+      !holdsMapOrSet(q.state.data) &&
+      // Went out of date while its tab was hidden: after a reload it must load fresh, not show
+      // the old rows on a screen that does not refetch on mount.
+      !isOutdatedHeldQuery(q),
   },
 };
