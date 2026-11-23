@@ -243,6 +243,8 @@ interface PurchaseSettings {
   show_purchase_code_on_pos?: boolean;
   show_mrp?: boolean;
   product_entry_discount_enabled?: boolean;
+  /** Markdown % field on Add New Product / Product Entry. Default off. */
+  product_markdown_enabled?: boolean;
   barcode_mode?: 'auto' | 'scan';
   same_barcode_series?: boolean;
   auto_focus_search?: boolean;
@@ -2800,6 +2802,21 @@ export default function Settings() {
                         purchase_settings: {
                           ...settings.purchase_settings,
                           product_entry_discount_enabled: checked,
+                        },
+                      })
+                    }
+                  />
+                  <SettingsToggle
+                    id="product_markdown_enabled"
+                    label="Markdown % on products"
+                    description="Markdown % field on Add New Product and Product Entry, taken off the sale price on the Sale Bill."
+                    checked={settings.purchase_settings?.product_markdown_enabled || false}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          product_markdown_enabled: checked,
                         },
                       })
                     }

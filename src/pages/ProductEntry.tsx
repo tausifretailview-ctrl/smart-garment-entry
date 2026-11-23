@@ -233,6 +233,8 @@ const ProductEntry = () => {
   /** As loaded, so a product save only writes the markdown when it changed. */
   const loadedMarkdownRef = useRef<number | null>(null);
   const [showBrandMarkdown, setShowBrandMarkdown] = useState(false);
+  /** Settings → Purchase → "Markdown % on products". Off: the field is hidden (saved values stay). */
+  const [markdownFieldEnabled, setMarkdownFieldEnabled] = useState(false);
   const { data: brandMarkdownRows = [] } = useBrandMarkdowns();
   const saveMarkdownForProduct = async (productId: string | undefined) => {
     if (!productId || !currentOrganization?.id) return;
@@ -488,6 +490,7 @@ const ProductEntry = () => {
           garment_gst_below_rate: purchaseSettings.garment_gst_below_rate,
         };
         setGarmentGstSettings(loadedGarmentGstSettings);
+        setMarkdownFieldEnabled(purchaseSettings.product_markdown_enabled === true);
         setImportDefaultGst(readConfiguredDefaultTaxRate(purchaseSettings, 18));
         if (!editingProductId) {
           setFormData((prev) => {
@@ -2879,6 +2882,7 @@ const ProductEntry = () => {
                 )}
               </div>
 
+              {markdownFieldEnabled && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <Label htmlFor="markdown_percent">Markdown %</Label>
@@ -2916,6 +2920,7 @@ const ProductEntry = () => {
                   );
                 })()}
               </div>
+              )}
 
               {/* Purchase Discount Section */}
               {showDiscountFields && (
