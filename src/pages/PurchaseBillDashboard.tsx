@@ -29,7 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee, FileText, X, RefreshCw, Barcode, Eye, CreditCard, Camera, Lock, LockOpen, ZoomIn, FileSpreadsheet, Ban, Building2, FileDown } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, FileText, X, RefreshCw, Barcode, Eye, CreditCard, Camera, Lock, LockOpen, ZoomIn, FileSpreadsheet, Ban, Building2, FileDown } from "lucide-react";
 import { PrintPurchaseBillDialog } from "@/components/PrintPurchaseBillDialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format, formatDistanceToNow } from "date-fns";
@@ -53,8 +53,6 @@ import { useBusinessInfo, useSettings } from "@/hooks/useSettings";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { QuietRefreshBar, useQuietRefreshActiveKeys } from "@/components/QuietRefreshBar";
 import { invalidatePurchaseDashboardQueries } from "@/utils/invalidateDashboardQueries";
-import { runFixMissingMrpEquivalenceCheck } from "@/utils/fixMissingMrpEquivalence";
-import { fixMissingMrpForOrgViaRpc } from "@/utils/fixMissingMrpForOrg";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
@@ -276,7 +274,6 @@ const PurchaseBillDashboard = () => {
   );
   const [isDeleting, setIsDeleting] = useState(false);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
-  const [isFixing, setIsFixing] = useState(false);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">(() => {
     const saved = pickPersistedString(savedPurchaseFilters?.sortOrder);
     return saved === "asc" || saved === "desc" ? saved : "desc";
@@ -1252,141 +1249,6 @@ const PurchaseBillDashboard = () => {
       });
     } finally {
       setIsDeleting(false);
-    }
-  };
-
-  const handleFixMissingProductNames = async () => {
-    setIsFixing(true);
-    try {
-      const { data: itemsToFix, error: fetchError } = await supabase
-        .from("purchase_items")
-        .select(`
-          id,
-          sku_id,
-          product_variants!inner (
-            id,
-            products!inner (
-              product_name
-            )
-          )
-        `)
-        .or("product_name.is.null,product_name.eq.");
-
-      if (fetchError) throw fetchError;
-
-      if (!itemsToFix || itemsToFix.length === 0) {
-        toast({
-          title: "All Good!",
-          description: "No purchase items with missing product names found",
-        });
-        return;
-      }
-
-      let updatedCount = 0;
-      for (const item of itemsToFix) {
-        const productName = (item.product_variants as any)?.products?.product_name;
-        
-        if (productName) {
-          const { error: updateError } = await supabase
-            .from("purchase_items")
-            .update({ product_name: productName })
-            .eq("id", item.id);
-
-          if (updateError) {
-            console.error(`Failed to update item ${item.id}:`, updateError);
-          } else {
-            updatedCount++;
-          }
-        }
-      }
-
-      toast({
-        title: "Success",
-        description: `Fixed ${updatedCount} purchase item(s) with missing product names`,
-      });
-
-      await fetchBills();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to fix missing product names",
-        variant: "destructive",
-      });
-    } finally {
-      setIsFixing(false);
-    }
-  };
-
-  /** Phase 2 dry-run only — does not write; live button still uses handleFixMissingMrp. */
-  const handleVerifyMrpRpcEquivalence = async () => {
-    if (!currentOrganization?.id) return;
-    setIsFixing(true);
-    try {
-      const report = await runFixMissingMrpEquivalenceCheck(supabase, currentOrganization.id);
-      console.info("[MRP Phase 2 equivalence]", report);
-      toast({
-        title: report.passed ? "MRP RPC equivalence OK" : "MRP RPC equivalence mismatch",
-        description: report.summary,
-        variant: report.passed ? "default" : "destructive",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Equivalence check failed",
-        description: error.message || "Could not run MRP preview comparison",
-        variant: "destructive",
-      });
-    } finally {
-      setIsFixing(false);
-    }
-  };
-
-  const handleFixMissingMrp = async () => {
-    if (!currentOrganization?.id) {
-      toast({
-        title: "Organization required",
-        description: "Select an organization before fixing missing MRP",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsFixing(true);
-    try {
-      const { updatedCount, error } = await fixMissingMrpForOrgViaRpc(
-        supabase,
-        currentOrganization.id,
-      );
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: error.message,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (updatedCount === 0) {
-        toast({
-          title: "All Good!",
-          description: "No purchase items with missing MRP found",
-        });
-      } else {
-        toast({
-          title: "Success",
-          description: `Updated MRP on ${updatedCount} purchase item(s)`,
-        });
-      }
-
-      await fetchBills();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to fix missing MRP",
-        variant: "destructive",
-      });
-    } finally {
-      setIsFixing(false);
     }
   };
 
@@ -2659,32 +2521,6 @@ const PurchaseBillDashboard = () => {
               <FileSpreadsheet className="h-4 w-4" />
               Export Excel
             </Button>
-            <Button
-              onClick={handleFixMissingProductNames}
-              variant="outline"
-              className="gap-1.5 h-9 text-sm border-slate-300 text-slate-600 hover:bg-slate-100 font-medium px-3"
-              disabled={isFixing}
-            >
-              {isFixing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Database className="h-4 w-4" />
-              )}
-              Fix Missing Data
-            </Button>
-            <Button
-              onClick={handleFixMissingMrp}
-              variant="outline"
-              className="gap-1.5 h-9 text-sm border-slate-300 text-slate-600 hover:bg-slate-100 font-medium px-3"
-              disabled={isFixing}
-            >
-              {isFixing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <IndianRupee className="h-4 w-4" />
-              )}
-              Fix Missing MRP
-            </Button>
             {canViewSupplierBalance && (
               <Button
                 onClick={() => navigate("/supplier-party-balances")}
@@ -2694,22 +2530,6 @@ const PurchaseBillDashboard = () => {
               >
                 <Building2 className="h-4 w-4" />
                 Supplier Balance
-              </Button>
-            )}
-            {import.meta.env.DEV && (
-              <Button
-                onClick={handleVerifyMrpRpcEquivalence}
-                variant="outline"
-                className="gap-1.5 h-9 text-sm border-dashed border-amber-400 text-amber-700 hover:bg-amber-50 font-medium px-3"
-                disabled={isFixing}
-                title="Phase 2: dry-run compare loop vs RPC for current org (no writes)"
-              >
-                {isFixing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                Verify MRP RPC
               </Button>
             )}
             <Button
