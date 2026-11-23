@@ -3901,11 +3901,15 @@ export default function BarcodePrinting() {
       });
     }
 
+    // The print area mounts now (it is drawn only while isPrecisionPrintRunning): let it render.
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
     await new Promise<void>((resolve) => setTimeout(resolve, 200));
 
     const printArea = precisionPrintRef.current;
-    if (!printArea) return;
+    if (!printArea) {
+      toast.error("Labels were not ready to print. Please try again.");
+      return;
+    }
 
     const labelHTML = printArea.innerHTML;
     const locked = lockedPrintLayout();
@@ -6595,9 +6599,13 @@ export default function BarcodePrinting() {
         </div>
       )}
 
-      {/* Print Area (hidden, used for printing) */}
+      {/* Print Area (hidden, used for printing). Precision labels are drawn only while a print
+          is being prepared (executePrecisionPrint copies them into the print document): kept on
+          the page all the time, every copy of every label (2,000 for a large purchase bill) was
+          drawn and redrawn on each quantity typed (speed review item S7). */}
       {!testPrintActive && precisionSettings.enabled ? (
-        <div className="hidden print:block">
+        isPrecisionPrintRunning ? (
+        <div className="hidden print:block" data-testid="precision-print-area">
           {isPrecisionFootwearMode(precisionSettings.printMode) ? (
             <div ref={precisionPrintRef}>
               {labelItems
@@ -6652,6 +6660,7 @@ export default function BarcodePrinting() {
             />
           )}
         </div>
+        ) : null
       ) : (
         <div id="printArea" className="hidden"></div>
       )}
