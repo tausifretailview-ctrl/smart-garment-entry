@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -196,6 +197,11 @@ const PriceHistoryReport = () => {
   });
   const suppliers = filterOptions?.suppliers ?? [];
   const customers = filterOptions?.customers ?? [];
+  // The sales filter matches by customer name; one option per name.
+  const customerNameOptions = useMemo(
+    () => [...new Set(customers.map((c) => c.customer_name).filter(Boolean))],
+    [customers],
+  );
   
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -1172,19 +1178,14 @@ const PriceHistoryReport = () => {
             {activeTab === "sales" && (
               <div className="w-[180px]">
                 <Label className="text-xs mb-1">Customer</Label>
-                <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Customers" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Customers</SelectItem>
-                    {customers.map(c => (
-                      <SelectItem key={c.id} value={c.customer_name}>
-                        {c.customer_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {/* Searchable, and draws 100 rows at most: a Select listed every customer at once. */}
+                <SearchableSelect
+                  value={selectedCustomer}
+                  onValueChange={setSelectedCustomer}
+                  options={customerNameOptions}
+                  allLabel="All Customers"
+                  triggerClassName="h-10"
+                />
               </div>
             )}
 

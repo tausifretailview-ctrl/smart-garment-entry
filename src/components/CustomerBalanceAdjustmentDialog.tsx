@@ -5,11 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { CustomerOptionList } from "@/components/CustomerOptionList";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ChevronsUpDown, Check, IndianRupee, AlertCircle, Trash2, Undo2 } from "lucide-react";
+import { ChevronsUpDown, IndianRupee, AlertCircle, Trash2, Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -432,45 +432,31 @@ export function CustomerBalanceAdjustmentDialog({
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-full p-0" align="start">
-                  <Command>
-                    <CommandInput placeholder="Search customer..." />
-                    <CommandList>
-                      <CommandEmpty>No customer found.</CommandEmpty>
-                      <CommandGroup className="max-h-60 overflow-y-auto">
-                        {customers?.map((c: any) => (
-                          <CommandItem
-                            key={c.id}
-                            value={`${c.customer_name} ${c.phone || ''}`}
-                            onSelect={() => {
-                              setSelectedCustomerId(c.id);
-                              setCustomerSearchOpen(false);
-                              setNewOutstanding("");
-                              setNewAdvance("");
-                            }}
-                          >
-                            <Check className={cn("mr-2 h-4 w-4 shrink-0", selectedCustomerId === c.id ? "opacity-100" : "opacity-0")} />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="truncate">{c.customer_name}</span>
-                                {c.phone && <span className="text-xs text-muted-foreground">{c.phone}</span>}
-                              </div>
-                              <div className="flex items-center gap-3 text-xs mt-0.5">
-                                {c.outstandingBalance > 0 && (
-                                  <span className="text-destructive font-medium">OS: ₹{c.outstandingBalance.toLocaleString("en-IN")}</span>
-                                )}
-                                {c.advanceBalance > 0 && (
-                                  <span className="text-green-600 dark:text-green-400 font-medium">Adv: ₹{c.advanceBalance.toLocaleString("en-IN")}</span>
-                                )}
-                                {c.outstandingBalance <= 0 && c.advanceBalance <= 0 && (
-                                  <span className="text-muted-foreground">No balance</span>
-                                )}
-                              </div>
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
+                  <CustomerOptionList
+                    customers={customers}
+                    selectedId={selectedCustomerId}
+                    onPick={(c) => {
+                      setSelectedCustomerId(c.id);
+                      setCustomerSearchOpen(false);
+                      setNewOutstanding("");
+                      setNewAdvance("");
+                    }}
+                    placeholder="Search customer..."
+                    emptyText="No customer found."
+                    renderDetail={(c: any) => (
+                      <div className="flex items-center gap-3 text-xs mt-0.5">
+                        {c.outstandingBalance > 0 && (
+                          <span className="text-destructive font-medium">OS: ₹{c.outstandingBalance.toLocaleString("en-IN")}</span>
+                        )}
+                        {c.advanceBalance > 0 && (
+                          <span className="text-green-600 dark:text-green-400 font-medium">Adv: ₹{c.advanceBalance.toLocaleString("en-IN")}</span>
+                        )}
+                        {c.outstandingBalance <= 0 && c.advanceBalance <= 0 && (
+                          <span className="text-muted-foreground">No balance</span>
+                        )}
+                      </div>
+                    )}
+                  />
                 </PopoverContent>
               </Popover>
             </div>
