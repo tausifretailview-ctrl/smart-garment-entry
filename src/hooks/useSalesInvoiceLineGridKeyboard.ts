@@ -508,38 +508,50 @@ export function useSalesInvoiceLineGridKeyboard({
     [isCellFocused, isEditing],
   );
 
+  /**
+   * Props of one grid cell, from that cell's own focus state. The Sale Bill row is a memo
+   * component: it passes its own "am I focused / being edited" so it does not have to be
+   * redrawn when the cursor moves between two other rows.
+   */
+  const buildCellProps = useCallback(
+    (
+      rowIndex: number,
+      colKey: SaleLineGridColKey,
+      focused: boolean,
+      editing: boolean,
+      opts?: { itemId?: string; baseClassName?: string; onActivateEdit?: () => void },
+    ) => ({
+      ref: (el: HTMLTableCellElement | null) => registerCellRef(rowIndex, colKey, el),
+      role: "gridcell" as const,
+      tabIndex: focused && !editing ? 0 : -1,
+      "data-grid-row": rowIndex,
+      "data-grid-col": colKey,
+      className: cn(
+        opts?.baseClassName,
+        focused && !editing && "shadow-[inset_0_0_0_2px_hsl(var(--primary))] bg-primary/10 rounded-sm",
+        editing && "shadow-[inset_0_0_0_2px_hsl(var(--primary))] bg-white p-0 rounded-sm",
+      ),
+      onFocus: () => {
+        if (!focused) focusCell(rowIndex, colKey);
+      },
+      onClick: () => {
+        if (focused && isEditableCol(colKey) && !editing) {
+          opts?.onActivateEdit?.();
+        } else if (!focused) {
+          focusCell(rowIndex, colKey);
+        }
+      },
+    }),
+    [focusCell, registerCellRef],
+  );
+
   const getCellProps = useCallback(
     (
       rowIndex: number,
       colKey: SaleLineGridColKey,
       opts?: { itemId?: string; baseClassName?: string; onActivateEdit?: () => void },
-    ) => {
-      const focused = isCellFocused(rowIndex, colKey);
-      const editing = isCellEditing(rowIndex, colKey);
-      return {
-        ref: (el: HTMLTableCellElement | null) => registerCellRef(rowIndex, colKey, el),
-        role: "gridcell" as const,
-        tabIndex: focused && !editing ? 0 : -1,
-        "data-grid-row": rowIndex,
-        "data-grid-col": colKey,
-        className: cn(
-          opts?.baseClassName,
-          focused && !editing && "shadow-[inset_0_0_0_2px_hsl(var(--primary))] bg-primary/10 rounded-sm",
-          editing && "shadow-[inset_0_0_0_2px_hsl(var(--primary))] bg-white p-0 rounded-sm",
-        ),
-        onFocus: () => {
-          if (!focused) focusCell(rowIndex, colKey);
-        },
-        onClick: () => {
-          if (focused && isEditableCol(colKey) && !editing) {
-            opts?.onActivateEdit?.();
-          } else if (!focused) {
-            focusCell(rowIndex, colKey);
-          }
-        },
-      };
-    },
-    [focusCell, isCellEditing, isCellFocused, registerCellRef],
+    ) => buildCellProps(rowIndex, colKey, isCellFocused(rowIndex, colKey), isCellEditing(rowIndex, colKey), opts),
+    [buildCellProps, isCellEditing, isCellFocused],
   );
 
   const getRowClassName = useCallback(
@@ -555,6 +567,7 @@ export function useSalesInvoiceLineGridKeyboard({
     editSeed,
     handleGridKeyDown,
     getCellProps,
+    buildCellProps,
     getRowClassName,
     isCellFocused,
     isCellEditing,

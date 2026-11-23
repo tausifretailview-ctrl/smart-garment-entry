@@ -57,7 +57,12 @@ describe("Sale Invoice: live stock per line", () => {
 
   it("is shown under the barcode on desktop and phone, refreshed while open", () => {
     const page = read("src/pages/SalesInvoice.tsx");
-    expect(page.match(/<SaleLineStockBadge view=\{liveStockFor\(item\)\} \/>/g)).toHaveLength(2);
+    // Phone cards draw the badge in the page; the desktop row (SaleBillLineRow) gets the same
+    // figures from the page and draws it under the barcode.
+    expect(page.match(/<SaleLineStockBadge view=\{liveStockFor\(item\)\} \/>/g)).toHaveLength(1);
+    expect(page).toContain("const stock = liveStockFor(item);");
+    expect(page).toContain("stockLabel={stock?.label ?? null}");
+    expect(read("src/components/sales-invoice/SaleBillLineRow.tsx")).toContain("<SaleLineStockBadge view={stockView} />");
     expect(page).toContain("refetchInterval: LIVE_STOCK_REFRESH_MS");
     expect(page).toContain("freedByEdit: editFreedQty(item.variantId)");
     // Screen only: the badge hides when the browser prints the page.
