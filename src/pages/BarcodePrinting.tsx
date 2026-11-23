@@ -43,6 +43,7 @@ import {
   resolveTemplateLabelDimensions,
   sheetPresetDimensions,
 } from "@/utils/labelTemplateDimensions";
+import { namedSheetFitsLabel, standardDefaultIsCurrent } from "@/utils/barcodeStandardDefault";
 import {
   buildPrecisionLabelDocument,
   buildStandardLabelDocument,
@@ -491,6 +492,9 @@ export default function BarcodePrinting() {
   const [selectedLabelTemplate, setSelectedLabelTemplate] = useState<string>("");
   const selectedLabelTemplateRef = useRef(selectedLabelTemplate);
   selectedLabelTemplateRef.current = selectedLabelTemplate;
+  // Live Standard sheet for callbacks that must not re-create on every sheet change.
+  const standardSheetRef = useRef({ sheetType: sheetType as string, selectedPreset, customWidth, customHeight });
+  standardSheetRef.current = { sheetType, selectedPreset, customWidth, customHeight };
   const [isLabelTemplateSaveDialogOpen, setIsLabelTemplateSaveDialogOpen] = useState(false);
   const [newLabelTemplateName, setNewLabelTemplateName] = useState("");
   const [isEditingLabelTemplate, setIsEditingLabelTemplate] = useState(false);
@@ -2010,13 +2014,16 @@ export default function BarcodePrinting() {
     // A4 presets (e.g. Bansari Creation 39×35 5×8) must also set Standard sheetType.
     // Perfect PDF / on-screen A4 layout read sheetType for brand + grid; leaving
     // novajet48 (default) while Precision is 5×8 causes mismatch preview vs PDF.
+    // The shop's own saved sheet of the same sticker size stays: replacing it with a built-in
+    // sheet dropped its columns, rows and gaps, and the shop had to pick it again each time.
     if (
       modeWrite.accepted &&
       mode === "a4" &&
       labelWidth != null &&
       labelHeight != null &&
       Number.isFinite(labelWidth) &&
-      Number.isFinite(labelHeight)
+      Number.isFinite(labelHeight) &&
+      !namedSheetFitsLabel(standardSheetRef.current, labelWidth, labelHeight)
     ) {
       const resolved = resolveStandardSheetTypeForLabelDimensions(
         labelWidth,
@@ -3442,6 +3449,13 @@ export default function BarcodePrinting() {
     }
   };
 
+  /** "Save as New" in the Label Designer: the new template becomes the selected one, as in the save dialog above. */
+  const saveDesignerTemplate = async (template: LabelTemplate): Promise<boolean> => {
+    const success = await saveTemplateToDb(template);
+    if (success) setSelectedLabelTemplate(template.name);
+    return success;
+  };
+
   const handleLoadLabelTemplate = (templateName: string) => {
     const template = savedLabelTemplates.find((t) => t.name === templateName);
     if (template) {
@@ -3511,6 +3525,8 @@ export default function BarcodePrinting() {
     };
     
     const defaultFormat = {
+      // "Set Default" on Sheet Margin Presets lives in the same record; keep it.
+      defaultMarginPreset: dbDefaultFormat?.defaultMarginPreset,
       defaultTemplate: selectedLabelTemplate || null,
       sheetType,
       // Only save inline config if no template is selected
@@ -3535,10 +3551,11 @@ export default function BarcodePrinting() {
 
     const success = await saveDefaultToDb(defaultFormat);
     if (success) {
+      // Name the sheet too: the default is the template and the sheet type together.
       if (selectedLabelTemplate) {
-        toast.success(`Template "${selectedLabelTemplate}" set as default format`);
+        toast.success(`Default saved: template "${selectedLabelTemplate}", sheet "${sheetLayoutSummary}"`);
       } else {
-        toast.success("Current layout saved as default format");
+        toast.success(`Default saved: current layout, sheet "${sheetLayoutSummary}"`);
       }
     }
   };
@@ -5441,7 +5458,8 @@ export default function BarcodePrinting() {
                   columns={sheetType === 'custom' ? customCols : sheetPresets[sheetType].cols}
                   savedTemplates={dbLabelTemplates}
                   selectedTemplateName={selectedLabelTemplate}
-                  onSaveTemplate={saveTemplateToDb}
+                  onSelectTemplate={handleLoadLabelTemplate}
+                  onSaveTemplate={saveDesignerTemplate}
                   onUpdateTemplate={persistSelectedLabelTemplate}
                   onDeleteTemplate={deleteTemplateFromDb}
                   productFieldSettings={productFieldSettings}
@@ -6107,7 +6125,8 @@ export default function BarcodePrinting() {
             columns={sheetType === 'custom' ? customCols : sheetPresets[sheetType].cols}
             savedTemplates={dbLabelTemplates}
             selectedTemplateName={selectedLabelTemplate}
-            onSaveTemplate={saveTemplateToDb}
+            onSelectTemplate={handleLoadLabelTemplate}
+            onSaveTemplate={saveDesignerTemplate}
             onUpdateTemplate={persistSelectedLabelTemplate}
             onDeleteTemplate={deleteTemplateFromDb}
             productFieldSettings={productFieldSettings}
@@ -6239,7 +6258,14 @@ export default function BarcodePrinting() {
         onPdf={handleExportPDF}
         saveDefault={
           activeBarTab === "standard"
-            ? { isDefault: !!selectedLabelTemplate && isTemplateDefault(selectedLabelTemplate), onClick: handleSaveAsDefault }
+            ? {
+                isDefault: standardDefaultIsCurrent(dbDefaultFormat, {
+                  template: selectedLabelTemplate || null,
+                  sheetType,
+                  customPresetName: sheetType === "custom" ? selectedPreset || null : null,
+                }),
+                onClick: handleSaveAsDefault,
+              }
             : undefined
         }
         calibrate={

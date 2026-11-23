@@ -39,6 +39,12 @@ interface BarTenderLabelDesignerProps {
   columns?: number;
   savedTemplates?: LabelTemplate[];
   selectedTemplateName?: string | null;
+  /**
+   * The page loads the picked template itself, so its own "selected template" follows the
+   * dropdown. Without it the dropdown snapped back and Update / Save Default kept acting on
+   * the previously selected template.
+   */
+  onSelectTemplate?: (templateName: string) => void;
   onSaveTemplate?: (template: LabelTemplate) => Promise<boolean>;
   /** Update the currently selected template with live designer config (field toggles, positions). */
   onUpdateTemplate?: () => Promise<boolean>;
@@ -290,6 +296,7 @@ export function BarTenderLabelDesigner({
   columns = 1,
   savedTemplates = [],
   selectedTemplateName,
+  onSelectTemplate,
   onSaveTemplate,
   onUpdateTemplate,
   onDeleteTemplate,
@@ -758,7 +765,9 @@ export function BarTenderLabelDesigner({
             value={selectedTemplateName || undefined}
             onValueChange={(value) => {
               const template = savedTemplates.find((t) => t.name === value);
-              if (template) handleLoadTemplate(template);
+              if (!template) return;
+              if (onSelectTemplate) onSelectTemplate(template.name);
+              else handleLoadTemplate(template);
             }}
           >
             <SelectTrigger className="w-44 h-8">
