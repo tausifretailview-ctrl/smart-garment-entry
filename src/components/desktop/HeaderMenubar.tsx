@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
 import { prefetchCriticalEntryChunks, prefetchTabPage } from "@/lib/tabPageRegistry";
 import { useSettings } from "@/hooks/useSettings";
 import { useManufacturerERP } from "@/hooks/useManufacturerERP";
-import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { useGodownsEnabled, useIndustrialMode } from "@/hooks/useIndustrialMode";
 import { useEwayBillOn } from "@/hooks/useEwayBillOn";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { isBulkWhatsAppEnabled } from "@/utils/whatsappFeatureSwitches";
@@ -69,6 +69,7 @@ export function HeaderMenubar({
   const showManufacturing =
     useManufacturerERP().enabled && (organizationRole === "admin" || organizationRole === "manager");
   const industrialOn = useIndustrialMode().enabled;
+  const godownsOn = useGodownsEnabled();
   const ewayBillOn = useEwayBillOn();
   const bulkWhatsAppOn = isBulkWhatsAppEnabled((orgSettings as { sale_settings?: unknown } | null)?.sale_settings);
   const showFile =
@@ -387,10 +388,10 @@ export function HeaderMenubar({
                 Stock Transfer
               </MenubarItem>
             )}
-            {industrialOn && (organizationRole === "admin" || organizationRole === "manager") && (
+            {godownsOn && (organizationRole === "admin" || organizationRole === "manager") && (
               <MenubarItem onClick={() => orgNavigate("/godowns")}>Godowns</MenubarItem>
             )}
-            {industrialOn && (organizationRole === "admin" || organizationRole === "manager") && (
+            {godownsOn && (organizationRole === "admin" || organizationRole === "manager") && (
               <MenubarItem onClick={() => orgNavigate("/godown-transfers")}>Godown Transfers</MenubarItem>
             )}
             {showManufacturing && (

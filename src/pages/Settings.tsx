@@ -245,6 +245,8 @@ interface PurchaseSettings {
   product_entry_discount_enabled?: boolean;
   /** Markdown % field on Add New Product / Product Entry. Default off. */
   product_markdown_enabled?: boolean;
+  /** Godowns for any shop (Industrial mode always has them). Default off. */
+  godown_module_enabled?: boolean;
   barcode_mode?: 'auto' | 'scan';
   same_barcode_series?: boolean;
   auto_focus_search?: boolean;
@@ -2817,6 +2819,21 @@ export default function Settings() {
                         purchase_settings: {
                           ...settings.purchase_settings,
                           product_markdown_enabled: checked,
+                        },
+                      })
+                    }
+                  />
+                  <SettingsToggle
+                    id="godown_module_enabled"
+                    label="Godown module"
+                    description="Keep stock in more than one place: Godowns and Godown Transfers menus, and Receive into / Dispatch from / Return from on bills. Always on in Industrial mode."
+                    checked={settings.purchase_settings?.godown_module_enabled || false}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          godown_module_enabled: checked,
                         },
                       })
                     }
