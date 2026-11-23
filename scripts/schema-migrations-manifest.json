@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-11-23",
-  "count": 963,
-  "fileCount": 981,
+  "count": 964,
+  "fileCount": 982,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -966,7 +966,8 @@
     "20270515120000",
     "20270516120000",
     "20270517120000",
-    "20270518120000"
+    "20270518120000",
+    "20270519120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1949,7 +1950,8 @@
     "20270515120000_adjust_variant_stock.sql",
     "20270516120000_customer_ledger_voucher_index.sql",
     "20270517120000_stock_triggers_keep_decimal_quantities.sql",
-    "20270518120000_stop_legacy_current_stock_sync.sql"
+    "20270518120000_stop_legacy_current_stock_sync.sql",
+    "20270519120000_sale_total_qty_once_per_save.sql"
   ],
   "duplicateVersions": [
     {
