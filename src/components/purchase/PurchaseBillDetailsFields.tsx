@@ -140,7 +140,8 @@ export const PurchaseBillDetailsFields = memo(function PurchaseBillDetailsFields
         />
       </div>
 
-      {godownField ? <div className="min-w-0">{godownField}</div> : null}
+      {/* self-end: its label is a flex row (icon + text), a few px shorter than the plain labels beside it. */}
+      {godownField ? <div className="min-w-0 self-end">{godownField}</div> : null}
 
       <div className="space-y-1.5 min-w-0 entry-key-field entry-key-field--date">
         <Label htmlFor="bill_date" className="entry-key-label text-[13px] font-semibold text-slate-500 leading-none">

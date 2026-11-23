@@ -1152,7 +1152,8 @@ const PurchaseEntry = () => {
           onChange={purchaseGodown.setValue}
           disabled={isBillLocked}
           loading={purchaseGodown.loading}
-          labelClassName="mb-1.5 text-[13px] font-semibold text-slate-500 leading-none"
+          className="entry-key-field"
+          labelClassName="entry-key-label mb-1.5 text-slate-500"
           triggerClassName="h-11 text-base font-semibold"
           mainHint="Goods go into the shop stock (Main), as before."
           godownHint={(name) => `When you save, the goods on this bill move from Main into ${name}.`}

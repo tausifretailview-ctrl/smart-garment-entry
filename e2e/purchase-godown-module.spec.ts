@@ -26,7 +26,8 @@ test("Godown module on: Receive into sits in the Supplier row", async ({ page, b
   const godownBox = await receiveInto.boundingBox();
   expect(supplierBox && invoiceBox && godownBox).toBeTruthy();
   // Same row, right after Supplier Invoice No.
-  expect(Math.abs(godownBox!.y - invoiceBox!.y)).toBeLessThan(6);
+  expect(Math.abs(godownBox!.y - invoiceBox!.y)).toBeLessThan(2);
+  expect(Math.abs(godownBox!.height - invoiceBox!.height)).toBeLessThan(2);
   expect(godownBox!.x).toBeGreaterThan(invoiceBox!.x + invoiceBox!.width - 1);
   await expect(receiveInto).toContainText("Main");
 });
