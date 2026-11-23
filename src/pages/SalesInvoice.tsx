@@ -5489,8 +5489,12 @@ Thank you for choosing us!`;
         <div
           className={cn(
             "grid grid-cols-2 md:grid-cols-3 gap-4 items-start entry-vasy-key-fields",
-            // Industrial mode adds Supply type (and Dispatch from) to this row; other shops keep six columns.
-            !industrialMode.enabled ? "lg:grid-cols-6" : saleGodown.visible ? "md:grid-cols-4 lg:grid-cols-8 lg:gap-3" : "md:grid-cols-4 lg:grid-cols-7 lg:gap-3",
+            // Industrial mode adds Supply type, godowns add Dispatch from; other shops keep six columns.
+            [
+              "lg:grid-cols-6",
+              "md:grid-cols-4 lg:grid-cols-7 lg:gap-3",
+              "md:grid-cols-4 lg:grid-cols-8 lg:gap-3",
+            ][(industrialMode.enabled ? 1 : 0) + (saleGodown.visible ? 1 : 0)],
           )}
         >
           {/* Customer Selection */}

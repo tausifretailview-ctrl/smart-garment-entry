@@ -5,6 +5,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import {
   EMPTY_CUSTOMER_CREDIT_TERMS,
   INDUSTRIAL_MODE_FEATURE,
+  godownsEnabled,
   resolveIndustrialMode,
   type CustomerCreditTerms,
   type IndustrialModeConfig,
@@ -23,6 +24,16 @@ export function useIndustrialMode(): IndustrialModeSettings {
   const config = (data as { sale_settings?: { industrial_mode?: IndustrialModeConfig } } | null)
     ?.sale_settings?.industrial_mode;
   return resolveIndustrialMode(available, config);
+}
+
+/**
+ * Godowns (Godowns, Godown Transfers, "Receive into" / "Dispatch from" / "Return from"):
+ * on in Industrial mode, and for any shop that turns on Settings → Purchase → "Godown module".
+ */
+export function useGodownsEnabled(): boolean {
+  const { data } = useSettings();
+  const industrialOn = useIndustrialMode().enabled;
+  return godownsEnabled(industrialOn, (data as { purchase_settings?: unknown } | null)?.purchase_settings);
 }
 
 export const customerCreditTermsKey = (orgId: string | null | undefined, customerId: string | null | undefined) =>

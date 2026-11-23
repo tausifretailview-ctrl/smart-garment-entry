@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useState, type ReactNode } from "react";
 import { format } from "date-fns";
 import { CalendarIcon, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,8 @@ export type PurchaseBillDetailsFieldsProps = {
   /** DC-only users cannot untick DC Purchase. */
   dcLocked: boolean;
   onDcPurchaseChange: (checked: boolean) => void;
+  /** "Receive into" godown, beside Supplier Invoice No (godowns on); the row takes one more column. */
+  godownField?: ReactNode;
 };
 
 /**
@@ -56,6 +58,7 @@ export const PurchaseBillDetailsFields = memo(function PurchaseBillDetailsFields
   isDcPurchase,
   dcLocked,
   onDcPurchaseChange,
+  godownField,
 }: PurchaseBillDetailsFieldsProps) {
   const [billDateOpen, setBillDateOpen] = useState(false);
   const handleDateSelect = useCallback(
@@ -68,7 +71,12 @@ export const PurchaseBillDetailsFields = memo(function PurchaseBillDetailsFields
   );
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-x-3 gap-y-2 items-start purchase-entry-meta-grid entry-vasy-key-fields">
+    <div
+      className={cn(
+        "grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-2 items-start purchase-entry-meta-grid entry-vasy-key-fields",
+        godownField ? "lg:grid-cols-8 lg:gap-x-2.5" : "lg:grid-cols-7",
+      )}
+    >
       <div className="space-y-1.5 min-w-0 entry-key-field entry-key-field--doc-no">
         <Label htmlFor="software_bill_no" className="entry-key-label text-[13px] font-semibold text-slate-500 leading-none">
           Software Bill No
@@ -131,6 +139,9 @@ export const PurchaseBillDetailsFields = memo(function PurchaseBillDetailsFields
           className="h-11 text-base font-semibold"
         />
       </div>
+
+      {/* self-end: its label is a flex row (icon + text), a few px shorter than the plain labels beside it. */}
+      {godownField ? <div className="min-w-0 self-end">{godownField}</div> : null}
 
       <div className="space-y-1.5 min-w-0 entry-key-field entry-key-field--date">
         <Label htmlFor="bill_date" className="entry-key-label text-[13px] font-semibold text-slate-500 leading-none">

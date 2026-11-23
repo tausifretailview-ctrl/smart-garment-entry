@@ -1196,11 +1196,13 @@ export default function DeliveryChallanEntry() {
               </Select>
             </div>
           </div>
-          {industrialMode.enabled && (
+          {(industrialMode.enabled || challanGodown.visible) && (
             <div
               className="mt-2 flex flex-wrap items-end gap-2.5 rounded-md border border-sky-200 bg-sky-50/60 px-3 py-2"
               data-testid="delivery-challan-type"
             >
+              {industrialMode.enabled && (
+              <>
               <div className="flex items-center gap-1.5 self-center pr-1 text-[13px] font-bold text-sky-900">
                 <Truck className="h-4 w-4 text-sky-700" />
                 Challan type
@@ -1222,11 +1224,13 @@ export default function DeliveryChallanEntry() {
                   </SelectContent>
                 </Select>
               </div>
+              </>
+              )}
               {challanGodown.visible && (
                 <DocGodownInline
                   id="dc-dispatch-from"
                   label="Dispatch from"
-                  className="self-center sm:ml-2 sm:border-l sm:border-sky-200 sm:pl-3"
+                  className={industrialMode.enabled ? "self-center sm:ml-2 sm:border-l sm:border-sky-200 sm:pl-3" : "self-center"}
                   choices={challanGodown.choices}
                   value={challanGodown.value}
                   mainId={challanGodown.mainId}
@@ -1239,10 +1243,12 @@ export default function DeliveryChallanEntry() {
                   }
                 />
               )}
+              {industrialMode.enabled && (
               <p className="self-center text-xs text-slate-500">
                 Prints as <span className="font-semibold text-slate-700">{challanPrintTitle(challanType)}</span>.{" "}
                 {challanTypeHint(challanType)}
               </p>
+              )}
             </div>
           )}
         </section>

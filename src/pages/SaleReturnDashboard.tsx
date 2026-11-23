@@ -79,7 +79,7 @@ let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
 const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { useGodownsEnabled, useIndustrialMode } from "@/hooks/useIndustrialMode";
 import { fetchDocGodownNames } from "@/utils/godownDocs";
 import { useSaleReturnIrn } from "@/hooks/useSaleReturnIrn";
 import { SaleReturnIrnCell } from "@/components/einvoice/SaleReturnIrnCell";
@@ -824,14 +824,15 @@ export default function SaleReturnDashboard() {
   const saleReturnIrn = useSaleReturnIrn(currentOrganization?.id, irnReturnIds, irnColumn);
 
   // Industrial mode, Phase 3 step 3d-3: the godown each return's goods went into ("Return into").
+  const godownsOn = useGodownsEnabled();
   const returnPlaceKey = useMemo(
-    () => (industrialMode.enabled ? returns.map((r) => String(r.id)).sort().join(",") : ""),
-    [industrialMode.enabled, returns],
+    () => (godownsOn ? returns.map((r) => String(r.id)).sort().join(",") : ""),
+    [godownsOn, returns],
   );
   const { data: returnPlaces } = useQuery({
     queryKey: ["sale-return-godown-places", currentOrganization?.id ?? "", returnPlaceKey],
     queryFn: () => fetchDocGodownNames("sale_return", returnPlaceKey.split(",")),
-    enabled: industrialMode.enabled && !!currentOrganization?.id && returnPlaceKey.length > 0,
+    enabled: godownsOn && !!currentOrganization?.id && returnPlaceKey.length > 0,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });

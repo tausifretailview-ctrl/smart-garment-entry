@@ -18,7 +18,7 @@ import {
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
-import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { useGodownsEnabled } from "@/hooks/useIndustrialMode";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { GodownDialog } from "@/components/godowns/GodownDialog";
@@ -56,7 +56,7 @@ const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("
 export default function Godowns() {
   const { currentOrganization, organizationRole } = useOrganization();
   const orgId = currentOrganization?.id ?? "";
-  const industrialOn = useIndustrialMode().enabled;
+  const godownsOn = useGodownsEnabled();
   const canManage = organizationRole === "admin" || organizationRole === "manager";
   const inTabCache = useTabCacheLayout();
   const sharedShell = useSharedAppShell();
@@ -80,7 +80,7 @@ export default function Godowns() {
   const list = useQuery({
     queryKey: ["godowns", orgId],
     queryFn: () => fetchGodowns(orgId),
-    enabled: !!orgId && industrialOn,
+    enabled: !!orgId && godownsOn,
     staleTime: 60_000,
   });
   const godowns = useMemo(() => list.data?.godowns ?? [], [list.data]);
@@ -89,7 +89,7 @@ export default function Godowns() {
   const summary = useQuery({
     queryKey: ["godown-summary", orgId],
     queryFn: () => fetchGodownSummary(orgId),
-    enabled: !!orgId && industrialOn && !missingSql && godowns.length > 0,
+    enabled: !!orgId && godownsOn && !missingSql && godowns.length > 0,
     staleTime: 30_000,
   });
 
@@ -99,7 +99,7 @@ export default function Godowns() {
   const stock = useQuery({
     queryKey: ["godown-stock", orgId, selected?.id ?? "", debounced, page],
     queryFn: () => fetchGodownStock({ organizationId: orgId, godownId: selected!.id, search: debounced, offset: page * GODOWN_STOCK_PAGE }),
-    enabled: !!orgId && industrialOn && !!selected && !missingSql,
+    enabled: !!orgId && godownsOn && !!selected && !missingSql,
     placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
@@ -133,7 +133,7 @@ export default function Godowns() {
     }
   };
 
-  if (!industrialOn) {
+  if (!godownsOn) {
     return (
       <div className="flex h-full w-full items-start justify-center bg-slate-50 p-6">
         <Card className="max-w-lg border-slate-200 p-6 text-sm text-slate-600 shadow-sm">
@@ -141,7 +141,7 @@ export default function Godowns() {
             <Warehouse className="h-5 w-5 text-teal-600" />
             Godowns
           </div>
-          Godowns are part of Industrial mode. Turn it on in Settings &gt; Product to keep stock in more than one place.
+          Godowns are off. Turn on Industrial mode (Settings &gt; Product) or the Godown module (Settings &gt; Purchase) to keep stock in more than one place.
         </Card>
       </div>
     );

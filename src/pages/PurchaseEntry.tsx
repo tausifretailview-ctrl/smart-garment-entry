@@ -276,7 +276,7 @@ import {
   PER_PIECE_BARCODE_MAX_PIECES,
 } from "@/utils/purchasePerPieceBarcode";
 import { usePurchaseGodown } from "@/hooks/usePurchaseGodown";
-import { PurchaseGodownBar } from "@/components/purchase/PurchaseGodownBar";
+import { DocGodownField } from "@/components/godowns/DocGodownBar";
 import {
   deletedPurchaseLinesMessage,
   findDeletedPurchaseLines,
@@ -1134,12 +1134,41 @@ const PurchaseEntry = () => {
   const [isBillLocked, setIsBillLocked] = useState(false);
   const [showUnlockConfirm, setShowUnlockConfirm] = useState(false);
 
-  // Industrial mode (Phase 3 step 3c): godown the bill's goods are received into.
+  // Godowns (Industrial mode, or Settings → Purchase → Godown module): where the goods go.
   const purchaseGodown = usePurchaseGodown({
     organizationId: currentOrganization?.id,
     editBillId: isEditMode ? editingBillId : null,
     toast,
   });
+  // Built once per change, so the memo'd bill fields do not redraw while lines are typed.
+  const purchaseGodownField = useMemo(
+    () =>
+      purchaseGodown.visible ? (
+        <DocGodownField
+          label="Receive into"
+          choices={purchaseGodown.choices}
+          value={purchaseGodown.value}
+          mainId={purchaseGodown.mainId}
+          onChange={purchaseGodown.setValue}
+          disabled={isBillLocked}
+          loading={purchaseGodown.loading}
+          className="entry-key-field"
+          labelClassName="entry-key-label mb-1.5 text-slate-500"
+          triggerClassName="h-11 text-base font-semibold"
+          mainHint="Goods go into the shop stock (Main), as before."
+          godownHint={(name) => `When you save, the goods on this bill move from Main into ${name}.`}
+        />
+      ) : null,
+    [
+      purchaseGodown.visible,
+      purchaseGodown.choices,
+      purchaseGodown.value,
+      purchaseGodown.mainId,
+      purchaseGodown.setValue,
+      purchaseGodown.loading,
+      isBillLocked,
+    ],
+  );
 
   // Duplicate bill detection state
   const [showDuplicateBillWarning, setShowDuplicateBillWarning] = useState(false);
@@ -8799,6 +8828,7 @@ const PurchaseEntry = () => {
               isDcPurchase={isDcPurchase}
               dcLocked={isDcUser}
               onDcPurchaseChange={setIsDcPurchase}
+              godownField={purchaseGodownField}
             />
 
             {!isEditMode && (
@@ -8813,16 +8843,6 @@ const PurchaseEntry = () => {
             {/* DC Warning */}
             {isDcPurchase && <PurchaseDcWarning />}
 
-            {purchaseGodown.visible && (
-              <PurchaseGodownBar
-                choices={purchaseGodown.choices}
-                value={purchaseGodown.value}
-                mainId={purchaseGodown.mainId}
-                onChange={purchaseGodown.setValue}
-                disabled={isBillLocked}
-                loading={purchaseGodown.loading}
-              />
-            )}
           </section>
 
         {/* Locked Banner */}

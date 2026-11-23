@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  godownsEnabled,
   EMPTY_SALE_B2B_FORM,
   buildB2BInvoiceRows,
   checkCreditLimit,
@@ -402,5 +403,17 @@ describe("export and SEZ supply type", () => {
     ]);
     expect(saleSupplyEndorsement(d)).toBe("SUPPLY MEANT FOR EXPORT UNDER BOND OR LETTER OF UNDERTAKING WITHOUT PAYMENT OF INTEGRATED TAX");
     expect(saleSupplyEndorsement({ customer_po_no: "A1" })).toBe("");
+  });
+});
+
+describe("godownsEnabled", () => {
+  it("on in Industrial mode, else only with Settings → Purchase → Godown module", () => {
+    expect(godownsEnabled(true, null)).toBe(true);
+    expect(godownsEnabled(true, { godown_module_enabled: false })).toBe(true);
+    expect(godownsEnabled(false, { godown_module_enabled: true })).toBe(true);
+    expect(godownsEnabled(false, { godown_module_enabled: false })).toBe(false);
+    expect(godownsEnabled(false, {})).toBe(false);
+    expect(godownsEnabled(false, null)).toBe(false);
+    expect(godownsEnabled(false, { godown_module_enabled: "true" })).toBe(false);
   });
 });

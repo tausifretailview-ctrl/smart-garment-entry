@@ -737,3 +737,13 @@ export function dueAgeBucket(daysOverdue: number): DueAgeKey {
   if (daysOverdue <= 90) return "d90";
   return "d90plus";
 }
+
+/** Godowns are on in Industrial mode, or when Settings → Purchase → "Godown module" is on. */
+export function godownsEnabled(industrialOn: boolean, purchaseSettings: unknown): boolean {
+  if (industrialOn) return true;
+  return (
+    typeof purchaseSettings === "object" &&
+    purchaseSettings !== null &&
+    (purchaseSettings as { godown_module_enabled?: unknown }).godown_module_enabled === true
+  );
+}

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { ArrowLeftRight, Barcode, ChevronLeft, Loader2, Printer, Save, Search, Trash2, Truck, Warehouse, X } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { useGodownsEnabled } from "@/hooks/useIndustrialMode";
 import { useSettings } from "@/hooks/useSettings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,7 +94,7 @@ function QtyBox({ value, max, bad, onChange }: { value: number; max: number; bad
 const GodownTransferEntry = () => {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id ?? "";
-  const industrialOn = useIndustrialMode().enabled;
+  const godownsOn = useGodownsEnabled();
   const { data: settings } = useSettings();
   const { orgNavigate } = useOrgNavigation();
   const [params] = useSearchParams();
@@ -121,7 +121,7 @@ const GodownTransferEntry = () => {
   const list = useQuery({
     queryKey: ["godowns", orgId],
     queryFn: () => fetchGodowns(orgId),
-    enabled: !!orgId && industrialOn,
+    enabled: !!orgId && godownsOn,
     staleTime: 60_000,
   });
   const godowns = useMemo(() => list.data?.godowns ?? [], [list.data]);
@@ -244,8 +244,8 @@ const GodownTransferEntry = () => {
     }
   };
 
-  const blocker = !industrialOn
-    ? "Godown transfer is part of Industrial mode. Turn it on in Settings > Product."
+  const blocker = !godownsOn
+    ? "Godowns are off. Turn on Industrial mode (Settings > Product) or the Godown module (Settings > Purchase)."
     : missingSql
       ? "Run the Phase 3 step 3a SQL first: it adds the godown tables."
       : list.error

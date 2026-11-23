@@ -788,6 +788,8 @@ export const ProductEntryDialog = ({
   /** Markdown % for the Sale Bill ("" = follow the brand's markdown). Saved to products.markdown_percent. */
   const [markdownInput, setMarkdownInput] = useState("");
   const [showBrandMarkdown, setShowBrandMarkdown] = useState(false);
+  /** Settings → Purchase → "Markdown % on products". Off: the field is hidden (saved values stay). */
+  const [markdownFieldEnabled, setMarkdownFieldEnabled] = useState(false);
   const { data: brandMarkdownRows = [] } = useBrandMarkdowns({ enabled: open });
   const [garmentGstSettings, setGarmentGstSettings] = useState<GarmentGstRuleSettings>({});
  const [cursorAfterStyle, setCursorAfterStyle] = useState<'pur_price' | 'hsn'>('pur_price');
@@ -2036,6 +2038,7 @@ export const ProductEntryDialog = ({
           });
           setShowMrp(purchaseSettings.show_mrp || false);
           setShowDiscountFields(purchaseSettings.product_entry_discount_enabled || false);
+          setMarkdownFieldEnabled(purchaseSettings.product_markdown_enabled === true);
           setCursorAfterStyle(purchaseSettings.cursor_after_style || "pur_price");
           setRollWiseMtrEnabled(purchaseSettings.roll_wise_mtr_entry || false);
           setPerPieceBarcodeEnabled(isPerPieceBarcodeEnabled(purchaseSettings));
@@ -3725,7 +3728,7 @@ export const ProductEntryDialog = ({
                   />
                 </div>
 
-                {formData.product_type !== "service" && !masterOnly && (() => {
+                {formData.product_type !== "service" && !masterOnly && markdownFieldEnabled && (() => {
                   const brandMarkdown = brandMarkdownMap(brandMarkdownRows).get(normalizeBrandKey(formData.brand));
                   const own = parseProductMarkdownInput(markdownInput);
                   const effective = own ?? brandMarkdown ?? 0;

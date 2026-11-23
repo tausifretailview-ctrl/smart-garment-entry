@@ -5,7 +5,7 @@ import { logError } from "@/lib/errorLogger";
 import { rollbackStep } from "@/lib/rollbackStep";
 import { softCancelEmptySaleHeader } from "@/utils/saleEmptyHeaderRollback";
 import { useSettings } from "@/hooks/useSettings";
-import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { useGodownsEnabled, useIndustrialMode } from "@/hooks/useIndustrialMode";
 import { challanTypeLabel } from "@/utils/industrialMode";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -215,14 +215,15 @@ export default function DeliveryChallanDashboard() {
   });
 
   // Industrial mode: the godown each challan was sent from ("Dispatch from", Phase 3 step 3d-2).
+  const godownsOn = useGodownsEnabled();
   const challanPlaceKey = useMemo(
-    () => (industrialMode.enabled ? (challansData || []).map((c: any) => String(c.id)).sort().join(",") : ""),
-    [industrialMode.enabled, challansData],
+    () => (godownsOn ? (challansData || []).map((c: any) => String(c.id)).sort().join(",") : ""),
+    [godownsOn, challansData],
   );
   const { data: challanPlaces } = useQuery({
     queryKey: ["challan-godown-places", currentOrganization?.id ?? "", challanPlaceKey],
     queryFn: () => fetchDocGodownNames("challan", challanPlaceKey.split(",")),
-    enabled: industrialMode.enabled && !!currentOrganization?.id && challanPlaceKey.length > 0,
+    enabled: godownsOn && !!currentOrganization?.id && challanPlaceKey.length > 0,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
@@ -377,7 +378,7 @@ export default function DeliveryChallanDashboard() {
       }
 
       // Industrial mode: the invoice goes out of the godown the challan was sent from.
-      const godownNote = industrialMode.enabled ? await syncSaleFromChallanGodown(String(challan.id), String(saleData.id)) : null;
+      const godownNote = godownsOn ? await syncSaleFromChallanGodown(String(challan.id), String(saleData.id)) : null;
 
       if (isAccountingEngineEnabled(orgSettings as { accounting_engine_enabled?: boolean } | null)) {
         postSaleJournalInBackground(

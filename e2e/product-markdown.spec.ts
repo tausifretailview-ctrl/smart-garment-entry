@@ -4,8 +4,10 @@ import { E2E_ORG_ID, E2E_ORG_SLUG } from "./support/mockBackend";
 /**
  * Add New Product: Markdown % sits after Sale Price. Empty = the brand's markdown (shown as the
  * placeholder, with what the Sale Bill will charge); "Brand list" adds a brand-wise markdown.
+ * The field shows only when Settings → Purchase → "Markdown % on products" is on.
  */
 test("Add New Product shows the brand markdown and adds one from the Brand list", async ({ page, backend }) => {
+  backend.tables.settings[0].purchase_settings = { product_markdown_enabled: true };
   backend.addRows("brand_markdowns", [{ id: "bm1", organization_id: E2E_ORG_ID, brand: "ACME", markdown_percent: 25 }]);
   await page.goto(`/${E2E_ORG_SLUG}/purchase-entry`);
   await page.getByRole("button", { name: /Add New Product/ }).first().click();
@@ -45,4 +47,13 @@ test("Add New Product shows the brand markdown and adds one from the Brand list"
   await expect
     .poll(() => backend.calls.filter((c) => c.kind === "insert" && c.name === "brand_markdowns").map((c) => c.body))
     .toEqual([{ organization_id: E2E_ORG_ID, brand: "ZARA KIDS", markdown_percent: 30 }]);
+});
+
+test("Add New Product hides Markdown % while the setting is off", async ({ page, backend: _backend }) => {
+  await page.goto(`/${E2E_ORG_SLUG}/purchase-entry`);
+  await page.getByRole("button", { name: /Add New Product/ }).first().click();
+  await expect(page.locator("#default_sale_price")).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator("#product_name")).toBeFocused({ timeout: 15_000 });
+  await expect(page.getByTestId("product-markdown-input")).toHaveCount(0);
+  await expect(page.getByTestId("open-brand-markdown")).toHaveCount(0);
 });

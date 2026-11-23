@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useIndustrialMode } from "./useIndustrialMode";
+import { useGodownsEnabled } from "./useIndustrialMode";
 import { fetchGodowns, godownErrorText, isMissingGodownSql, type Godown } from "@/utils/godowns";
 import { purchaseGodownChoices, purchaseGodownNeedsSync, showPurchaseGodownPicker } from "@/utils/purchaseGodown";
 import {
@@ -32,14 +32,14 @@ export function useDocGodown(opts: {
   toast: Toast;
 }) {
   const { refType, organizationId, editDocId, toast } = opts;
-  const industrialOn = useIndustrialMode().enabled;
+  const godownsOn = useGodownsEnabled();
   const orgId = organizationId || "";
   const queryClient = useQueryClient();
 
   const list = useQuery({
     queryKey: ["godowns", orgId],
     queryFn: () => fetchGodowns(orgId),
-    enabled: industrialOn && !!orgId,
+    enabled: godownsOn && !!orgId,
     staleTime: 5 * 60_000,
   });
   const godowns: Godown[] = useMemo(() => list.data?.godowns ?? [], [list.data]);
@@ -49,7 +49,7 @@ export function useDocGodown(opts: {
   const docGodown = useQuery({
     queryKey: ["doc-godown", orgId, refType, editDocId || ""],
     queryFn: () => fetchDocGodown(refType, editDocId as string),
-    enabled: industrialOn && !!orgId && !!editDocId && !!mainId && hasOtherGodown,
+    enabled: godownsOn && !!orgId && !!editDocId && !!mainId && hasOtherGodown,
     staleTime: 0,
   });
   const savedId = editDocId ? (docGodown.data ?? mainId) : mainId;
@@ -76,7 +76,7 @@ export function useDocGodown(opts: {
     [editDocId],
   );
 
-  const visible = industrialOn && !list.data?.missingSql && showPurchaseGodownPicker(godowns, savedId);
+  const visible = godownsOn && !list.data?.missingSql && showPurchaseGodownPicker(godowns, savedId);
   const choices = useMemo(() => purchaseGodownChoices(godowns, savedId), [godowns, savedId]);
 
   const stateRef = useRef({ visible, value, savedId, mainId, docLoaded, editDocId, choices });

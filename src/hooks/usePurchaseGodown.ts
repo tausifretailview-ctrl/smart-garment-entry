@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useIndustrialMode } from "./useIndustrialMode";
+import { useGodownsEnabled } from "./useIndustrialMode";
 import { fetchGodowns, godownErrorText, isMissingGodownSql, type Godown } from "@/utils/godowns";
 import {
   fetchPurchaseBillGodown,
@@ -24,14 +24,14 @@ export function usePurchaseGodown(opts: {
   toast: Toast;
 }) {
   const { organizationId, editBillId, toast } = opts;
-  const industrialOn = useIndustrialMode().enabled;
+  const godownsOn = useGodownsEnabled();
   const orgId = organizationId || "";
   const queryClient = useQueryClient();
 
   const list = useQuery({
     queryKey: ["godowns", orgId],
     queryFn: () => fetchGodowns(orgId),
-    enabled: industrialOn && !!orgId,
+    enabled: godownsOn && !!orgId,
     staleTime: 5 * 60_000,
   });
   const godowns: Godown[] = useMemo(() => list.data?.godowns ?? [], [list.data]);
@@ -40,7 +40,7 @@ export function usePurchaseGodown(opts: {
   const billGodown = useQuery({
     queryKey: ["purchase-bill-godown", orgId, editBillId || ""],
     queryFn: () => fetchPurchaseBillGodown(editBillId as string),
-    enabled: industrialOn && !!orgId && !!editBillId && !!mainId,
+    enabled: godownsOn && !!orgId && !!editBillId && !!mainId,
     staleTime: 0,
   });
   const savedId = editBillId ? (billGodown.data ?? mainId) : mainId;
@@ -67,7 +67,7 @@ export function usePurchaseGodown(opts: {
     [editBillId],
   );
 
-  const visible = industrialOn && !list.data?.missingSql && showPurchaseGodownPicker(godowns, savedId);
+  const visible = godownsOn && !list.data?.missingSql && showPurchaseGodownPicker(godowns, savedId);
   const choices = useMemo(() => purchaseGodownChoices(godowns, savedId), [godowns, savedId]);
 
   const stateRef = useRef({ visible, value, savedId, mainId, billLoaded, editBillId });
@@ -120,7 +120,7 @@ export function usePurchaseGodown(opts: {
     value,
     setValue,
     mainId,
-    loading: !!editBillId && industrialOn && !!mainId && billGodown.isLoading,
+    loading: !!editBillId && godownsOn && !!mainId && billGodown.isLoading,
     syncAfterSave,
   };
 }

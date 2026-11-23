@@ -39,7 +39,7 @@ import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersist
 import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { useEwayBillOn } from "@/hooks/useEwayBillOn";
-import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { useGodownsEnabled } from "@/hooks/useIndustrialMode";
 import { fetchDocGodownNames } from "@/utils/godownDocs";
 import { PurchaseReturnEwayBillDialog, type EwbPurchaseReturnInfo } from "@/components/ewaybill/PurchaseReturnEwayBillDialog";
 import { EWB_VALUE_LIMIT, fetchEwayBillsForPurchaseReturns, formatEwbNo } from "@/utils/ewayBill";
@@ -461,15 +461,15 @@ const PurchaseReturnDashboard = () => {
   const ewbOfReturn = (id: string) => returnEwb?.rows.get(String(id)) ?? null;
 
   // Industrial mode, Phase 3 step 3d-4: the godown each return's goods went out of ("Return from").
-  const industrialOn = useIndustrialMode().enabled;
+  const godownsOn = useGodownsEnabled();
   const returnPlaceKey = useMemo(
-    () => (industrialOn ? (returnsData?.returns || []).map((r) => String(r.id)).sort().join(",") : ""),
-    [industrialOn, returnsData],
+    () => (godownsOn ? (returnsData?.returns || []).map((r) => String(r.id)).sort().join(",") : ""),
+    [godownsOn, returnsData],
   );
   const { data: returnPlaces } = useQuery({
     queryKey: ["purchase-return-godown-places", currentOrganization?.id ?? "", returnPlaceKey],
     queryFn: () => fetchDocGodownNames("purchase_return", returnPlaceKey.split(",")),
-    enabled: industrialOn && !!currentOrganization?.id && returnPlaceKey.length > 0,
+    enabled: godownsOn && !!currentOrganization?.id && returnPlaceKey.length > 0,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });

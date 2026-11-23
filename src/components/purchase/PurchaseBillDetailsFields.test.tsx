@@ -44,6 +44,18 @@ function props(over: Partial<PurchaseBillDetailsFieldsProps> = {}): PurchaseBill
 const q = <T extends Element>(sel: string) => host.querySelector(sel) as T;
 
 describe("PurchaseBillDetailsFields", () => {
+  it("godown field sits right after Supplier Invoice No and widens the row to 8 columns", () => {
+    act(() => root.render(<PurchaseBillDetailsFields {...props()} />));
+    const grid = q<HTMLDivElement>(".purchase-entry-meta-grid");
+    expect(grid.className).toContain("lg:grid-cols-7");
+    expect(host.querySelector('[data-testid="godown-slot"]')).toBeNull();
+
+    act(() => root.render(<PurchaseBillDetailsFields {...props({ godownField: <span data-testid="godown-slot">Receive into</span> })} />));
+    expect(grid.className).toContain("lg:grid-cols-8");
+    const invoiceBox = q<HTMLInputElement>("#supplier_invoice_no").closest(".entry-key-field")!;
+    expect(invoiceBox.nextElementSibling?.querySelector('[data-testid="godown-slot"]')).not.toBeNull();
+  });
+
   it("shows bill no, serial placeholder, bill date and the not-yet-saved note", () => {
     act(() => root.render(<PurchaseBillDetailsFields {...props()} />));
     expect(q<HTMLInputElement>("#software_bill_no").value).toBe("PUR/26-27/42");

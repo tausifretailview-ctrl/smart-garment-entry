@@ -72,7 +72,7 @@ import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
 import { useManufacturerERP } from "@/hooks/useManufacturerERP";
-import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { useGodownsEnabled, useIndustrialMode } from "@/hooks/useIndustrialMode";
 import { useEwayBillOn } from "@/hooks/useEwayBillOn";
 import { isBulkWhatsAppEnabled } from "@/utils/whatsappFeatureSwitches";
 import { useChat } from "@/contexts/ChatContext";
@@ -148,6 +148,7 @@ export function AppSidebar() {
   const { data: orgSettings } = useSettings();
   const manufacturerErpOn = useManufacturerERP().enabled;
   const industrialOn = useIndustrialMode().enabled;
+  const godownsOn = useGodownsEnabled();
   const ewayBillOn = useEwayBillOn();
   const bulkWhatsAppOn = isBulkWhatsAppEnabled((orgSettings as { sale_settings?: unknown } | null)?.sale_settings);
   const enablePointsSystem = !!(orgSettings as { sale_settings?: { enable_points_system?: boolean } } | null)
@@ -625,7 +626,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {industrialOn && (organizationRole === "admin" || organizationRole === "manager") && (
+                        {godownsOn && (organizationRole === "admin" || organizationRole === "manager") && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/godowns")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
                               <NavLink to="/godowns" className="flex items-center gap-2 group">
@@ -635,7 +636,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {industrialOn && (organizationRole === "admin" || organizationRole === "manager") && (
+                        {godownsOn && (organizationRole === "admin" || organizationRole === "manager") && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/godown-transfers") || isActive("/godown-transfer-entry")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
                               <NavLink to="/godown-transfers" className="flex items-center gap-2 group">
