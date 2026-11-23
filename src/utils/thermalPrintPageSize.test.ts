@@ -38,7 +38,7 @@ describe("thermal print page size", () => {
     const root = document.querySelector<HTMLElement>(".thermal-print-80mm")!;
     Object.defineProperty(root, "scrollHeight", { configurable: true, value: (120 * 96) / 25.4 });
 
-    expect(applyThermalPageSize(document, undefined)).toBe("58mm 136mm");
+    expect(applyThermalPageSize(document, undefined, true)).toBe("58mm 136mm");
     const rule = document.getElementById("ezzy-thermal-page-size");
     expect(rule?.textContent).toBe("@page { size: 58mm 136mm; }");
     expect(document.head.lastElementChild).toBe(rule);
@@ -46,14 +46,25 @@ describe("thermal print page size", () => {
     expect(document.documentElement.style.width).toBe("");
 
     // A second print replaces the rule instead of stacking them.
-    applyThermalPageSize(document, "@page { size: 80mm auto }");
+    applyThermalPageSize(document, "@page { size: 80mm auto }", true);
     expect(document.querySelectorAll("#ezzy-thermal-page-size")).toHaveLength(1);
   });
 
   it("leaves A4 invoices alone", () => {
     document.head.innerHTML = "";
     document.body.innerHTML = '<div class="invoice-print-root">A4 bill</div>';
-    expect(applyThermalPageSize(document, "@page { size: A4 portrait; margin: 10mm }")).toBeNull();
+    expect(applyThermalPageSize(document, "@page { size: A4 portrait; margin: 10mm }", true)).toBeNull();
     expect(document.getElementById("ezzy-thermal-page-size")).toBeNull();
+  });
+
+  it("does nothing unless this computer chose to size the page to the receipt", () => {
+    document.head.innerHTML = "<style>@page { size: 80mm auto; margin: 0 }</style>";
+    document.body.innerHTML = '<div class="thermal-print-80mm">receipt</div>';
+    localStorage.removeItem("ezzy_thermal_fit_page_to_receipt");
+    expect(applyThermalPageSize(document, "@page { size: 80mm auto; }")).toBeNull();
+    expect(document.getElementById("ezzy-thermal-page-size")).toBeNull();
+    localStorage.setItem("ezzy_thermal_fit_page_to_receipt", "1");
+    expect(applyThermalPageSize(document, "@page { size: 80mm auto; }")).toMatch(/^80mm \d+mm$/);
+    localStorage.removeItem("ezzy_thermal_fit_page_to_receipt");
   });
 });
