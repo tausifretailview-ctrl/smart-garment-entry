@@ -31,4 +31,10 @@ describe("remaining sale-return credit, per customer", () => {
     expect(sql).toContain("COALESCE(sr.net_amount, 0) - COALESCE(al.amt, 0)");
     expect(sql).toContain("public._sale_return_remaining_credit_for_balance(");
   });
+
+  it("keeps the shop check the security pass added (a user reads only their own shop)", () => {
+    const body = sql.slice(sql.indexOf("BEGIN"));
+    expect(body.indexOf("PERFORM public._assert_org_access(p_organization_id);")).toBeGreaterThan(-1);
+    expect(body.indexOf("PERFORM public._assert_org_access(p_organization_id);")).toBeLessThan(body.indexOf("FOR r IN"));
+  });
 });

@@ -12,6 +12,9 @@
 -- one ordered pass, with running totals that only hold that customer's bills. Same inputs,
 -- same order, same result; the output columns are unchanged.
 --
+-- Keeps the shop check the 27 Sep 2026 security pass put at the top of this function
+-- (PERFORM public._assert_org_access): a signed-in user may only read their own shop.
+--
 -- Replaces the function body only (CREATE OR REPLACE, same signature). Changes no data.
 -- Safe to run twice. Undo: run 20261219120100_sr_remaining_same_customer.sql again.
 
@@ -44,6 +47,10 @@ DECLARE
   k text;
   e record;
 BEGIN
+  -- Shop check (security pass 20261231120100): a signed-in user may only read their own
+  -- shop's figures. Kept here because this file replaces the whole function body.
+  PERFORM public._assert_org_access(p_organization_id);
+
   FOR r IN
     -- kind 1: bills with S/R adjust (pass 1), kind 2: returns linked to a bill (pass 2),
     -- kind 3: all returns with a customer (pass 3). Within a customer, passes run in order,
