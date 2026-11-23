@@ -95,6 +95,23 @@ export function assertNoCustomerDuplicate(check: CustomerDuplicateCheckResult): 
   }
 }
 
+/** Rows read when looking a phone number up; more than one means the shop has duplicates. */
+const SAME_PHONE_LOOKUP_LIMIT = 5;
+
+/**
+ * The customer to use when several share a phone number: the oldest by created_at (id breaks
+ * ties), whatever order the rows arrive in. Null for an empty list.
+ */
+export function pickOldestCustomer<T extends { id?: string | null; created_at?: string | null }>(
+  rows: readonly T[] | null | undefined,
+): T | null {
+  if (!rows || rows.length === 0) return null;
+  return [...rows].sort((a, b) => {
+    const byDate = String(a.created_at ?? "").localeCompare(String(b.created_at ?? ""));
+    return byDate !== 0 ? byDate : String(a.id ?? "").localeCompare(String(b.id ?? ""));
+  })[0];
+}
+
 async function loadPhoneDuplicateCandidates(
   organizationId: string,
   normalizedPhone: string,
@@ -108,9 +125,14 @@ async function loadPhoneDuplicateCandidates(
     .is("deleted_at", null);
   if (excludeId) exactQuery = exactQuery.neq("id", excludeId);
 
-  const { data: exactMatch, error: exactError } = await exactQuery.maybeSingle();
+  // A list, not "exactly one": shops already hold customers sharing a phone number, and asking
+  // for a single row then failed with "multiple rows returned" instead of naming the duplicate.
+  const { data: exactRows, error: exactError } = await exactQuery
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(SAME_PHONE_LOOKUP_LIMIT);
   if (exactError) throw exactError;
-  if (exactMatch) return [exactMatch as CustomerDuplicateRow];
+  if (exactRows && exactRows.length > 0) return exactRows as CustomerDuplicateRow[];
 
   const lastDigits = normalizedPhone.slice(-10);
   let fuzzyQuery = supabase
@@ -227,15 +249,21 @@ export async function findCustomerByNormalizedPhone(
 
   if (!normalizedPhone) return null;
 
-  const { data: exactMatch, error: exactError } = await supabase
+  // Two customers can share a phone number in one shop (no rule stops it, and live data has
+  // such pairs). "Exactly one row" then threw, and billing that phone number failed. The
+  // oldest record is used: it is the one the shop's earlier bills are under.
+  const { data: exactRows, error: exactError } = await supabase
     .from("customers")
     .select("*")
     .eq("organization_id", organizationId)
     .eq("phone", normalizedPhone)
     .is("deleted_at", null)
-    .maybeSingle();
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(SAME_PHONE_LOOKUP_LIMIT);
 
   if (exactError) throw exactError;
+  const exactMatch = pickOldestCustomer(exactRows);
   if (exactMatch) return exactMatch;
 
   const lastDigits = normalizedPhone.slice(-10);

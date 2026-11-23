@@ -172,8 +172,11 @@ describe("where HSN / GST can be changed", () => {
     const hook = read("src/hooks/useSalesInvoiceLineGridKeyboard.ts");
     expect(hook).toContain('const CLICK_EDIT_TEXT_COLS = new Set<SaleLineGridColKey>(["hsn"]);');
     expect(hook).toMatch(/const EDITABLE_COLS: SaleLineGridColKey\[\] = \[\s*"qty",\s*"box",\s*"mrp",\s*"price",\s*"disc_percent",\s*"disc_amount",\s*\];/);
+    // The line row is its own component; the page hands it the handler.
+    const row = read("src/components/sales-invoice/SaleBillLineRow.tsx");
+    expect(row).toContain('onChange={(e) => actions.updateHsnCode(item.id, e.target.value)}');
     const page = read("src/pages/SalesInvoice.tsx");
-    expect(page).toContain('onChange={(e) => updateHsnCode(item.id, e.target.value)}');
+    expect(page).toContain("updateHsnCode: (id, hsnCode) => saleRowHandlersRef.current.updateHsnCode(id, hsnCode)");
     expect(page).toContain("hsn_code: item.hsnCode || null");
   });
 });
