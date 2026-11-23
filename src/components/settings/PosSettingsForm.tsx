@@ -1,4 +1,5 @@
-import { useEffect, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { isThermalPageSizedToReceipt, setThermalPageSizedToReceipt } from "@/lib/thermalPagePreference";
 import { SettingOnOffHint } from "@/components/settings/SettingOnOffHint";
 import { InvoiceTemplateSelectItems } from "@/components/settings/InvoiceTemplateSelectItems";
 import { CategoryTierPricingSettings } from "@/components/settings/CategoryTierPricingSettings";
@@ -88,6 +89,8 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
   };
 
   const posThermal = isPosThermalBillFormat(sale.pos_bill_format);
+  // Per computer (browser storage), not a shop setting: it depends on this computer's printer.
+  const [thermalFitPage, setThermalFitPage] = useState(isThermalPageSizedToReceipt);
   const resolvedPosTemplate = resolvePosInvoiceTemplate(sale);
 
   useEffect(() => {
@@ -449,6 +452,25 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
               </SelectContent>
             </Select>
           </SettingsField>
+          {posThermal && (
+            <SettingsToggle
+              id="thermal_fit_page_to_receipt"
+              label="Size the print page to the receipt (this computer)"
+              description={
+                <>
+                  Turn on only if receipts print tiny (the print dialog picks A4). Leave off if the printer's
+                  paper is the 80 mm roll: on, Chrome centres the receipt on the roll and leaves a gap at the top.
+                  Saved on this computer only.
+                </>
+              }
+              className="col-span-full"
+              checked={thermalFitPage}
+              onCheckedChange={(checked) => {
+                setThermalPageSizedToReceipt(checked);
+                setThermalFitPage(checked);
+              }}
+            />
+          )}
           {resolvedPosTemplate === "retail-erp-preprinted" && (
             <SettingsToggle
               id="pos_print_logo_on_preprinted_letterhead"

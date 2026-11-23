@@ -11,9 +11,15 @@
  * At print time we measure the receipt and give the page a real size: roll width × content
  * height, so the layout no longer depends on the selected paper and nothing blank is fed after
  * the receipt.
+ *
+ * Only on computers where the shop switched it on (Settings → POS print, kept per computer:
+ * src/lib/thermalPagePreference.ts). With a roll paper selected in the printer driver, a page
+ * shorter than the paper is centred by Chrome, which left a blank gap above the receipt; there
+ * the printer's own paper (no page size) is right.
  */
 import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
 import { detectThermalPaperFromElement } from "@/utils/thermalReceiptPrintDocument";
+import { isThermalPageSizedToReceipt } from "@/lib/thermalPagePreference";
 
 /** `size: 80mm auto` / `size: 58mm auto` — invalid, ignored by browsers. */
 export const THERMAL_AUTO_PAGE_SIZE_RE = /size\s*:\s*(58|80)mm\s+auto\b/i;
@@ -65,7 +71,12 @@ function paperFromPageStyle(pageStyle: string | undefined): PosThermalPaper | nu
  * Add `@page { size: <roll> <height>mm }` to the print document (react-to-print iframe).
  * Returns the size written, or null when this print is not a thermal receipt.
  */
-export function applyThermalPageSize(doc: Document, pageStyle?: string): string | null {
+export function applyThermalPageSize(
+  doc: Document,
+  pageStyle?: string,
+  sizeToReceipt: boolean = isThermalPageSizedToReceipt(),
+): string | null {
+  if (!sizeToReceipt) return null;
   const body = doc.body;
   if (!body) return null;
   const root = body.querySelector<HTMLElement>(THERMAL_RECEIPT_ROOT_SELECTOR);
