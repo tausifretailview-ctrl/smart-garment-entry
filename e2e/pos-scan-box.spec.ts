@@ -1,5 +1,6 @@
 import { test, expect } from "./support/test";
 import { E2E_ORG_ID, E2E_ORG_SLUG } from "./support/mockBackend";
+import { POS_BARCODE_REPEAT_WINDOW_MS } from "../src/utils/posBarcodeRepeatGuard";
 
 /**
  * The POS scan box keeps its own text while keys arrive, so a scan no longer redraws the
@@ -29,7 +30,10 @@ test("scanner-speed keys: each scan adds the item and empties the box", async ({
   await expect(line).toContainText("COTTON SHIRT");
   await expect(scan).toHaveValue("");
 
-  // Straight away the next scan: the box is ready and the quantity goes up.
+  // The next piece, as a cashier scans it: more than POS_BARCODE_REPEAT_WINDOW_MS (300 ms)
+  // after the first. A repeat inside that window is one scan firing Enter twice and is ignored
+  // on purpose (posBarcodeRepeatGuard.ts); scanning straight away let CI land inside it.
+  await page.waitForTimeout(POS_BARCODE_REPEAT_WINDOW_MS + 200);
   await scan.pressSequentially("100001", { delay: 8 });
   await scan.press("Enter");
   await expect(scan).toHaveValue("");
