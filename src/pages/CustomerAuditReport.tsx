@@ -6,7 +6,6 @@ import { useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import {
   CalendarIcon,
-  Check,
   ChevronsUpDown,
   FileDown,
   FileSearch,
@@ -48,14 +47,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
+import { CustomerOptionList } from "@/components/CustomerOptionList";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Dialog,
@@ -630,35 +622,14 @@ export default function CustomerAuditReport() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
-                  <Command>
-                    <CommandInput placeholder="Search by name or phone..." />
-                    <CommandList>
-                      <CommandEmpty>No customers found.</CommandEmpty>
-                      <CommandGroup>
-                        {customers.map((c) => (
-                          <CommandItem
-                            key={c.id}
-                            value={`${c.customer_name} ${c.phone ?? ""}`}
-                            onSelect={() => {
-                              setCustomerId(c.id);
-                              setCustOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                customerId === c.id ? "opacity-100" : "opacity-0",
-                              )}
-                            />
-                            <span>{c.customer_name}</span>
-                            {c.phone && (
-                              <span className="ml-2 text-xs text-muted-foreground">{c.phone}</span>
-                            )}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
+                  <CustomerOptionList
+                    customers={customers}
+                    selectedId={customerId}
+                    onPick={(c) => {
+                      setCustomerId(c.id);
+                      setCustOpen(false);
+                    }}
+                  />
                 </PopoverContent>
               </Popover>
             </div>

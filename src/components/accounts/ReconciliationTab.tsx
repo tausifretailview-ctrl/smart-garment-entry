@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -76,6 +77,10 @@ async function fetchCustomersMapForReconciliation(
 }
 
 export function ReconciliationTab({ organizationId, customers, visitedTabs }: ReconciliationTabProps) {
+  const customerOptions = useMemo(
+    () => (customers ?? []).map((c) => ({ value: String(c.id), label: String(c.customer_name || "") })),
+    [customers],
+  );
   const tabActive = visitedTabs?.has("reconciliation") ?? true;
   const queryClient = useQueryClient();
   const { isAdmin } = useUserRoles();
@@ -247,15 +252,14 @@ export function ReconciliationTab({ organizationId, customers, visitedTabs }: Re
             </div>
             <div className="space-y-2">
               <Label>Customer Filter</Label>
-              <Select value={reconCustomerFilter || "all"} onValueChange={setReconCustomerFilter}>
-                <SelectTrigger><SelectValue placeholder="All Customers" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Customers</SelectItem>
-                  {customers?.map((customer) => (
-                    <SelectItem key={customer.id} value={customer.id}>{customer.customer_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* Searchable, and draws 100 rows at most: a Select listed every customer at once. */}
+              <SearchableSelect
+                value={reconCustomerFilter || "all"}
+                onValueChange={setReconCustomerFilter}
+                options={customerOptions}
+                allLabel="All Customers"
+                triggerClassName="h-10"
+              />
             </div>
             <div className="space-y-2">
               <Label>Status Filter</Label>

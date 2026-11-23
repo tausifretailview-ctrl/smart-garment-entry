@@ -186,7 +186,7 @@ import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { toast } from "sonner";
 import { useSaveSale } from "@/hooks/useSaveSale";
 import { useOfflinePosSync } from "@/hooks/useOfflinePosSync";
-import { useStockValidation } from "@/hooks/useStockValidation";
+import { useStockValidation, type KnownVariantStock } from "@/hooks/useStockValidation";
 import { useOpenSettlementVariantIds, SETTLEMENT_LOCK_TOAST_DURATION_MS, settlementLockedAddToast, getSettlementLockedCartItems, settlementLockedSaveToast } from "@/hooks/useOpenSettlementVariantIds";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useCustomerPoints, useCustomerPointsBalance } from "@/hooks/useCustomerPoints";
@@ -461,11 +461,38 @@ function posVariantBaseQuery(orgId: string) {
     .eq('products.status', 'active');
 }
 
+/**
+ * When each looked-up variant row came back from the server. A barcode scan reads the row,
+ * stock included, and adds it at once: the add-to-cart stock check then uses that figure
+ * instead of reading the same row a second time (speed review item L4).
+ */
+const posVariantRowReadAt = new WeakMap<object, number>();
+/** Longer than a scan takes to reach the cart, far shorter than stock takes to matter. */
+const POS_SCAN_STOCK_FRESH_MS = 5000;
+
 function mapPosVariantLookupRow(
   row: (PosVariantRow & { products?: PosProductRow }) | undefined,
 ) {
   if (!row?.products) return null;
+  posVariantRowReadAt.set(row, Date.now());
   return { product: row.products, variant: row };
+}
+
+/** The row's stock when it was read from the server within the last few seconds, else null. */
+function posJustReadVariantStock(
+  product: { product_name?: string | null; product_type?: string | null } | null | undefined,
+  variant: object | null | undefined,
+): KnownVariantStock | null {
+  if (!variant) return null;
+  const readAt = posVariantRowReadAt.get(variant);
+  if (readAt === undefined || Date.now() - readAt > POS_SCAN_STOCK_FRESH_MS) return null;
+  const row = variant as { stock_qty?: number | null; size?: string | null };
+  return {
+    stockQty: Number(row.stock_qty) || 0,
+    productName: product?.product_name || "Product",
+    size: String(row.size ?? ""),
+    productType: product?.product_type,
+  };
 }
 
 /** Offline billing: exact barcode hits from this computer's saved item list. */
@@ -502,6 +529,42 @@ async function fetchPosExactBarcodeMatches(
   return out;
 }
 
+/**
+ * A barcode that is not in the item master is looked for on purchase bills. One scan asks
+ * this twice (the scan lookup, then the add-to-cart lookup), so the answer is shared for a
+ * few seconds instead of being fetched again.
+ */
+const POS_PURCHASE_RESOLVE_REUSE_MS = 3000;
+const posPurchaseResolveRecent = new Map<
+  string,
+  { at: number; result: ReturnType<typeof resolvePurchaseBarcodesForStockReport> }
+>();
+const resolvePosPurchaseBarcodes: typeof resolvePurchaseBarcodesForStockReport = (
+  client,
+  organizationId,
+  barcode,
+  options,
+) => {
+  const key = `${organizationId}\0${barcode}\0${options?.exactOnly ? 1 : 0}`;
+  const now = Date.now();
+  const recent = posPurchaseResolveRecent.get(key);
+  if (recent && now - recent.at <= POS_PURCHASE_RESOLVE_REUSE_MS) return recent.result;
+  if (posPurchaseResolveRecent.size > 40) posPurchaseResolveRecent.clear();
+  const result = resolvePurchaseBarcodesForStockReport(client, organizationId, barcode, options);
+  posPurchaseResolveRecent.set(key, { at: now, result });
+  // A failed lookup is not remembered: the next scan asks again.
+  result.catch(() => {
+    if (posPurchaseResolveRecent.get(key)?.result === result) posPurchaseResolveRecent.delete(key);
+  });
+  return result;
+};
+
+type PosBarcodeLookupOptions = {
+  exactOnly?: boolean;
+  /** The item master was just asked for this code (every form of it) and had nothing. */
+  skipMasterExact?: boolean;
+};
+
 /** Same barcode resolution chain as POS add-to-cart (exact master → scan RPC). */
 async function resolvePosBarcodeLookupMatchesOnce(
   orgId: string,
@@ -514,8 +577,12 @@ async function resolvePosBarcodeLookupMatchesOnce(
   const exactBarcodeMatches: Array<{ product: PosProductRow; variant: PosVariantRow }> = [];
   const seen = new Set<string>();
 
-  for (const candidate of scanCandidates) {
-    const hits = await fetchPosExactBarcodeMatches(orgId, candidate);
+  // Every form of the code (12 ↔ 13 digit EAN, doubled scan) is asked for at the same time;
+  // the answers are still used in candidate order.
+  const hitsPerCandidate = await Promise.all(
+    scanCandidates.map((candidate) => fetchPosExactBarcodeMatches(orgId, candidate)),
+  );
+  for (const hits of hitsPerCandidate) {
     for (const mapped of hits) {
       if (seen.has(mapped.variant.id)) continue;
       seen.add(mapped.variant.id);
@@ -529,7 +596,7 @@ async function resolvePosBarcodeLookupMatchesOnce(
       trimmedTerm,
       POS_VARIANT_LOOKUP_SELECT,
       supabase,
-      { exactOnly: true },
+      { exactOnly: true, resolvePurchaseBarcodes: resolvePosPurchaseBarcodes },
     );
     if (scan.purchaseBarcodeMismatch) {
       return { matches: [], mismatch: scan.purchaseBarcodeMismatch };
@@ -573,7 +640,7 @@ async function fetchPosVariantByBarcodeOnce(
   orgId: string,
   trimmed: string,
   mobileERPConfig?: Parameters<typeof productRequiresImei>[1],
-  lookupOptions: { exactOnly?: boolean } = POS_BARCODE_CART_LOOKUP_EXACT,
+  lookupOptions: PosBarcodeLookupOptions = POS_BARCODE_CART_LOOKUP_EXACT,
 ): Promise<{
   product: PosProductRow;
   variant: PosVariantRow;
@@ -582,20 +649,23 @@ async function fetchPosVariantByBarcodeOnce(
 } | null> {
   if (!trimmed) return null;
 
-  const { data: exactData, error: exactError } = await posVariantBaseQuery(orgId)
-    .eq('barcode', trimmed)
-    .order('stock_qty', { ascending: false })
-    .limit(25);
-  if (exactError) throw exactError;
+  // skipMasterExact: the caller has just asked the item master for this code and got nothing.
+  if (!lookupOptions.skipMasterExact) {
+    const { data: exactData, error: exactError } = await posVariantBaseQuery(orgId)
+      .eq('barcode', trimmed)
+      .order('stock_qty', { ascending: false })
+      .limit(25);
+    if (exactError) throw exactError;
 
-  const exactRow = pickBestVariantScanRow(
-    (exactData || []) as Record<string, unknown>[],
-    [trimmed],
-  );
-  const exact = mapPosVariantLookupRow(
-    exactRow as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
-  );
-  if (exact) return exact;
+    const exactRow = pickBestVariantScanRow(
+      (exactData || []) as Record<string, unknown>[],
+      [trimmed],
+    );
+    const exact = mapPosVariantLookupRow(
+      exactRow as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
+    );
+    if (exact) return exact;
+  }
 
   const exactOnly = lookupOptions.exactOnly !== false;
 
@@ -624,7 +694,7 @@ async function fetchPosVariantByBarcodeOnce(
   if (!canResolvePosPurchaseBarcode(trimmed)) return null;
   if (exactOnly && !isCompleteNumericBarcodeForPosCart(trimmed)) return null;
   try {
-    const resolutions = await resolvePurchaseBarcodesForStockReport(
+    const resolutions = await resolvePosPurchaseBarcodes(
       supabase as unknown as PurchaseBarcodeStockClient,
       orgId,
       trimmed,
@@ -660,7 +730,7 @@ async function fetchPosVariantByBarcodeOnceAcrossCandidates(
   orgId: string,
   barcode: string,
   mobileERPConfig?: Parameters<typeof productRequiresImei>[1],
-  lookupOptions: { exactOnly?: boolean } = POS_BARCODE_CART_LOOKUP_EXACT,
+  lookupOptions: PosBarcodeLookupOptions = POS_BARCODE_CART_LOOKUP_EXACT,
 ): Promise<{
   product: PosProductRow;
   variant: PosVariantRow;
@@ -678,7 +748,7 @@ function fetchPosVariantByBarcode(
   orgId: string,
   barcode: string,
   mobileERPConfig?: Parameters<typeof productRequiresImei>[1],
-  lookupOptions: { exactOnly?: boolean } = POS_BARCODE_CART_LOOKUP_EXACT,
+  lookupOptions: PosBarcodeLookupOptions = POS_BARCODE_CART_LOOKUP_EXACT,
 ) {
   type Hit = Awaited<ReturnType<typeof fetchPosVariantByBarcodeOnceAcrossCandidates>>;
   const offline = (): Hit =>
@@ -3654,7 +3724,11 @@ export default function POSSales() {
       } else if (exactBarcodeMatches.length === 1) {
         barcodeMatch = exactBarcodeMatches[0];
       } else {
-        barcodeMatch = await fetchPosVariantByBarcode(orgId, trimmedTerm, mobileERP);
+        // The lookup above already asked the item master for every form of this code.
+        barcodeMatch = await fetchPosVariantByBarcode(orgId, trimmedTerm, mobileERP, {
+          ...POS_BARCODE_CART_LOOKUP_EXACT,
+          skipMasterExact: true,
+        });
       }
 
       if (barcodeMatch) {
@@ -4195,7 +4269,12 @@ export default function POSSales() {
       if (!isServiceProduct) {
         // All lines of this SKU count (one SKU can be on two lines at two prices).
         const stockQtyNeeded = posCartQtyForVariant(itemsRef.current, variant.id) + 1;
-        const stockCheck = await checkStock(variant.id, stockQtyNeeded, editFreedQty(variant.id));
+        const stockCheck = await checkStock(
+          variant.id,
+          stockQtyNeeded,
+          editFreedQty(variant.id),
+          posJustReadVariantStock(product, variant),
+        );
 
         if (!stockCheck.isAvailable) {
           openStockIssueDialog(
@@ -4219,7 +4298,12 @@ export default function POSSales() {
       // Real-time stock validation before adding new item (skip for service)
       if (!isServiceProduct) {
         const stockQtyNeeded = posCartQtyForVariant(itemsRef.current, variant.id) + 1;
-        const stockCheck = await checkStock(variant.id, stockQtyNeeded, editFreedQty(variant.id));
+        const stockCheck = await checkStock(
+          variant.id,
+          stockQtyNeeded,
+          editFreedQty(variant.id),
+          posJustReadVariantStock(product, variant),
+        );
 
         if (!stockCheck.isAvailable) {
           openStockIssueDialog(

@@ -80,6 +80,8 @@ export class MockBackend {
   };
   /** Every write and RPC the app sent, in order. */
   readonly calls: RecordedCall[] = [];
+  /** Every table read the app sent, in order (`query` is the URL's search part). */
+  readonly reads: Array<{ table: string; query: string }> = [];
   /** Requests to any host other than the app and the fake Supabase (all aborted). */
   readonly blocked: string[] = [];
 
@@ -103,6 +105,11 @@ export class MockBackend {
   onRpc(name: string, handler: RpcHandler): this {
     this.rpcHandlers[name] = handler;
     return this;
+  }
+
+  /** Reads of `table` sent so far. */
+  readsOf(table: string): Array<{ table: string; query: string }> {
+    return this.reads.filter((r) => r.table === table);
   }
 
   rpcCalls(name: string): Record<string, unknown>[] {
@@ -179,7 +186,10 @@ export class MockBackend {
     if (path.startsWith("/rest/v1/")) {
       const table = path.slice("/rest/v1/".length);
       const method = request.method();
-      if (method === "GET" || method === "HEAD") return this.select(route, table, url);
+      if (method === "GET" || method === "HEAD") {
+        this.reads.push({ table, query: decodeURIComponent(url.search) });
+        return this.select(route, table, url);
+      }
       const kind = method === "DELETE" ? "delete" : method === "PATCH" ? "update" : (request.headers()["prefer"] || "").includes("merge-duplicates") ? "upsert" : "insert";
       const body = parseBody(request.postData());
       this.calls.push({ kind, name: table, body });

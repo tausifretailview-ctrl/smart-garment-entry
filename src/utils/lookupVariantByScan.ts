@@ -32,6 +32,11 @@ export type VariantScanLookupOptions = {
    * Quick Stock sets this so it agrees with Stock Report, which never lists deleted products.
    */
   excludeDeletedProducts?: boolean;
+  /**
+   * How purchase-bill barcodes are resolved. POS passes a version that shares one answer
+   * between the two lookups a single scan makes.
+   */
+  resolvePurchaseBarcodes?: typeof resolvePurchaseBarcodesForStockReport;
 };
 
 function escapeIlike(term: string): string {
@@ -77,8 +82,13 @@ export async function lookupVariantRowsByScan(
   const mergedExactRows: Record<string, unknown>[] = [];
   let matchedCandidate = scanCandidates[0] ?? normalizeProductSearchTerm(raw);
 
-  for (const candidate of scanCandidates) {
-    const { data: exactRows, error: exactErr } = await base().eq("barcode", candidate).limit(50);
+  // Every form of the code is asked for at the same time; answers are used in candidate order.
+  const exactAnswers = await Promise.all(
+    scanCandidates.map((candidate) => base().eq("barcode", candidate).limit(50)),
+  );
+  for (let i = 0; i < scanCandidates.length; i++) {
+    const candidate = scanCandidates[i];
+    const { data: exactRows, error: exactErr } = exactAnswers[i];
     if (!exactErr && exactRows?.length) {
       for (const row of exactRows) {
         const id = String((row as { id?: string }).id ?? "");
@@ -122,7 +132,7 @@ export async function lookupVariantRowsByScan(
   for (const candidate of scanCandidates) {
     if (!/^\d{4,}$/.test(candidate)) continue;
 
-    const resolutions = await resolvePurchaseBarcodesForStockReport(
+    const resolutions = await (options?.resolvePurchaseBarcodes ?? resolvePurchaseBarcodesForStockReport)(
       client as unknown as PurchaseBarcodeStockClient,
       organizationId,
       candidate,

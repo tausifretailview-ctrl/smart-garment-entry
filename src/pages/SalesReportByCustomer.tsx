@@ -7,6 +7,7 @@ import { BackToDashboard } from "@/components/BackToDashboard";
 import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Calendar } from "@/components/ui/calendar";
@@ -170,6 +171,10 @@ const SalesReportByCustomer = () => {
     enabled: !!currentOrganization?.id,
     ...REPORT_QUERY_OPTIONS,
   });
+  const customerOptions = useMemo(
+    () => customers.map((c) => ({ value: c.id, label: c.customer_name || "" })),
+    [customers],
+  );
 
   // Fetch sales with lightweight query + caching
   const { data: sales = [], isLoading } = useQuery({
@@ -287,19 +292,14 @@ const SalesReportByCustomer = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label>Customer</Label>
-              <Select value={selectedCustomerId} onValueChange={(v) => { setSelectedCustomerId(v); resetPage(); }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All Customers" />
-                </SelectTrigger>
-                <SelectContent className="bg-background z-50">
-                  <SelectItem value="all">All Customers</SelectItem>
-                  {customers.map((customer) => (
-                    <SelectItem key={customer.id} value={customer.id}>
-                      {customer.customer_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* Searchable, and draws 100 rows at most: a Select listed every customer at once. */}
+              <SearchableSelect
+                value={selectedCustomerId}
+                onValueChange={(v) => { setSelectedCustomerId(v); resetPage(); }}
+                options={customerOptions}
+                allLabel="All Customers"
+                triggerClassName="h-10"
+              />
             </div>
 
             <div className="space-y-2">

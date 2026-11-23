@@ -5,6 +5,7 @@ import { onWheelScrollContainer } from "@/lib/scrollWheel";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
+import { capMatches, cappedListNote } from "@/lib/longOptionList";
 
 export type SearchableSelectOption = string | { value: string; label: string };
 
@@ -49,13 +50,22 @@ export function SearchableSelect({
 
   const normalized = React.useMemo(() => normalizeOptions(options), [options]);
 
-  const filtered = React.useMemo(() => {
-    if (!search.trim()) return normalized;
-    const q = search.toLowerCase();
-    return normalized.filter(
-      (o) => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q),
-    );
-  }, [normalized, search]);
+  // At most 100 rows are drawn (a list of every customer or product froze the page on open);
+  // the search looks through all of them. The chosen option is always on screen.
+  const haystacks = React.useMemo(
+    () => normalized.map((o) => `${o.label} ${o.value}`.toLowerCase()),
+    [normalized],
+  );
+  const pinnedIndex = React.useMemo(
+    () => (value === allValue ? -1 : normalized.findIndex((o) => o.value === value)),
+    [normalized, value, allValue],
+  );
+  // Nothing is worked out while the list is closed.
+  const { shown: filtered, total } = React.useMemo(
+    () => (open ? capMatches(normalized, haystacks, search, undefined, pinnedIndex) : { shown: [], total: 0 }),
+    [open, normalized, haystacks, search, pinnedIndex],
+  );
+  const cappedNote = cappedListNote(filtered.length, total);
 
   const displayValue =
     value === allValue
@@ -135,6 +145,7 @@ export function SearchableSelect({
             {filtered.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-3">No results</p>
             )}
+            {cappedNote && <p className="px-2 py-1.5 text-xs text-muted-foreground">{cappedNote}</p>}
           </div>
         </PopoverContent>
       </Popover>
