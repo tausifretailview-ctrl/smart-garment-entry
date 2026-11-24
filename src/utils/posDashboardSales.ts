@@ -177,8 +177,15 @@ export function seedPosDashboardCacheWithSale(
   queryClient: QueryClient,
   organizationId: string,
   sale: PosDashboardSaleSeed,
+  /**
+   * isNewBill false: the bill was already saved (edited, or a held bill now completed). Its row
+   * is replaced where cached and the summary tiles are not bumped as for a new bill; the
+   * dashboard refetch gives the exact totals.
+   */
+  opts: { isNewBill?: boolean } = {},
 ): void {
   if (!organizationId || !sale?.id) return;
+  const isNewBill = opts.isNewBill !== false;
 
   const saleDay = sale.sale_date
     ? format(new Date(sale.sale_date), "yyyy-MM-dd")
@@ -208,6 +215,7 @@ export function seedPosDashboardCacheWithSale(
 
     // Summary tile cache — bump counters lightly when date range matches.
     if (key[2] === "summary") {
+      if (!isNewBill) continue;
       const startDate = String(key[5] ?? "");
       const endDate = String(key[6] ?? "");
       if (!saleDayInFilterRange(saleDayLocal, startDate, endDate)) continue;
@@ -269,7 +277,19 @@ export function seedPosDashboardCacheWithSale(
       | (PosDashboardSalesPayload & { totalCount: number })
       | undefined;
     if (!payload?.sales) continue;
-    if (payload.sales.some((row) => row?.id === sale.id)) {
+    const existingIndex = payload.sales.findIndex((row) => row?.id === sale.id);
+    if (existingIndex >= 0) {
+      // Already listed (an edited bill, or a held bill just completed): show the saved values.
+      // Skipping it left the old row, e.g. a completed bill still tagged Hold with its Hold/
+      // number, until the deferred refetch ran.
+      const existing = payload.sales[existingIndex] as Record<string, unknown>;
+      const nextSales = payload.sales.slice();
+      nextSales[existingIndex] = {
+        ...existing,
+        ...seedRow,
+        customers: existing.customers ?? null,
+      } as (typeof payload.sales)[number];
+      queryClient.setQueryData(key, { ...payload, sales: nextSales });
       seededList = true;
       continue;
     }

@@ -1,3 +1,4 @@
+import { heldCartFromSale } from "@/utils/posHoldBill";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { reportIfFails } from "@/lib/reportIfFails";
 import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
@@ -1300,13 +1301,23 @@ const POSDashboard = () => {
   const fetchSaleItems = async (saleId: string): Promise<SaleItem[]> => {
     if (saleItems[saleId]) return saleItems[saleId];
 
-    // Check if this is a hold bill - items are stored in notes JSON, not in sale_items
+    // A held bill has no sale_items: its cart is in held_cart_data (or, older bills, JSON in
+    // notes). The list does not load held_cart_data, so read it for this bill. Reading only
+    // notes showed no items for every current held bill.
     const sale = sales.find(s => s.id === saleId);
-    if (sale?.payment_status === 'hold' && sale?.notes) {
+    if (sale && isHoldLikeSale(sale)) {
       try {
-        const holdData = JSON.parse(sale.notes);
-        if (holdData.items && Array.isArray(holdData.items)) {
-          const parsedItems: SaleItem[] = holdData.items.map((item: any, idx: number) => ({
+        let holdData = heldCartFromSale(sale as { notes?: string | null });
+        if (!holdData) {
+          const { data: heldRow } = await supabase
+            .from("sales")
+            .select("held_cart_data, notes")
+            .eq("id", saleId)
+            .maybeSingle();
+          holdData = heldCartFromSale(heldRow as { held_cart_data?: unknown; notes?: string | null } | null);
+        }
+        if (holdData) {
+          const parsedItems: SaleItem[] = (holdData.items as any[]).map((item: any, idx: number) => ({
             id: `hold-${saleId}-${idx}`,
             sale_id: saleId,
             product_id: item.productId || item.product_id || '',
@@ -1315,11 +1326,12 @@ const POSDashboard = () => {
             barcode: item.barcode || '',
             variant_id: item.variantId || item.variant_id || '',
             quantity: item.quantity || item.qty || 0,
-            unit_price: item.salePrice || item.unit_price || item.rate || 0,
+            // POS cart lines (held_cart_data) use unitCost / netAmount / gstPer.
+            unit_price: item.unitCost || item.salePrice || item.unit_price || item.rate || 0,
             mrp: item.mrp || 0,
-            line_total: item.lineTotal || item.line_total || item.total || 0,
+            line_total: item.netAmount || item.lineTotal || item.line_total || item.total || 0,
             discount_percent: item.discountPercent || item.discount_percent || 0,
-            gst_percent: item.gstPercent || item.gst_percent || 0,
+            gst_percent: item.gstPer || item.gstPercent || item.gst_percent || 0,
             hsn_code: item.hsnCode || item.hsn_code || '',
             brand: item.brand || '',
             color: item.color || '',

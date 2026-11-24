@@ -299,6 +299,8 @@ export const useSaveSale = () => {
       saleDate?: string;
       saleNumber?: string;
       saleSnapshot?: PosDashboardSaleSeed | null;
+      /** False for a bill that already existed (edit, completed held bill): no new-bill counts. */
+      isNewBill?: boolean;
     },
   ) => {
     invalidateAfterSaleSave(queryClient, organizationId, {
@@ -306,6 +308,12 @@ export const useSaveSale = () => {
       saleDate: saleMeta?.saleDate,
       saleNumber: saleMeta?.saleNumber,
       saleSnapshot: saleMeta?.saleSnapshot ?? null,
+      isNewBill: saleMeta?.isNewBill,
+    });
+    // POS held-bills badge and panel (both cached lists): a completed held bill left the red
+    // count showing it for up to 5 minutes, since nothing refreshed that list after a sale.
+    void queryClient.invalidateQueries({
+      queryKey: organizationId ? ["held-bills", organizationId] : ["held-bills"],
     });
   };
 
@@ -2548,6 +2556,7 @@ export const useSaveSale = () => {
         saleDate: sale.sale_date,
         saleNumber: sale.sale_number,
         saleSnapshot: toPosDashboardSaleSeed(sale as Record<string, unknown>, totalQty),
+        isNewBill: false,
       });
 
       return { ...sale, ...creditResult };
@@ -3034,6 +3043,7 @@ export const useSaveSale = () => {
         saleDate: sale.sale_date,
         saleNumber: sale.sale_number,
         saleSnapshot: toPosDashboardSaleSeed(sale as Record<string, unknown>, totalQty),
+        isNewBill: false,
       });
 
       return { ...sale, ...creditResult };

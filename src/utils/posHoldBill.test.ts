@@ -4,6 +4,7 @@ import {
   isHoldSaleNumber,
   posBillHasExchangeRefundDue,
   shouldPromoteHoldNumberToPos,
+  heldCartFromSale,
 } from "./posHoldBill";
 
 describe("POS Hold vs Mix Payment on S/R exchange refund", () => {
@@ -35,5 +36,28 @@ describe("POS Hold vs Mix Payment on S/R exchange refund", () => {
     // Old bill completed from Hold before Hold/ → POS/ promotion: a real sale.
     expect(isHeldOrCancelledSale({ sale_number: "Hold/26-27/3", payment_status: "completed", payment_method: "cash" })).toBe(false);
     expect(isHeldOrCancelledSale({ sale_number: "POS/26-27/9", payment_status: "completed", payment_method: "cash" })).toBe(false);
+  });
+});
+
+describe("heldCartFromSale", () => {
+  const cart = { items: [{ productName: "SHIRT", quantity: 1 }], roundOff: 0 };
+
+  it("reads the held_cart_data column (current held bills)", () => {
+    expect(heldCartFromSale({ held_cart_data: cart, notes: "Gift wrap" })).toEqual(cart);
+  });
+
+  it("reads held_cart_data stored as JSON text", () => {
+    expect(heldCartFromSale({ held_cart_data: JSON.stringify(cart) })).toEqual(cart);
+  });
+
+  it("falls back to the cart JSON in notes (older held bills used to resume empty)", () => {
+    expect(heldCartFromSale({ held_cart_data: null, notes: JSON.stringify(cart) })).toEqual(cart);
+  });
+
+  it("a plain note is not a cart; nothing at all is null", () => {
+    expect(heldCartFromSale({ held_cart_data: null, notes: "Deliver tomorrow" })).toBeNull();
+    expect(heldCartFromSale({ held_cart_data: { foo: 1 }, notes: "{bad json" })).toBeNull();
+    expect(heldCartFromSale({ held_cart_data: null, notes: '{"items":"x"}' })).toBeNull();
+    expect(heldCartFromSale(null)).toBeNull();
   });
 });
