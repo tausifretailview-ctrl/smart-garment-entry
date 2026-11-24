@@ -422,7 +422,13 @@ export default function SalesInvoice() {
     setShowStockIssueDialog(true);
   }, []);
   const shopName = useShopName();
-  const { isColumnVisible } = useUserPermissions();
+  const { isColumnVisible, isAdmin: isFullAccessAdmin, hasSpecialPermission } = useUserPermissions();
+  // Purchase rate / landing cost ▲ on each line: the owner, or users given the User Rights
+  // permission (off by default; cost prices are private).
+  const saleLineCostOrgId =
+    currentOrganization?.id && (isFullAccessAdmin || hasSpecialPermission("sale_bill_purchase_cost"))
+      ? currentOrganization.id
+      : null;
   const productFieldSettings = useProductFieldSettings();
   const showHsnCol =
     isColumnVisible("sales_invoice", "hsn") && productFieldSettings.hsn_code?.enabled !== false;
@@ -5992,6 +5998,7 @@ Thank you for choosing us!`;
                           ? getCurrentBrandDiscountForLineItem(item)
                           : null
                       }
+                      costOrganizationId={saleLineCostOrgId}
                       buildCellProps={lineGrid.buildCellProps}
                       editInputRef={lineGrid.editInputRef}
                       actions={saleRowActions}

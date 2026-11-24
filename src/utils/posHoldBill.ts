@@ -59,3 +59,38 @@ export function isHeldOrCancelledSale(sale: {
   if (sale.is_cancelled === true || status === "cancelled" || status === "hold") return true;
   return isParkedHoldNumberSale(sale);
 }
+
+/** The cart a held bill was parked with (F7). Shape as saved by holdSale; `items` always set. */
+export type HeldCart = { items: unknown[] } & Record<string, unknown>;
+
+/**
+ * The parked cart of a held bill. Current bills keep it in `held_cart_data`; older ones kept it
+ * as JSON in `notes`. Reading only `held_cart_data` resumed those older bills with an empty
+ * cart, and the POS Dashboard read only `notes`, so it showed no items for current ones.
+ * Null when neither holds a cart with an `items` list.
+ */
+export function heldCartFromSale(sale: {
+  held_cart_data?: unknown;
+  notes?: string | null;
+} | null | undefined): HeldCart | null {
+  if (!sale) return null;
+  const isCart = (v: unknown): v is HeldCart =>
+    !!v && typeof v === "object" && Array.isArray((v as { items?: unknown }).items);
+  let column: unknown = sale.held_cart_data;
+  if (typeof column === "string") {
+    try {
+      column = JSON.parse(column);
+    } catch {
+      column = null;
+    }
+  }
+  if (isCart(column)) return column;
+  const notes = typeof sale.notes === "string" ? sale.notes.trim() : "";
+  if (!notes.startsWith("{")) return null;
+  try {
+    const parsed: unknown = JSON.parse(notes);
+    return isCart(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}

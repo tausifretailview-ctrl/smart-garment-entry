@@ -133,6 +133,8 @@ export type AfterSaleSaveOptions = {
   saleNumber?: string;
   /** Just-saved sale — seeded into POS dashboard cache for instant last-bill display. */
   saleSnapshot?: PosDashboardSaleSeed | null;
+  /** False when the bill already existed (edit, completed held bill). Default true. */
+  isNewBill?: boolean;
 };
 
 /** After POS / sale save — invoice list pages refresh immediately; stats defer optional. */
@@ -142,7 +144,9 @@ export function invalidateAfterSaleSave(
   options?: AfterSaleSaveOptions,
 ) {
   if (organizationId && options?.saleSnapshot?.id) {
-    seedPosDashboardCacheWithSale(queryClient, organizationId, options.saleSnapshot);
+    seedPosDashboardCacheWithSale(queryClient, organizationId, options.saleSnapshot, {
+      isNewBill: options.isNewBill !== false,
+    });
   }
   notifyPosSalesChanged({
     organizationId,

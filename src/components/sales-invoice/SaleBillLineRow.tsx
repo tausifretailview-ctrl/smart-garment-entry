@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SaleLineStockBadge } from "@/components/sales/SaleLineStockBadge";
+import { SaleLineCostPopover } from "@/components/sales-invoice/SaleLineCostPopover";
 import type { LiveStockView } from "@/lib/saleLineLiveStock";
 import type { SaleLineGridColKey, SaleLineGridShowCol } from "@/hooks/useSalesInvoiceLineGridKeyboard";
 import { GST_SLABS } from "@/utils/gstRegisterUtils";
@@ -15,6 +16,8 @@ import { allowsDecimalQty } from "@/utils/qtyInput";
 export type SaleBillLine = {
   id: string;
   productId: string;
+  /** Product size row; the cost pop-up reads its latest purchase. */
+  variantId?: string;
   productName: string;
   size: string;
   barcode: string;
@@ -76,6 +79,8 @@ export type SaleBillLineRowProps = {
    * when the saved Disc % differs. Null when no hint applies.
    */
   historicalRate: number | null;
+  /** Organisation id when this user may see purchase rate / landing cost; null hides the ▲. */
+  costOrganizationId?: string | null;
   /** Cell props of the line grid, from the row's own focus state (see the keyboard hook). */
   buildCellProps: (
     rowIndex: number,
@@ -114,6 +119,7 @@ export const SaleBillLineRow = memo(function SaleBillLineRow({
   stockLabel,
   stockTitle,
   historicalRate,
+  costOrganizationId = null,
   buildCellProps,
   editInputRef,
   actions,
@@ -293,10 +299,18 @@ export const SaleBillLineRow = memo(function SaleBillLineRow({
       )}
       <td
         {...cellProps("price", {
-          baseClassName: "sale-col-price text-right px-1.5 py-1 align-middle overflow-hidden",
+          baseClassName: "sale-col-price relative text-right px-1.5 py-1 align-middle overflow-hidden",
           onActivateEdit: () => actions.beginEditWithSnapshot(item.salePrice),
         })}
       >
+        {costOrganizationId && item.variantId ? (
+          <SaleLineCostPopover
+            organizationId={costOrganizationId}
+            variantId={item.variantId}
+            productName={item.productName}
+            className="absolute right-0.5 top-0.5 z-10"
+          />
+        ) : null}
         <Input
           ref={priceEditing ? editInputRef : undefined}
           type="number"

@@ -150,7 +150,7 @@ import {
 } from "@/utils/posApplyAdvance";
 import { posFooterCustomerBalance } from "@/utils/customerAccountFacets";
 import { fetchInvoicePrintAccountFacets } from "@/utils/customerAccountStateView";
-import { posBillHasExchangeRefundDue } from "@/utils/posHoldBill";
+import { heldCartFromSale, posBillHasExchangeRefundDue } from "@/utils/posHoldBill";
 import { isHoldLikePosSale } from "@/utils/posDashboardSettlement";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import {
@@ -1886,18 +1886,19 @@ export default function POSSales() {
           setFlatDiscountValue(0);
           setFlatDiscountMode("percent");
         }
-        // Load items from dedicated held_cart_data column (held sale doesn't have sale_items)
-        try {
-          const holdData = (sale as any).held_cart_data;
-          if (holdData && holdData.items && Array.isArray(holdData.items)) {
-            loadHeldCart(holdData);
-            void hydrateCartPurchasePrices(
-              holdData.items.map((i: { variantId?: string }) => i.variantId),
-            );
-          }
-        } catch (parseError) {
-          console.error("Error loading held cart data:", parseError);
+        // A held bill has no sale_items: its cart is in held_cart_data, or (older bills) as
+        // JSON in notes. Reading only held_cart_data resumed those older bills empty.
+        const holdData = heldCartFromSale(sale as { held_cart_data?: unknown; notes?: string | null });
+        if (holdData) {
+          loadHeldCart(holdData as Parameters<typeof loadHeldCart>[0]);
+          void hydrateCartPurchasePrices(
+            (holdData.items as Array<{ variantId?: string }>).map((i) => i.variantId),
+          );
         }
+        // The bill's own note (kept on Hold) was not restored, so completing the bill cleared it.
+        // An older bill whose notes field is the cart JSON has no note of its own.
+        const heldNoteIsCart = !(sale as { held_cart_data?: unknown }).held_cart_data && !!holdData;
+        setSaleNotes(heldNoteIsCart ? "" : sale.notes || "");
 
         toast.success("Held Bill Loaded", {
           description: `Bill ${sale.sale_number} loaded. Complete the sale with a payment method.`,
@@ -2772,6 +2773,19 @@ export default function POSSales() {
       void refetchHeldBills();
     }
   }, [showHoldPanel, refetchHeldBills]);
+
+  /**
+   * After hold / resume / delete: refresh both cached held-bill lists (the badge's light list
+   * and the panel's full list). refetch() only reloaded the one on screen, so the badge could
+   * keep a count from before the panel was used.
+   */
+  const refreshHeldBills = useCallback(
+    () =>
+      queryClient.invalidateQueries({
+        queryKey: ['held-bills', currentOrganization?.id],
+      }),
+    [queryClient, currentOrganization?.id],
+  );
 
   // Fetch employees for salesman dropdown
   const { data: employees } = useActiveStaff();
@@ -6952,14 +6966,7 @@ export default function POSSales() {
     );
   });
 
-  const getHoldItemCount = (bill: any) => {
-    try {
-      const held = (bill as any).held_cart_data;
-      if (held?.items && Array.isArray(held.items)) return held.items.length;
-      const d = JSON.parse(bill.notes || '{}');
-      return d.items?.length || 0;
-    } catch { return 0; }
-  };
+  const getHoldItemCount = (bill: any) => heldCartFromSale(bill)?.items.length ?? 0;
 
   // Resume a held bill (auto-saves current cart first if needed)
   const handleResumeHeldBill = async (bill: any) => {
@@ -6988,7 +6995,7 @@ export default function POSSales() {
     setShowHoldPanel(false);
     setHoldSearchQuery('');
     await loadSaleForEdit(bill.id);
-    await refetchHeldBills();
+    await refreshHeldBills();
   };
 
   // Delete a held bill (soft delete)
@@ -7000,7 +7007,7 @@ export default function POSSales() {
         .update({ deleted_at: new Date().toISOString() } as any)
         .eq('id', billId);
       if (holdDelError) throw holdDelError;
-      await refetchHeldBills();
+      await refreshHeldBills();
       toast.success('Held bill deleted');
     } catch (err: any) {
       toast.error('Error', { description: err.message });
@@ -7061,7 +7068,7 @@ export default function POSSales() {
       invalidatePosDashboardQueries(queryClient, currentOrganization?.id);
       notifyPosSalesChanged({ organizationId: currentOrganization?.id });
       await queryClient.refetchQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
-      await refetchHeldBills();
+      await refreshHeldBills();
     }
   };
 
