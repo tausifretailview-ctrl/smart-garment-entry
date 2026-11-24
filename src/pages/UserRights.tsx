@@ -175,6 +175,7 @@ const specialRights = [
   { id: "fee_structure_edit", name: "Edit Fee Structure", description: "Allow editing fee amounts and saving fee structure" },
   { id: "reset_data", name: "Reset Organization Data", description: "Allow resetting all organization data" },
   { id: "system_health", name: "System Health", description: "Access System Health diagnostics page (hidden by default)" },
+  { id: "sale_bill_purchase_cost", name: "Sale Bill: Purchase Cost", description: "See purchase rate and landing cost (with and without GST) from the ▲ on each Sale Bill line (hidden by default; owners always see it)" },
   { id: "pos_margin_indicator", name: "POS Margin Indicator", description: "See live markup % (profit on purchase value) and total profit on the POS billing screen (hidden by default)" },
   { id: "dc_only", name: "DC User (only DC)", description: "This login sees only DC (No GST) purchases, DC stock, DC sales and DC reports; GST bills are hidden and Purchase Entry opens with DC ticked. Use with the Manager role (needs the 25 Oct 2026 DC User SQL; off by default)" },
 ];
