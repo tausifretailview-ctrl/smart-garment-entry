@@ -143,3 +143,11 @@ export function googleMapsRouteUrl(stops: readonly { lat: number; lng: number }[
   if (waypoints.length) params.set("waypoints", waypoints.map(fmt).join("|"));
   return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
+
+/** "2026-11-24" moved by whole days ("2026-11-18" for -6). Calendar arithmetic only. */
+export function shiftYmd(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d + days));
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
+}

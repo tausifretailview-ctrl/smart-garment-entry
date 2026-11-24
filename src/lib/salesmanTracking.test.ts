@@ -99,3 +99,10 @@ describe("day's places", () => {
     expect(url.searchParams.get("waypoints")!.split("|").length).toBeLessThanOrEqual(9);
   });
 });
+
+import { shiftYmd } from "./salesmanTracking";
+it("moves a calendar date by days", () => {
+  expect(shiftYmd("2026-11-24", -6)).toBe("2026-11-18");
+  expect(shiftYmd("2026-03-02", -6)).toBe("2026-02-24");
+  expect(shiftYmd("2026-12-31", 1)).toBe("2027-01-01");
+});

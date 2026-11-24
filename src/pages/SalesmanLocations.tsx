@@ -9,6 +9,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { cachedAreaName, coordsLabel, lookupAreaName } from "@/lib/reverseGeocode";
 import {
   formatHhmm,
@@ -16,6 +17,7 @@ import {
   googleMapsRouteUrl,
   groupTrailIntoStops,
   resolveTrackingWindow,
+  shiftYmd,
   type TrailPoint,
 } from "@/lib/salesmanTracking";
 
@@ -33,7 +35,7 @@ type LiveRow = {
 /** A salesman counts as "live" when his last point is this recent. */
 const LIVE_WITHIN_MS = 10 * 60_000;
 
-const istToday = () => new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10);
+const istToday = () => istCalendarYmd();
 const istTime = (iso: string) =>
   new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" });
 
@@ -65,7 +67,7 @@ function AreaName({ lat, lng }: { lat: number; lng: number }) {
 
 function DayTrail({ organizationId, userId }: { organizationId: string; userId: string }) {
   const [day, setDay] = useState(istToday());
-  const minDay = new Date(Date.now() + 330 * 60_000 - 6 * 86_400_000).toISOString().slice(0, 10);
+  const minDay = shiftYmd(istToday(), -6);
   const { data: points = [], isLoading } = useQuery({
     queryKey: ["salesman-location-trail", organizationId, userId, day],
     queryFn: async () => {

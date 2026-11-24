@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Capacitor, CapacitorHttp, registerPlugin } from "@capacitor/core";
 import type { BackgroundGeolocationPlugin } from "@capacitor-community/background-geolocation";
 import { supabase } from "@/integrations/supabase/client";
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import {
   enqueuePoint,
   isWithinWindow,
@@ -47,7 +48,7 @@ export function readConsent(orgId: string, userId: string): "accepted" | "declin
   try {
     const v = localStorage.getItem(consentKey(orgId, userId));
     if (v === "accepted") return "accepted";
-    const today = new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10);
+    const today = istCalendarYmd();
     if (v === `declined:${today}`) return "declined-today";
     return null;
   } catch {
@@ -121,7 +122,7 @@ export function useSalesmanLocationTracker(opts: {
 
   const decline = useCallback(() => {
     if (!organizationId || !userId) return;
-    const today = new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10);
+    const today = istCalendarYmd();
     try {
       localStorage.setItem(consentKey(organizationId, userId), `declined:${today}`);
     } catch {
