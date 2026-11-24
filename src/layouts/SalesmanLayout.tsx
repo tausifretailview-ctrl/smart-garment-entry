@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -11,7 +11,7 @@ import {
   SALESMAN_CUSTOMER_LIST_QUERY_KEY,
 } from "@/utils/salesmanCustomerList";
 import { STALE_FREQUENT } from "@/lib/queryStaleTimes";
-import { Home, Users, ListOrdered, LogOut, Download, AlertCircle, Package, BookOpen, Plus, X } from "lucide-react";
+import { Home, Users, ListOrdered, LogOut, Download, AlertCircle, Package, BookOpen, Plus, X, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { FIELD_SALES_SAFE_BOTTOM, FIELD_SALES_SAFE_TOP, useFieldSalesShell } from "@/hooks/useFieldSalesShell";
+import { useSettings } from "@/hooks/useSettings";
+import { useSalesmanLocationTracker } from "@/hooks/useSalesmanLocationTracker";
+import { formatHhmm, resolveTrackingWindow, DEFAULT_TRACKING_END, DEFAULT_TRACKING_START } from "@/lib/salesmanTracking";
 
 const LOADING_TIMEOUT = 8000; // 8 seconds max wait
 const INSTALL_BANNER_DISMISSED_KEY = "ezzy-field-sales-install-banner-dismissed";
@@ -58,13 +61,24 @@ const SalesmanLayout = () => {
   const location = useLocation();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const { isInstalled } = useInstallPrompt();
   const { hasAccess, employeeName, isLoading } = useFieldSalesAccess();
   const { isOnline, pendingActions, isSyncing } = useOfflineSync();
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
   useFieldSalesShell();
+  // Live location during the shop's work hours (Settings > Sale > Salesman live location).
+  const { data: settingsData } = useSettings();
+  const saleSettings = (settingsData as { sale_settings?: Record<string, unknown> } | null)?.sale_settings;
+  const trackingWindow = useMemo(() => resolveTrackingWindow(saleSettings), [saleSettings]);
+  const trackingHours = (saleSettings?.salesman_tracking ?? {}) as { start?: string; end?: string };
+  const liveLocation = useSalesmanLocationTracker({
+    organizationId: currentOrganization?.id,
+    userId: user?.id,
+    isSalesman: hasAccess,
+    window: trackingWindow,
+  });
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   // Dashboard "Install App" opens /salesman?install=1 — always show the banner then.
   const installRequested = new URLSearchParams(location.search).get("install") === "1";
@@ -313,6 +327,18 @@ const SalesmanLayout = () => {
               <p className="truncate text-[11px] leading-tight text-white/80">
                 Field Sales{currentOrganization?.name ? ` · ${currentOrganization.name}` : ""}
               </p>
+              {liveLocation.status === "on" || liveLocation.status === "denied" ? (
+                <p
+                  className={cn(
+                    "mt-0.5 flex items-center gap-1 text-[10px] font-semibold leading-tight",
+                    liveLocation.status === "on" ? "text-white" : "text-yellow-200",
+                  )}
+                  data-testid="field-sales-location-status"
+                >
+                  <MapPin className="h-3 w-3" />
+                  {liveLocation.status === "on" ? "Location on (work hours)" : "Location blocked: allow it in phone settings"}
+                </p>
+              ) : null}
             </div>
             <button
               type="button"
@@ -424,6 +450,33 @@ const SalesmanLayout = () => {
           </div>
         </nav>
       )}
+
+      <AlertDialog open={liveLocation.status === "needs-consent"}>
+        <AlertDialogContent className="max-w-[340px] rounded-2xl" data-testid="field-sales-location-consent">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-orange-500" /> Location during work hours
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2 text-left">
+              <span className="block">
+                {currentOrganization?.name || "Your shop"} sees which area you are in between{" "}
+                <b>{formatHhmm(trackingHours.start || DEFAULT_TRACKING_START)}</b> and{" "}
+                <b>{formatHhmm(trackingHours.end || DEFAULT_TRACKING_END)}</b>, also when the phone is locked.
+              </span>
+              <span className="block">
+                Nothing is shared outside these hours. While it is on, the phone shows a "sharing location"
+                notification. Locations are kept for 7 days.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={liveLocation.decline}>Not today</AlertDialogCancel>
+            <AlertDialogAction className="bg-orange-500 hover:bg-orange-600" onClick={liveLocation.accept}>
+              Allow
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmLogout} onOpenChange={setConfirmLogout}>
         <AlertDialogContent className="max-w-[320px] rounded-2xl">

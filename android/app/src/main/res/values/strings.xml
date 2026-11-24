@@ -4,4 +4,6 @@
     <string name="title_activity_main">EzzyERP</string>
     <string name="package_name">com.ezzyerp.app</string>
     <string name="custom_url_scheme">com.ezzyerp.app</string>
+    <!-- Field Sales live location: name of the notification channel shown while it is on. -->
+    <string name="capacitor_background_geolocation_notification_channel_name">Location sharing (work hours)</string>
 </resources>

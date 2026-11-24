@@ -35,6 +35,7 @@ import {
   CreditCard,
   Bot,
   Coins,
+  MapPin,
   Grid3X3,
   Layers,
   BookImage,
@@ -453,6 +454,16 @@ export function AppSidebar() {
                               <NavLink to="/salesman-commission" className="flex items-center gap-2 group">
                                 <Coins className="h-4 w-4 sidebar-icon text-primary" />
                                 <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Commission</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(organizationRole === "admin" || organizationRole === "manager") && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/salesman-locations")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
+                              <NavLink to="/salesman-locations" className="flex items-center gap-2 group">
+                                <MapPin className="h-4 w-4 sidebar-icon text-primary" />
+                                <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Salesman Location</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>

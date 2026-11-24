@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-11-23",
-  "count": 967,
-  "fileCount": 985,
+  "generatedAt": "2026-11-24",
+  "count": 968,
+  "fileCount": 986,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -970,7 +970,8 @@
     "20270519120000",
     "20270520120000",
     "20270521120000",
-    "20270522120000"
+    "20270522120000",
+    "20270523120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1957,7 +1958,8 @@
     "20270519120000_sale_total_qty_once_per_save.sql",
     "20270520120000_sale_return_remaining_per_customer.sql",
     "20270521120000_stock_report_search_latest_purchase_per_variant.sql",
-    "20270522120000_batch_stock_locked_while_taking_stock.sql"
+    "20270522120000_batch_stock_locked_while_taking_stock.sql",
+    "20270523120000_salesman_live_location.sql"
   ],
   "duplicateVersions": [
     {
