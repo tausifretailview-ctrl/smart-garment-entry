@@ -19,15 +19,15 @@ describe("sales.paid_amount is capped by receipts in the database", () => {
     expect(sql).toContain("EXECUTE FUNCTION public.cap_sale_paid_to_receipts()");
   });
 
-  it("only lowers paid, and only for a bill with receipts", () => {
-    expect(sql).toContain("IF v_count = 0 THEN\n    RETURN NULL;");
+  it("only lowers paid, and only for a bill carrying the app's counter-payment receipt", () => {
+    expect(sql).toContain("IF v_count = 0 OR v_counter <= 0 THEN\n    RETURN NULL;");
     expect(sql).toContain("IF v_cap IS NOT NULL AND COALESCE(NEW.paid_amount, 0) > v_cap + 0.5 THEN");
   });
 
-  it("counts a same-day receipt as the counter payment, never advance / CN applications", () => {
-    expect(sql).toContain("public._is_settlement_memo_receipt(ve.payment_method, ve.description) THEN 0");
-    expect(sql).toContain("public._is_sale_day_receipt(ve.voucher_date, p_sale_date)");
-    expect(sql).toContain("GREATEST(0, COALESCE(p_tender, 0) - v_same_day)");
+  it("only that receipt stands for the counter payment (same-day balance collections count)", () => {
+    expect(sql).toContain("LIKE 'Counter payment received for sale%'");
+    expect(sql).not.toContain("_is_sale_day_receipt");
+    expect(sql).toContain("GREATEST(0, COALESCE(p_tender, 0) - v_counter)");
   });
 
   it("the backfill only touches bills above the cap", () => {

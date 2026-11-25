@@ -1,27 +1,24 @@
--- SQL file 50: a bill's paid amount can never be more than its receipts + counter payment.
+-- SQL file 50: no screen can count a POS bill's counter payment twice.
 --
--- Over 40 screens / helpers write sales.paid_amount from their own arithmetic. When a later
--- payment or an advance lands on a POS bill, the app turns the counter (at-sale) payment into a
--- receipt "Counter payment received for sale …" — the same money. A screen that then adds the
+-- When a later payment or an advance lands on a POS bill, the app turns the counter (at-sale)
+-- payment into a receipt "Counter payment received for sale …" (saleSettlement.ts,
+-- ensureAtSaleTenderReceipt) — the same money, not new money. Screens that then added the
 -- counter payment AND that receipt overstated paid and understated the customer's balance:
 --   SM HAIR POS/26-27/1500   paid 14,000 for 6,000 at the counter + 2,000 later
 --   VASTRAKALA POS/26-27/803 paid 4,700 for 2,350 at the counter + 2,000 advance
 --   Gurukrupa POS/26-27/1984 paid 9,300 for 5,000 + 2,000 (and two more)
--- The receipt trigger (compute_sale_settlement) only runs when a receipt changes, so a later
--- client write was never checked.
 --
--- 1. BEFORE UPDATE on sales, for a live bill that has at least one live receipt: paid_amount is
---    capped at   net  and   receipts + counter payment not already a same-day receipt
---    (receipts = every receipt except credit-note applications, plus credit notes above the
---    bill's own S/R adjust; counter payment = cash + card + UPI + finance on the bill; same-day
---    receipts that are advance / CN applications do not cancel counter payment).
---    This is the compute_sale_settlement rule without its "tender only as far as already
---    booked" limit, so it is never lower than that rule: it only stops an overstatement.
---    It never raises paid and never touches a bill with no receipt (paid at the counter only).
--- 2. Bills that are above that cap now are brought down to it (preview: file 49).
+-- 1. BEFORE UPDATE on sales, ONLY for a live bill that carries that "Counter payment received"
+--    receipt: paid_amount is capped at   net   and
+--      every receipt (credit notes only above the bill's own S/R adjust)
+--      + counter payment (cash + card + UPI + finance) not already in that receipt.
+--    Bills without that receipt are never touched: customer-level settlements, bank transfers,
+--    discounts and same-day balance collections (SM HAIR POS/25-26/3191: 15,000 card + 4,650
+--    cash the same day) keep their paid amount. The cap only ever lowers paid.
+-- 2. Bills above that cap now are brought down to it (preview: file 49).
 -- One transaction. Running it again changes nothing.
 
--- The cap for one bill; NULL when the bill has no live receipt (nothing to check).
+-- The cap for one bill; NULL unless it carries a live "Counter payment received" receipt.
 CREATE OR REPLACE FUNCTION public._sale_paid_cap(
   p_sale_id uuid, p_org_id uuid, p_net numeric, p_sra numeric, p_tender numeric, p_sale_date timestamptz
 )
@@ -34,20 +31,18 @@ AS $function$
 DECLARE
   v_count int;
   v_non_cn numeric;
-  v_same_day numeric;
+  v_counter numeric;
   v_cn numeric;
 BEGIN
   SELECT count(*),
          COALESCE(SUM(CASE WHEN lower(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment' THEN 0
                            ELSE COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0) END), 0),
-         COALESCE(SUM(CASE WHEN lower(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment' THEN 0
-                           WHEN public._is_settlement_memo_receipt(ve.payment_method, ve.description) THEN 0
-                           WHEN public._is_sale_day_receipt(ve.voucher_date, p_sale_date)
+         COALESCE(SUM(CASE WHEN COALESCE(ve.description, '') LIKE 'Counter payment received for sale%'
                              THEN COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0)
                            ELSE 0 END), 0),
          COALESCE(SUM(CASE WHEN lower(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment'
                            THEN COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0) ELSE 0 END), 0)
-    INTO v_count, v_non_cn, v_same_day, v_cn
+    INTO v_count, v_non_cn, v_counter, v_cn
   FROM public.voucher_entries ve
   WHERE ve.reference_id = p_sale_id
     AND ve.organization_id = p_org_id
@@ -55,12 +50,13 @@ BEGIN
     AND ve.reference_type IN ('sale', 'customer')
     AND ve.deleted_at IS NULL;
 
-  IF v_count = 0 THEN
+  -- Only a bill that carries the app's own counter-payment receipt can hold the double count.
+  IF v_count = 0 OR v_counter <= 0 THEN
     RETURN NULL;
   END IF;
   RETURN round(LEAST(GREATEST(0, COALESCE(p_net, 0)),
                      v_non_cn + GREATEST(0, v_cn - COALESCE(p_sra, 0))
-                       + GREATEST(0, COALESCE(p_tender, 0) - v_same_day)), 2);
+                       + GREATEST(0, COALESCE(p_tender, 0) - v_counter)), 2);
 END;
 $function$;
 
@@ -97,9 +93,9 @@ END;
 $function$;
 
 COMMENT ON FUNCTION public.cap_sale_paid_to_receipts() IS
-  'BEFORE UPDATE on sales: a live bill with receipts never has paid_amount above net or above '
-  'receipts + counter payment (cash/card/UPI/finance) not already a same-day receipt. Stops a '
-  'screen counting the counter payment twice; never raises paid.';
+  'BEFORE UPDATE on sales: a live bill carrying the app''s "Counter payment received for sale" '
+  'receipt never has paid_amount above net or above its receipts + the counter payment not '
+  'already in that receipt. Stops a screen counting the counter payment twice; never raises paid.';
 
 REVOKE ALL ON FUNCTION public.cap_sale_paid_to_receipts() FROM PUBLIC, anon;
 
