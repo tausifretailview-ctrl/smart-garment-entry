@@ -793,6 +793,8 @@ export const ProductEntryDialog = ({
   const { data: brandMarkdownRows = [] } = useBrandMarkdowns({ enabled: open });
   const [garmentGstSettings, setGarmentGstSettings] = useState<GarmentGstRuleSettings>({});
  const [cursorAfterStyle, setCursorAfterStyle] = useState<'pur_price' | 'hsn'>('pur_price');
+  /** Settings → Purchase → "Cursor after last size qty": Add to Bill (default) or 1st size Pur Price. */
+  const [cursorAfterSizeQty, setCursorAfterSizeQty] = useState<'add_to_bill' | 'pur_price'>('add_to_bill');
   const purGstRef = useRef<HTMLButtonElement>(null);
   const saleGstRef = useRef<HTMLButtonElement>(null);
   const productNameInputRef = useRef<HTMLInputElement>(null);
@@ -2040,6 +2042,7 @@ export const ProductEntryDialog = ({
           setShowDiscountFields(purchaseSettings.product_entry_discount_enabled || false);
           setMarkdownFieldEnabled(purchaseSettings.product_markdown_enabled === true);
           setCursorAfterStyle(purchaseSettings.cursor_after_style || "pur_price");
+          setCursorAfterSizeQty(purchaseSettings.cursor_after_size_qty === "pur_price" ? "pur_price" : "add_to_bill");
           setRollWiseMtrEnabled(purchaseSettings.roll_wise_mtr_entry || false);
           setPerPieceBarcodeEnabled(isPerPieceBarcodeEnabled(purchaseSettings));
         }
@@ -3014,6 +3017,33 @@ export const ProductEntryDialog = ({
   }, [formData.colors, formData.requires_imei]);
 
   // Enter key moves to next field (like Tab), with configurable skip from style
+  /**
+   * Enter / Tab on the last size qty. Default: Add to Bill. With "1st size Purchase Price"
+   * (Settings → Purchase) the size price table is shown and the cursor goes to the first listed
+   * size's Pur Price — with a size group too (the table was hidden there, so the cursor always
+   * fell through to Add to Bill; Free Size worked only because its table is always shown).
+   */
+  const focusAfterLastSizeQty = useCallback(() => {
+    const addButton = () => document.getElementById("btn-add-all-sizes")?.focus();
+    if (cursorAfterSizeQty !== "pur_price") {
+      addButton();
+      return;
+    }
+    setShowVariants(true);
+    // The table renders on the next frame; its first row is the first size with a qty.
+    const focusFirstPur = (triesLeft: number) => {
+      const firstPur = document.querySelector<HTMLInputElement>('[id^="variant-pur-price-"]');
+      if (firstPur) {
+        firstPur.focus();
+        firstPur.select?.();
+        return;
+      }
+      if (triesLeft > 0) window.requestAnimationFrame(() => focusFirstPur(triesLeft - 1));
+      else addButton();
+    };
+    window.requestAnimationFrame(() => focusFirstPur(5));
+  }, [cursorAfterSizeQty]);
+
   const handleEnterAsTab = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       const currentEl = e.target as HTMLElement;
@@ -4385,12 +4415,7 @@ export const ProductEntryDialog = ({
                                                               document.getElementById(`size-qty-${nextColor}-${firstEnabled}`)?.focus();
                                                             }
                                                           } else {
-                                                            const firstPur = document.getElementById('variant-pur-price-0');
-                                                            if (firstPur) {
-                                                              firstPur.focus();
-                                                            } else {
-                                                              document.getElementById('btn-add-all-sizes')?.focus();
-                                                            }
+                                                            focusAfterLastSizeQty();
                                                           }
                                                         }
                                                       }
@@ -4579,13 +4604,7 @@ export const ProductEntryDialog = ({
                                             if (nextSize) {
                                               document.getElementById(`size-qty-${nextSize}`)?.focus();
                                             } else {
-                                              // Focus first variant's pur_price for review, otherwise Add button
-                                              const firstPur = document.getElementById('variant-pur-price-0');
-                                              if (firstPur) {
-                                                firstPur.focus();
-                                              } else {
-                                                document.getElementById('btn-add-all-sizes')?.focus();
-                                              }
+                                              focusAfterLastSizeQty();
                                             }
                                           }
                                         }}
