@@ -26,6 +26,17 @@ describe("POS: holding a resumed held bill again", () => {
     expect(fn).toContain("if (!held) return;");
   });
 
+  it("parking the open cart (resume another bill, F7, Hold button) asks the cashier first", () => {
+    const start = pos.indexOf("const handleResumeHeldBill = async");
+    const fn = pos.slice(start, pos.indexOf("await loadSaleForEdit(bill.id);", start));
+    expect(fn.indexOf("window.confirm(")).toBeGreaterThan(-1);
+    expect(fn.indexOf("window.confirm(")).toBeLessThan(fn.indexOf("holdSale(holdData"));
+    // F7 and the Hold buttons go through the confirmation, not straight to handleHoldBill.
+    expect(pos).not.toContain('reportIfFails(handleHoldBill(), "hold the bill");\n      }');
+    expect(pos).not.toContain("onHoldBill={handleHoldBill}");
+    expect(pos.match(/\{holdConfirmDialog\}/g)?.length).toBe(3);
+  });
+
   it("holdSale updates the existing held bill (same number) and falls back to a new one", () => {
     const start = save.indexOf("const holdSale = async (saleData: SaleData, existingHeldSaleId?: string | null)");
     expect(start).toBeGreaterThan(-1);

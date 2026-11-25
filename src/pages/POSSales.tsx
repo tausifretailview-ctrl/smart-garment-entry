@@ -2323,7 +2323,7 @@ export default function POSSales() {
       if (items.length === 0) {
         setShowHoldPanel(prev => !prev);
       } else {
-        reportIfFails(handleHoldBill(), "hold the bill");
+        requestHoldBill();
       }
     }
     // F8 - Cashier Report
@@ -2739,6 +2739,8 @@ export default function POSSales() {
   const isHoldLikeBill = (sale: any) => isHoldLikePosSale(sale);
 
   const [showHoldPanel, setShowHoldPanel] = useState(false);
+  // Hold (F7 / Hold button) asks first: one stray key used to park the cart and clear the screen.
+  const [showHoldConfirm, setShowHoldConfirm] = useState(false);
   const [holdSearchQuery, setHoldSearchQuery] = useState('');
 
   // Held bills query (all-time, not just today). On open only the count is shown, so the list
@@ -6980,6 +6982,16 @@ export default function POSSales() {
         });
         return;
       }
+      // Say so first: this parks the open cart as a Hold bill (it used to happen silently).
+      const qty = items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
+      if (
+        !window.confirm(
+          `${isHeldSale ? `Keep ${currentInvoiceNumber || "the open bill"} on hold` : "Hold the open bill"} ` +
+            `(${customerName || "Walk in Customer"}, ${qty} qty, ₹${formatINR2(finalAmount)}) and open ${bill?.sale_number || "the selected bill"}?`,
+        )
+      ) {
+        return;
+      }
       const holdData = {
         ...buildSaleData({
           customerId,
@@ -7070,6 +7082,15 @@ export default function POSSales() {
       await queryClient.refetchQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
       await refreshHeldBills();
     }
+  };
+
+  /** F7 / Hold button: confirm before parking the cart (an empty cart still says "No Items"). */
+  const requestHoldBill = () => {
+    if (items.length === 0 || posBillHasExchangeRefundDue(finalAmount, exchangeRefundDue)) {
+      reportIfFails(handleHoldBill(), "hold the bill");
+      return;
+    }
+    setShowHoldConfirm(true);
   };
 
   // ── WhatsApp Invoice Auto-Send ──
@@ -7421,6 +7442,39 @@ export default function POSSales() {
     </AlertDialog>
   );
 
+  const holdConfirmDialog = (
+    <AlertDialog open={showHoldConfirm} onOpenChange={setShowHoldConfirm}>
+      <AlertDialogContent
+        data-testid="pos-hold-confirm"
+        onOpenAutoFocus={(e) => {
+          // Enter holds, Esc cancels.
+          e.preventDefault();
+          (document.querySelector('[data-testid="pos-hold-confirm-yes"]') as HTMLButtonElement | null)?.focus();
+        }}
+      >
+        <AlertDialogHeader>
+          <AlertDialogTitle>Hold this bill?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {customerName || "Walk in Customer"} · {totals.quantity} qty · ₹{formatINR2(finalAmount)}. The bill is
+            parked with a Hold number and the screen is cleared. Payment is not taken; resume it later from Hold (F7).
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel data-testid="pos-hold-confirm-no">Cancel (Esc)</AlertDialogCancel>
+          <AlertDialogAction
+            data-testid="pos-hold-confirm-yes"
+            onClick={() => {
+              setShowHoldConfirm(false);
+              reportIfFails(handleHoldBill(), "hold the bill");
+            }}
+          >
+            Hold bill (Enter)
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   const fmtInr = (n: number) =>
     `₹${(Math.round(n * 100) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const creditNothingDue = !!creditConfirm && creditConfirm.due <= 0.005;
@@ -7627,7 +7681,7 @@ export default function POSSales() {
           isSaving={isSaving}
           onPaymentAndPrint={handlePaymentAndPrint}
           onMixPayment={handleMixPayment}
-          onHoldBill={handleHoldBill}
+          onHoldBill={requestHoldBill}
           onClear={handleClearAll}
           onNewBill={handleNewInvoice}
           onSaleReturn={() => setShowFloatingSaleReturn(true)}
@@ -7714,6 +7768,7 @@ export default function POSSales() {
         {creditConfirmDialog}
         {mobileRequiredDialog}
         {manualSrDialog}
+        {holdConfirmDialog}
         {unitPriceConfirmDialog}
       </>
     );
@@ -7768,7 +7823,7 @@ export default function POSSales() {
           isSaving={isSaving}
           onPaymentAndPrint={handlePaymentAndPrint}
           onMixPayment={handleMixPayment}
-          onHoldBill={handleHoldBill}
+          onHoldBill={requestHoldBill}
           showMobilePaymentSheet={showMobilePaymentSheet}
           setShowMobilePaymentSheet={setShowMobilePaymentSheet}
           selectedProductType={selectedProductType}
@@ -7882,6 +7937,7 @@ export default function POSSales() {
         {creditConfirmDialog}
         {mobileRequiredDialog}
         {manualSrDialog}
+        {holdConfirmDialog}
         {unitPriceConfirmDialog}
 
         {/* Print Confirmation Dialog */}
@@ -7954,7 +8010,7 @@ export default function POSSales() {
           if (items.length === 0) {
             setShowHoldPanel(true);
           } else {
-            reportIfFails(handleHoldBill(), "hold the bill");
+            requestHoldBill();
           }
         }}
         onEstimate={handleEstimatePrint}
@@ -9051,6 +9107,7 @@ export default function POSSales() {
         {creditConfirmDialog}
         {mobileRequiredDialog}
         {manualSrDialog}
+        {holdConfirmDialog}
         {unitPriceConfirmDialog}
 
         {/* Print Confirmation Dialog */}
