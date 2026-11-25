@@ -957,6 +957,48 @@ export type Database = {
           },
         ]
       }
+      brand_markdowns: {
+        Row: {
+          brand: string
+          created_at: string
+          id: string
+          markdown_percent: number
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          brand: string
+          created_at?: string
+          id?: string
+          markdown_percent: number
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          brand?: string
+          created_at?: string
+          id?: string
+          markdown_percent?: number
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_markdowns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brand_markdowns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       bulk_update_history: {
         Row: {
           config: Json | null
@@ -6924,6 +6966,7 @@ export type Database = {
           hsn_code: string | null
           id: string
           image_url: string | null
+          markdown_percent: number | null
           organization_id: string
           pricing_sale_disc_percent: number | null
           product_name: string
@@ -6959,6 +7002,7 @@ export type Database = {
           hsn_code?: string | null
           id?: string
           image_url?: string | null
+          markdown_percent?: number | null
           organization_id: string
           pricing_sale_disc_percent?: number | null
           product_name: string
@@ -6994,6 +7038,7 @@ export type Database = {
           hsn_code?: string | null
           id?: string
           image_url?: string | null
+          markdown_percent?: number | null
           organization_id?: string
           pricing_sale_disc_percent?: number | null
           product_name?: string
@@ -8352,6 +8397,7 @@ export type Database = {
           is_dc_item: boolean | null
           item_notes: string | null
           line_total: number
+          markdown_percent: number | null
           mrp: number
           net_after_discount: number
           organization_id: string
@@ -8380,6 +8426,7 @@ export type Database = {
           is_dc_item?: boolean | null
           item_notes?: string | null
           line_total: number
+          markdown_percent?: number | null
           mrp: number
           net_after_discount?: number
           organization_id: string
@@ -8408,6 +8455,7 @@ export type Database = {
           is_dc_item?: boolean | null
           item_notes?: string | null
           line_total?: number
+          markdown_percent?: number | null
           mrp?: number
           net_after_discount?: number
           organization_id?: string
@@ -8980,6 +9028,7 @@ export type Database = {
           cancelled_reason: string | null
           card_amount: number | null
           cash_amount: number | null
+          client_request_id: string | null
           created_at: string
           created_by: string | null
           credit_applied: number | null
@@ -9051,6 +9100,7 @@ export type Database = {
           cancelled_reason?: string | null
           card_amount?: number | null
           cash_amount?: number | null
+          client_request_id?: string | null
           created_at?: string
           created_by?: string | null
           credit_applied?: number | null
@@ -9122,6 +9172,7 @@ export type Database = {
           cancelled_reason?: string | null
           card_amount?: number | null
           cash_amount?: number | null
+          client_request_id?: string | null
           created_at?: string
           created_by?: string | null
           credit_applied?: number | null
@@ -9326,6 +9377,57 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sales_with_customer"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      salesman_locations: {
+        Row: {
+          accuracy_m: number | null
+          created_at: string
+          id: number
+          lat: number
+          lng: number
+          organization_id: string
+          recorded_at: string
+          source: string
+          user_id: string
+        }
+        Insert: {
+          accuracy_m?: number | null
+          created_at?: string
+          id?: number
+          lat: number
+          lng: number
+          organization_id: string
+          recorded_at: string
+          source?: string
+          user_id: string
+        }
+        Update: {
+          accuracy_m?: number | null
+          created_at?: string
+          id?: number
+          lat?: number
+          lng?: number
+          organization_id?: string
+          recorded_at?: string
+          source?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "salesman_locations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "salesman_locations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
           },
         ]
       }
@@ -13428,6 +13530,13 @@ export type Database = {
         }
         Returns: number
       }
+      _salesman_tracking_hours: {
+        Args: { p_organization_id: string }
+        Returns: {
+          end_min: number
+          start_min: number
+        }[]
+      }
       _school_fee_get_debit_account: {
         Args: { p_mapped_method: string; p_org: string }
         Returns: string
@@ -13505,6 +13614,17 @@ export type Database = {
           p_student_id: string
         }
         Returns: boolean
+      }
+      adjust_variant_stock: {
+        Args: {
+          p_bill_number?: string
+          p_delta?: number
+          p_notes?: string
+          p_organization_id: string
+          p_set_to?: number
+          p_variant_id: string
+        }
+        Returns: Json
       }
       aggregate_and_cleanup_whatsapp_logs: { Args: never; Returns: undefined }
       allocate_supplier_invoice_number: {
@@ -14749,6 +14869,28 @@ export type Database = {
         Args: { p_end_date: string; p_org_id: string; p_start_date: string }
         Returns: Json
       }
+      get_salesman_live_locations: {
+        Args: { p_organization_id: string }
+        Returns: {
+          accuracy_m: number
+          employee_name: string
+          lat: number
+          lng: number
+          points_today: number
+          recorded_at: string
+          source: string
+          user_id: string
+        }[]
+      }
+      get_salesman_location_trail: {
+        Args: { p_day: string; p_organization_id: string; p_user_id: string }
+        Returns: {
+          accuracy_m: number
+          lat: number
+          lng: number
+          recorded_at: string
+        }[]
+      }
       get_shop_chat_threads: {
         Args: { p_organization_id: string }
         Returns: {
@@ -15430,6 +15572,10 @@ export type Database = {
           p_payment_method?: string
         }
         Returns: string
+      }
+      record_salesman_locations: {
+        Args: { p_organization_id: string; p_points: Json }
+        Returns: number
       }
       record_user_screen_time: {
         Args: { p_org_id: string; p_rows: Json }
