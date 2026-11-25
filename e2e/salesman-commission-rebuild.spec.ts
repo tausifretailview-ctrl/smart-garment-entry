@@ -34,12 +34,40 @@ test("Rebuild from bills writes the missing commission rows and flags bills with
   await page.getByTestId("commission-rebuild-confirm").click();
 
   await expect(page.getByText("Commission rebuilt from bills").first()).toBeVisible({ timeout: 30_000 });
+  // Opening the page already filled in the bills with no commission row (see the test below);
+  // Rebuild writes the period's rows again from the bills.
   const inserts = backend.calls.filter((c) => c.kind === "insert" && c.name === "salesman_commissions");
-  expect(inserts).toHaveLength(1);
-  const rows = inserts[0].body as Array<Record<string, unknown>>;
+  expect(inserts).toHaveLength(2);
+  const rows = inserts[inserts.length - 1].body as Array<Record<string, unknown>>;
   expect(rows.map((r) => [r.sale_id, r.employee_name, r.sale_amount, r.commission_amount])).toEqual([
     ["s1", "ARYAN", 1000, 20],
     ["s2", "JIYA", 600, 6], // Sale Bill, salesman on the line only
   ]);
   await expect(page.getByTestId("commission-no-salesman")).toContainText("1 bill (₹750) in this period has no salesman, so it earns no commission.");
+});
+
+test("Opening Salesman Commission fills in bills that have a salesman but no commission row", async ({ page, backend }) => {
+  backend
+    .addRows("employees", [
+      { id: "e1", organization_id: E2E_ORG_ID, employee_name: "SAMEER VIRAN", commission_percent: 2, status: "active", designation: "Salesman", deleted_at: null },
+    ])
+    .addRows("products", [{ id: "p1", organization_id: E2E_ORG_ID, product_name: "SAREE", brand: "B", category: "SAREE", style: null, deleted_at: null }])
+    .addRows("sales", [
+      { ...sale("s1", "SAMEER VIRAN", 1500), payment_status: "completed", payment_method: "upi" },
+      // A held cart is not a sale yet: no commission until it is completed.
+      { ...sale("h1", "SAMEER VIRAN", 900), sale_number: "Hold/26-27/1", payment_status: "hold", payment_method: "pay_later" },
+    ])
+    .addRows("sale_items", [item("i1", "s1", 1500)])
+    .keepInserts("salesman_commissions");
+
+  await page.goto(`/${E2E_ORG_SLUG}/salesman-commission`);
+  await expect(page.getByRole("heading", { name: /Salesman Commission/ })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText("Missing commission added").first()).toBeVisible({ timeout: 30_000 });
+
+  const inserts = backend.calls.filter((c) => c.kind === "insert" && c.name === "salesman_commissions");
+  expect(inserts).toHaveLength(1);
+  const rows = inserts[0].body as Array<Record<string, unknown>>;
+  expect(rows.map((r) => [r.sale_id, r.employee_name, r.sale_amount, r.commission_amount])).toEqual([
+    ["s1", "SAMEER VIRAN", 1500, 30],
+  ]);
 });

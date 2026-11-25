@@ -14,9 +14,10 @@
  * ones are removed, so a failure never leaves a bill without its commission.
  */
 import { supabase } from "@/integrations/supabase/client";
-import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
+import { fetchAllRows, fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 import { buildSalesmanCommissionRecords, type SalesmanCommissionInsert } from "@/utils/salesmanCommissionLineRepair";
 import { resolveEffectiveLineSalesman } from "@/utils/dailySalesmanIncentive";
+import { isHeldOrCancelledSale } from "@/utils/posHoldBill";
 
 /** Sale types that never earn commission. */
 const NO_COMMISSION_SALE_TYPES = new Set(["delivery_challan", "debit_note", "quotation"]);
@@ -32,6 +33,8 @@ type SaleHeader = {
   sale_type: string | null;
   deleted_at: string | null;
   is_cancelled: boolean | null;
+  payment_status: string | null;
+  payment_method: string | null;
 };
 
 type SaleLine = {
@@ -80,7 +83,7 @@ export async function syncSaleCommissions(
     fetchInIdBatches<SaleHeader>(ids, (batch) =>
       supabase
         .from("sales")
-        .select("id, sale_number, sale_date, customer_name, salesman, net_amount, sale_type, deleted_at, is_cancelled")
+        .select("id, sale_number, sale_date, customer_name, salesman, net_amount, sale_type, deleted_at, is_cancelled, payment_status, payment_method")
         .eq("organization_id", organizationId)
         .in("id", batch)
         .order("id") as never,
@@ -160,6 +163,8 @@ export async function syncSaleCommissions(
     const live =
       !sale.deleted_at &&
       sale.is_cancelled !== true &&
+      // A held cart (F7 Hold) is not a sale yet: it earns commission when it is completed.
+      !isHeldOrCancelledSale(sale) &&
       !NO_COMMISSION_SALE_TYPES.has(String(sale.sale_type || "").toLowerCase());
     if (!live) continue;
     const items = linesBySale.get(sale.id) ?? [];
@@ -225,4 +230,81 @@ export async function fetchSaleIdsForPeriod(organizationId: string, startYmd: st
     if (!data || data.length < 1000) break;
   }
   return ids;
+}
+
+/**
+ * Bills of a period (India calendar days) that have a salesman — on the bill or on a line — but
+ * no commission row at all. The POS books commission in the background right after a save, at
+ * the same moment as printing; when that is cut short (print dialog, window closed or reloaded,
+ * an old app version on the counter) the bill is saved without commission and nothing says so
+ * (Nov 2026: 65 bills in 14 shops, all with active staff). The Salesman Commission page fills
+ * these in when it opens.
+ */
+type SaleHeaderLite = {
+  id: string;
+  sale_number: string | null;
+  sale_type: string | null;
+  is_cancelled: boolean | null;
+  payment_status: string | null;
+  payment_method: string | null;
+};
+
+export async function findSaleIdsMissingCommission(
+  organizationId: string,
+  startYmd: string,
+  endYmd: string,
+): Promise<string[]> {
+  if (!organizationId) return [];
+  const from = new Date(`${startYmd}T00:00:00+05:30`).toISOString();
+  const to = new Date(new Date(`${endYmd}T00:00:00+05:30`).getTime() + 86_400_000).toISOString();
+
+  const [headerRows, lineRows] = await Promise.all([
+    fetchAllRows<SaleHeaderLite>(
+      () =>
+        supabase
+          .from("sales")
+          .select("id, sale_number, sale_type, is_cancelled, payment_status, payment_method")
+          .eq("organization_id", organizationId)
+          .is("deleted_at", null)
+          .gte("sale_date", from)
+          .lt("sale_date", to)
+          .not("salesman", "is", null)
+          .neq("salesman", "")
+          .order("id") as never,
+    ),
+    fetchAllRows<{ id: string; sale_id: string }>(
+      () =>
+        supabase
+          .from("sale_items")
+          .select("id, sale_id, sales!inner(sale_date, deleted_at)")
+          .eq("organization_id", organizationId)
+          .is("deleted_at", null)
+          .not("salesman", "is", null)
+          .neq("salesman", "")
+          .is("sales.deleted_at", null)
+          .gte("sales.sale_date", from)
+          .lt("sales.sale_date", to)
+          .order("id") as never,
+    ),
+  ]);
+
+  const candidates = new Set<string>();
+  for (const row of headerRows) {
+    if (isHeldOrCancelledSale(row)) continue;
+    if (NO_COMMISSION_SALE_TYPES.has(String(row.sale_type || "").toLowerCase())) continue;
+    candidates.add(row.id);
+  }
+  for (const row of lineRows) if (row.sale_id) candidates.add(row.sale_id);
+  if (candidates.size === 0) return [];
+
+  const ids = [...candidates];
+  const booked = await fetchInIdBatches<{ id: string; sale_id: string }>(ids, (batch) =>
+    (supabase.from("salesman_commissions" as never) as any)
+      .select("id, sale_id")
+      .eq("organization_id", organizationId)
+      .in("sale_id", batch)
+      .order("id"),
+  );
+  const withRows = new Set(booked.map((row) => row.sale_id));
+  return ids.filter((id) => !withRows.has(id));
 }
