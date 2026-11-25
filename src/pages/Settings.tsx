@@ -254,6 +254,8 @@ interface PurchaseSettings {
   roll_wise_mtr_entry?: boolean;
   per_piece_barcode?: boolean;
   cursor_after_style?: 'pur_price' | 'hsn';
+  /** Add New Product (purchase): Enter / Tab on the last size qty. Default Add to Bill. */
+  cursor_after_size_qty?: 'add_to_bill' | 'pur_price';
   garment_gst_rule_enabled?: boolean;
   garment_gst_threshold?: number;
   garment_gst_below_rate?: number;
@@ -2461,6 +2463,32 @@ export default function Settings() {
                       <SelectContent>
                         <SelectItem value="pur_price">⚡ Skip to Purchase Price (default)</SelectItem>
                         <SelectItem value="hsn">📋 Go to HSN → Pur GST → Sale GST → Pur Price</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </SettingsField>
+                  <SettingsField
+                    label="Cursor after last size qty (Add New Product)"
+                    htmlFor="cursor_after_size_qty"
+                    help="Where Enter / Tab goes after the last size quantity, with a size group or Free Size"
+                  >
+                    <Select
+                      value={settings.purchase_settings?.cursor_after_size_qty === 'pur_price' ? 'pur_price' : 'add_to_bill'}
+                      onValueChange={(value) =>
+                        setSettings({
+                          ...settings,
+                          purchase_settings: {
+                            ...settings.purchase_settings,
+                            cursor_after_size_qty: value as 'add_to_bill' | 'pur_price',
+                          },
+                        })
+                      }
+                    >
+                      <SelectTrigger id="cursor_after_size_qty" data-testid="cursor-after-size-qty">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="add_to_bill">➕ Add to Bill (default)</SelectItem>
+                        <SelectItem value="pur_price">💰 1st size Purchase Price (check prices)</SelectItem>
                       </SelectContent>
                     </Select>
                   </SettingsField>
