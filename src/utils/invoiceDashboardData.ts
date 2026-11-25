@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import { invoiceOutstandingAmount } from "@/utils/recordInvoiceDashboardCashPayment";
 import { withDashboardTimeout } from "@/utils/withDashboardTimeout";
 import { resolveCnAdjustDateForSale } from "@/utils/customerAuditBundle";
@@ -1471,13 +1472,12 @@ export async function syncStaleInvoicePaymentFields(
 
   if (staleUpdates.length === 0) return false;
 
+  // Settle the bills that look off with the database's own rule (compute_sale_settlement): the
+  // figure above adds the counter payment AND the receipt made from it ("Counter payment received
+  // for sale …"), which wrote too high a paid amount (VASTRAKALA POS/26-27/803, Nov 2026).
   await Promise.all(
-    staleUpdates.map(({ inv, normalizedPaid, normalizedStatus }) =>
-      client
-        .from("sales")
-        .update({ paid_amount: normalizedPaid, payment_status: normalizedStatus })
-        .eq("id", inv.id)
-        .eq("organization_id", organizationId),
+    staleUpdates.map(({ inv }) =>
+      applyRecomputedSalePaymentState(inv.id, organizationId, client).catch(() => null),
     ),
   );
   return true;

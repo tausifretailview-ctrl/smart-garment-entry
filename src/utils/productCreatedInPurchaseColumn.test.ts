@@ -118,3 +118,35 @@ describe("insertProductsPreferringPurchaseFlag", () => {
     expect(payloads).toHaveLength(1);
   });
 });
+
+describe("withPurchaseSaleGstFromProductGst", () => {
+  it("fills purchase / sale GST from the product GST when the import did not set them", async () => {
+    const { withPurchaseSaleGstFromProductGst } = await import("./productCreatedInPurchaseColumn");
+    expect(withPurchaseSaleGstFromProductGst({ product_name: "SHOE", gst_per: 18 })).toEqual({
+      product_name: "SHOE",
+      gst_per: 18,
+      purchase_gst_percent: 18,
+      sale_gst_percent: 18,
+    });
+  });
+
+  it("keeps rates the caller set, including a deliberate 0", async () => {
+    const { withPurchaseSaleGstFromProductGst } = await import("./productCreatedInPurchaseColumn");
+    expect(
+      withPurchaseSaleGstFromProductGst({ gst_per: 5, purchase_gst_percent: 12, sale_gst_percent: 0 }),
+    ).toEqual({ gst_per: 5, purchase_gst_percent: 12, sale_gst_percent: 0 });
+    expect(withPurchaseSaleGstFromProductGst({ product_name: "BAG" })).toEqual({ product_name: "BAG" });
+  });
+
+  it("every product insert goes through it (Purchase Excel import rows carry only gst_per)", async () => {
+    let inserted: unknown = null;
+    mockProductInsert((rows) => {
+      inserted = rows;
+      return { data: [{ id: "p1" }], error: null };
+    });
+    await insertProductsPreferringPurchaseFlag([{ product_name: "FWR MEN SHOE", gst_per: 5, created_in_purchase: true }]);
+    expect(inserted).toEqual([
+      { product_name: "FWR MEN SHOE", gst_per: 5, created_in_purchase: true, purchase_gst_percent: 5, sale_gst_percent: 5 },
+    ]);
+  });
+});

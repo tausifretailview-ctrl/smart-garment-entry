@@ -27,6 +27,21 @@ export function omitCreatedInPurchaseField<T extends Record<string, unknown>>(
   return rest;
 }
 
+/**
+ * Purchase GST % and sale GST % follow the product GST % when the caller did not set them.
+ * Those columns default to 0 in the database, and the Sale Bill reads sale GST first, so a
+ * product created without them (Purchase Excel import without a sale-GST column) billed at 0%
+ * (KLEAR TRADING, Nov 2026: every imported product had sale / purchase GST 0 with GST 5 or 18).
+ */
+export function withPurchaseSaleGstFromProductGst<T extends Record<string, unknown>>(row: T): T {
+  const gst = Number(row.gst_per);
+  if (row.gst_per === null || row.gst_per === undefined || !Number.isFinite(gst)) return row;
+  const out: Record<string, unknown> = { ...row };
+  if (out.purchase_gst_percent === undefined || out.purchase_gst_percent === null) out.purchase_gst_percent = gst;
+  if (out.sale_gst_percent === undefined || out.sale_gst_percent === null) out.sale_gst_percent = gst;
+  return out as T;
+}
+
 type InsertProductsOptions = {
   select?: string;
   single?: boolean;
@@ -41,7 +56,7 @@ export async function insertProductsPreferringPurchaseFlag<T extends Record<stri
   rows: T | T[],
   options?: InsertProductsOptions,
 ): Promise<ProductInsertResult> {
-  const list = Array.isArray(rows) ? rows : [rows];
+  const list = (Array.isArray(rows) ? rows : [rows]).map((row) => withPurchaseSaleGstFromProductGst(row));
   const first = await runInsert(list, options);
   if (!first.error || !isMissingCreatedInPurchaseColumn(first.error)) {
     return first;

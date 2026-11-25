@@ -24,6 +24,7 @@ import { coerceToMap, safeMapGet } from "@/lib/coerceToMap";
 import { differenceInDays, format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import { newReceiptSubmissionId, receiptRequestId } from "@/utils/receiptIdempotency";
 import { toast } from "sonner";
 import {
@@ -486,20 +487,22 @@ export function CustomerPaymentTab({
           shouldPersistReconciledPaid(Number(sale.paid_amount || 0), normalizedPaid, supportedPaid)
         );
 
+      // A bill that looks off is settled by the database's own rule (compute_sale_settlement),
+      // not by the figure above: that one added the counter payment AND the receipt the app makes
+      // from it ("Counter payment received for sale …"), so opening this tab wrote 4,700 on a bill
+      // paid 2,350 at the counter + 2,000 advance (VASTRAKALA POS/26-27/803, Nov 2026).
       if (updates.length > 0) {
-        await Promise.all(
-          updates.map(({ sale, normalizedPaid, normalizedStatus }) =>
-            supabase
-              .from("sales")
-              .update({ paid_amount: normalizedPaid, payment_status: normalizedStatus })
-              .eq("id", sale.id)
-              .eq("organization_id", organizationId)
-          )
+        const recomputed = await Promise.all(
+          updates.map(({ sale }) =>
+            applyRecomputedSalePaymentState(sale.id, organizationId, supabase).catch(() => null),
+          ),
         );
-        for (const { sale, normalizedPaid, normalizedStatus } of updates) {
-          sale.paid_amount = normalizedPaid;
-          sale.payment_status = normalizedStatus;
-        }
+        updates.forEach(({ sale }, i) => {
+          const r = recomputed[i];
+          if (!r || r.skipped) return;
+          sale.paid_amount = r.paidAmount;
+          sale.payment_status = r.paymentStatus;
+        });
       }
 
       return salesRows.filter((sale: any) => {
