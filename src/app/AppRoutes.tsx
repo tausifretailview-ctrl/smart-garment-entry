@@ -104,6 +104,7 @@ import {
   StockTransfer,
   StockTransferEntry,
   Godowns,
+  SalesmanLocations,
   GodownTransfers,
   GodownTransferEntry,
   StockAnalysis,
@@ -597,6 +598,18 @@ export function AppRoutes() {
           }
         />
 
+        <Route
+          path="salesman-locations"
+          element={
+            <ProtectedRoute>
+              <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                <Layout>
+                  <SalesmanLocations />
+                </Layout>
+              </RoleProtectedRoute>
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="godowns"
           element={

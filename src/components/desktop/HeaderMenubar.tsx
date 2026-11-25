@@ -338,6 +338,9 @@ export function HeaderMenubar({
                 Discount Scheme
               </MenubarItem>
             )}
+            {(organizationRole === "admin" || organizationRole === "manager") && (
+              <MenubarItem onClick={() => orgNavigate("/salesman-locations")}>Salesman Location</MenubarItem>
+            )}
             {canQuickSaleLookup && (
               <MenubarItem
                 {...tabPrefetchProps("sales-report")}

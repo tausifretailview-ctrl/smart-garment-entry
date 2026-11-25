@@ -100,6 +100,7 @@ export const DuplicatePurchaseBills = lazyWithRetry(() => import("@/pages/Duplic
 export const StockTransfer = lazyWithRetry(() => import("@/pages/StockTransfer"));
 export const StockTransferEntry = lazyWithRetry(() => import("@/pages/StockTransferEntry"));
 export const Godowns = lazyWithRetry(() => import("@/pages/Godowns"));
+export const SalesmanLocations = lazyWithRetry(() => import("@/pages/SalesmanLocations"));
 export const GodownTransfers = lazyWithRetry(() => import("@/pages/GodownTransfers"));
 export const GodownTransferEntry = lazyWithRetry(() => import("@/pages/GodownTransferEntry"));
 export const StockAnalysis = lazyWithRetry(() => import("@/pages/StockAnalysis"));

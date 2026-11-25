@@ -16,6 +16,9 @@ const config: CapacitorConfig = {
   webDir: "dist",
   android: {
     allowMixedContent: false,
+    // Field Sales live location (@capacitor-community/background-geolocation): without the
+    // legacy bridge, location updates stop after about 5 minutes in the background.
+    useLegacyBridge: true,
   },
   server: {
     androidScheme: "https",

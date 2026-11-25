@@ -82,7 +82,7 @@ import {
   resolveSaleDefaultTaxType,
   type GstTaxType,
 } from "@/utils/gstRegisterUtils";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, MapPin } from "lucide-react";
 import { mergeActivityNavigationState } from "@/lib/activityCenterNavigation";
 
 const loadUserManagementPanel = () =>
@@ -4627,6 +4627,65 @@ export default function Settings() {
                             <li>PeriOne contact: hello@perione.in | +91 9848799417</li>
                           </ul>
                         </div>
+                      </div>
+                    )}
+                  </div>
+                </SettingsSection>
+
+                <SettingsSection
+                  title="Salesman live location"
+                  subtitle="See which area each Field Sales salesman is in, during work hours only"
+                  icon={MapPin}
+                  tone="emerald"
+                >
+                  <div className="space-y-3 p-4" data-testid="settings-salesman-tracking">
+                    <SettingsToggle
+                      id="salesman_tracking_enabled"
+                      label="Track salesman location"
+                      description="The Field Sales app shares the salesman's location between these hours (also with the phone locked, on the Android app). Each salesman sees a notice first. Kept 7 days. Admins and managers see it under Field Sales > Salesman Location."
+                      checked={(settings.sale_settings as any)?.salesman_tracking?.enabled === true}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            salesman_tracking: {
+                              start: "10:00",
+                              end: "20:00",
+                              ...((settings.sale_settings as any)?.salesman_tracking ?? {}),
+                              enabled: checked === true,
+                            },
+                          } as any,
+                        })
+                      }
+                    />
+                    {(settings.sale_settings as any)?.salesman_tracking?.enabled === true && (
+                      <div className="grid grid-cols-2 gap-3 sm:max-w-sm">
+                        {(["start", "end"] as const).map((k) => (
+                          <div key={k} className="space-y-1">
+                            <Label htmlFor={`salesman_tracking_${k}`} className="text-xs font-semibold text-slate-600">
+                              {k === "start" ? "From" : "Until"}
+                            </Label>
+                            <Input
+                              id={`salesman_tracking_${k}`}
+                              type="time"
+                              value={(settings.sale_settings as any)?.salesman_tracking?.[k] ?? (k === "start" ? "10:00" : "20:00")}
+                              onChange={(e) =>
+                                setSettings({
+                                  ...settings,
+                                  sale_settings: {
+                                    ...settings.sale_settings,
+                                    salesman_tracking: {
+                                      ...((settings.sale_settings as any)?.salesman_tracking ?? {}),
+                                      [k]: e.target.value,
+                                    },
+                                  } as any,
+                                })
+                              }
+                            />
+                          </div>
+                        ))}
+                        <p className="col-span-2 text-[11px] text-muted-foreground">India time. "Until" must be after "From" (no overnight shifts).</p>
                       </div>
                     )}
                   </div>
