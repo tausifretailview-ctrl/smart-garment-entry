@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { productHsnGstColumns, replaceColorText, replaceVariantColors, updateProductsHsnGst } from "@/lib/data/productHsnGstBulk";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/data/fetchInIdBatches";
 import { bestEffortWrite } from "@/lib/rollbackStep";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { toast } from "sonner";
@@ -66,11 +67,18 @@ export const useBulkProductUpdate = () => {
   const fetchFilterOptions = async () => {
     if (!currentOrganization) return { productNames: [], categories: [], brands: [], styles: [] };
 
-    const { data: products } = await supabase
-      .from("products")
-      .select("product_name, category, brand, style")
-      .eq("organization_id", currentOrganization.id)
-      .is("deleted_at", null);
+    // Every product, page by page: one read stops at 1,000 rows, so shops with more products
+    // were missing brands / categories / names (e.g. brand JULIET) from the filters.
+    const orgId = currentOrganization.id;
+    const products = await fetchAllRows<{ product_name: string | null; category: string | null; brand: string | null; style: string | null }>(
+      () =>
+        supabase
+          .from("products")
+          .select("product_name, category, brand, style")
+          .eq("organization_id", orgId)
+          .is("deleted_at", null)
+          .order("id"),
+    );
 
     const productNames = [...new Set(products?.map(p => p.product_name).filter(Boolean) as string[])].sort();
     const categories = [...new Set(products?.map(p => p.category).filter(Boolean) as string[])].sort();

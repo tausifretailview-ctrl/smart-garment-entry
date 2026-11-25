@@ -8,10 +8,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Search, RefreshCw, Check, ArrowRight, ArrowLeft, ChevronsUpDown, History, Clock, Merge, Layers, Pencil } from "lucide-react";
+import { AlertTriangle, Search, RefreshCw, Check, ArrowRight, ArrowLeft, History, Clock, Merge, Layers, Pencil } from "lucide-react";
 import { ProductBrandUpdateDialog } from "@/components/ProductBrandUpdateDialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
   useBulkProductUpdate,
   UpdateType,
@@ -26,6 +24,7 @@ import {
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { cn } from "@/lib/utils";
 import { ProductSearchDropdown } from "@/components/ProductSearchDropdown";
+import { SearchableValueSelect } from "@/components/products/SearchableValueSelect";
 import { productEntryEditUrl } from "@/utils/productEntryReturn";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
@@ -259,62 +258,42 @@ export default function BulkProductUpdate() {
               <div className="grid grid-cols-2 gap-x-3 gap-y-2 bg-white px-3 py-3">
                 <div className="space-y-1">
                   <Label className="text-sm font-medium text-slate-600">Category</Label>
-                  <Select value={filters.category || "__all__"} onValueChange={(v) => setFilters({ ...filters, category: v === "__all__" ? undefined : v })}>
-                    <SelectTrigger className={fieldClass}>
-                      <SelectValue placeholder="All Categories" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__all__">All Categories</SelectItem>
-                      {filterOptions.categories.map(c => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableValueSelect
+                    testId="bulk-filter-category"
+                    className={fieldClass}
+                    value={filters.category}
+                    options={filterOptions.categories}
+                    onChange={(v) => setFilters({ ...filters, category: v })}
+                    placeholder="All Categories"
+                    allLabel="All Categories"
+                    searchPlaceholder="Search category..."
+                  />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-sm font-medium text-slate-600">Brand</Label>
-                  <Select value={filters.brand || "__all__"} onValueChange={(v) => setFilters({ ...filters, brand: v === "__all__" ? undefined : v })}>
-                    <SelectTrigger className={fieldClass}>
-                      <SelectValue placeholder="All Brands" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__all__">All Brands</SelectItem>
-                      {filterOptions.brands.map(b => (
-                        <SelectItem key={b} value={b}>{b}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableValueSelect
+                    testId="bulk-filter-brand"
+                    className={fieldClass}
+                    value={filters.brand}
+                    options={filterOptions.brands}
+                    onChange={(v) => setFilters({ ...filters, brand: v })}
+                    placeholder="All Brands"
+                    allLabel="All Brands"
+                    searchPlaceholder="Search brand..."
+                  />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-sm font-medium text-slate-600">Product Name</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" role="combobox" className={cn(fieldClass, "w-full justify-between font-normal")}>
-                        <span className="truncate">{filters.productName || "All Products"}</span>
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                      <Command>
-                        <CommandInput placeholder="Search product..." />
-                        <CommandList className="max-h-60">
-                          <CommandEmpty>No product found.</CommandEmpty>
-                          <CommandGroup>
-                            <CommandItem value="__all__" onSelect={() => setFilters({ ...filters, productName: undefined })}>
-                              <Check className={`mr-2 h-4 w-4 ${!filters.productName ? "opacity-100" : "opacity-0"}`} />
-                              All Products
-                            </CommandItem>
-                            {filterOptions.productNames.map(name => (
-                              <CommandItem key={name} value={name} onSelect={() => setFilters({ ...filters, productName: name })}>
-                                <Check className={`mr-2 h-4 w-4 ${filters.productName === name ? "opacity-100" : "opacity-0"}`} />
-                                {name}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                  <SearchableValueSelect
+                    testId="bulk-filter-product-name"
+                    className={fieldClass}
+                    value={filters.productName}
+                    options={filterOptions.productNames}
+                    onChange={(v) => setFilters({ ...filters, productName: v })}
+                    placeholder="All Products"
+                    allLabel="All Products"
+                    searchPlaceholder="Search product..."
+                  />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-sm font-medium text-slate-600">Style</Label>
