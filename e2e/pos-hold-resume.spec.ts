@@ -45,8 +45,11 @@ test("POS: hold a bill, resume it, pay Cash: the Hold count clears", async ({ pa
   await scan.press("Enter");
   await expect(page.locator("tr", { hasText: "100001" })).toHaveCount(1);
 
-  // F7 Hold: the cart is parked and the red count shows 1.
+  // F7 asks first; Enter holds. The cart is parked and the red count shows 1.
   await page.keyboard.press("F7");
+  await expect(page.getByTestId("pos-hold-confirm")).toBeVisible();
+  await expect(page.getByTestId("pos-hold-confirm-yes")).toBeFocused();
+  await page.keyboard.press("Enter");
   await expect(page.locator("tr", { hasText: "100001" })).toHaveCount(0);
   const heldRow = (backend.tables.sales ?? [])[0];
   expect(heldRow).toMatchObject({ sale_number: "Hold/26-27/1", payment_status: "hold" });
@@ -77,4 +80,37 @@ test("POS: hold a bill, resume it, pay Cash: the Hold count clears", async ({ pa
   // happened to finish after the save).
   await expect.poll(heldListReads).toBeGreaterThan(heldReadsAtSave);
   await expect(redCount).toHaveCount(0);
+});
+
+test("POS: a stray F7 or Hold click does not park the bill until the cashier says yes", async ({ page, backend }) => {
+  backend.addRows("products", [product]).addRows("product_variants", [variant]).keepInserts("sales");
+  backend.onRpc("generate_hold_number_atomic", () => "Hold/26-27/1");
+
+  await page.goto(`/${E2E_ORG_SLUG}/pos-sales`);
+  const scan = page.getByPlaceholder(/^Scan barcode or search/).filter({ visible: true });
+  await expect(scan).toBeVisible({ timeout: 60_000 });
+  await scan.fill("100001");
+  await scan.press("Enter");
+  const line = page.locator("tr", { hasText: "100001" });
+  await expect(line).toHaveCount(1);
+
+  // F7 then Esc: nothing held, the cart stays (Esc must not also clear the cart).
+  await page.keyboard.press("F7");
+  const confirm = page.getByTestId("pos-hold-confirm");
+  await expect(confirm).toBeVisible();
+  await expect(confirm).toContainText("1 qty");
+  await page.keyboard.press("Escape");
+  await expect(confirm).toHaveCount(0);
+  await expect(line).toHaveCount(1);
+
+  // Hold button then Cancel: same.
+  const holdButton = page.getByRole("button", { name: /Hold/ }).filter({ hasText: "F7" }).first();
+  await holdButton.click();
+  await expect(confirm).toBeVisible();
+  await page.getByTestId("pos-hold-confirm-no").click();
+  await expect(confirm).toHaveCount(0);
+  await expect(line).toHaveCount(1);
+
+  expect(backend.rpcCalls("generate_hold_number_atomic")).toHaveLength(0);
+  expect((backend.tables.sales ?? []).filter((r) => r.payment_status === "hold")).toHaveLength(0);
 });
