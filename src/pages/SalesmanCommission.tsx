@@ -1,5 +1,5 @@
 import { istCalendarYmd } from "@/lib/localDayBounds";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -39,6 +39,7 @@ import { isDailyIncentiveUiOrg } from "@/utils/dailySalesmanIncentive";
 import { DailySalesmanIncentivePanel } from "@/components/DailySalesmanIncentivePanel";
 import {
   fetchSaleIdsForPeriod,
+  findSaleIdsMissingCommission,
   syncSaleCommissions,
   type SyncSaleCommissionsResult,
 } from "@/utils/syncSaleCommissions";
@@ -113,7 +114,7 @@ export default function SalesmanCommission() {
   const [rebuildResult, setRebuildResult] = useState<(SyncSaleCommissionsResult & { range: string }) | null>(null);
   const showDailyIncentiveTab = isDailyIncentiveUiOrg(currentOrganization?.id);
 
-  const { data: employees = [] } = useQuery({
+  const { data: employees = [], isSuccess: employeesLoaded } = useQuery({
     queryKey: ["employees-commission-page", currentOrganization?.id],
     queryFn: async () => {
       const { data } = await supabase.from("employees").select("id, employee_name, commission_percent, status, designation").eq("organization_id", currentOrganization!.id).is("deleted_at", null).eq("status", "active").order("employee_name");
@@ -165,6 +166,50 @@ export default function SalesmanCommission() {
       toast({ title: "Could not rebuild commission", description: err?.message || "Try again", variant: "destructive" });
     },
   });
+
+  // Safety net: a bill with a salesman but no commission row at all (the POS books commission
+  // in the background right after the save; a print dialog, a closed or reloaded window or an
+  // old app version can cut that short) gets its commission when this page shows its dates.
+  // Once per period per visit; paid rows are never touched (syncSaleCommissions).
+  const filledPeriodRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    const orgId = currentOrganization?.id;
+    if (!orgId || !employeesLoaded || rulesLoading) return;
+    const key = `${orgId}|${start}|${end}`;
+    if (filledPeriodRef.current === key) return;
+    filledPeriodRef.current = key;
+    void (async () => {
+      try {
+        const missing = await findSaleIdsMissingCommission(orgId, start, end);
+        if (missing.length === 0) return;
+        const activeRules = (rules as any[]).filter((r) => r.is_active !== false);
+        let bills = 0;
+        for (let i = 0; i < missing.length; i += 200) {
+          const part = await syncSaleCommissions(orgId, missing.slice(i, i + 200), { employees, rules: activeRules });
+          bills += part.rows > 0 ? part.bills - part.noSalesmanBills : 0;
+        }
+        if (!mountedRef.current || bills <= 0) return;
+        void queryClient.invalidateQueries({ queryKey: ["salesman-commissions-page"] });
+        void queryClient.invalidateQueries({ queryKey: ["commission-sale-items-discount"] });
+        toast({
+          title: "Missing commission added",
+          description: `${bills.toLocaleString("en-IN")} bill${bills === 1 ? "" : "s"} had a salesman but no commission.`,
+        });
+      } catch (err: any) {
+        // The page still shows what is booked; Rebuild from bills is the manual route.
+        filledPeriodRef.current = null;
+        if (!mountedRef.current) return;
+        toast({ title: "Could not check for missing commission", description: err?.message || "Try Rebuild from bills", variant: "destructive" });
+      }
+    })();
+  }, [currentOrganization?.id, start, end, employeesLoaded, rulesLoading, employees, rules, queryClient, toast]);
 
   const { data: commissions = [], isLoading: commissionsLoading } = useQuery({
     queryKey: ["salesman-commissions-page", currentOrganization?.id, start, end, filterSalesman, filterStatus],
