@@ -53,7 +53,8 @@ describe("WholesaleSizeA4Template", () => {
         taxableAmount: 6458,
         cgstAmount: 161.45,
         sgstAmount: 161.45,
-        roundOff: 0.1,
+        roundOff: -0.9,
+        otherCharges: 1,
         grandTotal: 6781,
         bankDetails: { bank_name: "ICICI BANK", account_number: "194105500522", ifsc_code: "ICIC0001941" },
         qrCodeUrl: "data:image/png;base64,AAAA",
@@ -69,14 +70,51 @@ describe("WholesaleSizeA4Template", () => {
     // Size-group order, first to last size sold: 34 … 42, XL (not 28–32).
     for (const sz of ["34", "36", "38", "40", "42", "XL"]) expect(html).toContain(`>${sz}</th>`);
     expect(html).not.toContain(">28</th>");
-    expect(html).toContain("SONARI  ·  HSN 62121000");
-    expect(html).toContain("KYANDO  ·  HSN 62082100");
+    // HSN in its own column (no "HSN …" group rows); brand rows stay; colour sits in the description.
+    expect(html).toContain(">HSN</th>");
+    expect(html).not.toContain(">Color</th>");
+    expect(html).not.toContain("HSN 62121000");
+    expect((html.match(/data-testid="wsa4-hsn-cell">62121000</g) || []).length).toBe(2);
+    expect(html).toContain('data-testid="wsa4-hsn-cell">62082100<');
+    expect(html).toMatch(/data-testid="wsa4-group"[^>]*>SONARI</);
+    expect(html).toMatch(/data-testid="wsa4-group"[^>]*>KYANDO</);
+    expect(html).toContain("KIRTIKA (D)<span");
+    expect(html).toContain('data-testid="wsa4-color" style="font-weight:600;color:#374151"> – WHITE</span>');
     expect((html.match(/data-testid="wsa4-row"/g) || []).length).toBe(3);
     expect(html).toContain('data-testid="wsa4-hsn"');
     expect(html).toContain("ICICI BANK");
     expect(html).toContain("shell@icici");
     expect(html).toContain("6,781.00");
     expect(html).toContain("BILL AMOUNT");
+    // Sale Bill "Charges" print as transport charges, before Round Off and the bill amount.
+    const totals = html.slice(html.indexOf('data-testid="wsa4-totals"'));
+    expect(totals).toContain("Add: Transport Charges");
+    expect(totals.indexOf("Add: Transport Charges")).toBeLessThan(totals.indexOf("Round Off"));
+    expect(totals.indexOf("Round Off")).toBeLessThan(totals.indexOf("BILL AMOUNT"));
+  });
+
+  it("no charges → no transport charges row; no brand → no group rows", () => {
+    const html = renderToStaticMarkup(
+      createElement(WholesaleSizeA4Template, {
+        businessName: "KLEAR TRADING CO",
+        address: "BHIWANDI",
+        mobile: "7387426529",
+        invoiceNumber: "INV/26-27/6",
+        invoiceDate: new Date(2026, 10, 21),
+        customerName: "SHOE WORLD (DOMBIVALI)",
+        taxType: "inclusive",
+        items: [
+          line(1, "FWR MEN SLPPR GP 6081023", "OGREEN", "40", 1, 1712.74, { brand: "", hsn: "64039990", mrp: 2595 }),
+          line(2, "FWR MEN SHOE GC 6245124", "CAMEL", "41", 1, 2500, { brand: "", hsn: "64051000", gstPercent: 18, mrp: 3995 }),
+        ],
+        grandTotal: 4212.74,
+      }),
+    );
+    expect(html).not.toContain("Transport Charges");
+    expect(html).not.toContain('data-testid="wsa4-group"');
+    expect(html).toContain('data-testid="wsa4-hsn-cell">64039990<');
+    expect(html).toContain('data-testid="wsa4-hsn-cell">64051000<');
+    expect(html).toContain("> – OGREEN</span>");
   });
 
   it("size columns follow the shop's size group, first to last size sold", () => {
