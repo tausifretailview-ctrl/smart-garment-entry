@@ -11,9 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Loader2 } from "lucide-react";
+import { SearchableValueSelect } from "@/components/products/SearchableValueSelect";
 import { MergeDuplicateBrandsDialog } from "@/components/MergeDuplicateBrandsDialog";
 import { MergeDuplicateProductsDialog } from "@/components/MergeDuplicateProductsDialog";
 import { ProductMergeCombobox } from "@/components/ProductMergeCombobox";
@@ -295,24 +295,18 @@ export function ProductBrandUpdateDialog({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-muted-foreground">Current brand</Label>
-                  <Select
+                  <SearchableValueSelect
+                    testId="brand-rename-current"
+                    className="h-11"
                     value={currentBrand || undefined}
-                    onValueChange={(v) => {
-                      setCurrentBrand(v);
-                      setNewBrand(v);
+                    options={brands}
+                    onChange={(v) => {
+                      setCurrentBrand(v ?? "");
+                      setNewBrand(v ?? "");
                     }}
-                  >
-                    <SelectTrigger className="h-11">
-                      <SelectValue placeholder="Select brand…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {brands.map((b) => (
-                        <SelectItem key={b} value={b}>
-                          {b}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    placeholder="Select brand…"
+                    searchPlaceholder="Search brand..."
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-muted-foreground">New brand</Label>

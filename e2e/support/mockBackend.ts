@@ -241,9 +241,18 @@ export class MockBackend {
         ? route.fulfill({ json: rows[0] })
         : route.fulfill({ status: 406, json: { code: "PGRST116", message: "JSON object requested, multiple (or no) rows returned" } });
     }
-    return route.fulfill({ json: rows, headers: { "content-range": `0-${Math.max(0, rows.length - 1)}/${rows.length}` } });
+    // Like the real server: offset/limit (supabase .range()) and at most 1,000 rows per read.
+    const total = rows.length;
+    const offset = Number(url.searchParams.get("offset") ?? 0) || 0;
+    const limit = Number(url.searchParams.get("limit") ?? SERVER_MAX_ROWS) || SERVER_MAX_ROWS;
+    rows = rows.slice(offset, offset + Math.min(limit, SERVER_MAX_ROWS));
+    const last = offset + Math.max(0, rows.length - 1);
+    return route.fulfill({ json: rows, headers: { "content-range": `${offset}-${last}/${total}` } });
   }
 }
+
+/** PostgREST max-rows on the live project: a read returns at most this many rows, silently. */
+const SERVER_MAX_ROWS = 1000;
 
 function parseBody(raw: string | null): unknown {
   if (!raw) return null;
