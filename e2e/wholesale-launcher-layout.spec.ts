@@ -10,7 +10,9 @@ for (const { width, columns } of [{ width: 1440, columns: 2 }, { width: 1920, co
     backend.tables.settings[0].sale_settings = { wholesale_dashboard: true };
     await page.setViewportSize({ width, height: 1000 });
     await page.goto(`/${E2E_ORG_SLUG}`);
-    const sections = page.getByTestId("launcher-sections");
+    // On a cold open the org home can be drawn twice for a moment: the route copy on screen
+    // and the tab-cache copy still mounting in its hidden container. Measure the one shown.
+    const sections = page.getByTestId("launcher-sections").filter({ visible: true });
     await expect(sections).toBeVisible({ timeout: 60_000 });
 
     // Let the icons' short rise-in animation finish before measuring.
