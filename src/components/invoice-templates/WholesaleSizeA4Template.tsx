@@ -54,6 +54,8 @@ export interface WholesaleSizeA4TemplateProps {
   sgstAmount?: number;
   igstAmount?: number;
   roundOff?: number;
+  /** Sale Bill "Charges" (transport / freight), added after tax. */
+  otherCharges?: number;
   grandTotal: number;
   termsConditions?: string[];
   declarationText?: string;
@@ -141,6 +143,7 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
   sgstAmount = 0,
   igstAmount = 0,
   roundOff = 0,
+  otherCharges = 0,
   grandTotal,
   termsConditions,
   declarationText,
@@ -161,8 +164,13 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
   const columns = wholesaleSizeColumns(items, sizeColumnHints);
   const { groups, columnQtyTotals, totalPcs, totalAmount } = groupWholesaleSizeRows(items, columns);
   const showMrp = groups.some((g) => g.rows.some((r) => r.mrp > 0));
-  const showGroupHeaders = groups.length > 1 || groups.some((g) => g.brand || g.hsn);
-  const printedRows = groups.reduce((s, g) => s + g.rows.length + (showGroupHeaders ? 1 : 0), 0);
+  // HSN has its own column; a group row names the brand, once per brand (groups are brand × HSN).
+  const showGroupHeaders = groups.some((g) => g.brand);
+  const brandStarts = groups.map((g, i) => i === 0 || g.brand !== groups[i - 1].brand);
+  const printedRows = groups.reduce(
+    (s, g, i) => s + g.rows.length + (showGroupHeaders && brandStarts[i] ? 1 : 0),
+    0,
+  );
   const fillPage = printedRows <= SINGLE_PAGE_MAX_ROWS;
 
   const hsnSummary = isNoGst
@@ -193,7 +201,7 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
 
   // Column widths (%): sizes share what the fixed columns leave, description takes the rest.
   const sizeW = columns.length > 0 ? Math.max(2.2, Math.min(4.4, 35 / columns.length)) : 0;
-  const fixed = { sr: 3.6, color: 8, gst: 4.4, pcs: 4.8, mrp: showMrp ? 6.4 : 0, rate: 7, amount: 10.2 };
+  const fixed = { sr: 3.6, hsn: 8, gst: 4.4, pcs: 4.8, mrp: showMrp ? 6.4 : 0, rate: 7, amount: 10.2 };
   const descW = Math.max(
     11,
     100 - Object.values(fixed).reduce((a, b) => a + b, 0) - sizeW * columns.length,
@@ -418,7 +426,7 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
             <colgroup>
               <col style={{ width: `${fixed.sr}%` }} />
               <col style={{ width: `${descW}%` }} />
-              <col style={{ width: `${fixed.color}%` }} />
+              <col style={{ width: `${fixed.hsn}%` }} />
               <col style={{ width: `${fixed.gst}%` }} />
               {columns.map((sz) => (
                 <col key={sz} style={{ width: `${sizeW}%` }} />
@@ -432,7 +440,7 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
               <tr>
                 <th style={th} rowSpan={2}>Sr</th>
                 <th style={{ ...th, textAlign: "left", paddingLeft: "6px" }} rowSpan={2}>Description of Goods</th>
-                <th style={th} rowSpan={2}>Color</th>
+                <th style={th} rowSpan={2}>HSN</th>
                 <th style={th} rowSpan={2}>GST %</th>
                 {columns.length > 0 ? (
                   <th style={{ ...th, fontSize: "9.5px", letterSpacing: "1px", padding: "2px" }} colSpan={columns.length}>
@@ -457,7 +465,7 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
                 let sr = 0;
                 return groups.map((g, gi) => (
                   <React.Fragment key={`${g.brand}|${g.hsn}|${gi}`}>
-                    {showGroupHeaders ? (
+                    {showGroupHeaders && brandStarts[gi] ? (
                       <tr>
                         <td
                           colSpan={colSpanAll}
@@ -472,7 +480,7 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
                             ...printExact,
                           }}
                         >
-                          {[g.brand, g.hsn ? `HSN ${g.hsn}` : ""].filter(Boolean).join("  ·  ") || "ITEMS"}
+                          {g.brand || "ITEMS"}
                         </td>
                       </tr>
                     ) : null}
@@ -481,8 +489,15 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
                       return (
                         <tr key={row.key} data-testid="wsa4-row">
                           <td style={{ ...cell, textAlign: "center" }}>{sr}</td>
-                          <td style={{ ...cell, fontWeight: 700, wordBreak: "break-word" }}>{productLabel(row)}</td>
-                          <td style={{ ...cell, textAlign: "center", fontSize: "10.5px", wordBreak: "break-word" }}>{row.color || ""}</td>
+                          <td style={{ ...cell, fontWeight: 700, wordBreak: "break-word" }}>
+                            {productLabel(row)}
+                            {row.color ? (
+                              <span data-testid="wsa4-color" style={{ fontWeight: 600, color: "#374151" }}>{` – ${row.color}`}</span>
+                            ) : null}
+                          </td>
+                          <td style={{ ...cell, textAlign: "center", fontSize: "10.5px", wordBreak: "break-word" }} data-testid="wsa4-hsn-cell">
+                            {g.hsn || ""}
+                          </td>
                           <td style={{ ...cell, textAlign: "center" }}>{row.gstPercent ? `${row.gstPercent}` : ""}</td>
                           {columns.map((sz) => (
                             <td key={sz} style={sizeCell}>
@@ -506,7 +521,7 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
             <colgroup>
               <col style={{ width: `${fixed.sr}%` }} />
               <col style={{ width: `${descW}%` }} />
-              <col style={{ width: `${fixed.color}%` }} />
+              <col style={{ width: `${fixed.hsn}%` }} />
               <col style={{ width: `${fixed.gst}%` }} />
               {columns.map((sz) => (
                 <col key={sz} style={{ width: `${sizeW}%` }} />
@@ -527,7 +542,7 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
           {/* Size totals */}
           <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
             <colgroup>
-              <col style={{ width: `${fixed.sr + descW + fixed.color + fixed.gst}%` }} />
+              <col style={{ width: `${fixed.sr + descW + fixed.hsn + fixed.gst}%` }} />
               {columns.map((sz) => (
                 <col key={sz} style={{ width: `${sizeW}%` }} />
               ))}
@@ -649,6 +664,7 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
                 {!isNoGst && !isInterState && cgstAmount > 0.005 ? sumRow("CGST", cgstAmount) : null}
                 {!isNoGst && !isInterState && sgstAmount > 0.005 ? sumRow("SGST", sgstAmount) : null}
                 {!isNoGst && isInterState ? sumRow("IGST", igstAmount) : null}
+                {otherCharges > 0.005 ? sumRow("Add: Transport Charges", otherCharges) : null}
                 {Math.abs(roundOff) > 0.004 ? sumRow("Round Off", roundOff) : null}
               </tbody>
             </table>
