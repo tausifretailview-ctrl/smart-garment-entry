@@ -54,6 +54,7 @@ import {
   Gift,
   Store,
   Percent,
+  Ticket,
   Database,
   ArrowLeftRight,
   Factory,
@@ -198,7 +199,7 @@ export function AppSidebar() {
   // Menu structure
   const masterPaths = ["/customers", "/suppliers", "/transporters", "/employees", "/salesman-commission"];
   const inventoryPaths = ["/purchase-bills", "/purchase-returns", "/purchase-entry", "/purchase-orders", "/purchase-order-entry", "/product-entry", "/products", "/orphaned-products", "/bulk-product-update", "/stock-settlement", "/stock-adjustment", "/duplicate-purchase-bills", "/customer-reconciliation", "/stock-transfer", "/stock-transfer-entry", "/godowns", "/godown-transfers", "/godown-transfer-entry", "/manufacturing"];
-  const salesPaths = ["/quotation-entry", "/quotation-dashboard", "/sale-order-entry", "/sale-order-dashboard", "/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard", "/sale-return-entry", "/sale-returns", "/delivery-challan-entry", "/delivery-challan-dashboard", "/debit-notes", "/eway-bills", "/advance-booking-dashboard", "/discount-scheme-dashboard"];
+  const salesPaths = ["/quotation-entry", "/quotation-dashboard", "/sale-order-entry", "/sale-order-dashboard", "/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard", "/sale-return-entry", "/sale-returns", "/delivery-challan-entry", "/delivery-challan-dashboard", "/debit-notes", "/eway-bills", "/advance-booking-dashboard", "/discount-scheme-dashboard", "/spin-and-win"];
   const reportsPaths = ["/reports", "/insights", "/stock-report", "/stock-summary", "/product-catalogue", "/stock-analysis", "/stock-ageing", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/daily-tally", "/account-tally", "/item-wise-sales", "/item-wise-stock", "/price-history", "/gst-reports", "/gst-analysis", "/gst-readiness", "/gst-register", "/tally-export", "/sales-analytics", "/accounting-reports", "/expense-salary-report", "/cn-sr-adjustment-register", "/customer-reviews", "/customer-notifications", "/customer-ledger-report", "/customer-points-report", "/customer-party-balances", "/supplier-party-balances", "/payment-flow", "/customer-account-statement", "/customer-account-statement-audit", "/customer-balance-activity", "/customer-audit-report", "/daily-sale-analysis", "/einvoice-report"];
   const accountsPaths = [
     "/accounts",
@@ -858,6 +859,16 @@ export function AppSidebar() {
                               <NavLink to="/discount-scheme-dashboard" className="flex items-center gap-2 group">
                                 <Percent className="h-4 w-4 sidebar-icon text-primary" />
                                 <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Discount Scheme</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(organizationRole === "admin" || organizationRole === "manager") && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/spin-and-win")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
+                              <NavLink to="/spin-and-win" className="flex items-center gap-2 group" data-testid="nav-spin-and-win">
+                                <Ticket className="h-4 w-4 sidebar-icon text-primary" />
+                                <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Spin &amp; Win</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>

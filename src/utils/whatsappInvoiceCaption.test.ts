@@ -217,3 +217,29 @@ describe("amounts in whole rupees", () => {
     );
   });
 });
+
+describe("Spin & Win link in the bill message", () => {
+  beforeEach(() => fromMock.mockReset());
+
+  it("adds the spin link when the shop's campaign covers the bill", async () => {
+    tableReturning({
+      settings: { business_name: "KS FOOTWEAR" },
+      spin_campaigns: { enabled: true, starts_on: null, ends_on: null, pos_only: true, min_bill_amount: 0 },
+    });
+    const text = await buildSalesInvoiceWhatsAppCaption("org-1", { ...sale, sale_id: "s-9", bill_context: "pos" }, "KS");
+    expect(text).toMatch(/Spin & Win!\* Spin the wheel for your gift:\nhttps:\/\/[^\s]+\/spin\/s-9/);
+  });
+
+  it("no link when Spin & Win is off or not set up", async () => {
+    tableReturning({ settings: { business_name: "KS" }, spin_campaigns: { enabled: false, pos_only: true, min_bill_amount: 0 } });
+    expect(await buildSalesInvoiceWhatsAppCaption("org-1", { ...sale, sale_id: "s-9", bill_context: "pos" }, "KS")).not.toMatch(/spin/i);
+    tableReturning({ settings: { business_name: "KS" } });
+    expect(await buildSalesInvoiceWhatsAppCaption("org-1", { ...sale, sale_id: "s-9", bill_context: "pos" }, "KS")).not.toMatch(/spin/i);
+  });
+
+  it("a shop template can place {spin_link} itself", () => {
+    const text = applyWhatsAppTemplatePlaceholders("Bill {invoice_number}\nSpin here: {spin_link}", { ...sale, spin_link: "https://x/spin/1" }, "KS");
+    expect(text).toBe("Bill POS/26-27/2302\nSpin here: https://x/spin/1");
+    expect(applyWhatsAppTemplatePlaceholders("Bill {invoice_number}\nSpin here: {spin_link}", sale, "KS")).toBe("Bill POS/26-27/2302");
+  });
+});

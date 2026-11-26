@@ -20,6 +20,7 @@ import {
   TrendingUp,
   Truck,
   Percent,
+  Ticket,
   Workflow,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -339,6 +340,12 @@ export function HeaderMenubar({
               >
                 <Percent className="h-3.5 w-3.5 mr-2 opacity-60" />
                 Discount Scheme
+              </MenubarItem>
+            )}
+            {(organizationRole === "admin" || organizationRole === "manager") && (
+              <MenubarItem {...tabPrefetchProps("spin-and-win")} onClick={() => orgNavigate("/spin-and-win")}>
+                <Ticket className="h-3.5 w-3.5 mr-2 opacity-60" />
+                Spin &amp; Win
               </MenubarItem>
             )}
             {optionalMenus.masters && (organizationRole === "admin" || organizationRole === "manager") && (

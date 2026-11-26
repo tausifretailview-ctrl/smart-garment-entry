@@ -121,6 +121,7 @@ export const BACK_MAP: Record<string, string> = {
   "purchase-returns":         "/",
   "advance-booking-dashboard": "/",
   "discount-scheme-dashboard": "/",
+  "spin-and-win":             "/",
   "delivery-challan-dashboard": "/",
   "debit-notes":              "/",
   "eway-bills":               "/",

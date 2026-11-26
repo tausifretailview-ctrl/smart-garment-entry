@@ -78,6 +78,7 @@ import {
   PlatformDataIntegrity,
   PublicInvoiceView,
   PublicProductReview,
+  PublicSpinWin,
   OwnerAlertBill,
   OwnerAlertReport,
   PublicPaymentPage,
@@ -139,6 +140,7 @@ import {
   EwayBillRegister,
   AdvanceBookingDashboard,
   DiscountSchemeDashboard,
+  SpinAndWin,
   SalesmanLayout,
   SalesmanDashboard,
   SalesmanCustomers,
@@ -262,6 +264,7 @@ export function AppRoutes() {
       <Route path="/invoice/view/:saleId" element={<PublicInvoiceView />} />
       <Route path="/i/:saleId" element={<PublicInvoiceView />} />
       <Route path="/review/:saleId" element={<PublicProductReview />} />
+      <Route path="/spin/:saleId" element={<PublicSpinWin />} />
       <Route path="/pay" element={<PublicPaymentPage />} />
       <Route path="/payment-status" element={<PaymentStatusPage />} />
       {ListSkeletonSpotCheck ? (
@@ -1094,6 +1097,19 @@ export function AppRoutes() {
               <Layout>
                 <AdvanceBookingDashboard />
               </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="spin-and-win"
+          element={
+            <ProtectedRoute>
+              <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                <Layout>
+                  <SpinAndWin />
+                </Layout>
+              </RoleProtectedRoute>
             </ProtectedRoute>
           }
         />

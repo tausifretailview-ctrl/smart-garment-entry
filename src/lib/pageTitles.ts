@@ -107,6 +107,7 @@ export const PAGE_TITLE_CONFIG: Record<string, { label: string; icon: string }> 
   "delivery-dashboard": { label: "Delivery", icon: "Truck" },
   "advance-booking-dashboard": { label: "Advance Booking", icon: "Wallet" },
   "discount-scheme-dashboard": { label: "Discount Scheme", icon: "Percent" },
+  "spin-and-win": { label: "Spin & Win", icon: "Tag" },
   "barcode-printing": { label: "Barcode Print", icon: "Printer" },
   settings: { label: "Settings", icon: "Settings" },
   website: { label: "Website", icon: "Store" },

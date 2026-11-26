@@ -66,6 +66,7 @@ export const PlatformAdmin = lazyWithRetry(() => import("@/pages/PlatformAdmin")
 export const PlatformDataIntegrity = lazyWithRetry(() => import("@/pages/PlatformDataIntegrity"));
 export const PublicInvoiceView = lazyWithRetry(() => import("@/pages/PublicInvoiceView"));
 export const PublicProductReview = lazyWithRetry(() => import("@/pages/PublicProductReview"));
+export const PublicSpinWin = lazyWithRetry(() => import("@/pages/PublicSpinWin"));
 export const OwnerAlertBill = lazyWithRetry(() =>
   import("@/pages/OwnerAlertView").then((m) => ({ default: m.OwnerAlertBill })),
 );
@@ -139,6 +140,7 @@ export const DebitNoteDashboard = lazyWithRetry(() => import("@/pages/DebitNoteD
 export const EwayBillRegister = lazyWithRetry(() => import("@/pages/EwayBillRegister"));
 export const AdvanceBookingDashboard = lazyWithRetry(() => import("@/pages/AdvanceBookingDashboard"));
 export const DiscountSchemeDashboard = lazyWithRetry(() => import("@/pages/DiscountSchemeDashboard"));
+export const SpinAndWin = lazyWithRetry(() => import("@/pages/SpinAndWin"));
 export const SalesmanLayout = lazyWithRetry(() => import("@/layouts/SalesmanLayout"));
 export const SalesmanDashboard = lazyWithRetry(() => import("@/pages/salesman/SalesmanDashboard"));
 export const SalesmanCustomers = lazyWithRetry(() => import("@/pages/salesman/SalesmanCustomers"));
