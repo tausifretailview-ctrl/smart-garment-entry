@@ -37,12 +37,15 @@ export function buildHsnTaxSummary(opts: {
   isInterState: boolean;
   /** Total GST printed on the bill (CGST + SGST + IGST). */
   targetTax?: number;
+  /** Bill discount: helps tell GST-inclusive line totals from taxable ones. */
+  discount?: number;
 }): HsnTaxSummary {
   const breakdown = buildInvoiceGstBreakdown({
     items: opts.items,
     taxType: opts.taxType,
     grandTotal: opts.grandTotal,
     saleReturnAdjust: opts.saleReturnAdjust,
+    discount: opts.discount,
   });
 
   const rawTax = breakdown.lines.reduce((s, l) => s + l.gst, 0);

@@ -182,6 +182,7 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
         saleReturnAdjust,
         isInterState,
         targetTax: cgstAmount + sgstAmount + igstAmount,
+        discount,
       });
 
   const placeOfSupply = formatPlaceOfSupplyFromGstin(customerGSTIN) || formatPlaceOfSupplyFromGstin(gstNumber) || "";

@@ -66,13 +66,14 @@ export function resolveInvoiceLineTaxMode(opts: {
   const netTarget = Number(opts.grandTotal || 0) + Number(opts.saleReturnAdjust || 0);
   if (Math.abs(netTarget - linesSum) < 1) return "inclusive";
 
-  // A flat bill discount breaks the simple "net ≈ Σ lines" test. The discount is on
-  // the pre-GST basis, so for each reading of the lines work out the net it gives
-  // (lines − discount, with GST on the discounted part) and keep the closer one.
+  // Not within ₹1 (a flat bill discount, or discount + round off together, as on KLEAR
+  // INV/26-27/31: Σ lines 68,970.33, discount 0.68, round off −0.65, bill 68,969). The
+  // discount is on the pre-GST basis, so for each reading of the lines work out the net it
+  // gives (lines − discount, with GST on the discounted part) and keep the closer one.
   // Sales Invoice exclusive: 6 × ₹230 + 5% lines saved as 241.50 etc (Σ 945),
   // 5% flat disc ₹45 → net 855 + 42.75 = 898, so the lines already hold GST.
-  const discount = Number(opts.discount || 0);
-  if (discount > 0.005 && linesSum > 0) {
+  const discount = Math.max(0, Number(opts.discount || 0));
+  if (linesSum > 0) {
     let embedTaxable = 0;
     let exclAmount = 0;
     for (const i of opts.items) {

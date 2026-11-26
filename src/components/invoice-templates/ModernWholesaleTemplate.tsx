@@ -253,6 +253,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         saleReturnAdjust,
         isInterState: igstAmount > 0 && cgstAmount + sgstAmount <= 0,
         targetTax: cgstAmount + sgstAmount + igstAmount,
+        discount,
       });
 
   // Items per page: full pages vs last page (reserving space for footer/summary)

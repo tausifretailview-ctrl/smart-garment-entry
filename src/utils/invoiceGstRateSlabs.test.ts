@@ -4,6 +4,7 @@ import { numberToWords } from "@/lib/utils";
 import {
   buildInvoiceGstBreakdown,
   formatGstHalfRateLabel,
+  resolveInvoiceLineTaxMode,
 } from "@/utils/invoiceGstRateSlabs";
 
 /** INV-210 / NAVRANG SHOES shape: two 18% lines + one 5% courier line. */
@@ -142,5 +143,37 @@ describe("buildInvoiceGstBreakdown — exclusive bill with flat discount", () =>
     const r = buildInvoiceGstBreakdown({ items: pos, taxType: "exclusive", grandTotal: 898, discount: 45 });
     expect(r.mode).toBe("exclusive");
     expect(r.taxableTotal).toBe(900);
+  });
+});
+
+/**
+ * KLEAR TRADING INV/26-27/31 (Nov 2026): exclusive bill, line totals hold GST (Σ 68,970.33,
+ * GST 4,018.09), discount 0.68 and round off −0.65 → bill 68,969. Off by 1.33, so the "within
+ * ₹1" test read the lines as taxable and printed GST 4,357.60 on top of GST.
+ */
+describe("KLEAR INV/26-27/31 — discount and round off together over ₹1", () => {
+  const items = [
+    { total: 6993.34, qty: 2, gstPercent: 18, hsn: "64051000" },
+    { total: 8032.65, qty: 5, gstPercent: 5, hsn: "64051000" },
+    { total: 8032.65, qty: 5, gstPercent: 5, hsn: "64039990" },
+    { total: 11819.75, qty: 5, gstPercent: 5, hsn: "64051000" },
+    { total: 2363.95, qty: 1, gstPercent: 5, hsn: "64051000" },
+    { total: 9455.8, qty: 4, gstPercent: 5, hsn: "64051000" },
+    { total: 11819.75, qty: 5, gstPercent: 5, hsn: "64051000" },
+    { total: 10452.44, qty: 4, gstPercent: 5, hsn: "64051000" },
+  ];
+
+  it("reads the lines as GST-inclusive, with or without the discount given", () => {
+    for (const discount of [0.68, undefined]) {
+      const r = buildInvoiceGstBreakdown({ items, taxType: "exclusive", grandTotal: 68969, discount });
+      expect(r.mode).toBe("inclusive");
+      expect(r.taxTotal).toBeCloseTo(4018.09, 1);
+      expect(r.taxableTotal).toBeCloseTo(64952.24, 0);
+    }
+  });
+
+  it("still reads POS-style taxable lines (GST on top) as exclusive", () => {
+    const pos = items.map((i) => ({ ...i, total: Math.round((i.total / (1 + i.gstPercent / 100)) * 100) / 100 }));
+    expect(resolveInvoiceLineTaxMode({ taxType: "exclusive", items: pos, grandTotal: 68969, discount: 0.68 })).toBe("exclusive");
   });
 });
