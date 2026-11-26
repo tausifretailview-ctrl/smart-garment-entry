@@ -19,8 +19,10 @@ test("Bulk Product Update: brand filter lists brands past the first 1,000 produc
   backend.addRows("products", products);
 
   await page.goto(`/${E2E_ORG_SLUG}/bulk-product-update`);
-  const brand = page.getByTestId("bulk-filter-brand");
-  await expect(brand).toBeVisible({ timeout: 60_000 });
+  // A cold open can draw the page twice for a moment (like the launcher): use the visible copy,
+  // and wait until only one is left.
+  const brand = page.getByTestId("bulk-filter-brand").filter({ visible: true });
+  await expect(brand).toHaveCount(1, { timeout: 60_000 });
   // Every page of products was read, not just the first 1,000.
   await expect.poll(() => backend.readsOf("products").length).toBeGreaterThanOrEqual(2);
 
@@ -33,7 +35,7 @@ test("Bulk Product Update: brand filter lists brands past the first 1,000 produc
   await expect(brand).toHaveText("JULIET");
 
   // Category from the same late products is listed too.
-  await page.getByTestId("bulk-filter-category").click();
+  await page.getByTestId("bulk-filter-category").filter({ visible: true }).click();
   await page.getByPlaceholder("Search category...").fill("kurti");
   await expect(page.getByRole("option", { name: "KURTI" })).toBeVisible();
 });

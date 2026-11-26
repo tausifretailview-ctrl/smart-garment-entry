@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { ProductThumb } from "@/components/ProductThumb";
+import { ProductPhotoViewer } from "@/components/ProductPhotoViewer";
 import { isUsableImageUrl } from "@/lib/productImages";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Minus, Plus, X } from "lucide-react";
@@ -81,6 +82,7 @@ export function SalesmanSizeGridDialog({
   const [newQty, setNewQty] = useState("");
   const [newRate, setNewRate] = useState("");
   const [sizeOrder, setSizeOrder] = useState<string[]>([]);
+  const [photoOpen, setPhotoOpen] = useState(false);
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const prefilledRef = useRef<Set<string>>(new Set());
@@ -424,9 +426,16 @@ export function SalesmanSizeGridDialog({
                 <ArrowLeft className="h-5 w-5" />
               </button>
               {isUsableImageUrl(product.image_url) && (
-                <a href={product.image_url!} target="_blank" rel="noreferrer" title="Open photo" className="shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setPhotoOpen(true)}
+                  title="View photo"
+                  aria-label={`View photo of ${product.product_name}`}
+                  className="shrink-0 rounded-md active:opacity-70"
+                  data-testid="size-sheet-photo"
+                >
                   <ProductThumb url={product.image_url} alt={product.product_name} size={44} />
-                </a>
+                </button>
               )}
               <div className="min-w-0 flex-1">
                 <DialogPrimitive.Title className="truncate text-[15px] font-semibold leading-tight">
@@ -675,6 +684,11 @@ export function SalesmanSizeGridDialog({
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
+      <ProductPhotoViewer
+        url={photoOpen ? product.image_url : null}
+        name={product.product_name}
+        onClose={() => setPhotoOpen(false)}
+      />
     </DialogPrimitive.Root>
   );
 }
