@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { sizeMatrixKey } from "./sizeSort";
-import { buildAvailableStockMatrix } from "./availableStockPrintMatrix";
+import {
+  buildAvailableStockMatrix,
+  estimatePickListRowHeightMm,
+  paginateByHeight,
+  pickListArticleText,
+  PICK_LIST_PAGE_BUDGET_MM,
+} from "./availableStockPrintMatrix";
 
 describe("sizeMatrixKey", () => {
   it("collapses leading zeros so 06 and 6 share a column", () => {
@@ -174,5 +180,36 @@ describe("buildAvailableStockMatrix", () => {
     expect(row.totalAvailable).toBe(26);
     expect(matrix.grandOrdered).toBe(3);
     expect(matrix.grandAvailable).toBe(26);
+  });
+});
+
+describe("pick-list pages sized by row height (KS FOOTWEAR SO/26-27/2017)", () => {
+  it("estimates one line for short names and more for names that wrap", () => {
+    expect(estimatePickListRowHeightMm("AT75 – TAN")).toBe(7.6);
+    expect(estimatePickListRowHeightMm("MR50 – BK (A WALK - IN,BLUE)")).toBeCloseTo(10.8, 1);
+    expect(estimatePickListRowHeightMm("AT75 – TAN (A WALK - IN,BLUE MEN SPORTS)")).toBeCloseTo(14.8, 1);
+    expect(pickListArticleText({ productName: "MR50", color: "BK", brand: "A WALK - IN,BLUE" })).toBe("MR50 – BK (A WALK - IN,BLUE)");
+  });
+
+  it("18 two-line rows no longer go 14 to a page (that overflowed the sheet)", () => {
+    const rows = Array.from({ length: 18 }, (_, i) => i);
+    const pages = paginateByHeight(rows, () => 10.8);
+    expect(pages[0].length).toBeLessThan(14);
+    expect(pages.flat()).toEqual(rows);
+    for (const [i, p] of pages.entries()) {
+      const budget = i === 0 ? PICK_LIST_PAGE_BUDGET_MM.first : PICK_LIST_PAGE_BUDGET_MM.next;
+      expect(p.reduce((s) => s + 10.8, 0)).toBeLessThanOrEqual(budget);
+    }
+  });
+
+  it("keeps room for the totals row and note on the last page", () => {
+    // Exactly fills the first page: the totals would not fit, so the last row moves on.
+    const n = Math.floor(PICK_LIST_PAGE_BUDGET_MM.first / 7.6);
+    const pages = paginateByHeight(Array.from({ length: n }, (_, i) => i), () => 7.6);
+    expect(pages.length).toBe(2);
+    const last = pages[pages.length - 1];
+    expect(last.length * 7.6).toBeLessThanOrEqual(PICK_LIST_PAGE_BUDGET_MM.next - PICK_LIST_PAGE_BUDGET_MM.lastExtra);
+    expect(paginateByHeight([], () => 7.6)).toEqual([[]]);
+    expect(paginateByHeight([1, 2, 3], () => 7.6)).toEqual([[1, 2, 3]]);
   });
 });

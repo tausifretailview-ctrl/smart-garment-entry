@@ -2,6 +2,9 @@ import React from 'react';
 import { sortSizes } from "@/utils/sizeSort";
 import {
   buildAvailableStockMatrix,
+  estimatePickListRowHeightMm,
+  paginateByHeight,
+  pickListArticleText,
   type AvailableStockMatrixRow,
 } from "@/utils/availableStockPrintMatrix";
 
@@ -226,16 +229,22 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
     const matrixGrandAvailable = availableStockMatrix?.grandAvailable ?? totalAvailable;
     const matrixGrandOrdered = availableStockMatrix?.grandOrdered ?? 0;
 
-    const MATRIX_ROWS_PER_PAGE = isPickListLandscape ? 14 : isA4 ? 20 : 11;
+    // Pages sized by row height (long article names wrap to 2–3 lines), not a fixed row count:
+    // a fixed 14 rows overflowed the landscape page and left a nearly blank sheet.
     const matrixPages: MatrixRow[][] = React.useMemo(() => {
       if (!isAvailableStock) return [];
-      if (matrixRows.length === 0) return [[]];
-      const out: MatrixRow[][] = [];
-      for (let i = 0; i < matrixRows.length; i += MATRIX_ROWS_PER_PAGE) {
-        out.push(matrixRows.slice(i, i + MATRIX_ROWS_PER_PAGE));
+      return paginateByHeight(matrixRows, (row) => estimatePickListRowHeightMm(pickListArticleText(row)));
+    }, [matrixRows, isAvailableStock]);
+    /** Sr. no. of the first row on each page. */
+    const matrixPageStart = React.useMemo(() => {
+      const starts: number[] = [];
+      let n = 0;
+      for (const p of matrixPages) {
+        starts.push(n);
+        n += p.length;
       }
-      return out;
-    }, [matrixRows, MATRIX_ROWS_PER_PAGE, isAvailableStock]);
+      return starts;
+    }, [matrixPages]);
 
     const totalPages = isAvailableStock ? matrixPages.length : pages.length;
 
@@ -620,7 +629,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                 return (
                   <tr key={row.key}>
                     <td style={tdStyle({ textAlign: 'center', color: '#333', fontWeight: 700 })}>
-                      {pageIndex * MATRIX_ROWS_PER_PAGE + idx + 1}
+                      {(matrixPageStart[pageIndex] ?? 0) + idx + 1}
                     </td>
                     <td style={tdStyle({ textAlign: 'left' })}>
                       <span style={{ fontWeight: 800, fontSize: isA4 ? '9pt' : '7.5pt', color: '#000' }}>
@@ -985,6 +994,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             @page { size: ${isPickListLandscape ? 'A4 landscape' : isA4 ? 'A4' : isHorizontal ? 'A5 landscape' : 'A5 portrait'}; margin: 0; }
             .sale-order-print-container { margin: 0; padding: 0; }
             .sale-order-page { page-break-after: always; margin: 0; }
+            .sale-order-page tr { break-inside: avoid; page-break-inside: avoid; }
             .sale-order-page:last-child { page-break-after: auto; }
           }
         `}</style>
