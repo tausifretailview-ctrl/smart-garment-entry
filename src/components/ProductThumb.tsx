@@ -18,7 +18,7 @@ export function ProductThumb({
   alt?: string;
   size?: number;
   className?: string;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLImageElement>) => void;
 }) {
   const [failed, setFailed] = useState(false);
   const show = isUsableImageUrl(url) && !failed;

@@ -31,6 +31,7 @@ import {
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { cn, sortSearchResults } from "@/lib/utils";
 import { ProductThumb } from "@/components/ProductThumb";
+import { ProductPhotoViewer } from "@/components/ProductPhotoViewer";
 import { isUsableImageUrl } from "@/lib/productImages";
 import { SalesmanSizeGridDialog } from "@/components/SalesmanSizeGridDialog";
 import { variantsForSalesmanSizeGrid, salesmanSizeBoxCount } from "@/utils/salesmanOrderSizeGrid";
@@ -166,6 +167,14 @@ const SalesmanOrderEntry = () => {
 
   // Size Grid state
   const [showSizeGrid, setShowSizeGrid] = useState(false);
+  // Full-screen photo (tap a product photo in the search list or an order line).
+  const [photo, setPhoto] = useState<{ url: string; name: string } | null>(null);
+  const openPhoto = (url: string | null | undefined, name: string) => (e: React.MouseEvent) => {
+    if (!isUsableImageUrl(url)) return; // no photo: the tap opens the sizes as before
+    e.stopPropagation();
+    e.preventDefault();
+    setPhoto({ url, name });
+  };
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedProductVariants, setSelectedProductVariants] = useState<Variant[]>([]);
   /** "Edit sizes" on a product already on the order: its quantities (size+colour → qty). */
@@ -958,7 +967,14 @@ const SalesmanOrderEntry = () => {
                     className="flex w-full items-center gap-3 px-3 py-2.5 text-left active:bg-orange-50"
                     onClick={() => openSizeGrid(product, variants)}
                   >
-                    {productsHaveImages && <ProductThumb url={product.image_url} alt={product.product_name} size={48} />}
+                    {productsHaveImages && (
+                      <ProductThumb
+                        url={product.image_url}
+                        alt={product.product_name}
+                        size={48}
+                        onClick={openPhoto(product.image_url, product.product_name)}
+                      />
+                    )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[15px] font-semibold leading-tight">{product.product_name}</span>
                       <span className="mt-0.5 block truncate text-xs leading-tight text-slate-500">
@@ -999,7 +1015,9 @@ const SalesmanOrderEntry = () => {
           orderGroups.map((group) => (
             <div key={group.name} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm" data-testid="fs-order-group">
               <div className="flex items-center gap-2.5">
-                {orderHasImages && <ProductThumb url={group.imageUrl} alt={group.name} size={44} />}
+                {orderHasImages && (
+                  <ProductThumb url={group.imageUrl} alt={group.name} size={44} onClick={openPhoto(group.imageUrl, group.name)} />
+                )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[15px] font-semibold leading-tight">{group.name}</p>
                   <p className="mt-0.5 truncate text-xs leading-tight text-slate-500 tabular-nums">
@@ -1128,6 +1146,8 @@ const SalesmanOrderEntry = () => {
       )}
 
       {/* Customer picker */}
+      <ProductPhotoViewer url={photo?.url} name={photo?.name} onClose={() => setPhoto(null)} />
+
       <FieldSheet open={showCustomerSearch} onOpenChange={setShowCustomerSearch} title="Select customer" testId="fs-customer-sheet">
         <div className="shrink-0 px-4 pb-3">
           <div className="relative">
