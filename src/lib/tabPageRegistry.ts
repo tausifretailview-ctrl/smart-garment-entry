@@ -240,6 +240,11 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
     loader: () => import("@/pages/DiscountSchemeDashboard"),
     layout: "layout",
   },
+  "spin-and-win": {
+    loader: () => import("@/pages/SpinAndWin"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
   "salesman-commission": {
     loader: () => import("@/pages/SalesmanCommission"),
     layout: "fullscreen",

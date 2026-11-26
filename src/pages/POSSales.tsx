@@ -317,6 +317,7 @@ import { captureElementToPdfBase64 } from "@/utils/captureInvoicePdf";
 import type { SaveSaleRuntimeOptions } from "@/utils/saveSaleRuntimeOptions";
 import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
 import { buildSalesInvoiceWhatsAppCaption } from "@/utils/whatsappInvoiceCaption";
+import { appendSpinLinkLine, fetchSpinCampaignForLink, spinLinkForBill } from "@/lib/spinAndWin";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { format } from "date-fns";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
@@ -6628,7 +6629,17 @@ export default function POSSales() {
     
     const message = `*Invoice Details*\n\nInvoice No: ${invoiceNo}\nDate: ${format(new Date(), 'dd/MM/yyyy')}\nCustomer: ${name || 'Walk in Customer'}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${(grossAmount || 0).toFixed(2)}\nDiscount: ₹${(discountAmount || 0).toFixed(2)}${pointsRedeemedAmt > 0 ? `\nPoints Redeemed: ${pointsRedeemedAmt} pts (-₹${pointsRedemptionVal.toFixed(0)})` : ''}${srAdjust > 0 ? `\nS/R Adjust: -₹${srAdjust.toFixed(2)}` : ''}\nRound Off: ₹${(roundOffAmount || 0).toFixed(2)}\n*Net Amount: ₹${(totalAmount || 0).toFixed(2)}*\n\nPayment: ${paymentBreakdown}${outstandingText}${pointsText}${invoiceUrl ? `\n\n📄 View Invoice Online:\n${invoiceUrl}` : ''}\n\nThank you for your business!`;
 
-    sendWhatsApp(phone, message);
+    // Spin & Win link (Sales → Spin & Win), when this bill gets a spin.
+    const spinLink =
+      saleId && currentOrganization?.id
+        ? spinLinkForBill(await fetchSpinCampaignForLink(supabase as never, currentOrganization.id), {
+            sale_id: saleId,
+            net_amount: totalAmount,
+            bill_context: "pos",
+          })
+        : "";
+
+    sendWhatsApp(phone, appendSpinLinkLine(message, spinLink));
   };
 
   const handlePrintInvoice = async () => {

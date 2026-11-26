@@ -31,6 +31,11 @@ const PUBLIC_BY_DESIGN = new Set([
   "submit_public_product_review",
   // Reserve & try / tell me when it's back: scoped by store slug, writes one Website enquiry row.
   "submit_public_storefront_request",
+  // Spin & Win page (/spin/<bill id>): the unguessable bill id is the key, as for the online
+  // invoice. They return only the shop name, the wheel's prize names and this bill's result,
+  // and write at most one result per bill. Rate limited per bill.
+  "get_public_spin",
+  "spin_for_sale",
 ]);
 
 const ID_PARAM =

@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { appendCustomerPageLinkLine, appendGoogleReviewLine } from "@/utils/customerPageLink";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { appendSpinLinkLine, fetchSpinCampaignForLink, spinLinkForBill } from "@/lib/spinAndWin";
 
 /**
  * WhatsApp's own markup (*bold*, _italic_) and a few common emojis. Sent as plain
@@ -74,6 +76,7 @@ const OPTIONAL_LINE_PLACEHOLDERS = [
   "website_link",
   "facebook_link",
   "whatsapp_group_link",
+  "spin_link",
 ] as const;
 
 /**
@@ -158,6 +161,7 @@ export function applyWhatsAppTemplatePlaceholders(
     whatsapp_group_link: String(saleData.whatsapp_group_link || ""),
     points_earned: pointsText(saleData.points_earned),
     points_balance: pointsText(saleData.points_balance),
+    spin_link: String(saleData.spin_link || ""),
   };
 
   let message = dropEmptyPlaceholderLines(
@@ -306,7 +310,7 @@ export async function buildSalesInvoiceWhatsAppCaption(
   saleData: Record<string, unknown>,
   orgName: string,
 ): Promise<string> {
-  const [{ data: row }, { data: shop }, { data: wa }] = await Promise.all([
+  const [{ data: row }, { data: shop }, { data: wa }, spin] = await Promise.all([
     supabase
       .from("whatsapp_templates")
       .select("message_template")
@@ -323,7 +327,10 @@ export async function buildSalesInvoiceWhatsAppCaption(
       .select("social_links")
       .eq("organization_id", organizationId)
       .maybeSingle(),
+    // Spin & Win (Sales → Spin & Win); no row / no table yet = no link.
+    fetchSpinCampaignForLink(supabase as unknown as SupabaseClient, organizationId),
   ]);
+  const spinLink = spinLinkForBill(spin, saleData as Parameters<typeof spinLinkForBill>[1]);
 
   const social = mergeShopSocialLinks(
     (wa as { social_links?: unknown } | null)?.social_links,
@@ -344,6 +351,7 @@ export async function buildSalesInvoiceWhatsAppCaption(
     whatsapp_group_link: saleData.whatsapp_group_link || social.whatsapp_group || "",
     points_earned: saleData.points_earned ?? points?.earned ?? 0,
     points_balance: saleData.points_balance ?? points?.balance ?? 0,
+    spin_link: saleData.spin_link || spinLink,
   };
 
   const templateText = row?.message_template?.trim() || DEFAULT_SALES_INVOICE;
@@ -354,7 +362,8 @@ export async function buildSalesInvoiceWhatsAppCaption(
   const withBillLinks = billLink
     ? appendCustomerPageLinkLine(message, billLink, { billLine: false })
     : appendGoogleReviewLine(message, googleReview);
-  return appendSocialLinkLines(withBillLinks, {
+  const withSpin = appendSpinLinkLine(withBillLinks, String(withShop.spin_link || ""));
+  return appendSocialLinkLines(withSpin, {
     google_review: googleReview,
     instagram: String(withShop.instagram_link || ""),
     facebook: String(withShop.facebook_link || ""),
