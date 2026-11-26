@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { loginDisplayName } from "@/lib/fieldSalesLogin";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -73,7 +74,7 @@ export function UserManagement() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast({ title: "Success", description: `Password reset for ${resetUser.email}` });
+      toast({ title: "Success", description: `Password reset for ${loginDisplayName(resetUser.email)}` });
       setResetUser(null);
       setResetPassword("");
       setResetConfirm("");
@@ -259,7 +260,7 @@ export function UserManagement() {
             ) : (
               users.map((user) => (
                 <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.email}</TableCell>
+                  <TableCell className="font-medium" title={user.email}>{loginDisplayName(user.email)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Store className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -343,7 +344,7 @@ export function UserManagement() {
           <DialogHeader>
             <DialogTitle>Reset Password</DialogTitle>
             <DialogDescription>
-              Set a new password for <strong>{resetUser?.email}</strong>. They will need to use this new password to sign in.
+              Set a new password for <strong>{loginDisplayName(resetUser?.email)}</strong>. They will need to use this new password to sign in.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">

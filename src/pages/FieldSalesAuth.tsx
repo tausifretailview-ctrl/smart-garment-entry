@@ -7,6 +7,7 @@ import { Loader2, AlertCircle, ArrowRight, Eye, EyeOff, Lock, Mail, ShoppingBag,
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { validateAuth } from "@/lib/validations";
+import { fieldSalesLoginIdToEmail } from "@/lib/fieldSalesLogin";
 import { storeOrgSlug } from "@/lib/orgSlug";
 import { useFieldSalesManifest } from "@/hooks/useFieldSalesManifest";
 import { FieldSalesInstallCard } from "@/components/fieldSales/FieldSalesInstallCard";
@@ -143,7 +144,13 @@ export default function FieldSalesAuth() {
       localStorage.removeItem(`field_sales_lockout_${orgSlug}`);
     }
 
-    const validation = validateAuth(email, password);
+    // A mobile number (login made in Employee Master) becomes this shop's mobile login.
+    const loginEmail = fieldSalesLoginIdToEmail(email, organization.slug);
+    if (!loginEmail.includes("@")) {
+      toast.error("Enter your mobile number or email.");
+      return;
+    }
+    const validation = validateAuth(loginEmail, password);
     if (!validation.success) {
       toast.error(validation.error);
       return;
@@ -157,7 +164,7 @@ export default function FieldSalesAuth() {
       localStorage.removeItem('auth_refresh_lock');
 
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
+        email: loginEmail,
         password,
       });
 
@@ -176,7 +183,7 @@ export default function FieldSalesAuth() {
         }
         
         if (authError.message.includes("Invalid login credentials")) {
-          setError(`Invalid email or password (${MAX_LOGIN_ATTEMPTS - newAttempts} attempts remaining)`);
+          setError(`Invalid mobile number / email or password (${MAX_LOGIN_ATTEMPTS - newAttempts} attempts remaining)`);
         } else {
           setError(`${authError.message} (${MAX_LOGIN_ATTEMPTS - newAttempts} attempts remaining)`);
         }
@@ -322,16 +329,18 @@ export default function FieldSalesAuth() {
           <form onSubmit={handleSignIn} className="space-y-4">
             <div className="space-y-1.5">
               <label htmlFor="email" className="block text-sm font-semibold text-slate-700">
-                Email address
+                Mobile number or email
               </label>
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                 <input
                   id="email"
-                  type="email"
+                  type="text"
                   inputMode="email"
                   autoComplete="username"
-                  placeholder="you@example.com"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  placeholder="Mobile number or email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}

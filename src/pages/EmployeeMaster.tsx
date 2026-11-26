@@ -42,7 +42,14 @@ import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { formatDateDMY } from "@/lib/dateDisplay";
 import { staffMasterQueryKey } from "@/lib/data/employees";
-import { useShopUsers } from "@/lib/data/shopUsers";
+import { refreshShopUsersCache, useShopUsers } from "@/lib/data/shopUsers";
+import {
+  FIELD_SALES_PASSWORD_MIN,
+  createFieldSalesMobileLogin,
+  fieldSalesLoginEmail,
+  loginDisplayName,
+  normalizeLoginMobile,
+} from "@/lib/fieldSalesLogin";
 
 interface Employee {
   id: string;
@@ -84,13 +91,19 @@ const EmployeeMaster = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
+  // Field Sales login made here from the employee's mobile number (no separate user setup).
+  const [loginPassword, setLoginPassword] = useState("");
+  const [creatingLogin, setCreatingLogin] = useState(false);
+  // A login just made here, listed in "Link User Account" until the users list reloads (a
+  // picked value missing from the list would be cleared by the Select).
+  const [newLogin, setNewLogin] = useState<OrgUser | null>(null);
   /** What the salesman receives: open in Chrome, log in, install the Field Sales app. */
   const fieldSalesInviteText = (employee: { employee_name?: string | null }) => {
     const link = fieldSalesInstallLink(currentOrganization?.slug || "");
     return [
       `Hi ${employee.employee_name || ""}, install the ${currentOrganization?.name || ""} Field Sales app:`.replace(/\s+/g, " "),
       `1. Open this link in Chrome on your phone: ${link}`,
-      "2. Log in with your Field Sales ID and password.",
+      "2. Log in with your mobile number and the password the shop gave you.",
       "3. Tap \"Install Field Sales app\" (iPhone: Safari → Share → Add to Home Screen).",
     ].join("\n");
   };
@@ -184,10 +197,17 @@ const EmployeeMaster = () => {
     staleTime: 5 * 60 * 1000,
   });
 
+  /** Blank optional fields are saved empty (a blank Joining Date used to fail the save). */
+  const employeeRow = (data: typeof formData) => ({
+    ...data,
+    joining_date: data.joining_date || null,
+    user_id: data.user_id || null,
+  });
+
   const createEmployee = useMutation({
     mutationFn: async (data: typeof formData) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
-      const { error } = await supabase.from("employees").insert([{ ...data, user_id: data.user_id || null, organization_id: currentOrganization.id }]);
+      const { error } = await supabase.from("employees").insert([{ ...employeeRow(data), organization_id: currentOrganization.id }]);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["employees"] }); toast({ title: "Employee created successfully" }); resetForm(); setIsDialogOpen(false); },
@@ -196,7 +216,7 @@ const EmployeeMaster = () => {
 
   const updateEmployee = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
-      const { error } = await supabase.from("employees").update({ ...data, user_id: data.user_id || null }).eq("id", id);
+      const { error } = await supabase.from("employees").update(employeeRow(data)).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["employees"] }); toast({ title: "Employee updated successfully" }); resetForm(); setIsDialogOpen(false); },
@@ -211,7 +231,47 @@ const EmployeeMaster = () => {
     onError: (error: any) => { toast({ title: "Error deleting employee", description: error.message, variant: "destructive" }); },
   });
 
+  const mobileLoginEmail = fieldSalesLoginEmail(formData.phone, currentOrganization?.slug);
+  const existingMobileLogin = mobileLoginEmail
+    ? orgUsers.find((u) => u.email.toLowerCase() === mobileLoginEmail)
+    : undefined;
+
+  const createMobileLogin = async () => {
+    if (!currentOrganization?.id || !currentOrganization.slug) return;
+    setCreatingLogin(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Please sign in again.");
+      const result = await createFieldSalesMobileLogin({
+        supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+        accessToken: session.access_token,
+        organizationId: currentOrganization.id,
+        orgSlug: currentOrganization.slug,
+        mobile: formData.phone,
+        password: loginPassword,
+        existingUsers: orgUsers,
+      });
+      setNewLogin({ id: result.userId, email: result.email, role: "user" });
+      setFormData((f) => ({ ...f, user_id: result.userId }));
+      setLoginPassword("");
+      void refreshShopUsersCache(queryClient, currentOrganization.id);
+      toast({
+        title: result.existed ? "Mobile login linked" : "Mobile login created",
+        description: `${editingEmployee ? "Update" : "Create"} Employee to save. The salesman logs in with mobile ${normalizeLoginMobile(formData.phone)}${result.existed ? " and their existing password" : " and the password you set"}.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Login not created",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingLogin(false);
+    }
+  };
+
   const resetForm = () => {
+    setLoginPassword("");
     setFormData({ employee_name: "", phone: "", email: "", address: "", designation: "", joining_date: "", status: "active", field_sales_access: false, user_id: "", commission_percent: 1 });
     setEditingEmployee(null);
   };
@@ -221,7 +281,7 @@ const EmployeeMaster = () => {
     if (formData.field_sales_access && !formData.user_id) {
       toast({
         title: "Link a login account",
-        description: "Field Sales App needs a user account linked. Pick the employee's login in \"Link User Account\", otherwise the app will not open for them.",
+        description: "Field Sales App needs a login. Pick one in \"Link User Account\", or create one with the employee's mobile number, otherwise the app will not open for them.",
         variant: "destructive",
       });
       return;
@@ -302,7 +362,7 @@ const EmployeeMaster = () => {
               <Badge
                 variant="default"
                 className="bg-green-600 text-sm px-2.5 py-0.5"
-                title={orgUsers.find((u) => u.id === row.original.user_id)?.email || "Linked"}
+                title={loginDisplayName(orgUsers.find((u) => u.id === row.original.user_id)?.email) || "Linked"}
               >
                 <Smartphone className="h-3.5 w-3.5 mr-1" />
                 Enabled
@@ -577,29 +637,78 @@ const EmployeeMaster = () => {
                         <Label htmlFor="user_id">Link User Account *</Label>
                         <Select
                           value={formData.user_id || "none"}
-                          onValueChange={(value) =>
-                            setFormData({ ...formData, user_id: value === "none" ? "" : value })
-                          }
+                          onValueChange={(value) => {
+                            // The Select reports "" when the picked login is not listed yet
+                            // (just created); only "No account linked" unlinks.
+                            if (!value) return;
+                            setFormData((f) => ({ ...f, user_id: value === "none" ? "" : value }));
+                          }}
                         >
                           <SelectTrigger className="h-10 text-base">
                             <SelectValue placeholder="Select user account..." />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">No account linked</SelectItem>
-                            {orgUsers.map((user) => (
+                            {(newLogin && !orgUsers.some((u) => u.id === newLogin.id) ? [...orgUsers, newLogin] : orgUsers).map((user) => (
                               <SelectItem key={user.id} value={user.id}>
-                                {user.email} ({user.role})
+                                {loginDisplayName(user.email)} ({user.role})
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                         <p className="text-sm text-muted-foreground mt-1">
-                          Link this employee to a user account for Field Sales app login
+                          Pick an existing login, or create one with the mobile number below
                         </p>
-                        {!isLoadingUsers && orgUsers.length === 0 && (
-                          <p className="text-sm text-amber-700 mt-1">
-                            No user accounts found. Create the salesman's login in Settings &gt; Users first, then link it here.
-                          </p>
+                      </div>
+                    )}
+                    {formData.field_sales_access && !formData.user_id && (
+                      <div className="sm:col-span-2 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3" data-testid="employee-mobile-login">
+                        <p className="text-sm font-semibold text-emerald-900">Or create a login with the mobile number</p>
+                        {existingMobileLogin ? (
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <p className="text-sm text-emerald-900/80">
+                              Mobile {normalizeLoginMobile(formData.phone)} already has a login.
+                            </p>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="h-9 border-emerald-300 text-emerald-800"
+                              onClick={() => setFormData((f) => ({ ...f, user_id: existingMobileLogin.id }))}
+                              data-testid="employee-link-mobile-login"
+                            >
+                              Link it
+                            </Button>
+                          </div>
+                        ) : mobileLoginEmail ? (
+                          <>
+                            <p className="text-sm text-emerald-900/80 mt-0.5">
+                              Login ID: mobile <span className="font-mono font-semibold">{normalizeLoginMobile(formData.phone)}</span>.
+                              Set a password and share both with the salesman.
+                            </p>
+                            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                              <Input
+                                id="field_sales_password"
+                                type="text"
+                                autoComplete="new-password"
+                                placeholder={`Password (min ${FIELD_SALES_PASSWORD_MIN} characters)`}
+                                value={loginPassword}
+                                onChange={(e) => setLoginPassword(e.target.value)}
+                                className="no-uppercase h-10 text-base sm:max-w-xs bg-white"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="h-10 border-emerald-300 text-emerald-800"
+                                disabled={creatingLogin || loginPassword.length < FIELD_SALES_PASSWORD_MIN}
+                                onClick={() => void createMobileLogin()}
+                                data-testid="employee-create-mobile-login"
+                              >
+                                {creatingLogin ? "Creating…" : "Create login"}
+                              </Button>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-sm text-amber-700 mt-0.5">Enter the employee&apos;s mobile number in Phone first.</p>
                         )}
                       </div>
                     )}
