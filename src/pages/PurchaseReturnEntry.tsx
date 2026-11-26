@@ -11,6 +11,14 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/hooks/useSettings";
 import { isAtomicBillSaveEnabled } from "@/lib/saveSaleAtomic";
+import {
+  isManualReturnNumberEnabled,
+  isReturnNumberInUse,
+  keepTypedReturnNumber,
+  returnNumberInUseMessage,
+  typedReturnNumberProblem,
+  typedReturnNumberToSave,
+} from "@/lib/manualReturnNumber";
 import { ATOMIC_RETURN_ID_PLACEHOLDER, saveReturnWithItemsAtomic } from "@/lib/saveReturnAtomic";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -238,6 +246,8 @@ const PurchaseReturnEntry = () => {
   const [gstAmount, setGstAmount] = useState(0);
   const [netAmount, setNetAmount] = useState(0);
   const [returnNumber, setReturnNumber] = useState("");
+  // The next PR number as shown on open; a typed number replaces it only when it differs.
+  const [shownReturnNumber, setShownReturnNumber] = useState("");
   // taxType: GST handling mode.
   // 'dc' means Delivery Challan (no GST) — force GST to 0 and hide GST fields in UI.
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive" | "dc">("exclusive");
@@ -260,6 +270,7 @@ const PurchaseReturnEntry = () => {
   const showMrp = (settings?.purchase_settings as any)?.show_mrp || false;
   const autoFocusSearch = (settings?.purchase_settings as any)?.auto_focus_search || false;
   const defaultTaxRate = (settings?.purchase_settings as any)?.default_tax_rate;
+  const canTypeReturnNumber = isManualReturnNumberEnabled(settings?.purchase_settings) && !isEditMode;
   const isDC = taxType === "dc";
 
   // Auto-focus search input on mount when setting is enabled
@@ -390,6 +401,7 @@ const PurchaseReturnEntry = () => {
         });
         if (error) throw error;
         setReturnNumber(data || "");
+        setShownReturnNumber(data || "");
       } catch (error) {
         console.error("Error generating return number:", error);
       }
@@ -1247,6 +1259,18 @@ const PurchaseReturnEntry = () => {
       return;
     }
 
+    // Settings -> Purchase -> "Allow typing the return number": a changed number is kept.
+    const typedReturnNumber = isEditMode
+      ? null
+      : typedReturnNumberToSave(returnNumber, shownReturnNumber, canTypeReturnNumber);
+    if (typedReturnNumber) {
+      const problem = typedReturnNumberProblem(typedReturnNumber);
+      if (problem) {
+        toast({ title: "Return No.", description: problem, variant: "destructive" });
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       // Client UX pre-check (DB trigger remains the authority against concurrent stock moves)
@@ -1427,15 +1451,22 @@ const PurchaseReturnEntry = () => {
         // Never throws: a problem only leaves the goods going out of Main, and the user is told so.
         await returnGodown.syncAfterSave(editId, true);
       } else {
+        if (typedReturnNumber && (await isReturnNumberInUse(supabase, "purchase_returns", currentOrganization!.id, typedReturnNumber))) {
+          toast({ title: "Return No.", description: returnNumberInUseMessage(typedReturnNumber), variant: "destructive" });
+          return;
+        }
         // Generate fresh return number at save time to prevent duplicate key errors
-        let freshReturnNumber = returnNumber;
-        try {
-          const { data: freshNum } = await supabase.rpc("generate_purchase_return_number", {
-            p_organization_id: currentOrganization?.id,
-          });
-          if (freshNum) freshReturnNumber = freshNum;
-        } catch (e) {
-          console.warn("Failed to regenerate return number, using existing:", e);
+        // (a number the user typed is kept as it is).
+        let freshReturnNumber = typedReturnNumber || returnNumber;
+        if (!typedReturnNumber) {
+          try {
+            const { data: freshNum } = await supabase.rpc("generate_purchase_return_number", {
+              p_organization_id: currentOrganization?.id,
+            });
+            if (freshNum) freshReturnNumber = freshNum;
+          } catch (e) {
+            console.warn("Failed to regenerate return number, using existing:", e);
+          }
         }
 
         // Insert new purchase return
@@ -1471,10 +1502,23 @@ const PurchaseReturnEntry = () => {
               return_id: ATOMIC_RETURN_ID_PLACEHOLDER,
               ...buildPurchaseReturnItemPayload(item, isDC),
             })) as Record<string, unknown>[],
+            { manualReturnNumber: typedReturnNumber },
           );
           if (atomic) {
             returnRecord = atomic.row;
             freshReturnNumber = atomic.returnNumber;
+            if (typedReturnNumber && freshReturnNumber !== typedReturnNumber) {
+              // Database without the typed-number update: it took the next series number.
+              const kept = await keepTypedReturnNumber(supabase, "purchase_returns", atomic.row.id, typedReturnNumber, freshReturnNumber);
+              freshReturnNumber = kept.number;
+              if (!kept.kept) {
+                toast({
+                  title: "Return No.",
+                  description: `Saved as ${freshReturnNumber}: the number you typed could not be kept.`,
+                  variant: "destructive",
+                });
+              }
+            }
           }
         }
         if (!returnRecord) {
@@ -1603,7 +1647,7 @@ const PurchaseReturnEntry = () => {
               voucher_date: format(returnDate, "yyyy-MM-dd"),
               reference_type: "supplier",
               reference_id: returnData.supplier_id,
-              description: `Supplier Credit Note for Purchase Return: ${returnNumber}`,
+              description: `Supplier Credit Note for Purchase Return: ${freshReturnNumber}`,
               total_amount: netAmount,
               created_by: user?.id ?? null,
             })
@@ -1733,9 +1777,16 @@ const PurchaseReturnEntry = () => {
               <Label htmlFor="return_number" className="text-[14px] font-bold text-slate-800">Return No.</Label>
               <Input
                 id="return_number"
+                data-testid="purchase-return-number"
                 value={returnNumber}
-                readOnly
-                className="h-11 bg-neutral-50 font-mono font-bold text-[15px] border-slate-300"
+                readOnly={!canTypeReturnNumber}
+                onChange={canTypeReturnNumber ? (e) => setReturnNumber(e.target.value) : undefined}
+                maxLength={40}
+                title={canTypeReturnNumber ? "Next number shown. Type your own number to use it instead." : undefined}
+                className={cn(
+                  "h-11 font-mono font-bold text-[15px] border-slate-300",
+                  canTypeReturnNumber ? "bg-white" : "bg-neutral-50",
+                )}
               />
             </div>
 

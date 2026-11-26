@@ -13,7 +13,7 @@ import { EwayBillSettingsSection } from "@/components/ewaybill/EwayBillSettingsS
 import { OptionalMenusSettings } from "@/components/settings/OptionalMenusSettings";
 import { DEFAULT_MANUFACTURER_ERP, type ManufacturerERPConfig } from "@/utils/manufacturing";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, Factory, Truck, Building2, Landmark, Layers, ShoppingCart, Receipt, Tag, ListChecks, QrCode, Barcode, Wallet, Calculator, Gift, MessageCircle, Link2, Sparkles, Store, LayoutGrid } from "lucide-react";
+import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, Factory, Truck, Building2, Landmark, Layers, ShoppingCart, Receipt, Tag, ListChecks, QrCode, Barcode, Wallet, Calculator, Gift, MessageCircle, Link2, Sparkles, Store, LayoutGrid, Hash } from "lucide-react";
 import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { SaleInvoiceFormatBackupDialog } from "@/components/settings/SaleInvoiceFormatBackupDialog";
 import { InvoiceTemplateSelectItems } from "@/components/settings/InvoiceTemplateSelectItems";
@@ -257,6 +257,8 @@ interface PurchaseSettings {
   cursor_after_style?: 'pur_price' | 'hsn';
   /** Add New Product (purchase): Enter / Tab on the last size qty. Default Add to Bill. */
   cursor_after_size_qty?: 'add_to_bill' | 'pur_price';
+  /** Sale Return / Purchase Return: the next number is shown; the user may type their own. Default off. */
+  manual_return_number?: boolean;
   garment_gst_rule_enabled?: boolean;
   garment_gst_threshold?: number;
   garment_gst_below_rate?: number;
@@ -2618,6 +2620,31 @@ export default function Settings() {
                       </span>
                     </label>
                   </RadioGroup>
+                </SettingsSection>
+
+                <SettingsSection
+                  title="Return number"
+                  subtitle="Sale Return and Purchase Return show the next SR / PR number first"
+                  icon={Hash}
+                  tone="sky"
+                >
+                  <div className="px-4 pb-4">
+                    <SettingsToggle
+                      id="manual_return_number"
+                      label="Allow typing the return number"
+                      description="ON: the user can change the shown number to their own (it must not be used already). Left as shown, the next number is used. OFF: always the next number"
+                      checked={settings.purchase_settings?.manual_return_number === true}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          purchase_settings: {
+                            ...settings.purchase_settings,
+                            manual_return_number: checked === true,
+                          },
+                        })
+                      }
+                    />
+                  </div>
                 </SettingsSection>
               </div>
 
