@@ -150,7 +150,10 @@ const SalesmanLayout = () => {
 
   // Order booking is a full-screen flow with its own header and Save bar.
   // An order's own page is the same: back arrow on top, Print / Share at the bottom.
-  const immersive = location.pathname.startsWith(getOrgPath("/salesman/order/"));
+  // The catalogue is the same: back arrow on top, PDF / WhatsApp at the bottom.
+  const immersive =
+    location.pathname.startsWith(getOrgPath("/salesman/order/")) ||
+    location.pathname.startsWith(getOrgPath("/salesman/catalogue"));
   const isHome = location.pathname === getOrgPath("/salesman");
   const initials = (employeeName || "FS")
     .split(/\s+/)

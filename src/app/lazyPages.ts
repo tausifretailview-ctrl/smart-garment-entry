@@ -147,6 +147,7 @@ export const SalesmanOrderView = lazyWithRetry(() => import("@/pages/salesman/Sa
 export const SalesmanCustomerAccount = lazyWithRetry(() => import("@/pages/salesman/SalesmanCustomerAccount"));
 export const SalesmanOrders = lazyWithRetry(() => import("@/pages/salesman/SalesmanOrders"));
 export const SalesmanOutstanding = lazyWithRetry(() => import("@/pages/salesman/SalesmanOutstanding"));
+export const SalesmanCatalogue = lazyWithRetry(() => import("@/pages/salesman/SalesmanCatalogue"));
 export const WhatsAppLogs = lazyWithRetry(() => import("@/pages/WhatsAppLogs"));
 export const WhatsAppInbox = lazyWithRetry(() => import("@/pages/WhatsAppInbox"));
 export const BulkWhatsApp = lazyWithRetry(() => import("@/pages/BulkWhatsApp"));

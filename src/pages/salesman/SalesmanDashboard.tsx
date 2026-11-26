@@ -12,9 +12,12 @@ import {
   ListOrdered,
   Wallet,
   ChevronRight,
-  RefreshCw
+  RefreshCw,
+  BookImage,
 } from "lucide-react";
 import { format } from "date-fns";
+import { useSettings } from "@/hooks/useSettings";
+import { isFieldSalesCatalogueOn } from "@/lib/fieldSalesCatalogue";
 
 interface DashboardStats {
   todayOrders: number;
@@ -37,6 +40,10 @@ const SalesmanDashboard = () => {
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
   const { employeeName } = useFieldSalesAccess();
+  const { data: settingsData } = useSettings();
+  const catalogueOn = isFieldSalesCatalogueOn(
+    (settingsData as { sale_settings?: Record<string, unknown> } | null)?.sale_settings,
+  );
   const [stats, setStats] = useState<DashboardStats>({
     todayOrders: 0,
     pendingOrders: 0,
@@ -93,6 +100,9 @@ const SalesmanDashboard = () => {
     { label: "Customers", hint: "Call, ledger, order", icon: Users, path: "/salesman/customers", tint: "bg-sky-100 text-sky-700" },
     { label: "My Orders", hint: "Today and pending", icon: ListOrdered, path: "/salesman/orders", tint: "bg-violet-100 text-violet-700" },
     { label: "Outstanding", hint: "Who has to pay", icon: Wallet, path: "/salesman/outstanding", tint: "bg-rose-100 text-rose-700" },
+    ...(catalogueOn
+      ? [{ label: "Catalogue", hint: "PDF on WhatsApp", icon: BookImage, path: "/salesman/catalogue", tint: "bg-emerald-100 text-emerald-700" }]
+      : []),
   ];
   const rupees = (n: number) => `₹${(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
@@ -170,7 +180,7 @@ const SalesmanDashboard = () => {
         <ChevronRight className="h-5 w-5 shrink-0 text-white/80" />
       </button>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className={quickActions.length === 4 ? "grid grid-cols-2 gap-2" : "grid grid-cols-3 gap-2"}>
         {quickActions.map((action) => {
           const Icon = action.icon;
           return (
@@ -178,6 +188,7 @@ const SalesmanDashboard = () => {
               key={action.label}
               type="button"
               onClick={() => navigate(action.path)}
+              data-testid={`fs-quick-${action.label.toLowerCase().replace(/\s+/g, "-")}`}
               className="flex min-w-0 flex-col items-start gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm active:bg-slate-50"
             >
               <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${action.tint}`}>

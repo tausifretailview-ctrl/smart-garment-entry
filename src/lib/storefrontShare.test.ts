@@ -28,9 +28,13 @@ describe("storefrontShare", () => {
 
   it("normalizes WhatsApp numbers and builds click-to-chat links", () => {
     expect(normalizeWhatsAppPhone("+91 98765 43210")).toBe("919876543210");
+    // An Indian 10-digit mobile needs 91 in front, or wa.me says the number is invalid.
     expect(whatsappShareUrl("Hello", "9876543210")).toBe(
-      "https://wa.me/9876543210?text=Hello",
+      "https://wa.me/919876543210?text=Hello",
     );
+    expect(normalizeWhatsAppPhone("09876543210")).toBe("919876543210");
+    expect(normalizeWhatsAppPhone("0091 98765 43210")).toBe("919876543210");
+    expect(normalizeWhatsAppPhone("+1 415 555 0100")).toBe("14155550100");
     expect(whatsappShareUrl("See our products: https://x/y")).toContain("https://wa.me/?text=");
   });
 
