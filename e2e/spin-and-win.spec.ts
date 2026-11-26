@@ -51,7 +51,9 @@ test("set-up page before SQL 57 says so and cannot save", async ({ page, backend
 test.describe("customer spin page", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test("spins once: the server's prize, a code to keep, the same result on reload", async ({ page, backend }) => {
+  test("spins once: the server's prize, a code to keep, the same result on reload", async ({ page, backend }, testInfo) => {
+    // The shop's "desktop view" switch on this phone must not shrink the customer page.
+    await page.addInitScript(() => localStorage.setItem("ezzyerp:force-desktop-view", "1"));
     const prizes = [
       { id: "pz-a", label: "10% OFF", color: "#F97316" },
       { id: "pz-b", label: "₹100 OFF", color: "#0EA5E9" },
@@ -70,17 +72,22 @@ test.describe("customer spin page", () => {
     await page.goto(`/spin/11111111-2222-3333-4444-555555555555`);
     await expect(page.getByTestId("public-spin-page")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText("KS FOOTWEAR")).toBeVisible();
+    expect(await page.evaluate(() => document.querySelector('meta[name="viewport"]')?.getAttribute("content"))).toContain("width=device-width");
     await expect(page.getByText("Bill POS/26-27/810")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
+    await expect(page.locator("#splash-screen")).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath("spin-before.png") });
     await page.getByTestId("spin-button").click();
     await expect(page.getByTestId("spin-result")).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: testInfo.outputPath("spin-won.png"), fullPage: true });
     await expect(page.getByTestId("spin-code")).toHaveText("SW-7K3QX");
     await expect(page.getByTestId("spin-result")).toContainText("₹100 off");
     expect(backend.rpcCalls("spin_for_sale")).toEqual([{ p_sale_id: "11111111-2222-3333-4444-555555555555" }]);
 
     // The wheel stopped with the won slice (index 1 of 3) under the pointer.
-    const turn = await page.getByTestId("spin-wheel").locator("svg").first().evaluate((el) => getComputedStyle(el).transform);
+    const turn = await page.getByTestId("spin-wheel").locator("svg[role=img]").evaluate((el) => getComputedStyle(el).transform);
     expect(turn).not.toBe("none");
 
     // Opening the link again: the same result, no Spin button.
@@ -119,4 +126,68 @@ test("check a prize code on the set-up page", async ({ page, backend }) => {
   await panel.getByPlaceholder("SW-XXXXX").fill("SW-USED1");
   await panel.getByRole("button", { name: "Check" }).click();
   await expect(panel.getByTestId("spin-code-error")).toHaveText("Already used on POS/26-27/812 (03 Dec 2026).");
+});
+
+test.describe("POS takes the prize code", () => {
+  const product = {
+    id: "p1", organization_id: E2E_ORG_ID, product_name: "JEANS NARROW", brand: "ACME", category: "JEANS", style: null,
+    color: "BLUE", hsn_code: "6203", gst_per: 5, uom: "NOS", product_type: "goods", status: "active", deleted_at: null,
+  };
+  const variant = {
+    id: "v1", product_id: "p1", organization_id: E2E_ORG_ID, size: "32", color: "BLUE", barcode: "100001",
+    sale_price: 1000, mrp: 1000, pur_price: 500, stock_qty: 10, active: true, deleted_at: null, products: product,
+  };
+
+  test("SW code in the scan box: ₹100 off this bill, marked used when the bill saves", async ({ page, backend }) => {
+    backend.addRows("products", [product]).addRows("product_variants", [variant]);
+    backend.onRpc("check_spin_code", () => ({
+      ok: true, code: "SW-7K3QX", label: "₹100 OFF", type: "discount_amount", value: 100, max_discount: null,
+      min_redeem_amount: 500, expires_at: "2026-12-26T10:00:00Z", won_on_sale: "POS/26-27/810", customer_name: "RAVI",
+    }));
+    backend.onRpc("redeem_spin_code", () => true);
+    backend.onRpc("save_sale_with_items_numbered", (args) => {
+      const sale = args.p_sale as Record<string, unknown>;
+      return { sale: { ...sale, id: "sale-77", sale_number: "POS/26-27/900" }, items_inserted: 1, settled: true };
+    });
+
+    await page.goto(`/${E2E_ORG_SLUG}/pos-sales`);
+    const scan = page.getByPlaceholder(/^Scan barcode or search/).filter({ visible: true });
+    await expect(scan).toBeVisible({ timeout: 60_000 });
+
+    // Too early: an empty bill is below the ₹500 minimum.
+    await scan.fill("sw7k3qx");
+    await scan.press("Enter");
+    await expect(page.getByText("Bill too small for this prize").first()).toBeVisible();
+    await page.getByRole("button", { name: "OK" }).click(); // POS shows errors as a pop-up
+
+    await scan.fill("100001");
+    await scan.press("Enter");
+    await expect(page.locator("tr", { hasText: "100001" })).toHaveCount(1);
+    await scan.fill("SW-7K3QX");
+    await scan.press("Enter");
+    await expect(page.getByText("Spin & Win: ₹100 OFF").first()).toBeVisible();
+    await expect(scan).toHaveValue("");
+
+    await page.keyboard.press("F1");
+    await expect(page.getByRole("alertdialog", { name: "Invoice Saved!" })).toBeVisible();
+
+    const [save] = backend.rpcCalls("save_sale_with_items_numbered") as Array<{ p_sale: Record<string, unknown> }>;
+    expect(save.p_sale).toMatchObject({ flat_discount_amount: 100, net_amount: 900 });
+    expect(String(save.p_sale.notes)).toContain("Spin & Win SW-7K3QX");
+    await expect.poll(() => backend.rpcCalls("redeem_spin_code")).toEqual([
+      { p_org: E2E_ORG_ID, p_code: "SW-7K3QX", p_sale_id: "sale-77" },
+    ]);
+  });
+
+  test("a used code is refused at POS", async ({ page, backend }) => {
+    backend.addRows("products", [product]).addRows("product_variants", [variant]);
+    backend.onRpc("check_spin_code", () => ({ ok: false, error: "Already used on POS/26-27/812 (03 Dec 2026)." }));
+    await page.goto(`/${E2E_ORG_SLUG}/pos-sales`);
+    const scan = page.getByPlaceholder(/^Scan barcode or search/).filter({ visible: true });
+    await expect(scan).toBeVisible({ timeout: 60_000 });
+    await scan.fill("SW-USED2");
+    await scan.press("Enter");
+    await expect(page.getByText("Already used on POS/26-27/812 (03 Dec 2026).").first()).toBeVisible();
+    expect(backend.rpcCalls("redeem_spin_code")).toEqual([]);
+  });
 });

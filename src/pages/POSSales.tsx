@@ -317,7 +317,15 @@ import { captureElementToPdfBase64 } from "@/utils/captureInvoicePdf";
 import type { SaveSaleRuntimeOptions } from "@/utils/saveSaleRuntimeOptions";
 import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
 import { buildSalesInvoiceWhatsAppCaption } from "@/utils/whatsappInvoiceCaption";
-import { appendSpinLinkLine, fetchSpinCampaignForLink, spinLinkForBill } from "@/lib/spinAndWin";
+import {
+  appendSpinLinkLine,
+  checkSpinCode,
+  fetchSpinCampaignForLink,
+  looksLikeSpinCode,
+  redeemSpinCode,
+  spinDiscountForBill,
+  spinLinkForBill,
+} from "@/lib/spinAndWin";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { format } from "date-fns";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
@@ -3084,6 +3092,7 @@ export default function POSSales() {
       const rawValue = (e.currentTarget || e.target as HTMLInputElement)?.value?.trim();
       if (!rawValue) return;
       e.preventDefault();
+      if (takeSpinCodeFromScanBox(rawValue)) return;
 
       clearPosBarcodeSubmitTimers();
       markSubmitted(rawValue);
@@ -3118,11 +3127,103 @@ export default function POSSales() {
     }
   }, [resetScannerDetection, clearPosBarcodeSubmitTimers, markSubmitted, searchAndAddProduct, productSearchResults.length]);
 
+  // ── Spin & Win prize code on this bill ──────────────────────────────────────
+  // The code is checked and its prize applied now; it is marked used when the bill saves.
+  const spinCouponRef = useRef<{ code: string; label: string } | null>(null);
+  const billingTotalsRef = useRef(billingTotals);
+  billingTotalsRef.current = billingTotals;
+  const applySpinCoupon = async (raw: string) => {
+    const orgId = currentOrganization?.id;
+    if (!orgId) return;
+    if (spinCouponRef.current) {
+      toast.error("One Spin & Win code per bill", { description: `${spinCouponRef.current.code} is already on this bill.` });
+      return;
+    }
+    const res = await checkSpinCode(supabase as never, orgId, raw);
+    if (!res.ok) {
+      toast.error("Spin & Win code", { description: "error" in res ? res.error : "Code not valid." });
+      return;
+    }
+    const subtotal = Number(billingTotalsRef.current?.subtotal) || 0;
+    if (res.min_redeem_amount > 0 && subtotal < res.min_redeem_amount) {
+      toast.error("Bill too small for this prize", {
+        description: `Add items first: ${res.code} needs a bill of ₹${res.min_redeem_amount} or more.`,
+      });
+      return;
+    }
+    if (res.type === "gift_item") {
+      if (!res.variant_id) {
+        toast.error("Spin & Win code", { description: "The gift product for this prize was removed. Give it by hand." });
+        return;
+      }
+      const { data: row, error } = await supabase
+        .from("product_variants")
+        .select("*, products(*)")
+        .eq("id", res.variant_id)
+        .maybeSingle();
+      const variant = row as (Record<string, unknown> & { products?: Record<string, unknown> | null; mrp?: number; sale_price?: number }) | null;
+      if (error || !variant?.products) {
+        toast.error("Spin & Win code", { description: "Could not load the gift product." });
+        return;
+      }
+      const mrp = Number(variant.mrp) || Number(variant.sale_price) || 0;
+      await addItemToCart(variant.products, variant, { sale_price: 0, mrp }, "manual");
+    } else {
+      const amount = spinDiscountForBill(res, subtotal);
+      if (res.type === "discount_percent" && !res.max_discount) {
+        setFlatDiscountMode("percent");
+        handleFlatDiscountValueChange(res.value);
+      } else {
+        setFlatDiscountMode("amount");
+        handleFlatDiscountValueChange(amount);
+      }
+    }
+    spinCouponRef.current = { code: res.code, label: res.label };
+    setSaleNotes((n: string) => (n ? `${n} | Spin & Win ${res.code}` : `Spin & Win ${res.code}`));
+    toast.success(`Spin & Win: ${res.label}`, {
+      description:
+        res.type === "gift_item"
+          ? "Gift added at ₹0. The code is used when this bill is saved."
+          : "Discount applied. The code is used when this bill is saved.",
+    });
+  };
+  const applySpinCouponRef = useRef(applySpinCoupon);
+  applySpinCouponRef.current = applySpinCoupon;
+  /** Enter in the scan box with a Spin & Win code: apply it, clear the box. True = handled. */
+  const takeSpinCodeFromScanBox = (rawValue: string): boolean => {
+    if (!looksLikeSpinCode(rawValue)) return false;
+    // Stop the scanner's auto-submit for this text, or it fires on the next thing typed.
+    clearPosBarcodeSubmitTimers();
+    cancelAutoSubmit();
+    setSearchInput("");
+    if (barcodeInputRef.current) barcodeInputRef.current.value = "";
+    setOpenProductSearch(false);
+    // Keep the cashier in the scan box for the next item (closing the product list moves focus).
+    const refocus = () => barcodeInputRef.current?.focus();
+    window.setTimeout(refocus, 0);
+    void applySpinCouponRef.current(rawValue).finally(() => window.setTimeout(refocus, 0));
+    return true;
+  };
+  const redeemSpinCouponAfterSave = (saleId: string) => {
+    const coupon = spinCouponRef.current;
+    spinCouponRef.current = null;
+    if (!coupon || !currentOrganization?.id) return;
+    void redeemSpinCode(supabase as never, currentOrganization.id, coupon.code, saleId)
+      .then((ok) => {
+        if (!ok) toast.warning("Spin & Win code not marked used", { description: `${coupon.code} was already used or has expired.` });
+      })
+      .catch(() => {
+        toast.warning("Spin & Win code not marked used", { description: `Mark ${coupon.code} used on the Spin & Win page.` });
+      });
+  };
+
   const handlePosBarcodeSubmit = useCallback(() => {
     const rawValue = barcodeInputRef.current?.value?.trim() || searchInput.trim();
     if (!rawValue) return;
     clearPosBarcodeSubmitTimers();
     markSubmitted(rawValue);
+    // Spin & Win prize code typed / scanned into the scan box (SW-XXXXX).
+    if (takeSpinCodeFromScanBox(rawValue)) return;
     const fastBilling = posRuntimeSettingsRef.current?.pos_quick_price_code === true;
     if (posFastBillingUsesDropdownPick(rawValue, fastBilling)) {
       setOpenProductSearch(true);
@@ -5390,6 +5491,8 @@ export default function POSSales() {
   ) => {
     if ((result as { offline?: boolean }).offline) return;
     void createCommissionRecords(result.id);
+    // Spin & Win code applied to this bill: mark it used now that the bill is saved.
+    redeemSpinCouponAfterSave(result.id);
   };
 
   /**
@@ -6894,6 +6997,7 @@ export default function POSSales() {
   };
 
   const handleClearAll = () => {
+    spinCouponRef.current = null;
     if (items.length === 0) {
       toast.success("Cart is already empty");
       return;
@@ -6931,6 +7035,7 @@ export default function POSSales() {
   };
 
   const handleNewInvoice = () => {
+    spinCouponRef.current = null;
     setItems([]);
     setCustomerName("");
     setCustomerId("");
@@ -8068,6 +8173,10 @@ export default function POSSales() {
                         const isEnter =
                           e.key === "Enter" || e.key === "Go" || (e as any).keyCode === 13;
                         if (isEnter && rawValue) {
+                          if (takeSpinCodeFromScanBox(rawValue)) {
+                            e.preventDefault();
+                            return;
+                          }
                           if (
                             posRuntimeSettingsRef.current?.pos_quick_price_code === true &&
                             parsePosQuickPriceCode(rawValue)
