@@ -1,4 +1,5 @@
 import React from "react";
+import { resolveInvoiceLineTaxMode } from "@/utils/invoiceGstRateSlabs";
 import { numberToWords } from "@/lib/utils";
 import { printBillNetAmount } from "@/utils/saleBillFigures";
 import { retailErpWhatsAppProductLabel, formatRetailErpInvoiceSize } from "@/utils/retailErpWhatsAppProductLabel";
@@ -349,10 +350,14 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
   // Sale exclusive often stores tax-inclusive line_total (net ≈ Σ lines).
   // POS exclusive stores taxable line_total (net ≈ Σ lines + GST). Pick the match.
-  const linesSum = items.reduce((s, i) => s + Number(i.total || 0), 0);
   const lineTotalsEmbedGst =
     taxType === "exclusive" &&
-    Math.abs(billNet - linesSum) < 1;
+    resolveInvoiceLineTaxMode({
+      taxType,
+      items: items.map((i) => ({ total: Number(i.total || 0), gstPercent: i.gstPercent })),
+      grandTotal: billNet,
+      discount: propDiscount,
+    }) === "inclusive";
   const effectiveLineTaxMode: "inclusive" | "exclusive" =
     taxType === "exclusive" && !lineTotalsEmbedGst ? "exclusive" : "inclusive";
 

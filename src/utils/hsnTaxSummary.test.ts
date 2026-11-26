@@ -58,3 +58,29 @@ describe("buildHsnTaxSummary", () => {
     expect(s.rows[0]).toMatchObject({ igst: 180, cgst: 0, sgst: 0, tax: 180 });
   });
 });
+
+describe("buildHsnTaxSummary — KLEAR INV/26-27/31", () => {
+  it("tax summary shows taxable before GST and GST once (4,018, not 4,357.58)", () => {
+    const s = buildHsnTaxSummary({
+      items: [
+        { total: 6993.34, qty: 2, gstPercent: 18, hsn: "64051000" },
+        { total: 8032.65, qty: 5, gstPercent: 5, hsn: "64051000" },
+        { total: 8032.65, qty: 5, gstPercent: 5, hsn: "64039990" },
+        { total: 11819.75, qty: 5, gstPercent: 5, hsn: "64051000" },
+        { total: 2363.95, qty: 1, gstPercent: 5, hsn: "64051000" },
+        { total: 9455.8, qty: 4, gstPercent: 5, hsn: "64051000" },
+        { total: 11819.75, qty: 5, gstPercent: 5, hsn: "64051000" },
+        { total: 10452.44, qty: 4, gstPercent: 5, hsn: "64051000" },
+      ],
+      taxType: "exclusive",
+      grandTotal: 68969,
+      isInterState: false,
+      targetTax: 4018.09,
+      discount: 0.68,
+    });
+    const r18 = s.rows.find((r) => r.gstPercent === 18)!;
+    expect(r18.taxable).toBeCloseTo(5926.56, 1);
+    expect(s.total.tax).toBeCloseTo(4018.09, 0);
+    expect(s.total.taxable).toBeCloseTo(64952.24, 0);
+  });
+});

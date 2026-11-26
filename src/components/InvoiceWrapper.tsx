@@ -43,6 +43,7 @@ import { TrendzoPosThermalReceipt80mm } from './TrendzoPosThermalReceipt80mm';
 import { normalizeThermalReceiptMoney } from '@/utils/thermalReceiptSettlement';
 import { VastrakalaThermalReceipt80mm } from './VastrakalaThermalReceipt80mm';
 import { buildKidsCampGstRateBreakdown } from '@/utils/kidsCampThermalReceipt';
+import { resolveInvoiceLineTaxMode } from '@/utils/invoiceGstRateSlabs';
 import { applyShopFssaiToSettings } from '@/utils/fssai';
 import QRCode from 'qrcode';
 import { resolveCompanyUpiId, resolveInvoiceUpiId } from '@/utils/companyUpi';
@@ -563,11 +564,17 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const gstNetMultiplier = linesTotal > 0 ? gstNetBase / linesTotal : 0;
     // Sale exclusive stores line_total = taxable + GST (net ≈ Σ lines). POS exclusive
     // stores taxable line_total (net ≈ Σ lines + GST). Use inclusive extract when embedded.
+    // Picks the reading closer to the bill total: a "within ₹1" test failed when discount
+    // and round off together passed ₹1, and GST was then added on top a second time.
     const lineTotalsEmbedGst =
       taxType === "exclusive" &&
-      Math.abs(
-        Number(props.grandTotal || 0) - linesTotal + Number(props.saleReturnAdjust || 0),
-      ) < 1;
+      resolveInvoiceLineTaxMode({
+        taxType,
+        items: props.items.map((item) => ({ total: item.total, gstPercent: item.gstPercent })),
+        grandTotal: Number(props.grandTotal || 0),
+        saleReturnAdjust: props.saleReturnAdjust || 0,
+        discount: props.discount,
+      }) === "inclusive";
     const breakupTaxType =
       taxType === "exclusive" && !lineTotalsEmbedGst ? "exclusive" : taxType === "no_gst" ? "no_gst" : "inclusive";
 
