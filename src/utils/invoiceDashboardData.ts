@@ -9,6 +9,7 @@ import {
   buildLineItemSaleSearchArgs,
   fetchLineItemMatchingSaleIds,
 } from "@/utils/lineItemSaleSearch";
+import { fetchSalesHeaderMatchIds, saleIdsOrFilter } from "@/utils/salesHeaderSearch";
 
 import {
   fetchSaleReceiptSplitsForInvoices,
@@ -202,11 +203,19 @@ async function fetchSaleIdsMatchingLineItems(
  * search_invoice_sale_ids pass (POS Dashboard #230 pattern). Does NOT gate
  * line-item search on header hits (item 1 excluded — would drop product matches).
  */
-type InvoiceSearchResolution = {
+export type InvoiceSearchResolution = {
   saleTextFilter: string;
   lineItemSaleIds: string[];
+  /**
+   * Every bill whose number / customer / phone / salesman matches, found through the indexed
+   * database search. null = not available or too many: filter the table by text instead.
+   */
+  headerSaleIds: string[] | null;
   searchMeta?: InvoiceDashboardSearchMeta;
 };
+
+/** Most bill ids one list request carries (the gateway refuses much longer addresses). */
+const INVOICE_SEARCH_ID_FILTER_MAX = 200;
 
 
 async function resolveInvoiceSearch(
@@ -221,6 +230,15 @@ async function resolveInvoiceSearch(
     `customer_name.ilike.%${searchStr}%,` +
     `customer_phone.ilike.%${searchStr}%,` +
     `salesman.ilike.%${searchStr}%`;
+
+  // Runs beside the line-item search; never throws (null = use the text filter).
+  const headerIdsPromise = fetchSalesHeaderMatchIds(client, {
+    organizationId: filters.organizationId,
+    search: searchStr,
+    saleTypes: INVOICE_LINE_ITEM_SALE_TYPES,
+    dateFrom: filters.saleDateFilter.start,
+    dateTo: filters.saleDateFilter.end,
+  });
 
   let lineItemSaleIds: string[] = [];
   let searchMeta: InvoiceDashboardSearchMeta | undefined;
@@ -239,16 +257,27 @@ async function resolveInvoiceSearch(
     searchMeta = result.meta;
   }
 
-  return { saleTextFilter, lineItemSaleIds, searchMeta };
+  return { saleTextFilter, lineItemSaleIds, headerSaleIds: await headerIdsPromise, searchMeta };
 }
 
 
 
-function applyResolvedInvoiceSearch(
+/** Exported for tests: which `or` filter a resolved search puts on a sales query. */
+export function applyResolvedInvoiceSearch(
   query: any,
   resolution: InvoiceSearchResolution | null,
 ): any {
   if (!resolution) return query;
+  // Header matches are known in full: list those bills (plus line-item matches) by id. Under
+  // Row Level Security the text filter cannot use its indexes and reads every bill of the shop.
+  if (
+    resolution.headerSaleIds &&
+    resolution.headerSaleIds.length + resolution.lineItemSaleIds.length <= INVOICE_SEARCH_ID_FILTER_MAX
+  ) {
+    return query.or(
+      saleIdsOrFilter([...new Set([...resolution.headerSaleIds, ...resolution.lineItemSaleIds])]),
+    );
+  }
   if (resolution.lineItemSaleIds.length > 0) {
     return query.or(
       `${resolution.saleTextFilter},id.in.(${resolution.lineItemSaleIds.join(",")})`,
