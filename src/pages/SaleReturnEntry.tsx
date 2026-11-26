@@ -57,6 +57,14 @@ import {
 import { useSettings } from "@/hooks/useSettings";
 import { isAtomicBillSaveEnabled } from "@/lib/saveSaleAtomic";
 import { ATOMIC_RETURN_ID_PLACEHOLDER, saveReturnWithItemsAtomic } from "@/lib/saveReturnAtomic";
+import {
+  isManualReturnNumberEnabled,
+  isReturnNumberInUse,
+  keepTypedReturnNumber,
+  returnNumberInUseMessage,
+  typedReturnNumberProblem,
+  typedReturnNumberToSave,
+} from "@/lib/manualReturnNumber";
 
 interface Customer {
   id: string;
@@ -110,6 +118,9 @@ export default function SaleReturnEntry() {
   const queryClient = useQueryClient();
 
   const isEditMode = !!editId;
+  // Settings -> Purchase -> "Allow typing the return number" (new returns only).
+  const canTypeReturnNumber =
+    !isEditMode && isManualReturnNumberEnabled((settingsData as { purchase_settings?: unknown } | null)?.purchase_settings);
 
   // Industrial mode, Phase 3 step 3d-3: the godown the returned goods go back into.
   // Hidden, and reads nothing, unless Industrial mode is on and the shop has godowns.
@@ -128,6 +139,8 @@ export default function SaleReturnEntry() {
   const [originalSaleNumber, setOriginalSaleNumber] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   const [nextReturnNumber, setNextReturnNumber] = useState<string>("");
+  // The next SR number as shown on open; a typed number replaces it only when it differs.
+  const [shownReturnNumber, setShownReturnNumber] = useState<string>("");
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
   
   const [products, setProducts] = useState<Product[]>([]);
@@ -208,7 +221,12 @@ export default function SaleReturnEntry() {
     if (!isEditMode) {
       supabase.rpc('generate_sale_return_number', {
         p_organization_id: currentOrganization.id
-      }).then(({ data }) => { if (data) setNextReturnNumber(data); });
+      }).then(({ data }) => {
+        if (data) {
+          setNextReturnNumber(data);
+          setShownReturnNumber(data);
+        }
+      });
     }
 
   }, [currentOrganization, isEditMode]);
@@ -871,6 +889,17 @@ export default function SaleReturnEntry() {
       return;
     }
 
+    const typedReturnNumber = isEditMode
+      ? null
+      : typedReturnNumberToSave(nextReturnNumber, shownReturnNumber, canTypeReturnNumber);
+    if (typedReturnNumber) {
+      const problem = typedReturnNumberProblem(typedReturnNumber);
+      if (problem) {
+        toast({ title: "Return No.", description: problem, variant: "destructive" });
+        return;
+      }
+    }
+
 
     setSaving(true);
 
@@ -1096,6 +1125,10 @@ export default function SaleReturnEntry() {
 
           // Plan Phase 2 (returns): number, header and lines in one database transaction.
           // Falls back to the old steps while the SQL is missing or "One-step bill save" is off.
+          if (typedReturnNumber && (await isReturnNumberInUse(supabase, "sale_returns", currentOrganization!.id, typedReturnNumber))) {
+            toast({ title: "Return No.", description: returnNumberInUseMessage(typedReturnNumber), variant: "destructive" });
+            return;
+          }
           let savedReturn: (Record<string, unknown> & { id: string; return_number?: string }) | null = null;
           if (isAtomicBillSaveEnabled((settingsData as { sale_settings?: Record<string, unknown> } | null)?.sale_settings)) {
             const atomic = await saveReturnWithItemsAtomic(
@@ -1104,16 +1137,34 @@ export default function SaleReturnEntry() {
               currentOrganization!.id,
               returnHeader,
               buildReturnItems(ATOMIC_RETURN_ID_PLACEHOLDER),
+              { manualReturnNumber: typedReturnNumber },
             );
             if (atomic) {
-              savedReturn = { ...atomic.row, return_number: atomic.returnNumber };
+              let savedNumber = atomic.returnNumber;
+              if (typedReturnNumber && savedNumber !== typedReturnNumber) {
+                // Database without the typed-number update: it took the next series number.
+                const kept = await keepTypedReturnNumber(supabase, "sale_returns", atomic.row.id, typedReturnNumber, savedNumber);
+                savedNumber = kept.number;
+                if (!kept.kept) {
+                  toast({
+                    title: "Return No.",
+                    description: `Saved as ${savedNumber}: the number you typed could not be kept.`,
+                    variant: "destructive",
+                  });
+                }
+              }
+              savedReturn = { ...atomic.row, return_number: savedNumber };
               createdReturnId = atomic.row.id;
             }
           }
           if (!savedReturn) {
-            const { data: returnNumber, error: returnNumberError } = await supabase
-              .rpc('generate_sale_return_number', { p_organization_id: currentOrganization?.id });
-            if (returnNumberError) throw returnNumberError;
+            let returnNumber: string | null = typedReturnNumber;
+            if (!returnNumber) {
+              const { data: seriesNumber, error: returnNumberError } = await supabase
+                .rpc('generate_sale_return_number', { p_organization_id: currentOrganization?.id });
+              if (returnNumberError) throw returnNumberError;
+              returnNumber = seriesNumber;
+            }
 
             const { data: insertedReturn, error: returnError } = await supabase
               .from("sale_returns")
@@ -1281,9 +1332,16 @@ export default function SaleReturnEntry() {
               <Label htmlFor="return_number" className="text-[13px] font-bold text-black">Return No.</Label>
               <Input
                 id="return_number"
+                data-testid="sale-return-number"
                 value={nextReturnNumber}
-                readOnly
-                className="h-10 bg-neutral-50 font-mono font-bold text-sm border-black/20"
+                readOnly={!canTypeReturnNumber}
+                onChange={canTypeReturnNumber ? (e) => setNextReturnNumber(e.target.value) : undefined}
+                maxLength={40}
+                title={canTypeReturnNumber ? "Next number shown. Type your own number to use it instead." : undefined}
+                className={cn(
+                  "h-10 font-mono font-bold text-sm border-black/20",
+                  canTypeReturnNumber ? "bg-white" : "bg-neutral-50",
+                )}
               />
             </div>
 

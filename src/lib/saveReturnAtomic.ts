@@ -59,11 +59,15 @@ export async function saveReturnWithItemsAtomic(
   organizationId: string,
   header: Record<string, unknown>,
   items: Record<string, unknown>[],
+  options: { manualReturnNumber?: string | null } = {},
 ): Promise<AtomicReturnSaveResult | null> {
+  // manual_return_number is not a column: the database uses it as the number (once
+  // 20270528120000 is applied) and never inserts it; older databases drop it and take the series.
+  const manual = String(options.manualReturnNumber ?? "").trim();
   const { data, error } = await client.rpc("save_return_with_items_atomic" as never, {
     p_kind: kind,
     p_organization_id: organizationId,
-    p_header: header,
+    p_header: manual ? { ...header, manual_return_number: manual } : header,
     p_items: items,
   } as never);
   if (error) {
