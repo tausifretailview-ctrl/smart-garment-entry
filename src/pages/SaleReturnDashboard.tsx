@@ -518,6 +518,18 @@ export default function SaleReturnDashboard() {
     pageStyle: returnPrintPageStyle,
     expectedMaxPages: 1,
   });
+  // Print only after the screen has re-drawn for the chosen return: its paper (A4 / A5 /
+  // thermal) comes from its original bill. Calling the print from the click used the page
+  // style of the render before, i.e. the POS paper (80mm), so an A4 credit note came out
+  // squeezed to receipt width (BABJI ENTERPRISES, Nov 2026).
+  const handlePrintRef = useRef(handlePrint);
+  handlePrintRef.current = handlePrint;
+  const [printRequest, setPrintRequest] = useState(0);
+  useEffect(() => {
+    if (!printRequest) return;
+    const t = window.setTimeout(() => handlePrintRef.current(), 100);
+    return () => window.clearTimeout(t);
+  }, [printRequest]);
 
   const handlePrintTable = useReactToPrint({
     contentRef: tableRef,
@@ -1171,7 +1183,7 @@ export default function SaleReturnDashboard() {
       })),
     });
     setReturnToPrint(printData);
-    setTimeout(() => handlePrint(), 100);
+    setPrintRequest((n) => n + 1);
   };
 
   // Export to Excel
