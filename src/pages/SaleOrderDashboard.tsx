@@ -77,6 +77,7 @@ import {
   type SaleOrderDashboardPeriodFilter,
 } from "@/utils/saleOrderDashboardDates";
 import { sizeMatrixKey } from "@/utils/sizeSort";
+import { fetchInvoicedSaleNumbers } from "@/lib/saleOrderInvoiceLink";
 import {
   aggregateArticleStock,
   articleCodeKey,
@@ -149,7 +150,7 @@ export default function SaleOrderDashboard() {
       onClick: () => {
         void handlePrintAvailableStock(order);
       },
-      hidden: order.status === "confirmed",
+      hidden: order.status === "confirmed" || order.status === "invoiced",
     },
     {
       label: "Edit",
@@ -162,7 +163,7 @@ export default function SaleOrderDashboard() {
       label: "Convert to Sale Bill",
       icon: ArrowRight,
       onClick: () => handleOpenConversion(order),
-      hidden: order.status === "confirmed",
+      hidden: order.status === "confirmed" || order.status === "invoiced",
     },
     { label: "", separator: true, onClick: () => {} },
     {
@@ -394,6 +395,20 @@ export default function SaleOrderDashboard() {
   });
 
   const paginatedOrders = listPageData?.rows ?? [];
+  // Bill numbers of orders invoiced by hand (Sale Bill → Sale Order No.); empty before SQL 56.
+  const invoicedOrderIds = useMemo(
+    () =>
+      (paginatedOrders as unknown as Array<{ id: string; status?: string }>)
+        .filter((o) => o.status === "invoiced")
+        .map((o) => o.id),
+    [paginatedOrders],
+  );
+  const { data: invoicedBillNumbers = {} } = useQuery({
+    queryKey: ["sale-orders-invoiced-bills", currentOrganization?.id, invoicedOrderIds],
+    enabled: invoicedOrderIds.length > 0,
+    staleTime: 60_000,
+    queryFn: () => fetchInvoicedSaleNumbers(supabase, invoicedOrderIds),
+  });
   const totalCount = listPageData?.totalCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / SALE_ORDER_LIST_PAGE_SIZE));
 
@@ -899,9 +914,9 @@ export default function SaleOrderDashboard() {
   };
 
   const handlePrintAvailableStock = async (order: any) => {
-    if (order.status === "confirmed") {
+    if (order.status === "confirmed" || order.status === "invoiced") {
       toast({
-        title: "Fully fulfilled",
+        title: order.status === "invoiced" ? "Invoiced" : "Fully fulfilled",
         description: "This order has no pending lines to pick.",
         variant: "destructive",
       });
@@ -961,6 +976,7 @@ export default function SaleOrderDashboard() {
       pending: { className: "min-w-[80px] justify-center bg-pink-400 hover:bg-pink-500 text-white", label: "Pending" },
       partial: { className: "min-w-[80px] justify-center bg-amber-500 hover:bg-amber-600 text-white", label: "Partial" },
       confirmed: { className: "min-w-[80px] justify-center bg-green-500 hover:bg-green-600 text-white", label: "Confirmed" },
+      invoiced: { className: "min-w-[80px] justify-center bg-green-600 hover:bg-green-700 text-white", label: "Invoiced" },
       cancelled: { className: "min-w-[80px] justify-center bg-red-500 hover:bg-red-600 text-white", label: "Cancelled" },
     };
     const config = variants[status] || { className: "min-w-[80px] justify-center bg-gray-400 text-white", label: status };
@@ -1223,6 +1239,7 @@ export default function SaleOrderDashboard() {
               <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="partial">Partial</SelectItem>
               <SelectItem value="confirmed">Confirmed</SelectItem>
+              <SelectItem value="invoiced">Invoiced</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
@@ -1290,7 +1307,14 @@ export default function SaleOrderDashboard() {
                           <div className="font-medium">₹{order.net_amount?.toFixed(2)}</div>
                           <div className="text-sm text-muted-foreground">{fulfilledItems}/{totalItems} items</div>
                         </TableCell>
-                        <TableCell>{getStatusBadge(order.status)}</TableCell>
+                        <TableCell>
+                          {getStatusBadge(order.status)}
+                          {order.status === "invoiced" && invoicedBillNumbers[order.id] ? (
+                            <div className="mt-1 text-xs font-semibold text-green-700" data-testid="sale-order-invoiced-bill">
+                              {invoicedBillNumbers[order.id]}
+                            </div>
+                          ) : null}
+                        </TableCell>
                         <TableCell>
                           {order.customer_accepted ? (
                             <Button 
@@ -1324,7 +1348,7 @@ export default function SaleOrderDashboard() {
                             <Button variant="ghost" size="icon" disabled={isRowBusy} onClick={() => void handleDownloadOrderPdf(order)} title="Download PDF">
                               <FileDown className="h-4 w-4" />
                             </Button>
-                            {order.status !== "confirmed" && (
+                            {order.status !== "confirmed" && order.status !== "invoiced" && (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -1338,7 +1362,7 @@ export default function SaleOrderDashboard() {
                             <Button variant="ghost" size="icon" disabled={isRowBusy} onClick={() => void handleEditOrder(order)}>
                               <Edit className="h-4 w-4" />
                             </Button>
-                            {order.status !== 'confirmed' && (
+                            {order.status !== 'confirmed' && order.status !== 'invoiced' && (
                               <Button 
                                 variant="ghost" 
                                 size="icon" 

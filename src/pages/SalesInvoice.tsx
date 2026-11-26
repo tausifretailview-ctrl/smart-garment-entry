@@ -36,6 +36,13 @@ import { flushSync } from "react-dom";
 import { allowsDecimalQty, clampQty, minQtyForUom, parseQtyValue } from "@/utils/qtyInput";
 import { fetchProductQtyMeta } from "@/utils/productQtyMeta";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  fetchLinkableSaleOrders,
+  fetchOrderLinkedToSale,
+  linkableSaleOrderLabel,
+  markSaleOrderInvoiced,
+  unmarkSaleOrderInvoiced,
+} from "@/lib/saleOrderInvoiceLink";
 import { useSettings, useProductFieldSettings } from "@/hooks/useSettings";
 import { getGarmentSlabPrice, resolveGarmentGstForLine } from "@/utils/gstRules";
 import { supabase } from "@/integrations/supabase/client";
@@ -1211,6 +1218,72 @@ export default function SalesInvoice() {
 
   // Fetch employees for Salesman dropdown
   const { data: employeesData } = useActiveStaff();
+
+  // Sale Order No.: a bill made by hand for a booked order (not converted because some items
+  // were not available). On save the order is marked Invoiced with this bill's number.
+  const [linkedSaleOrderId, setLinkedSaleOrderId] = useState("");
+  const linkedOrderAtLoadRef = useRef<string | null>(null);
+  const { data: linkableSaleOrders = [] } = useQuery({
+    queryKey: ["sale-bill-linkable-orders", currentOrganization?.id, selectedCustomerId, linkedOrderAtLoadRef.current],
+    enabled: !!currentOrganization?.id && !!selectedCustomerId,
+    staleTime: 30_000,
+    queryFn: () =>
+      fetchLinkableSaleOrders(supabase, currentOrganization!.id, selectedCustomerId, linkedOrderAtLoadRef.current),
+  });
+  // Editing a bill: show the order it already covers.
+  useEffect(() => {
+    let cancelled = false;
+    if (!editingInvoiceId) {
+      linkedOrderAtLoadRef.current = null;
+      setLinkedSaleOrderId("");
+      return;
+    }
+    void fetchOrderLinkedToSale(supabase, editingInvoiceId).then((orderId) => {
+      if (cancelled) return;
+      linkedOrderAtLoadRef.current = orderId;
+      setLinkedSaleOrderId(orderId || "");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [editingInvoiceId]);
+  // Another customer picked: their orders only.
+  useEffect(() => {
+    if (linkedSaleOrderId && selectedCustomerId && linkableSaleOrders.length > 0 && !linkableSaleOrders.some((o) => o.id === linkedSaleOrderId)) {
+      setLinkedSaleOrderId("");
+    }
+    if (!selectedCustomerId && linkedSaleOrderId) setLinkedSaleOrderId("");
+  }, [selectedCustomerId, linkableSaleOrders, linkedSaleOrderId]);
+
+  /** After the bill is saved: mark the picked order Invoiced (and free one unlinked on edit). */
+  const linkSaleOrderAfterSave = async (saleId: string, saleNumber: string) => {
+    const before = linkedOrderAtLoadRef.current;
+    const now = linkedSaleOrderId || null;
+    if (before && before !== now && !(await unmarkSaleOrderInvoiced(supabase, before))) {
+      toast({
+        title: "Sale order not updated",
+        description: "The bill no longer covers its earlier sale order, but that order could not be set back to Pending.",
+        variant: "destructive",
+      });
+    }
+    if (now) {
+      const ok = await markSaleOrderInvoiced(supabase, now, { id: saleId, saleNumber });
+      if (!ok) {
+        toast({
+          title: "Sale order not updated",
+          description: "The bill is saved, but the sale order could not be marked Invoiced. Check it on the Sale Order dashboard.",
+          variant: "destructive",
+        });
+      }
+    }
+    if (before || now) {
+      void queryClient.invalidateQueries({ queryKey: ["sale-orders-list"] });
+      void queryClient.invalidateQueries({ queryKey: ["sale-orders-stats"] });
+      void queryClient.invalidateQueries({ queryKey: ["sale-order-pending-items"] });
+      void queryClient.invalidateQueries({ queryKey: ["sale-bill-linkable-orders"] });
+    }
+    linkedOrderAtLoadRef.current = null;
+  };
 
   // Fetch last saved invoice
   const { data: lastInvoice } = useQuery({
@@ -3924,6 +3997,10 @@ Thank you for choosing us!`;
         if (currentOrganization?.id) {
           void recordSaleCommission({ organizationId: currentOrganization.id, saleId: editingInvoiceId });
         }
+        if (linkedSaleOrderId || linkedOrderAtLoadRef.current) {
+          const { data: editedSale } = await supabase.from("sales").select("sale_number").eq("id", editingInvoiceId).maybeSingle();
+          await linkSaleOrderAfterSave(editingInvoiceId, String((editedSale as { sale_number?: string } | null)?.sale_number || ""));
+        }
 
         scheduleInvoiceDashboardRefresh();
 
@@ -4356,6 +4433,10 @@ Thank you for choosing us!`;
         setOriginalItemsForEdit([]);
         resetPaidInvoiceGuard();
         setPaymentOverride(null);
+
+        // Bill made for a booked sale order: mark the order Invoiced with this bill's number.
+        if (linkedSaleOrderId) await linkSaleOrderAfterSave(saleData.id, saleNumber);
+        setLinkedSaleOrderId("");
 
         // Bill made from a quotation: mark the quotation Confirmed (best effort, bill is already saved).
         const fromQuotation = fromQuotationRef.current;
@@ -5708,6 +5789,35 @@ Thank you for choosing us!`;
               </SelectContent>
             </Select>
           </div>
+
+          {/* Sale Order No. (customer's open orders): marks the order Invoiced on save */}
+          {selectedCustomerId && (linkableSaleOrders.length > 0 || linkedSaleOrderId) && (
+            <div>
+              <label className="text-[13px] font-medium text-muted-foreground mb-1 block">Sale Order No.</label>
+              <Select
+                value={linkedSaleOrderId || "none"}
+                onValueChange={(v) => {
+                  if (!v) return;
+                  const id = v === "none" ? "" : v;
+                  setLinkedSaleOrderId(id);
+                  const order = linkableSaleOrders.find((o) => o.id === id);
+                  if (order?.salesman && !salesman) setSalesman(order.salesman);
+                }}
+              >
+                <SelectTrigger className="h-10 text-sm" data-testid="sale-bill-order-no">
+                  <SelectValue placeholder="Select sale order" />
+                </SelectTrigger>
+                <SelectContent className="z-50">
+                  <SelectItem value="none">None</SelectItem>
+                  {linkableSaleOrders.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      {linkableSaleOrderLabel(o)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {industrialMode.enabled && (
             <SaleSupplyTypeField

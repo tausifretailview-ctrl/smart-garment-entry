@@ -237,7 +237,11 @@ const SalesmanDashboard = () => {
                   <span className="block text-[15px] font-bold leading-tight tabular-nums text-slate-900">{rupees(order.net_amount)}</span>
                   <span
                     className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                      order.status === "pending" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
+                      order.status === "pending"
+                        ? "bg-amber-100 text-amber-700"
+                        : order.status === "invoiced"
+                          ? "bg-green-600 text-white"
+                          : "bg-emerald-100 text-emerald-700"
                     }`}
                   >
                     {order.status}
