@@ -526,6 +526,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // revoke refresh tokens for other open tabs/devices (which would
     // cause them to auto-logout while the user is still working).
     await supabase.auth.signOut({ scope: 'local' });
+    // Also dropped on the SIGNED_OUT event; done here too so a shared shop PC never keeps
+    // the previous staff member's saved tokens, even if that event is missed.
+    clearAuthRefreshLatest();
     setUser(null);
     setSession(null);
   };
