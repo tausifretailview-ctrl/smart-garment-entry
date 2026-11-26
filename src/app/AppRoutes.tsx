@@ -147,6 +147,7 @@ import {
   SalesmanCustomerAccount,
   SalesmanOrders,
   SalesmanOutstanding,
+  SalesmanCatalogue,
   WhatsAppLogs,
   WhatsAppInbox,
   BulkWhatsApp,
@@ -1988,6 +1989,7 @@ export function AppRoutes() {
           <Route path="order/:orderId" element={<SalesmanOrderView />} />
           <Route path="orders" element={<SalesmanOrders />} />
           <Route path="outstanding" element={<SalesmanOutstanding />} />
+          <Route path="catalogue" element={<SalesmanCatalogue />} />
         </Route>
       </Route>
 

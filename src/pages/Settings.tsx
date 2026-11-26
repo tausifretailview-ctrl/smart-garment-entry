@@ -13,7 +13,7 @@ import { EwayBillSettingsSection } from "@/components/ewaybill/EwayBillSettingsS
 import { OptionalMenusSettings } from "@/components/settings/OptionalMenusSettings";
 import { DEFAULT_MANUFACTURER_ERP, type ManufacturerERPConfig } from "@/utils/manufacturing";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, Factory, Truck, Building2, Landmark, Layers, ShoppingCart, Receipt, Tag, ListChecks, QrCode, Barcode, Wallet, Calculator, Gift, MessageCircle, Link2, Sparkles, Store, LayoutGrid, Hash } from "lucide-react";
+import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, Factory, Truck, Building2, Landmark, Layers, ShoppingCart, Receipt, Tag, ListChecks, QrCode, Barcode, Wallet, Calculator, Gift, MessageCircle, Link2, Sparkles, Store, LayoutGrid, Hash, BookImage } from "lucide-react";
 import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { SaleInvoiceFormatBackupDialog } from "@/components/settings/SaleInvoiceFormatBackupDialog";
 import { InvoiceTemplateSelectItems } from "@/components/settings/InvoiceTemplateSelectItems";
@@ -4685,6 +4685,28 @@ export default function Settings() {
                         </div>
                       </div>
                     )}
+                  </div>
+                </SettingsSection>
+
+                <SettingsSection
+                  title="Field Sales catalogue"
+                  subtitle="Salesmen send customers the product catalogue PDF from the Field Sales app"
+                  icon={BookImage}
+                  tone="emerald"
+                >
+                  <div className="p-4">
+                    <SettingsToggle
+                      id="field_sales_catalogue"
+                      label="Salesmen can send the catalogue"
+                      description="Field Sales app → Catalogue: pick products (brand, category, stock, with photo), then send the PDF on WhatsApp or save it. Same PDF as Reports → Product Catalogue. On by default."
+                      checked={(settings.sale_settings as any)?.field_sales_catalogue !== false}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: { ...settings.sale_settings, field_sales_catalogue: checked === true } as any,
+                        })
+                      }
+                    />
                   </div>
                 </SettingsSection>
 

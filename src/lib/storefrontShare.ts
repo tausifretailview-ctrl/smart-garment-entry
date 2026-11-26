@@ -17,9 +17,15 @@ export function publicStorefrontProductUrl(
 }
 
 /** Digits-only WhatsApp id. Strips leading 00; keeps country code when present. */
+/**
+ * wa.me needs the country code: an Indian 10-digit mobile (or 0 + 10 digits) gets 91 in front,
+ * otherwise the chat link opens "phone number is invalid".
+ */
 export function normalizeWhatsAppPhone(phone: string | null | undefined): string {
   const digits = String(phone || "").replace(/\D/g, "");
   if (digits.startsWith("00")) return digits.slice(2);
+  if (digits.length === 10) return `91${digits}`;
+  if (digits.length === 11 && digits.startsWith("0")) return `91${digits.slice(1)}`;
   return digits;
 }
 
