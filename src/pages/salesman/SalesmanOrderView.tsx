@@ -153,6 +153,7 @@ const SalesmanOrderView = () => {
       case "pending": return "bg-amber-100 text-amber-800";
       case "confirmed": return "bg-sky-100 text-sky-800";
       case "fulfilled": return "bg-emerald-100 text-emerald-800";
+      case "invoiced": return "bg-green-600 text-white";
       case "cancelled": return "bg-red-100 text-red-800";
       default: return "bg-white/90 text-slate-700";
     }
@@ -203,6 +204,9 @@ const SalesmanOrderView = () => {
             <h1 className="truncate text-[17px] font-semibold leading-tight">{order.customer_name}</h1>
             <p className="truncate text-xs leading-tight text-white/80">
               {order.order_number} · {format(new Date(order.order_date), "dd MMM yyyy")}
+              {order.status === "invoiced" && (order as { invoiced_sale_number?: string | null }).invoiced_sale_number
+                ? ` · Bill ${(order as { invoiced_sale_number?: string | null }).invoiced_sale_number}`
+                : ""}
             </p>
           </div>
           <span className={cn("mr-2 shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide", getStatusColor(order.status))}>

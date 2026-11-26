@@ -107,6 +107,8 @@ const SalesmanOrders = () => {
         return "bg-sky-100 text-sky-700";
       case "fulfilled":
         return "bg-emerald-100 text-emerald-700";
+      case "invoiced":
+        return "bg-green-600 text-white";
       case "cancelled":
         return "bg-red-100 text-red-700";
       default:

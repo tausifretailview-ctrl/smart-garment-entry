@@ -1,0 +1,89 @@
+import { test, expect } from "./support/test";
+import { E2E_ORG_ID, E2E_ORG_SLUG } from "./support/mockBackend";
+
+/**
+ * Field Sales order not converted (some items not available): the shop makes a new sale bill
+ * and picks the booked order in "Sale Order No.". On save the order is marked Invoiced with the
+ * bill's number, and the Sale Order dashboard shows it in green.
+ */
+const customer = { id: "cust-1", organization_id: E2E_ORG_ID, customer_name: "MILAN SHOES", phone: "9820567827", opening_balance: 0, deleted_at: null };
+const product = {
+  id: "p1", organization_id: E2E_ORG_ID, product_name: "MR50", brand: "A WALK", category: "SHOES", style: null, color: "BK",
+  hsn_code: "6403", gst_per: 5, uom: "NOS", product_type: "goods", status: "active", deleted_at: null,
+};
+const variant = {
+  id: "v1", product_id: "p1", organization_id: E2E_ORG_ID, size: "8", color: "BK", barcode: "200001",
+  sale_price: 499, mrp: 699, pur_price: 300, stock_qty: 10, active: true, deleted_at: null, products: product,
+};
+const order = {
+  id: "so-1", organization_id: E2E_ORG_ID, order_number: "SO/26-27/2017", order_date: "2026-11-25", customer_id: "cust-1",
+  customer_name: "MILAN SHOES", customer_phone: "9820567827", net_amount: 18450, gross_amount: 18450, gst_amount: 0,
+  salesman: "RAJU", status: "pending", deleted_at: null, created_at: "2026-11-25T09:00:00Z", sale_order_items: [],
+};
+
+test("Sale Bill: pick the sale order, save, the order becomes Invoiced", async ({ page, backend }) => {
+  backend
+    .addRows("customers", [customer])
+    .addRows("products", [product])
+    .addRows("product_variants", [variant])
+    .addRows("employees", [{ id: "e1", organization_id: E2E_ORG_ID, employee_name: "RAJU", status: "active", deleted_at: null }])
+    .addRows("sale_orders", [order]);
+  backend.onRpc("save_sale_with_items_numbered", (args) => ({
+    sale: { ...(args.p_sale as Record<string, unknown>), id: "sale-9", sale_number: "INV/26-27/88" },
+    items_inserted: (args.p_items as unknown[]).length,
+    settled: true,
+  }));
+
+  await page.goto(`/${E2E_ORG_SLUG}/sales-invoice`);
+  const scan = page.getByPlaceholder("Scan barcode...").filter({ visible: true });
+  await expect(scan).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("sale-bill-order-no")).toHaveCount(0); // no customer yet
+
+  await page.getByRole("combobox").filter({ hasText: /Search customer by name, phone/ }).click();
+  await page.getByPlaceholder("Search by name, phone, email...").fill("MILAN");
+  await page.getByRole("option", { name: /MILAN SHOES/ }).click();
+
+  const orderBox = page.getByTestId("sale-bill-order-no");
+  await expect(orderBox).toBeVisible();
+  await orderBox.click();
+  await page.getByRole("option", { name: /SO\/26-27\/2017/ }).click();
+  await expect(orderBox).toContainText("SO/26-27/2017");
+
+  await scan.fill("200001");
+  await scan.press("Enter");
+  await expect(page.locator("tr", { hasText: "200001" })).toHaveCount(1);
+  await page.keyboard.press("Control+s");
+  const saved = page.getByRole("alertdialog", { name: "Print Invoice?" });
+  await expect(saved).toBeVisible();
+
+  // The order was marked Invoiced with this bill.
+  await expect
+    .poll(() => backend.calls.filter((c) => c.kind === "update" && c.name === "sale_orders").map((c) => c.body))
+    .toContainEqual(expect.objectContaining({ status: "invoiced", invoiced_sale_id: "sale-9", invoiced_sale_number: "INV/26-27/88" }));
+  // The bill keeps the order's salesman.
+  const [save] = backend.rpcCalls("save_sale_with_items_numbered") as Array<{ p_sale: Record<string, unknown> }>;
+  expect(save.p_sale).toMatchObject({ salesman: "RAJU", customer_id: "cust-1" });
+});
+
+test("Sale Order dashboard: an invoiced order shows Invoiced in green with the bill number, no Convert", async ({ page, backend }) => {
+  backend.addRows("sale_orders", [{ ...order, status: "invoiced", invoiced_sale_id: "sale-9", invoiced_sale_number: "INV/26-27/88" }]);
+  await page.goto(`/${E2E_ORG_SLUG}/sale-order-dashboard`);
+  const row = page.locator("tr", { hasText: "SO/26-27/2017" }).filter({ visible: true });
+  await expect(row).toBeVisible({ timeout: 60_000 });
+  await expect(row.getByText("Invoiced", { exact: true })).toHaveClass(/bg-green-600/);
+  await expect(row.getByTestId("sale-order-invoiced-bill")).toHaveText("INV/26-27/88");
+  await expect(row.getByTitle("Convert to Sale Bill")).toHaveCount(0);
+  await expect(row.getByTitle("Print Available Stock")).toHaveCount(0);
+});
+
+test("Field Sales: My Orders shows the order as Invoiced", async ({ page, backend }) => {
+  const { E2E_USER_ID } = await import("./support/mockBackend");
+  backend
+    .addRows("employees", [{ id: "e1", organization_id: E2E_ORG_ID, user_id: E2E_USER_ID, employee_name: "RAJU", field_sales_access: true, status: "active", deleted_at: null }])
+    .addRows("sale_orders", [{ ...order, status: "invoiced", created_by: E2E_USER_ID, invoiced_sale_number: "INV/26-27/88" }]);
+  await page.setViewportSize({ width: 360, height: 760 });
+  await page.goto(`/${E2E_ORG_SLUG}/salesman/orders`);
+  const badge = page.getByText("invoiced", { exact: true }).first();
+  await expect(badge).toBeVisible({ timeout: 60_000 });
+  await expect(badge).toHaveClass(/bg-green-600/);
+});
