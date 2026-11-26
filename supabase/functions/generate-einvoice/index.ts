@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { einvoiceUnit } from '../_shared/uqc.ts';
+import { cleanGstin, firstPin, GSTIN_PATTERN } from '../_shared/einvoiceNote.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -140,12 +141,6 @@ function formatDateForEInvoice(dateString: string): string {
 }
 
 // Helper function to extract state code from GSTIN (first 2 digits)
-/** First 6-digit run in an address as a PIN code (100000-999999), else null. */
-function extractPin(address: string | null | undefined): number | null {
-  const pin = parseInt((address || '').match(/\d{6}/)?.[0] || '', 10);
-  return pin >= 100000 && pin <= 999999 ? pin : null;
-}
-
 function getStateCodeFromGstin(gstin: string): string {
   if (!gstin || gstin.length < 2) return '29'; // Default to Karnataka
   return gstin.substring(0, 2);
@@ -275,7 +270,7 @@ Deno.serve(async (req) => {
     // Fetch sale data with items
     const { data: sale, error: saleError } = await supabase
       .from('sales')
-      .select(`*, sale_items (*), customers:customer_id (gst_number, customer_name, address, phone, email)`)
+      .select(`*, sale_items (*), customers:customer_id (gst_number, customer_name, address, print_pincode, phone, email)`)
       .eq('id', saleId)
       .eq('organization_id', organizationId)
       .single();
@@ -382,7 +377,8 @@ Deno.serve(async (req) => {
     // 1. e-Invoice settings override (for sandbox testing)
     // 2. Business details GST number from settings table
     // 3. Environment variable fallback
-    const sellerGstin = einvoiceSettings?.seller_gstin || settingsData?.gst_number || Deno.env.get('SELLER_GSTIN') || '';
+    // Typed-in GSTINs carry spaces, dashes or small letters; the portal takes none of them.
+    const sellerGstin = cleanGstin(einvoiceSettings?.seller_gstin || settingsData?.gst_number || Deno.env.get('SELLER_GSTIN') || '');
     
     if (!sellerGstin) {
       return new Response(
@@ -398,20 +394,42 @@ Deno.serve(async (req) => {
     console.log('Using Seller GSTIN:', sellerGstin);
 
     // Get buyer GSTIN
-    const buyerGstin = sale.customers?.gst_number || '';
+    const buyerGstin = cleanGstin(sale.customers?.gst_number);
     if (!buyerGstin) {
       throw new Error('Buyer GSTIN is required for B2B e-Invoice generation');
+    }
+    // A GSTIN of the wrong length comes back from the portal as a schema error the shop cannot
+    // read. Say which one is wrong, and where to fix it, before calling the portal.
+    const gstinError = !GSTIN_PATTERN.test(sellerGstin)
+      ? `Shop GSTIN ${sellerGstin} doesn't look right (15 characters). Fix it in Settings → Business Details`
+      : !GSTIN_PATTERN.test(buyerGstin)
+        ? `Customer GSTIN ${buyerGstin} doesn't look right (15 characters). Fix it in the customer master, then try again`
+        : null;
+    if (gstinError) {
+      await supabase
+        .from('sales')
+        .update({ einvoice_status: 'failed', einvoice_error: gstinError })
+        .eq('id', saleId);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: gstinError,
+          code: !GSTIN_PATTERN.test(sellerGstin) ? 'INVALID_SELLER_GSTIN' : 'INVALID_BUYER_GSTIN',
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // The portal checks each PIN against its GST state. A made-up fallback PIN
     // (it used to be 500001, Hyderabad) is rejected for every other state, so
     // stop here with a message the shop can act on.
-    const sellerPin = extractPin(settingsData?.address as string);
-    const buyerPin = extractPin(sale.customer_address || sale.customers?.address);
+    const sellerPin = firstPin(settingsData?.address as string);
+    // The bill's address first, then the customer master's address and its separate PIN field.
+    const buyerPin = firstPin(sale.customer_address, sale.customers?.address, sale.customers?.print_pincode);
     if (!sellerPin || !buyerPin) {
       const error = !sellerPin
         ? 'Shop PIN code missing. Add the 6-digit PIN code to the address in Settings → Business Details'
-        : 'Customer PIN code missing. Add the 6-digit PIN code to this customer\'s address, then try again';
+        : 'Customer PIN code missing. Add the 6-digit PIN code to this customer\'s address (customer master), then try again';
       await supabase
         .from('sales')
         .update({ einvoice_status: 'failed', einvoice_error: error })

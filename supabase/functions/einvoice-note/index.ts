@@ -174,7 +174,7 @@ Deno.serve(async (req) => {
       const { data, error } = await supabase
         .from('sales')
         .select(
-          'id, sale_number, sale_date, sale_type, net_amount, flat_discount_amount, other_charges, round_off, notes, b2b_details, is_cancelled, customer_name, customer_address, customer_phone, deleted_at, irn, ack_date, einvoice_status, einvoice_test_mode, customers:customer_id (gst_number, customer_name, address, phone, email)',
+          'id, sale_number, sale_date, sale_type, net_amount, flat_discount_amount, other_charges, round_off, notes, b2b_details, is_cancelled, customer_name, customer_address, customer_phone, deleted_at, irn, ack_date, einvoice_status, einvoice_test_mode, customers:customer_id (gst_number, customer_name, address, print_pincode, phone, email)',
         )
         .eq('id', noteId)
         .eq('organization_id', organizationId)
@@ -195,7 +195,7 @@ Deno.serve(async (req) => {
       const { data, error } = await supabase
         .from('sales')
         .select(
-          'id, sale_number, sale_date, sale_type, net_amount, customer_name, customer_address, customer_phone, debit_note_details, deleted_at, irn, ack_date, einvoice_status, einvoice_test_mode, customers:customer_id (gst_number, customer_name, address, phone, email)',
+          'id, sale_number, sale_date, sale_type, net_amount, customer_name, customer_address, customer_phone, debit_note_details, deleted_at, irn, ack_date, einvoice_status, einvoice_test_mode, customers:customer_id (gst_number, customer_name, address, print_pincode, phone, email)',
         )
         .eq('id', noteId)
         .eq('organization_id', organizationId)
@@ -334,6 +334,7 @@ Deno.serve(async (req) => {
         gstin: cust.gst_number || '',
         name: note.customer_name || cust.customer_name || '',
         address: note.customer_address || cust.address || '',
+        pincode: cust.print_pincode,
         phone: note.customer_phone || cust.phone,
         email: cust.email,
       };
@@ -351,6 +352,7 @@ Deno.serve(async (req) => {
         gstin: cust.gst_number || '',
         name: note.customer_name || cust.customer_name || '',
         address: note.customer_address || cust.address || '',
+        pincode: cust.print_pincode,
         phone: note.customer_phone || cust.phone,
         email: cust.email,
       };
@@ -364,7 +366,7 @@ Deno.serve(async (req) => {
       const { data: cust } = note.customer_id
         ? await supabase
           .from('customers')
-          .select('gst_number, customer_name, address, phone, email')
+          .select('gst_number, customer_name, address, print_pincode, phone, email')
           .eq('id', note.customer_id)
           .eq('organization_id', organizationId)
           .maybeSingle()
@@ -373,6 +375,7 @@ Deno.serve(async (req) => {
         gstin: cust?.gst_number || '',
         name: note.customer_name || cust?.customer_name || '',
         address: cust?.address || '',
+        pincode: cust?.print_pincode,
         phone: cust?.phone,
         email: cust?.email,
       };

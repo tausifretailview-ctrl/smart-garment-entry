@@ -44,6 +44,8 @@ export interface NoteParty {
   gstin: string;
   name: string;
   address: string;
+  /** A PIN kept apart from the address (customer master "print PIN"); used when the address has none. */
+  pincode?: string | null;
   phone?: string | null;
   email?: string | null;
 }
@@ -118,15 +120,39 @@ export const GSTIN_PATTERN = /^[0-9]{2}[0-9A-Z]{13}$/;
 /** IRP document number: 1 to 16 characters, letters, digits, / and -, not starting with 0, / or -. */
 export const IRP_DOC_NO_PATTERN = /^[A-Za-z1-9][A-Za-z0-9/-]{0,15}$/;
 
+/** GSTIN as the IRP takes it: capitals, no spaces, dots or dashes ("27 abcde1234f 1z5" is a typed-in GSTIN, not a wrong one). */
 export function cleanGstin(v: string | null | undefined): string {
-  return String(v ?? "").trim().toUpperCase();
+  return String(v ?? "").toUpperCase().replace(/[^0-9A-Z]/g, "");
 }
 
-/** First 6-digit run in an address as a PIN code (100000-999999), else null. */
-export function extractPin(address: string | null | undefined): number | null {
-  const m = String(address ?? "").match(/\d{6}/);
-  const pin = m ? parseInt(m[0], 10) : NaN;
+const validPin = (digits: string | undefined): number | null => {
+  const pin = digits ? parseInt(digits, 10) : NaN;
   return pin >= 100000 && pin <= 999999 ? pin : null;
+};
+
+/**
+ * The PIN code in an address (100000-999999), else null. A 6-digit number standing alone
+ * wins ("Pune 411001"), then one written "400 001", so a phone number written before it is
+ * not taken as the PIN; failing that, the first 6-digit run (as before).
+ */
+export function extractPin(address: string | null | undefined): number | null {
+  const s = String(address ?? "");
+  for (const shape of [/(?<!\d)(\d{6})(?!\d)/g, /(?<!\d)(\d{3}) (\d{3})(?!\d)/g]) {
+    for (const m of s.matchAll(shape)) {
+      const pin = validPin(m[1] + (m[2] ?? ""));
+      if (pin) return pin;
+    }
+  }
+  return validPin(s.match(/\d{6}/)?.[0]);
+}
+
+/** The first PIN found in the given texts (address first, then a separate PIN field). */
+export function firstPin(...texts: Array<string | null | undefined>): number | null {
+  for (const t of texts) {
+    const pin = extractPin(t);
+    if (pin) return pin;
+  }
+  return null;
 }
 
 /** dd/mm/yyyy from yyyy-mm-dd (or a longer ISO string); "" when not a date. */
@@ -254,11 +280,11 @@ export function buildNoteEInvoicePayload(note: NoteInput, seller: NoteParty, buy
   const dt = irpDate(note.date);
   if (!dt) return { ok: false, code: "DOC_DATE", error: `The ${word} has no date.` };
 
-  const sellerPin = extractPin(seller.address);
+  const sellerPin = firstPin(seller.address, seller.pincode);
   if (!sellerPin) {
     return { ok: false, code: "SELLER_PIN", error: "Shop PIN code missing. Add the 6-digit PIN to the address in Settings > Business Details." };
   }
-  const buyerPin = exportSupply ? EXPORT_BUYER.pin : extractPin(buyer.address);
+  const buyerPin = exportSupply ? EXPORT_BUYER.pin : firstPin(buyer.address, buyer.pincode);
   if (!buyerPin) {
     return { ok: false, code: "BUYER_PIN", error: "Customer PIN code missing. Add the 6-digit PIN to this customer's address, then try again." };
   }

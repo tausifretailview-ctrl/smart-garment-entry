@@ -48,3 +48,23 @@ describe("Spin & Win database rules", () => {
     expect(sql).toContain("won_count = greatest(0, p.won_count - 1)");
   });
 });
+
+/** File 58: campaign dates and the per-day limit follow the shop's day in India, not UTC. */
+const istSql = readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), "../../supabase/migrations/20270531120000_spin_and_win_ist_dates.sql"),
+  "utf8",
+);
+
+describe("Spin & Win dates use India time", () => {
+  it("start/end dates and the per-day count use Asia/Kolkata", () => {
+    for (const fn of ["_spin_bill_block_reason", "spin_for_sale"]) {
+      expect(istSql).toContain(`FUNCTION public.${fn}`);
+    }
+    const block = istSql.slice(istSql.indexOf("FUNCTION public._spin_bill_block_reason"), istSql.indexOf("FUNCTION public.spin_for_sale"));
+    expect(block).toContain("AT TIME ZONE 'Asia/Kolkata'");
+    expect(block).not.toMatch(/\bcurrent_date\b/);
+    const spin = istSql.slice(istSql.indexOf("FUNCTION public.spin_for_sale"));
+    expect(spin).toContain("AT TIME ZONE 'Asia/Kolkata'");
+    expect(spin).not.toMatch(/\bcurrent_date\b/);
+  });
+});

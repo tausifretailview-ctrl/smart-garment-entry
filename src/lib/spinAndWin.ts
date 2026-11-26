@@ -432,3 +432,12 @@ export async function redeemSpinCode(client: SupabaseClient, orgId: string, code
   if (error) throw error;
   return data === true;
 }
+
+/** A prize code typed or scanned into the POS search box (SW-7K3QX / sw7k3qx). */
+export function looksLikeSpinCode(raw: string): boolean {
+  const t = String(raw || "").trim();
+  // With the hyphen always; without it only when the code has a digit, so a product search
+  // such as "SWEATER" is never taken for a code.
+  if (/^SW-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{5}$/i.test(t)) return true;
+  return /^SW[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{5}$/i.test(t) && /\d/.test(t);
+}

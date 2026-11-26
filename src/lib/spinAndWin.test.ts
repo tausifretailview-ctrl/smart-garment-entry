@@ -99,3 +99,14 @@ describe("Spin & Win public page and codes", () => {
     expect(spinDiscountForBill({ type: "gift_item", value: 0, max_discount: null }, 900)).toBe(0);
   });
 });
+
+describe("POS scan box takes a Spin & Win code", () => {
+  it("recognises SW codes, not barcodes", async () => {
+    const { looksLikeSpinCode } = await import("./spinAndWin");
+    expect(looksLikeSpinCode("SW-7K3QX")).toBe(true);
+    expect(looksLikeSpinCode("sw7k3qx")).toBe(true);
+    expect(looksLikeSpinCode("100001")).toBe(false);
+    expect(looksLikeSpinCode("SW-7K3Q")).toBe(false);
+    expect(looksLikeSpinCode("SWEATER")).toBe(false);
+  });
+});

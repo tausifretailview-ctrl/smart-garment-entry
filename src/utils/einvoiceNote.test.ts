@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildNoteEInvoicePayload,
+  cleanGstin,
+  extractPin,
+  firstPin,
   debitNoteToNoteInput,
   duplicateIrnInfo,
   irnCancelHoursLeft,
@@ -133,6 +136,32 @@ describe("buildNoteEInvoicePayload", () => {
     const r = buildNoteEInvoicePayload(freightNote({ againstInvoice: { number: "INV/1", date: null }, remarks: "" }), seller, buyerMh);
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.payload.RefDtls).toBeUndefined();
+  });
+});
+
+describe("GSTIN and PIN as typed by the shop", () => {
+  it("a GSTIN typed with spaces, dashes or small letters is cleaned, not refused", () => {
+    expect(cleanGstin(" 27 bbbbb1111b-1z6 ")).toBe("27BBBBB1111B1Z6");
+    const r = buildNoteEInvoicePayload(freightNote(), seller, { ...buyerMh, gstin: "27 bbbbb1111b 1z6" });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.payload.BuyerDtls.Gstin).toBe("27BBBBB1111B1Z6");
+  });
+
+  it("the PIN is the 6-digit number standing alone, not the start of a phone number", () => {
+    expect(extractPin("Ph 9822000000, 12 Market Road, Pune 411001")).toBe(411001);
+    expect(extractPin("Fort, Mumbai 400 001")).toBe(400001);
+    expect(extractPin("Plot 123 456 MG Road, Pune 411001")).toBe(411001);
+    expect(extractPin("Pune4110011")).toBe(411001);
+    expect(extractPin("12 Market Road, Pune")).toBeNull();
+  });
+
+  it("the customer master's separate PIN is used when the address has none", () => {
+    expect(firstPin("12 Market Road, Pune", "411001")).toBe(411001);
+    const r = buildNoteEInvoicePayload(freightNote(), seller, { ...buyerMh, address: "12 Market Road, Pune", pincode: "411001" });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.payload.BuyerDtls.Pin).toBe(411001);
+    const none = buildNoteEInvoicePayload(freightNote(), seller, { ...buyerMh, address: "12 Market Road, Pune" });
+    expect(none.ok).toBe(false);
   });
 });
 
