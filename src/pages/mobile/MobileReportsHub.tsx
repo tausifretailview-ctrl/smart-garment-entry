@@ -1,4 +1,6 @@
 import { useState, useCallback } from "react";
+import { useOptionalMenus } from "@/hooks/useOptionalMenus";
+import { isOptionalMenuPathShown } from "@/utils/optionalMenus";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/mobile/PullToRefreshIndicator";
@@ -43,6 +45,7 @@ interface ReportCategory {
 
 export default function MobileReportsHub() {
   const { orgNavigate } = useOrgNavigation();
+  const optionalMenus = useOptionalMenus();
   const [selectedPeriod, setSelectedPeriod] = useState<string>("today");
   const queryClient = useQueryClient();
   const { scrollRef, isRefreshing, pullHandlers } = usePullToRefresh(
@@ -126,7 +129,14 @@ export default function MobileReportsHub() {
 
       {/* Report Categories */}
       <div className="px-4 space-y-6 pb-4">
-        {reportCategories.map((category) => (
+        {reportCategories
+          .map((category) => ({
+            ...category,
+            // Settings → Optional menus: extra customer reports start hidden for new shops.
+            reports: category.reports.filter((r) => isOptionalMenuPathShown(r.path, optionalMenus)),
+          }))
+          .filter((category) => category.reports.length > 0)
+          .map((category) => (
           <div key={category.title}>
             <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3 px-1">
               {category.title}

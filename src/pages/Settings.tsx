@@ -10,6 +10,7 @@ import { useIndustrialModeAvailable } from "@/hooks/useIndustrialMode";
 import { IndustrialModeSettingsCard } from "@/components/settings/IndustrialModeSettingsCard";
 import type { IndustrialModeConfig } from "@/utils/industrialMode";
 import { EwayBillSettingsSection } from "@/components/ewaybill/EwayBillSettingsSection";
+import { OptionalMenusSettings } from "@/components/settings/OptionalMenusSettings";
 import { DEFAULT_MANUFACTURER_ERP, type ManufacturerERPConfig } from "@/utils/manufacturing";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, Factory, Truck, Building2, Landmark, Layers, ShoppingCart, Receipt, Tag, ListChecks, QrCode, Barcode, Wallet, Calculator, Gift, MessageCircle, Link2, Sparkles, Store, LayoutGrid } from "lucide-react";
@@ -5834,6 +5835,7 @@ export default function Settings() {
 
           <TabsContent value="users">
             <div className="space-y-3">
+              <OptionalMenusSettings />
               <SettingsSection
                 title="User rights"
                 subtitle="Menu access and special rights (modify, delete, WhatsApp, accounts, delivery, dashboard) for each login"
