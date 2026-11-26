@@ -30,6 +30,7 @@ import { useManufacturerERP } from "@/hooks/useManufacturerERP";
 import { useGodownsEnabled, useIndustrialMode } from "@/hooks/useIndustrialMode";
 import { useEwayBillOn } from "@/hooks/useEwayBillOn";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useOptionalMenus } from "@/hooks/useOptionalMenus";
 import { isBulkWhatsAppEnabled } from "@/utils/whatsappFeatureSwitches";
 
 export type HeaderMenubarProps = {
@@ -66,6 +67,8 @@ export function HeaderMenubar({
 }: HeaderMenubarProps) {
   const { data: orgSettings } = useSettings();
   const { organizationRole } = useOrganization();
+  // Settings → Optional menus (new shops start with these hidden).
+  const optionalMenus = useOptionalMenus();
   const showManufacturing =
     useManufacturerERP().enabled && (organizationRole === "admin" || organizationRole === "manager");
   const industrialOn = useIndustrialMode().enabled;
@@ -338,7 +341,7 @@ export function HeaderMenubar({
                 Discount Scheme
               </MenubarItem>
             )}
-            {(organizationRole === "admin" || organizationRole === "manager") && (
+            {optionalMenus.masters && (organizationRole === "admin" || organizationRole === "manager") && (
               <MenubarItem onClick={() => orgNavigate("/salesman-locations")}>Salesman Location</MenubarItem>
             )}
             {canQuickSaleLookup && (
@@ -451,7 +454,7 @@ export function HeaderMenubar({
                 Supplier Balances
               </MenubarItem>
             )}
-            {(can("customer_ledger") || can("accounts_dashboard") || can("purchase_dashboard")) && (
+            {optionalMenus.customer_reports && (can("customer_ledger") || can("accounts_dashboard") || can("purchase_dashboard")) && (
               <MenubarItem onClick={() => orgNavigate("/payment-flow")}>
                 <Workflow className="h-3.5 w-3.5 mr-2 opacity-60" />
                 Payment Flow
@@ -509,7 +512,7 @@ export function HeaderMenubar({
                 Barcode Printing
               </MenubarItem>
             )}
-            {can("stock_adjustment") && (
+            {optionalMenus.stock_tools && can("stock_adjustment") && (
               <MenubarItem
                 {...tabPrefetchProps("stock-adjustment")}
                 onClick={() => orgNavigate("/stock-adjustment")}
@@ -517,7 +520,7 @@ export function HeaderMenubar({
                 Stock Adjustment
               </MenubarItem>
             )}
-            {can("stock_settlement") && (
+            {optionalMenus.stock_tools && can("stock_settlement") && (
               <MenubarItem
                 {...tabPrefetchProps("stock-settlement")}
                 onClick={() => orgNavigate("/stock-settlement")}
@@ -525,7 +528,7 @@ export function HeaderMenubar({
                 Stock Settlement
               </MenubarItem>
             )}
-            {organizationRole === "admin" && (
+            {optionalMenus.data_checks && organizationRole === "admin" && (
               <MenubarItem
                 {...tabPrefetchProps("duplicate-purchase-bills")}
                 onClick={() => orgNavigate("/duplicate-purchase-bills")}
@@ -533,7 +536,7 @@ export function HeaderMenubar({
                 Duplicate Purchase Bills
               </MenubarItem>
             )}
-            {organizationRole === "admin" && (
+            {optionalMenus.data_checks && organizationRole === "admin" && (
               <MenubarItem
                 {...tabPrefetchProps("customer-reconciliation")}
                 onClick={() => orgNavigate("/customer-reconciliation")}

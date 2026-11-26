@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useOptionalMenus } from "@/hooks/useOptionalMenus";
+import { isOptionalMenuPathShown } from "@/utils/optionalMenus";
 import {
   Package,
   Grid3X3,
@@ -496,7 +498,10 @@ export default function ReportsHub() {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<ReportTabId>("favourite");
 
+  const optionalMenus = useOptionalMenus();
   const canSee = (item: ReportItem) => {
+    // Settings → Optional menus: extra customer reports start hidden for new shops.
+    if (!isOptionalMenuPathShown(item.path, optionalMenus)) return false;
     if (item.requiresPointsSystem && !enablePointsSystem) return false;
     if (permissionsLoading) return false;
     if (permissions === null) return true;
@@ -518,7 +523,7 @@ export default function ReportsHub() {
         report.desc.toLowerCase().includes(q)
       );
     });
-  }, [search, permissions, permissionsLoading, hasMenuAccess, activeTab, enablePointsSystem]);
+  }, [search, permissions, permissionsLoading, hasMenuAccess, activeTab, enablePointsSystem, optionalMenus]);
 
   const tabsWithReports = useMemo(() => {
     return REPORT_TABS.filter((tab) => {
@@ -527,7 +532,7 @@ export default function ReportsHub() {
       }
       return ALL_REPORTS.some((r) => r.tab === tab.id && canSee(r));
     });
-  }, [permissions, permissionsLoading, hasMenuAccess, enablePointsSystem]);
+  }, [permissions, permissionsLoading, hasMenuAccess, enablePointsSystem, optionalMenus]);
 
   const activeTabConfig = REPORT_TABS.find((t) => t.id === activeTab) ?? REPORT_TABS[0];
 
