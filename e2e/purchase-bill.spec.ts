@@ -92,3 +92,74 @@ test("Purchase: one line, supplier and invoice no, Save Bill", async ({ page, ba
   // The old step-by-step insert path must not run as well.
   expect(backend.calls.filter((c) => c.kind === "insert" && (c.name === "purchase_bills" || c.name === "purchase_items"))).toEqual([]);
 });
+
+/**
+ * After the bill is saved, the follow-up writes (challan flag, "user cancelled" flag, prices,
+ * colours, product details) used to run one after another: a median 2.3 s of a 7 s purchase
+ * save (app timing, Nov 2026). Writes that touch different rows now go out together: while
+ * the products write is held for 1.5 s, the variant writes and the product read still go out.
+ */
+test("Purchase save: follow-up writes after the bill run side by side", async ({ page, backend }) => {
+  backend.addRows("suppliers", [supplier]);
+  backend.onRpc("save_purchase_bill_with_items_atomic", (args) => ({
+    ...(args.p_bill as Record<string, unknown>),
+    id: "bill-2",
+    software_bill_no: "PUR/26-27/2",
+    organization_id: E2E_ORG_ID,
+  }));
+
+  await page.addInitScript(
+    ({ key, draft }) => {
+      if (sessionStorage.getItem("__e2e_seeded")) return;
+      sessionStorage.setItem("__e2e_seeded", "1");
+      sessionStorage.setItem(key, JSON.stringify(draft));
+    },
+    {
+      key: `purchaseEntryState:${E2E_ORG_ID}:${E2E_USER_ID}`,
+      draft: {
+        lineItems: [line],
+        billData: { supplier_id: "", supplier_name: "", supplier_invoice_no: "" },
+        entryMode: "inline",
+        savedAt: Date.now(),
+      },
+    },
+  );
+
+  // Hold the "user cancelled" write (products PATCH) for 1.5 s; record when each write starts.
+  const started: Array<{ what: string; at: number }> = [];
+  let heldUntil = 0;
+  await page.route("**/rest/v1/products?**", async (route) => {
+    const method = route.request().method();
+    if (method === "PATCH") {
+      started.push({ what: "products-update", at: Date.now() });
+      heldUntil = Date.now() + 1500;
+      await new Promise((r) => setTimeout(r, 1500));
+    } else if (method === "GET" && route.request().url().includes("select=id%2Cbrand%2Ccolor%2Cstyle")) {
+      started.push({ what: "products-details-read", at: Date.now() });
+    }
+    await route.fallback();
+  });
+  await page.route("**/rest/v1/product_variants?**", async (route) => {
+    if (route.request().method() === "PATCH") started.push({ what: "variants-update", at: Date.now() });
+    await route.fallback();
+  });
+
+  await page.goto(`/${E2E_ORG_SLUG}/purchase-entry`);
+  await expect(page.locator("tr.purchase-bill-line-row")).toHaveCount(1, { timeout: 60_000 });
+  await page.locator("#supplier_name").click();
+  await page.getByRole("option", { name: "ACME TEXTILES" }).click();
+  await page.locator("#supplier_invoice_no").fill("INV-78");
+  await page.locator("footer.entry-page-footer").getByRole("button", { name: /Save Bill/ }).click();
+
+  await expect(page.getByRole("dialog", { name: /Bill Saved Successfully/ })).toBeVisible({ timeout: 15_000 });
+
+  const held = started.find((s) => s.what === "products-update");
+  expect(held, "the user-cancelled flag is cleared").toBeTruthy();
+  const variantWrite = started.find((s) => s.what === "variants-update");
+  const detailsRead = started.find((s) => s.what === "products-details-read");
+  expect(variantWrite, "the challan flag is written").toBeTruthy();
+  expect(detailsRead, "product details are read for the labels").toBeTruthy();
+  expect(variantWrite!.at).toBeLessThan(heldUntil);
+  // The product read went out while the products write was still held (it used to wait for it).
+  expect(detailsRead!.at).toBeLessThan(heldUntil);
+});
