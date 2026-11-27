@@ -11,6 +11,7 @@ import type { LiveStockView } from "@/lib/saleLineLiveStock";
 import type { SaleLineGridColKey, SaleLineGridShowCol } from "@/hooks/useSalesInvoiceLineGridKeyboard";
 import { GST_SLABS } from "@/utils/gstRegisterUtils";
 import { allowsDecimalQty } from "@/utils/qtyInput";
+import { saleOrderQtyHint } from "@/lib/saleOrderInvoiceLink";
 
 /** What a Sale Bill line row reads from the line. */
 export type SaleBillLine = {
@@ -81,6 +82,15 @@ export type SaleBillLineRowProps = {
   historicalRate: number | null;
   /** Organisation id when this user may see purchase rate / landing cost; null hides the ▲. */
   costOrganizationId?: string | null;
+  /** A sale order is linked: the ORDER QTY column after QTY is shown. */
+  showOrderQtyCol?: boolean;
+  /** The linked order's quantity still to deliver for this item; null when the order does not have it. */
+  orderRequired?: number | null;
+  /** This bill's total quantity of the same item (all its lines), for "short" / "extra". */
+  orderBilled?: number;
+  /** Ordered and already delivered, for the tooltip. */
+  orderOrdered?: number;
+  orderDelivered?: number;
   /** Cell props of the line grid, from the row's own focus state (see the keyboard hook). */
   buildCellProps: (
     rowIndex: number,
@@ -120,6 +130,11 @@ export const SaleBillLineRow = memo(function SaleBillLineRow({
   stockTitle,
   historicalRate,
   costOrganizationId = null,
+  showOrderQtyCol = false,
+  orderRequired = null,
+  orderBilled = 0,
+  orderOrdered = 0,
+  orderDelivered = 0,
   buildCellProps,
   editInputRef,
   actions,
@@ -250,6 +265,42 @@ export const SaleBillLineRow = memo(function SaleBillLineRow({
           )}
         </div>
       </td>
+      {showOrderQtyCol && (
+        <td
+          className="sale-col-orderqty text-center px-1.5 py-1 align-middle overflow-hidden"
+          data-testid="sale-line-order-qty"
+          title={
+            orderRequired == null
+              ? "Not in the selected sale order"
+              : orderDelivered > 0
+                ? `Ordered ${orderOrdered}, already delivered ${orderDelivered}, still to deliver ${orderRequired}`
+                : `Ordered ${orderOrdered} in the selected sale order`
+          }
+        >
+          {orderRequired == null ? (
+            <span className="block h-10 leading-10 text-slate-300">—</span>
+          ) : (
+            (() => {
+              const hint = saleOrderQtyHint(orderRequired, orderBilled);
+              return (
+                <div className="flex flex-col items-center justify-center leading-tight">
+                  <span className="text-[17px] font-bold tabular-nums text-slate-800">{orderRequired}</span>
+                  <span
+                    className={cn(
+                      "text-[11px] font-semibold",
+                      hint.tone === "short" && "text-amber-600",
+                      hint.tone === "extra" && "text-red-600",
+                      hint.tone === "match" && "text-emerald-600",
+                    )}
+                  >
+                    {hint.text}
+                  </span>
+                </div>
+              );
+            })()
+          )}
+        </td>
+      )}
       {showCol.box && (
         <td
           {...cellProps("box", {

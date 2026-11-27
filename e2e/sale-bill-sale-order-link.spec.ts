@@ -37,14 +37,25 @@ test("Sale Bill: pick the sale order, save, the order becomes Invoiced", async (
   await page.goto(`/${E2E_ORG_SLUG}/sales-invoice`);
   const scan = page.getByPlaceholder("Scan barcode...").filter({ visible: true });
   await expect(scan).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByTestId("sale-bill-order-no")).toHaveCount(0); // no customer yet
+  // Always in the header row, next to Salesman (it was hidden until a customer was picked,
+  // then dropped onto a second row); greyed out until the customer has an open order.
+  const orderField = page.getByTestId("sale-bill-order-no");
+  await expect(orderField).toBeVisible();
+  await expect(orderField).toBeDisabled();
+  await expect(orderField).toContainText("Select customer");
+  const salesmanBox = page.locator("label", { hasText: /^Salesman$/ }).locator("xpath=following-sibling::*[1]");
+  const [orderTop, salesmanTop] = await Promise.all([
+    orderField.boundingBox().then((b) => Math.round(b!.y)),
+    salesmanBox.boundingBox().then((b) => Math.round(b!.y)),
+  ]);
+  expect(orderTop).toBe(salesmanTop);
 
   await page.getByRole("combobox").filter({ hasText: /Search customer by name, phone/ }).click();
   await page.getByPlaceholder("Search by name, phone, email...").fill("MILAN");
   await page.getByRole("option", { name: /MILAN SHOES/ }).click();
 
   const orderBox = page.getByTestId("sale-bill-order-no");
-  await expect(orderBox).toBeVisible();
+  await expect(orderBox).toBeEnabled();
   await orderBox.click();
   await page.getByRole("option", { name: /SO\/26-27\/2017/ }).click();
   await expect(orderBox).toContainText("SO/26-27/2017");
@@ -63,6 +74,53 @@ test("Sale Bill: pick the sale order, save, the order becomes Invoiced", async (
   // The bill keeps the order's salesman.
   const [save] = backend.rpcCalls("save_sale_with_items_numbered") as Array<{ p_sale: Record<string, unknown> }>;
   expect(save.p_sale).toMatchObject({ salesman: "RAJU", customer_id: "cust-1" });
+});
+
+test("Sale Bill: with a sale order picked, ORDER QTY shows the order's quantity per line", async ({ page, backend }) => {
+  backend
+    .addRows("customers", [customer])
+    .addRows("products", [product])
+    .addRows("product_variants", [variant])
+    .addRows("sale_orders", [order])
+    .addRows("sale_order_items", [
+      { id: "soi-1", order_id: "so-1", variant_id: "v1", product_id: "p1", barcode: "200001", size: "8", color: "BK", order_qty: 6, fulfilled_qty: 0, pending_qty: 6, deleted_at: null },
+      { id: "soi-2", order_id: "so-1", variant_id: "v2", product_id: "p1", barcode: "200002", size: "9", color: "BK", order_qty: 4, fulfilled_qty: 0, pending_qty: 4, deleted_at: null },
+    ]);
+
+  await page.goto(`/${E2E_ORG_SLUG}/sales-invoice`);
+  const scan = page.getByPlaceholder("Scan barcode...").filter({ visible: true });
+  await expect(scan).toBeVisible({ timeout: 60_000 });
+  // No order picked: no ORDER QTY column.
+  await expect(page.getByRole("columnheader", { name: /ORDER\s*QTY/ })).toHaveCount(0);
+
+  await page.getByRole("combobox").filter({ hasText: /Search customer by name, phone/ }).click();
+  await page.getByPlaceholder("Search by name, phone, email...").fill("MILAN");
+  await page.getByRole("option", { name: /MILAN SHOES/ }).click();
+  await page.getByTestId("sale-bill-order-no").click();
+  await page.getByRole("option", { name: /SO\/26-27\/2017/ }).click();
+  await expect(page.getByRole("columnheader", { name: /ORDER\s*QTY/ })).toBeVisible();
+
+  await scan.fill("200001");
+  await scan.press("Enter");
+  const row = page.locator("tr", { hasText: "200001" });
+  await expect(row).toHaveCount(1);
+  const orderCell = row.getByTestId("sale-line-order-qty");
+  await expect(orderCell).toContainText("6");
+  await expect(orderCell).toContainText("5 short");
+  // The ORDER QTY header sits right after QTY.
+  const headers = (await page.locator("thead th").allInnerTexts()).map((h) => h.replace(/\s+/g, " ").trim());
+  expect(headers[headers.indexOf("QTY") + 1]).toBe("ORDER QTY");
+  // Total row: the whole order (6 + 4).
+  await expect(page.getByTestId("sale-order-qty-total")).toHaveText("10");
+
+  // Bill quantity raised to the order's: "matches"; above it: "extra".
+  const qty = row.locator("input.sale-qty-box");
+  await qty.fill("6");
+  await qty.press("Tab");
+  await expect(orderCell).toContainText("matches");
+  await qty.fill("7");
+  await qty.press("Tab");
+  await expect(orderCell).toContainText("1 extra");
 });
 
 test("Sale Order dashboard: an invoiced order shows Invoiced in green with the bill number, no Convert", async ({ page, backend }) => {
