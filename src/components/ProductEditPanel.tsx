@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { warnTransferredPriceGaps } from "@/utils/transferredPriceWarning";
 import { reportIfFails } from "@/lib/reportIfFails";
 import { findProductNameMatch } from "@/utils/productNameDedupe";
 import { cleanProductName } from "@/utils/productNameMerge";
@@ -433,6 +434,8 @@ const ProductEditPanel = ({
           .eq("id", item.sku_id)
           .eq("organization_id", orgId);
         if (varErr) throw varErr;
+        // A shop that already received this item by Stock Transfer keeps its old price: say so.
+        if ("sale_price" in variantPatch) void warnTransferredPriceGaps(orgId, [item.sku_id]);
       }
 
       // This barcode's bill line only — other sizes of the same product stay as entered.

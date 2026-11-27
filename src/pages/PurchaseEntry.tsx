@@ -1,4 +1,5 @@
 import { posSaveBegin, posSaveMark } from "@/lib/posSaveTiming";
+import { warnTransferredPriceGaps } from "@/utils/transferredPriceWarning";
 import { reportIfFails } from "@/lib/reportIfFails";
 import { lazy, Suspense, useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type ChangeEvent, type ReactNode } from "react";
 import { isDecimalUOM, getUOMLabel } from "@/constants/uom";
@@ -6766,6 +6767,8 @@ const PurchaseEntry = () => {
                 linkExistingSku: item.linkExistingSku,
               })),
             });
+            // A shop that already received these items keeps its old price: say so.
+            void warnTransferredPriceGaps(orgId, priceTouchedItems.map((item) => item.sku_id));
           }
         } catch (syncErr) {
           console.warn("[PurchaseEntry] last_purchase sync after edit failed:", syncErr);
@@ -7183,6 +7186,8 @@ const PurchaseEntry = () => {
           } catch (syncErr) {
             console.warn("[PurchaseEntry] last_purchase sync after create failed:", syncErr);
           }
+          // A shop that already received these items keeps its old price: say so.
+          void warnTransferredPriceGaps(postSaveOrgId, billLinesForSave.map((item) => item.sku_id));
           // Never throws (the hook tells the user itself).
           await purchaseGodown.syncAfterSave(String(postSaveBillId), false);
         })();

@@ -163,3 +163,53 @@ test("Purchase save: follow-up writes after the bill run side by side", async ({
   // The product read went out while the products write was still held (it used to wait for it).
   expect(detailsRead!.at).toBeLessThan(heldUntil);
 });
+
+/**
+ * User's choice (Nov 2026): a price changed here is not copied to a shop that already received
+ * the item by Stock Transfer, so after the save a warning names the item, the shop and both prices.
+ */
+test("Purchase save: warns when another shop still sells a transferred item at the old price", async ({ page, backend }) => {
+  backend.addRows("suppliers", [supplier]);
+  backend.onRpc("save_purchase_bill_with_items_atomic", (args) => ({
+    ...(args.p_bill as Record<string, unknown>),
+    id: "bill-3",
+    software_bill_no: "PUR/26-27/3",
+    organization_id: E2E_ORG_ID,
+  }));
+  backend.onRpc("get_transferred_price_gaps", () => [
+    {
+      variant_id: "v1", barcode: "100001", product_name: "COTTON SHIRT", size: "M", sender_sale_price: 499,
+      to_shop: "BRANCH SHOP", receiver_sale_price: 449, receiver_stock: 3, transfer_number: "ST/0007",
+      accepted_at: "2026-11-24T07:41:44Z",
+    },
+  ]);
+
+  await page.addInitScript(
+    ({ key, draft }) => {
+      if (sessionStorage.getItem("__e2e_seeded")) return;
+      sessionStorage.setItem("__e2e_seeded", "1");
+      sessionStorage.setItem(key, JSON.stringify(draft));
+    },
+    {
+      key: `purchaseEntryState:${E2E_ORG_ID}:${E2E_USER_ID}`,
+      draft: {
+        lineItems: [line],
+        billData: { supplier_id: "", supplier_name: "", supplier_invoice_no: "" },
+        entryMode: "inline",
+        savedAt: Date.now(),
+      },
+    },
+  );
+
+  await page.goto(`/${E2E_ORG_SLUG}/purchase-entry`);
+  await expect(page.locator("tr.purchase-bill-line-row")).toHaveCount(1, { timeout: 60_000 });
+  await page.locator("#supplier_name").click();
+  await page.getByRole("option", { name: "ACME TEXTILES" }).click();
+  await page.locator("#supplier_invoice_no").fill("INV-79");
+  await page.locator("footer.entry-page-footer").getByRole("button", { name: /Save Bill/ }).click();
+
+  await expect(page.getByRole("dialog", { name: /Bill Saved Successfully/ })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("1 item(s) were sent to BRANCH SHOP at the old price")).toBeVisible();
+  await expect(page.getByText(/COTTON SHIRT M \(100001\): BRANCH SHOP sells at ₹449, here ₹499/)).toBeVisible();
+  expect(backend.rpcCalls("get_transferred_price_gaps")[0]).toMatchObject({ p_org_id: E2E_ORG_ID, p_variant_ids: ["v1"] });
+});

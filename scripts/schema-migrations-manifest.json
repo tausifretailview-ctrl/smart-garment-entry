@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-11-27",
-  "count": 979,
-  "fileCount": 997,
+  "count": 980,
+  "fileCount": 998,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -982,7 +982,8 @@
     "20270531120000",
     "20270601120000",
     "20270602120000",
-    "20270603120000"
+    "20270603120000",
+    "20270604120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1981,7 +1982,8 @@
     "20270531120000_spin_and_win_ist_dates.sql",
     "20270601120000_fk_indexes_big_tables.sql",
     "20270602120000_search_sales_header_ids.sql",
-    "20270603120000_stock_transfer_accept_sender_price.sql"
+    "20270603120000_stock_transfer_accept_sender_price.sql",
+    "20270604120000_transferred_price_gaps.sql"
   ],
   "duplicateVersions": [
     {
