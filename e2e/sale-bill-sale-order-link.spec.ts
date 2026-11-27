@@ -44,11 +44,10 @@ test("Sale Bill: pick the sale order, save, the order becomes Invoiced", async (
   await expect(orderField).toBeDisabled();
   await expect(orderField).toContainText("Select customer");
   const salesmanBox = page.locator("label", { hasText: /^Salesman$/ }).locator("xpath=following-sibling::*[1]");
-  const [orderTop, salesmanTop] = await Promise.all([
-    orderField.boundingBox().then((b) => Math.round(b!.y)),
-    salesmanBox.boundingBox().then((b) => Math.round(b!.y)),
-  ]);
-  expect(orderTop).toBe(salesmanTop);
+  const [orderFieldRect, salesmanRect] = await Promise.all([orderField.boundingBox(), salesmanBox.boundingBox()]);
+  // Same row: tops within 2 px (boxes sit on half pixels, so rounding can differ by 1). A second
+  // row would be a whole field (about 70 px) lower.
+  expect(Math.abs(orderFieldRect!.y - salesmanRect!.y)).toBeLessThanOrEqual(2);
 
   await page.getByRole("combobox").filter({ hasText: /Search customer by name, phone/ }).click();
   await page.getByPlaceholder("Search by name, phone, email...").fill("MILAN");

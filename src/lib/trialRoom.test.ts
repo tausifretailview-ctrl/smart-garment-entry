@@ -131,6 +131,23 @@ describe("AI call", () => {
     expect(trialRoomPrompt({})).not.toContain("()");
   });
 
+  it("puts on the whole look in the product photo, styled the same way (Nov 2026: only the shirt changed)", () => {
+    const prompt = trialRoomPrompt({ name: "SHIRT-TEST", category: "Shirt" });
+    // A model wearing a full look: top, bottom, layers and shoes all change.
+    expect(prompt).toMatch(/complete look: the top, the bottom \(trousers/);
+    expect(prompt).toMatch(/no original trousers under a new set/);
+    // A garment shown on its own still changes only what it covers.
+    expect(prompt).toMatch(/only one garment on its own .* replace only the clothing that garment covers/);
+    // Styling details.
+    expect(prompt).toMatch(/sleeve length and how the sleeves end/);
+    expect(prompt).toMatch(/tucked or untucked/);
+    expect(prompt).toMatch(/fit \(slim, regular or relaxed\)/);
+    // Never someone else's face.
+    expect(prompt).toMatch(/Do not copy the face, hair or body of anyone in image 2/);
+    // The old "only the clothing the product would cover" rule is gone.
+    expect(prompt).not.toMatch(/Replace only the clothing the product would cover/);
+  });
+
   it("reads the picture from the reply shapes gateways use", () => {
     const img = "data:image/png;base64,iVBORw0KGgo=";
     expect(trialRoomImageFromReply({ choices: [{ message: { images: [{ type: "image_url", image_url: { url: img } }] } }] })).toBe(img);
