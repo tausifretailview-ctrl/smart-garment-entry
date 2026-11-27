@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { warnTransferredPriceGaps } from "@/utils/transferredPriceWarning";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -138,6 +139,16 @@ export default function BulkProductUpdate() {
     if (success) {
       loadFilterOptions();
       loadHistory();
+      // Sale price changed: a shop that already received these items keeps its old price.
+      const salePriceChanged =
+        (updateType === "update_prices" && (config as PriceConfig).priceType === "sale_price") ||
+        (updateType === "apply_discount" && (config as DiscountConfig).applyTo === "sale_price");
+      if (salePriceChanged) {
+        void warnTransferredPriceGaps(
+          currentOrganization?.id,
+          previewItems.filter((i) => i.type === "variant").map((i) => i.id),
+        );
+      }
     }
   };
 

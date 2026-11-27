@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { warnTransferredPriceGaps } from "@/utils/transferredPriceWarning";
 import { cleanProductName } from "@/utils/productNameMerge";
 import { NO_SIZE_GROUP_ID, resolveDefaultSizeGroupId, sizeGroupIdForSave } from "@/utils/defaultSizeGroup";
 import { classifyBarcodeSource } from "@/utils/barcodeChecksum";
@@ -1642,6 +1643,11 @@ const ProductEntry = () => {
           title: "Success",
           description: `Product "${formData.product_name}" updated successfully`,
         });
+        // A shop that already received these items by Stock Transfer keeps its old price: say so.
+        void warnTransferredPriceGaps(
+          currentOrganization?.id,
+          variants.map((v) => v.id),
+        );
 
         await invalidateProductDashboardQueries(queryClient, currentOrganization?.id);
 
