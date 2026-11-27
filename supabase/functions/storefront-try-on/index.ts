@@ -28,8 +28,17 @@ const corsHeaders = {
 };
 
 const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-/** Tried in order until one answers; TRIAL_ROOM_MODEL (function secret) goes first when set. */
-const DEFAULT_MODELS = ["google/gemini-2.5-flash-image", "google/gemini-2.5-flash-image-preview"];
+/**
+ * Tried in order until one answers; TRIAL_ROOM_MODEL (function secret) goes first when set.
+ * The Pro image model keeps the outfit and its styling more faithfully (Nov 2026: the flash model
+ * changed only the shirt and drifted on sleeves and fit); flash stays as the fallback. To go
+ * back to flash first (cheaper), set TRIAL_ROOM_MODEL=google/gemini-2.5-flash-image.
+ */
+const DEFAULT_MODELS = [
+  "google/gemini-3-pro-image-preview",
+  "google/gemini-2.5-flash-image",
+  "google/gemini-2.5-flash-image-preview",
+];
 const AI_TIMEOUT_MS = 100_000;
 const MAX_GARMENT_BYTES = 6 * 1024 * 1024;
 

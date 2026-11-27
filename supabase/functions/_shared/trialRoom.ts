@@ -130,15 +130,29 @@ export function trialRoomLimitProblem(usage: TrialRoomUsage, dailyLimit: number)
   return null;
 }
 
+/**
+ * The instruction sent with the two photos. Nov 2026: shoppers saw only the shirt change (their own
+ * black trousers stayed under a white shirt-and-trouser look) and the styling drifted (sleeves,
+ * fit). The shop's photo is the look being sold, so the whole outfit in it is put on, styled the
+ * same way; a garment shown on its own replaces only what it covers.
+ */
 export function trialRoomPrompt(product: { name?: string | null; category?: string | null }): string {
   const what = [product.name, product.category].map((s) => String(s ?? "").trim()).filter(Boolean).join(", ");
   return [
     "Virtual try-on for a clothing shop.",
     "Image 1 is a photo of a shopper. Image 2 is the shop's product photo" + (what ? ` (${what.slice(0, 120)})` : "") + ".",
-    "Create one photorealistic image of the same person from image 1 wearing the product from image 2.",
-    "Keep the person's face, hair, skin tone, body shape, pose, hands and the background exactly as in image 1.",
-    "Copy the product's colour, print, fabric, neckline, sleeves and length faithfully, with natural drape and lighting.",
-    "Replace only the clothing the product would cover. If the product photo shows a model or a mannequin, use only the garment.",
+    "Create one photorealistic image of the same person from image 1 wearing the outfit from image 2.",
+    // Who stays the same.
+    "Keep the person's face, hair, skin tone, body shape, pose, hands and the background exactly as in image 1. Keep the same framing and the person's real proportions.",
+    // What changes: the whole look.
+    "If image 2 shows a model or a mannequin wearing a complete look, dress the person in that complete look: the top, the bottom (trousers, jeans, skirt, dhoti or salwar) and any jacket, dupatta or layer, and the footwear if it is clearly shown.",
+    "Remove the person's own clothing wherever the new outfit goes. None of their original top or bottom may show, for example no original trousers under a new set.",
+    "If image 2 shows only one garment on its own (flat, hanging or cut out), replace only the clothing that garment covers and keep the rest as it is.",
+    // How it is worn.
+    "Copy the styling exactly as in image 2: colour and shade, print or pattern, fabric and texture, collar and neckline, button placket, sleeve length and how the sleeves end (full, half, cuffed or rolled), fit (slim, regular or relaxed), garment length and hem, tucked or untucked, waistband and drawstring, trouser cut and length.",
+    "Size the outfit to the person's body with natural folds, drape and shadows that match the light in image 1.",
+    "If you are not sure about a detail, follow image 2 rather than image 1.",
+    "Do not copy the face, hair or body of anyone in image 2.",
     "The person must stay fully and modestly clothed. No text, labels, logos or watermarks. Return only the image.",
   ].join(" ");
 }
