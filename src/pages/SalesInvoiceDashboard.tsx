@@ -121,6 +121,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
+import { isDuplicateInvoiceEnabled } from "@/lib/saleDuplicateInvoice";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
@@ -662,11 +663,15 @@ export default function SalesInvoiceDashboard() {
         },
         disabled: !invoice.customer_phone,
       },
-      {
-        label: "Duplicate Invoice",
-        icon: Copy,
-        onClick: () => navigate('/sales-invoice', { state: { duplicateInvoiceId: invoice.id } }),
-      },
+      ...(duplicateInvoiceOn
+        ? [
+            {
+              label: "Duplicate Invoice",
+              icon: Copy,
+              onClick: () => navigate('/sales-invoice', { state: { duplicateInvoiceId: invoice.id } }),
+            },
+          ]
+        : []),
       { label: "", separator: true, onClick: () => {} },
       {
         label: "Cancel Invoice",
@@ -757,6 +762,8 @@ export default function SalesInvoiceDashboard() {
   }, [settings]);
 
   const saleSettings = (settings as any)?.sale_settings;
+  // Settings → Sale → Duplicate invoice (off by default).
+  const duplicateInvoiceOn = isDuplicateInvoiceEnabled(saleSettings);
 
   const buildSaleInvoiceViewUrl = useCallback(
     (saleId: string) =>
@@ -4688,6 +4695,18 @@ export default function SalesInvoiceDashboard() {
                                     <Download className="h-4 w-4 text-blue-600" />
                                   </Button>
                                 )}
+                                {duplicateInvoiceOn && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    data-testid="duplicate-invoice-button"
+                                    onClick={() => navigate('/sales-invoice', { state: { duplicateInvoiceId: invoice.id } })}
+                                    title="Duplicate Invoice: new bill with the same customer and products"
+                                    aria-label="Duplicate Invoice"
+                                  >
+                                    <Copy className="h-4 w-4 text-indigo-600" />
+                                  </Button>
+                                )}
                                 {columnSettings.modify && (() => {
                                   const own = canModifyEntry((invoice as any).created_by, invoiceCreatorLabel((invoice as any).created_by));
                                   if (invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices')) {
@@ -4757,6 +4776,14 @@ export default function SalesInvoiceDashboard() {
                                     {columnSettings.copyLink && (
                                       <DropdownMenuItem onClick={() => handleCopyLink(invoice)}>
                                         <Link2 className="h-4 w-4 mr-2 text-blue-600" /> Copy Invoice Link
+                                      </DropdownMenuItem>
+                                    )}
+                                    {duplicateInvoiceOn && (
+                                      <DropdownMenuItem
+                                        data-testid="duplicate-invoice"
+                                        onClick={() => navigate('/sales-invoice', { state: { duplicateInvoiceId: invoice.id } })}
+                                      >
+                                        <Copy className="h-4 w-4 mr-2 text-indigo-600" /> Duplicate Invoice
                                       </DropdownMenuItem>
                                     )}
                                     <DropdownMenuItem

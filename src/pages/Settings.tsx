@@ -323,6 +323,8 @@ interface SaleSettings {
   pos_goods_ask_qty_dialog?: boolean;
   pos_dashboard_show_purchase_code?: boolean;
   atomic_bill_save?: boolean;
+  /** Sales Invoice dashboard → Duplicate Invoice (off unless true). */
+  duplicate_invoice?: boolean;
   /** Shared / Sale default GST mode (existing setting — unchanged for current orgs) */
   default_tax_type?: 'inclusive' | 'exclusive' | 'no_gst';
   /** Optional POS-only override; omit to keep using `default_tax_type` */
@@ -4685,6 +4687,28 @@ export default function Settings() {
                         </div>
                       </div>
                     )}
+                  </div>
+                </SettingsSection>
+
+                <SettingsSection
+                  title="Duplicate invoice"
+                  subtitle="Make a new sale bill from an earlier one in one click"
+                  icon={Copy}
+                  tone="emerald"
+                >
+                  <div className="p-4">
+                    <SettingsToggle
+                      id="duplicate_invoice"
+                      label="Show Duplicate Invoice on the Sales Invoice dashboard"
+                      description="Each invoice's ⋮ menu (and right-click) gets Duplicate Invoice: a new bill with today's date and the same customer, products and prices. Change the customer or products as needed. Lines short of stock show in red; lines with no stock are taken off when you save. Off by default."
+                      checked={settings.sale_settings?.duplicate_invoice === true}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: { ...settings.sale_settings, duplicate_invoice: checked === true },
+                        })
+                      }
+                    />
                   </div>
                 </SettingsSection>
 
