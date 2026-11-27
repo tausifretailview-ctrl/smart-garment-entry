@@ -7091,12 +7091,25 @@ const PurchaseEntry = () => {
           getPurchaseBillEntryAt(billDataResult as { bill_entry_at?: string | null; created_at?: string }),
         );
 
+        // The bill is saved. The follow-up writes below used to run one after another (median
+        // 2.3 s of a 7 s purchase save, app timing Nov 2026). They now run side by side where
+        // they do not depend on each other:
+        //  - product_variants batch writes (challan flag, blank colours) stay in order, so two
+        //    many-row updates never lock the same rows in opposite order;
+        //  - the last-purchase price sync may re-point bill lines to a price-tier SKU, so the
+        //    godown move (which reads the bill lines) waits for it;
+        //  - the journal, the "user cancelled" flag (products) and the product details read
+        //    touch none of those rows.
+        const postSaveBillId = billDataResult.id;
+        const postSaveOrgId = currentOrganization.id;
+
         // Accounting Phase 1 rollout-safe gate: auto-journal only for enabled orgs
-        if (accountingEngineOn) {
+        const journalStep = (async () => {
+          if (!accountingEngineOn) return;
           try {
             await recordPurchaseJournalEntry(
-              billDataResult.id,
-              currentOrganization.id,
+              postSaveBillId,
+              postSaveOrgId,
               Number((billDataResult as any)?.net_amount ?? (isDcPurchase ? (calculatedGrossAfterDiscount + otherCharges + roundOff) : calculatedNet)),
               Number((billDataResult as any)?.paid_amount ?? 0),
               String((billDataResult as any)?.payment_method || "pay_later"),
@@ -7105,48 +7118,56 @@ const PurchaseEntry = () => {
             );
             await bestEffortWrite(
               "purchase:journal-posted",
-              () => (supabase as any).from("purchase_bills").update({ journal_status: "posted", journal_error: null }).eq("id", billDataResult.id),
-              { organizationId: currentOrganization?.id, recordId: billDataResult.id },
+              () => (supabase as any).from("purchase_bills").update({ journal_status: "posted", journal_error: null }).eq("id", postSaveBillId),
+              { organizationId: postSaveOrgId, recordId: postSaveBillId },
             );
           } catch (journalErr) {
             console.error("Auto-journal (purchase) failed:", journalErr);
             await bestEffortWrite(
               "purchase:journal-failed",
-              () => (supabase as any).from("purchase_bills").update({ journal_status: "failed", journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal", }).eq("id", billDataResult.id),
-              { organizationId: currentOrganization?.id, recordId: billDataResult.id },
+              () => (supabase as any).from("purchase_bills").update({ journal_status: "failed", journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal", }).eq("id", postSaveBillId),
+              { organizationId: postSaveOrgId, recordId: postSaveBillId },
             );
           }
-        }
+        })();
 
-        // Flag product variants as DC products (or reset if non-DC purchase)
-        // Chunk variant updates to avoid IN clause timeout on large bills
-        const variantIds = [...new Set(saveLines.map(i => i.sku_id))];
         const VARIANT_CHUNK = 200;
-        for (let vi = 0; vi < variantIds.length; vi += VARIANT_CHUNK) {
-          const chunk = variantIds.slice(vi, vi + VARIANT_CHUNK);
-          // Which items count as challan (DC) stock in reports: a failure is logged, the bill stays saved.
-          await bestEffortWrite("purchase:set-dc-flag", () => supabase.from("product_variants").update({ is_dc_product: isDcPurchase }).in("id", chunk), {
-            organizationId: currentOrganization?.id,
-            recordId: billDataResult.id,
-          });
-        }
+        const variantBatchWrites = (async () => {
+          // Flag product variants as DC products (or reset if non-DC purchase)
+          // Chunk variant updates to avoid IN clause timeout on large bills
+          const variantIds = [...new Set(saveLines.map(i => i.sku_id))];
+          for (let vi = 0; vi < variantIds.length; vi += VARIANT_CHUNK) {
+            const chunk = variantIds.slice(vi, vi + VARIANT_CHUNK);
+            // Which items count as challan (DC) stock in reports: a failure is logged, the bill stays saved.
+            await bestEffortWrite("purchase:set-dc-flag", () => supabase.from("product_variants").update({ is_dc_product: isDcPurchase }).in("id", chunk), {
+              organizationId: postSaveOrgId,
+              recordId: postSaveBillId,
+            });
+          }
+          // Bill line colour → variants saved without one, so Product Dashboard shows it too.
+          try {
+            await fillBlankVariantColorsFromPurchaseLines(supabase, postSaveOrgId, saveLines);
+          } catch (colorErr) {
+            console.warn("[PurchaseEntry] variant colour sync after create failed:", colorErr);
+          }
+        })();
 
         // Clear "user cancelled" tag for products that are now actually billed
-        const billedProductIds = [...new Set(saveLines.map(i => i.product_id).filter(Boolean))];
-        if (billedProductIds.length > 0) {
+        const clearUserCancelledStep = (async () => {
+          const billedProductIds = [...new Set(saveLines.map(i => i.product_id).filter(Boolean))];
           for (let pi = 0; pi < billedProductIds.length; pi += VARIANT_CHUNK) {
             const chunk = billedProductIds.slice(pi, pi + VARIANT_CHUNK);
             await bestEffortWrite("purchase:clear-user-cancelled", () => supabase.from("products").update({ user_cancelled_at: null }).in("id", chunk), {
-              organizationId: currentOrganization?.id,
+              organizationId: postSaveOrgId,
             });
           }
-        }
+        })();
 
-        // Ensure last_purchase_* matches this new bill (same master/last-purchase lockstep as edit).
-        try {
-          if (currentOrganization?.id) {
+        const priceSyncThenGodown = (async () => {
+          // Ensure last_purchase_* matches this new bill (same master/last-purchase lockstep as edit).
+          try {
             await syncLastPurchaseFromBillLines({
-              organizationId: currentOrganization.id,
+              organizationId: postSaveOrgId,
               purchaseDate: format(billDate, "yyyy-MM-dd"),
               items: billLinesForSave.map((item) => ({
                 sku_id: item.sku_id,
@@ -7159,26 +7180,36 @@ const PurchaseEntry = () => {
                 linkExistingSku: item.linkExistingSku,
               })),
             });
+          } catch (syncErr) {
+            console.warn("[PurchaseEntry] last_purchase sync after create failed:", syncErr);
           }
-        } catch (syncErr) {
-          console.warn("[PurchaseEntry] last_purchase sync after create failed:", syncErr);
-        }
-
-        // Bill line colour → variants saved without one, so Product Dashboard shows it too.
-        try {
-          await fillBlankVariantColorsFromPurchaseLines(supabase, currentOrganization!.id, saveLines);
-        } catch (colorErr) {
-          console.warn("[PurchaseEntry] variant colour sync after create failed:", colorErr);
-        }
+          // Never throws (the hook tells the user itself).
+          await purchaseGodown.syncAfterSave(String(postSaveBillId), false);
+        })();
 
         // Batch-fetch product details instead of N individual queries
-        const uniqueProductIds = [...new Set(saveLines.map(i => i.product_id))];
-        const productDetailsMap = new Map<string, { brand: string; color: string; style: string }>();
-        for (let pi = 0; pi < uniqueProductIds.length; pi += 200) {
-          const chunk = uniqueProductIds.slice(pi, pi + 200);
-          const { data: prods } = await supabase.from("products").select("id, brand, color, style").in("id", chunk);
-          (prods || []).forEach(p => productDetailsMap.set(p.id, { brand: p.brand || "", color: p.color || "", style: p.style || "" }));
-        }
+        const productDetailsStep = (async () => {
+          const uniqueProductIds = [...new Set(saveLines.map(i => i.product_id))];
+          const map = new Map<string, { brand: string; color: string; style: string }>();
+          for (let pi = 0; pi < uniqueProductIds.length; pi += 200) {
+            const chunk = uniqueProductIds.slice(pi, pi + 200);
+            const { data: prods } = await supabase.from("products").select("id, brand, color, style").in("id", chunk);
+            (prods || []).forEach(p => map.set(p.id, { brand: p.brand || "", color: p.color || "", style: p.style || "" }));
+          }
+          return map;
+        })().catch((detailsErr) => {
+          // Only the barcode labels use these; the bill line values still print.
+          console.warn("[PurchaseEntry] product details for labels failed:", detailsErr);
+          return new Map<string, { brand: string; color: string; style: string }>();
+        });
+
+        const [productDetailsMap] = await Promise.all([
+          productDetailsStep,
+          journalStep,
+          variantBatchWrites,
+          clearUserCancelledStep,
+          priceSyncThenGodown,
+        ]);
         const itemsWithDetails = saveLines.map(item => {
           const pd = productDetailsMap.get(item.product_id) || { brand: "", color: "", style: "" };
           return { ...item, brand: resolvePurchaseLineBrand(item.brand, pd.brand), color: item.color || pd.color, style: item.style || pd.style };
@@ -7187,14 +7218,12 @@ const PurchaseEntry = () => {
         // Store items for barcode printing
         setSavedPurchaseItems(itemsWithDetails);
         savedPurchaseInvoiceDateRef.current = format(billDate, "yyyy-MM-dd");
-        setSavedBillId(billDataResult.id);
+        setSavedBillId(postSaveBillId);
         setSavedSupplierId(billData.supplier_id || null);
         setNewlyAddedItems([]); // All items are new for a new bill
         if (enableBarcodePrompt) {
           setShowPrintDialog(true);
         }
-
-        await purchaseGodown.syncAfterSave(String(billDataResult.id), false);
 
         posSaveMark("post_save_updates");
         await finalizeSuccessfulPurchaseSave({
