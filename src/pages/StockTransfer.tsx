@@ -46,7 +46,7 @@ import {
   InsightsTableHeader,
 } from "@/components/business-insights/insightsLayout";
 import { cn } from "@/lib/utils";
-import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
+import { invalidateProductDashboardQueries, invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
 import { printStockTransferNote } from "@/utils/stockTransferPrint";
 import {
   filterTransfers,
@@ -224,13 +224,20 @@ const StockTransfer = () => {
     mutationFn: async (id: string) => {
       const { data, error } = await db.rpc("accept_stock_transfer", { p_transfer_id: id });
       if (error) throw error;
-      return data as { transfer_number: string; total_qty: number; created_products: number };
+      return data as { transfer_number: string; total_qty: number; created_products: number; prices_updated?: number };
     },
     onSuccess: (res) => {
       const created = res.created_products ? ` ${res.created_products} new item(s) were added to your products.` : "";
-      toast.success(`Transfer ${res.transfer_number} received: ${res.total_qty} pcs added to stock.${created}`);
+      const repriced = res.prices_updated
+        ? ` ${res.prices_updated} item(s) now sell at the sending shop's price.`
+        : "";
+      toast.success(`Transfer ${res.transfer_number} received: ${res.total_qty} pcs added to stock.${created}${repriced}`);
       setAcceptTarget(null);
       afterChange();
+      // New items, new stock and (maybe) new prices: product lists and POS lookups reload.
+      void queryClient.invalidateQueries({ queryKey: ["pos-products"] });
+      void queryClient.invalidateQueries({ queryKey: ["products"] });
+      void invalidateProductDashboardQueries(queryClient, orgId);
     },
     onError: (e: Error) => {
       setAcceptTarget(null);
