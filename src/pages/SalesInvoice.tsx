@@ -4,6 +4,7 @@ import { SaleLineStockBadge } from "@/components/sales/SaleLineStockBadge";
 import { SaleBillLineRow, type SaleBillRowActions } from "@/components/sales-invoice/SaleBillLineRow";
 import { LIVE_STOCK_REFRESH_MS, fetchVariantStock, qtyByVariant, saleLineLiveStock } from "@/lib/saleLineLiveStock";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import { describeLines, duplicableSaleItems, linesWithNoStock } from "@/lib/saleDuplicateInvoice";
 import {
   isSaleFocusQtyAfterAddEnabled,
   isSaleGoodsAskQtyDialogEnabled,
@@ -534,6 +535,8 @@ export default function SalesInvoice() {
   const fromQuotationRef = useRef<{ id: string; number: string } | null>(null);
   const creditLimitAcknowledgedRef = useRef(false);
   const savingLockRef = useRef(false); // Synchronous lock to prevent duplicate saves from rapid clicks
+  /** Bill number this new bill was copied from (Duplicate Invoice); null otherwise. */
+  const [duplicateOf, setDuplicateOf] = useState<string | null>(null);
   // Request id of the invoice being saved; kept across a failed attempt so a retry is not a second invoice.
   const saleRequestsRef = useRef(createSaleRequestTracker());
   const printRef = useRef<HTMLDivElement>(null);
@@ -1652,8 +1655,10 @@ export default function SalesInvoice() {
           setOtherCharges(invoiceData.other_charges || 0);
           setRoundOff(invoiceData.round_off || 0);
           
-          if (invoiceData.sale_items?.length > 0) {
-            const duplicatedItems = invoiceData.sale_items.map((item: any) => ({
+          // Deleted lines of the old bill are not copied.
+          const sourceItems = duplicableSaleItems(invoiceData.sale_items);
+          if (sourceItems.length > 0) {
+            const duplicatedItems = sourceItems.map((item: any) => ({
               id: crypto.randomUUID(),
               productId: item.product_id,
               variantId: item.variant_id,
@@ -1673,12 +1678,23 @@ export default function SalesInvoice() {
             setLineItems(duplicatedItems);
             rebuildStagedQtyByVariantRef(duplicatedItems);
           }
+          setDuplicateOf(invoiceData.sale_number || "an earlier bill");
+          toast({
+            title: `Copied from ${invoiceData.sale_number || "the bill"}`,
+            description: "New bill with today's date. Change the customer or products as needed; lines short of stock show in red, and lines with no stock are left out when you save.",
+          });
         } catch (err) {
           console.error('Failed to load invoice for duplication:', err);
+          toast({ variant: "destructive", title: "Could not copy that bill", description: "Please open it again from the Sales Invoice dashboard." });
         }
       })();
     }
   }, [location.state?.duplicateInvoiceId, currentOrganization?.id]);
+
+  // Opening a saved bill for edit: it is no longer a copy.
+  useEffect(() => {
+    if (editingInvoiceId) setDuplicateOf(null);
+  }, [editingInvoiceId]);
 
   // Recalculate all line items when tax type changes
   useEffect(() => {
@@ -3346,28 +3362,33 @@ export default function SalesInvoice() {
     requestPaidInvoiceLineEdit(() => {
       // Clear the row instead of removing it
       const updatedItems = lineItems.map(item =>
-        item.id === id ? {
-          ...item,
-          productId: '',
-          variantId: '',
-          productName: '',
-          size: '',
-          barcode: '',
-          color: '',
-          quantity: 0,
-          mrp: 0,
-          salePrice: 0,
-          discountPercent: 0,
-          discountAmount: 0,
-          gstPercent: 0,
-          lineTotal: 0,
-          hsnCode: '',
-        } : item
+        item.id === id ? blankSaleLine(item) : item
       );
       setLineItems(updatedItems);
       rebuildStagedQtyByVariantRef(updatedItems);
     });
   };
+
+  /** A line emptied in place (the row stays, as when the user removes it). */
+  function blankSaleLine(item: LineItem): LineItem {
+    return {
+      ...item,
+      productId: '',
+      variantId: '',
+      productName: '',
+      size: '',
+      barcode: '',
+      color: '',
+      quantity: 0,
+      mrp: 0,
+      salePrice: 0,
+      discountPercent: 0,
+      discountAmount: 0,
+      gstPercent: 0,
+      lineTotal: 0,
+      hsnCode: '',
+    };
+  }
 
   const filledLineItems = useMemo(
     () => lineItems.filter((item) => item.productId !== ""),
@@ -3784,6 +3805,32 @@ Thank you for choosing us!`;
         description: "Please add at least one product",
       });
       return;
+    }
+
+    // Copied bill (Duplicate Invoice): lines whose barcode has no stock now are taken off first,
+    // then the user checks the bill and saves again (totals follow the remaining lines).
+    if (duplicateOf && !allowNegativeStock && currentOrganization?.id) {
+      const stockNow = await fetchVariantStock(
+        supabase,
+        currentOrganization.id,
+        filledItems.map((i) => i.variantId || "").filter(Boolean),
+      ).catch(() => ({} as Record<string, number>));
+      const noStock = linesWithNoStock(filledItems, stockNow);
+      if (noStock.length > 0) {
+        const drop = new Set(noStock.map((l) => l.id));
+        const kept = lineItems.map((item) => (drop.has(item.id) ? blankSaleLine(item) : item));
+        setLineItems(kept);
+        rebuildStagedQtyByVariantRef(kept);
+        const left = kept.filter((i) => i.productId !== "").length;
+        toast({
+          variant: "destructive",
+          title: `${noStock.length} item(s) with no stock removed`,
+          description: left > 0
+            ? `${describeLines(noStock)}. Check the bill and press Save again.`
+            : `${describeLines(noStock)}. No item of the copied bill has stock now; add products to save.`,
+        });
+        return;
+      }
     }
 
     // Validate no items have 0 or negative quantity
@@ -4495,6 +4542,7 @@ Thank you for choosing us!`;
         setOriginalItemsForEdit([]);
         resetPaidInvoiceGuard();
         setPaymentOverride(null);
+        setDuplicateOf(null);
 
         // Bill made for a booked sale order: mark the order Invoiced with this bill's number.
         if (linkedSaleOrderId) await linkSaleOrderAfterSave(saleData.id, saleNumber);
@@ -5520,6 +5568,7 @@ Thank you for choosing us!`;
                 setShippingAddress("");
                 setShippingInstructions("");
                 setEditingInvoiceId(null);
+                setDuplicateOf(null);
                 setOriginalItemsForEdit([]);
                 resetPaidInvoiceGuard();
                 setSavedInvoiceData(null);
@@ -6193,6 +6242,7 @@ Thank you for choosing us!`;
                           : null
                       }
                       costOrganizationId={saleLineCostOrgId}
+                      shortOfStock={!!duplicateOf && stock?.tone === "out"}
                       showOrderQtyCol={showOrderQtyCol}
                       orderRequired={orderNeed ? orderNeed.required : null}
                       orderBilled={orderNeed ? billedByOrderKey.get(orderNeed.key) ?? 0 : 0}

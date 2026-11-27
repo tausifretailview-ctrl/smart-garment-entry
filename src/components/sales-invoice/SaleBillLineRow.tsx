@@ -82,6 +82,8 @@ export type SaleBillLineRowProps = {
   historicalRate: number | null;
   /** Organisation id when this user may see purchase rate / landing cost; null hides the ▲. */
   costOrganizationId?: string | null;
+  /** Copied bill (Duplicate Invoice): this line needs more than the stock has, so it shows in red. */
+  shortOfStock?: boolean;
   /** A sale order is linked: the ORDER QTY column after QTY is shown. */
   showOrderQtyCol?: boolean;
   /** The linked order's quantity still to deliver for this item; null when the order does not have it. */
@@ -130,6 +132,7 @@ export const SaleBillLineRow = memo(function SaleBillLineRow({
   stockTitle,
   historicalRate,
   costOrganizationId = null,
+  shortOfStock = false,
   showOrderQtyCol = false,
   orderRequired = null,
   orderBilled = 0,
@@ -162,7 +165,10 @@ export const SaleBillLineRow = memo(function SaleBillLineRow({
       className={cn(
         `group border-b border-border/40 transition-colors ${displayIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} hover:bg-blue-50/50`,
         focusCol !== null && "bg-primary/5",
+        shortOfStock && "!bg-red-50 text-red-700 [&_td:first-child]:border-l-4 [&_td:first-child]:border-l-red-500",
       )}
+      data-short-of-stock={shortOfStock ? "true" : undefined}
+      title={shortOfStock ? "Not enough stock for this line" : undefined}
     >
       <td {...cellProps("index", { baseClassName: "text-center text-[15px] text-muted-foreground px-3 py-2.5" })}>
         {srNo}
