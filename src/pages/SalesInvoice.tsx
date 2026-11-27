@@ -42,6 +42,8 @@ import {
   linkableSaleOrderLabel,
   markSaleOrderInvoiced,
   unmarkSaleOrderInvoiced,
+  buildSaleOrderQtyLookup,
+  fetchSaleOrderLineQtys,
 } from "@/lib/saleOrderInvoiceLink";
 import { useSettings, useProductFieldSettings } from "@/hooks/useSettings";
 import { getGarmentSlabPrice, resolveGarmentGstForLine } from "@/utils/gstRules";
@@ -400,6 +402,9 @@ function applyFlatDiscountFromInvoice(
   setPercent(flat.percent);
   setRupees(flat.rupees);
 }
+
+/** Narrowest the PRODUCT column may get before the line table scrolls sideways. */
+const SALE_LINE_PRODUCT_MIN_WIDTH = 240;
 
 export default function SalesInvoice() {
   const { toast } = useToast();
@@ -1254,6 +1259,63 @@ export default function SalesInvoice() {
     }
     if (!selectedCustomerId && linkedSaleOrderId) setLinkedSaleOrderId("");
   }, [selectedCustomerId, linkableSaleOrders, linkedSaleOrderId]);
+
+  // ORDER QTY column: with a sale order picked, each line shows how many the order asks for.
+  const showOrderQtyCol = !!linkedSaleOrderId;
+  const { data: linkedOrderLines = [] } = useQuery({
+    queryKey: ["sale-bill-order-lines", linkedSaleOrderId],
+    enabled: !!linkedSaleOrderId,
+    staleTime: 30_000,
+    queryFn: () => fetchSaleOrderLineQtys(supabase, linkedSaleOrderId),
+  });
+  const orderQtyFor = useMemo(() => buildSaleOrderQtyLookup(linkedOrderLines), [linkedOrderLines]);
+  /** This bill's quantity per order item (all lines of the same item added up). */
+  const billedByOrderKey = useMemo(() => {
+    const m = new Map<string, number>();
+    if (!showOrderQtyCol) return m;
+    for (const line of lineItems) {
+      if (!line.productId) continue;
+      const need = orderQtyFor(line);
+      if (need) m.set(need.key, (m.get(need.key) ?? 0) + (Number(line.quantity) || 0));
+    }
+    return m;
+  }, [showOrderQtyCol, lineItems, orderQtyFor]);
+  /**
+   * Line table: room for PRODUCT. The other columns have fixed widths; when they leave less than
+   * this for PRODUCT, the table scrolls sideways instead of squeezing PRODUCT to nothing (it fell
+   * to 0 px at 1366 px with Colour, HSN and Box on). Measured from the header, since the widths
+   * depend on the column set and the large-text setting.
+   */
+  const lineTableHeadRowRef = useRef<HTMLTableRowElement>(null);
+  const [lineTableMinWidth, setLineTableMinWidth] = useState<number | undefined>(undefined);
+  useLayoutEffect(() => {
+    const row = lineTableHeadRowRef.current;
+    if (!row) return;
+    const measure = () => {
+      let others = 0;
+      row.querySelectorAll("th").forEach((th) => {
+        if (!th.classList.contains("col-product")) others += th.getBoundingClientRect().width;
+      });
+      // Hidden tab (nothing laid out): leave the table as it is.
+      const next = others > 0 ? Math.ceil(others + SALE_LINE_PRODUCT_MIN_WIDTH) : undefined;
+      setLineTableMinWidth((prev) => (prev === next ? prev : next));
+    };
+    measure();
+    // Large-text setting / fonts can change the fixed widths after the first paint.
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(row);
+    return () => ro.disconnect();
+  }, [showCol, showOrderQtyCol, showMarkdownCol]);
+  const orderRequiredTotal = useMemo(
+    () =>
+      linkedOrderLines.reduce((sum, r) => {
+        const ordered = Number(r.order_qty) || 0;
+        const delivered = Number(r.fulfilled_qty) || 0;
+        return sum + (delivered > 0 ? Math.max(0, Number(r.pending_qty ?? ordered - delivered) || 0) : ordered);
+      }, 0),
+    [linkedOrderLines],
+  );
 
   /** After the bill is saved: mark the picked order Invoiced (and free one unlinked on edit). */
   const linkSaleOrderAfterSave = async (saleId: string, saleNumber: string) => {
@@ -6055,11 +6117,12 @@ Thank you for choosing us!`;
          <div className="w-full min-w-full">
           <table
             className="w-full min-w-full table-fixed border-separate border-spacing-0 erp-desktop-table erp-entry-lines-table"
+            style={lineTableMinWidth ? { minWidth: lineTableMinWidth } : undefined}
             role="grid"
             aria-label="Invoice line items"
           >
             <thead className="sticky top-0 z-10">
-              <tr className="bg-slate-800 border-b-2 border-blue-600">
+              <tr ref={lineTableHeadRowRef} className="bg-slate-800 border-b-2 border-blue-600">
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-10 rounded-tl-lg">#</th>
                 <th className="col-product text-left text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3">PRODUCT</th>
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">SIZE</th>
@@ -6067,6 +6130,14 @@ Thank you for choosing us!`;
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">BARCODE</th>
                 {showCol.hsn && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">{hsnColLabel}</th>}
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 sale-col-qty">QTY</th>
+                {showOrderQtyCol && (
+                  <th
+                    className="text-center text-[13px] uppercase tracking-[.04em] font-bold h-12 text-white px-1 w-[5.25rem] leading-tight"
+                    title="Quantity the selected sale order asks for (still to deliver)"
+                  >
+                    ORDER<br />QTY
+                  </th>
+                )}
                 {showCol.box && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 w-16">BOX</th>}
                 {showCol.mrp && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 sale-col-mrp">MRP</th>}
                 <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 sale-col-price">PRICE</th>
@@ -6082,7 +6153,7 @@ Thank you for choosing us!`;
               {(() => {
                 if (filledLineItems.length === 0) {
                   const baseCols = 8; // #, product, size, barcode, qty, price, total, action
-                  const optCols = [showCol.color, showCol.hsn, showCol.box, showCol.mrp, showMarkdownCol, showCol.disc_percent, showCol.disc_amount, showCol.gst].filter(Boolean).length;
+                  const optCols = [showCol.color, showCol.hsn, showOrderQtyCol, showCol.box, showCol.mrp, showMarkdownCol, showCol.disc_percent, showCol.disc_amount, showCol.gst].filter(Boolean).length;
                   const totalCols = baseCols + optCols;
                   return Array.from({ length: tablePadRowCount }, (_, i) => (
                     <tr key={`empty-${i}`} className="sale-bill-pad-row border-b border-muted/30">
@@ -6095,13 +6166,14 @@ Thank you for choosing us!`;
                 }
 
                 const baseCols = 8;
-                const optCols = [showCol.color, showCol.hsn, showCol.box, showCol.mrp, showMarkdownCol, showCol.disc_percent, showCol.disc_amount, showCol.gst].filter(Boolean).length;
+                const optCols = [showCol.color, showCol.hsn, showOrderQtyCol, showCol.box, showCol.mrp, showMarkdownCol, showCol.disc_percent, showCol.disc_amount, showCol.gst].filter(Boolean).length;
                 const totalCols = baseCols + optCols;
                 const padCount = tablePadRowCount;
 
                 const itemRows = displayLineItems.map((item, displayIndex) => {
                   const rowFocused = gridFocusRow === displayIndex;
                   const stock = liveStockFor(item);
+                  const orderNeed = showOrderQtyCol && item.productId ? orderQtyFor(item) : null;
                   return (
                     <SaleBillLineRow
                       key={item.id}
@@ -6121,6 +6193,11 @@ Thank you for choosing us!`;
                           : null
                       }
                       costOrganizationId={saleLineCostOrgId}
+                      showOrderQtyCol={showOrderQtyCol}
+                      orderRequired={orderNeed ? orderNeed.required : null}
+                      orderBilled={orderNeed ? billedByOrderKey.get(orderNeed.key) ?? 0 : 0}
+                      orderOrdered={orderNeed?.ordered ?? 0}
+                      orderDelivered={orderNeed?.delivered ?? 0}
                       buildCellProps={lineGrid.buildCellProps}
                       editInputRef={lineGrid.editInputRef}
                       actions={saleRowActions}
@@ -6149,6 +6226,15 @@ Thank you for choosing us!`;
                   <td className="sale-col-qty text-center font-bold text-primary text-sm tabular-nums px-1.5 py-2">
                     {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
                   </td>
+                  {showOrderQtyCol && (
+                    <td
+                      className="text-center font-bold text-slate-700 text-sm tabular-nums px-1.5 py-2"
+                      data-testid="sale-order-qty-total"
+                      title="Total the selected sale order asks for"
+                    >
+                      {orderRequiredTotal}
+                    </td>
+                  )}
                   <td className="px-3 py-2" colSpan={saleLineMidColSpan + (showMarkdownCol ? 1 : 0)} />
                   <td className="sale-col-total text-right font-bold text-sm tabular-nums px-2 py-2">₹{grossAmount.toFixed(2)}</td>
                   <td className="px-1 py-2" />

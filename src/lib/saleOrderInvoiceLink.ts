@@ -130,3 +130,101 @@ export function linkableSaleOrderLabel(o: LinkableSaleOrder): string {
   const amount = o.net_amount != null ? `₹${Math.round(Number(o.net_amount)).toLocaleString("en-IN")}` : "";
   return [o.order_number, date, amount, o.salesman || ""].filter(Boolean).join(" · ");
 }
+
+/** One line of the linked order, as the Sale Bill's ORDER QTY column needs it. */
+export type SaleOrderLineQty = {
+  variant_id: string | null;
+  product_id: string | null;
+  barcode: string | null;
+  size: string | null;
+  color: string | null;
+  order_qty: number | null;
+  fulfilled_qty: number | null;
+  pending_qty: number | null;
+};
+
+/** The linked order's lines (quantities only). Empty on any error: the column then shows "—". */
+export async function fetchSaleOrderLineQtys(client: SupabaseClient, orderId: string): Promise<SaleOrderLineQty[]> {
+  if (!orderId) return [];
+  const { data, error } = await client
+    .from("sale_order_items")
+    .select("variant_id, product_id, barcode, size, color, order_qty, fulfilled_qty, pending_qty")
+    .eq("order_id", orderId)
+    .is("deleted_at", null)
+    .limit(1000);
+  if (error) return [];
+  return (data ?? []) as SaleOrderLineQty[];
+}
+
+/** What a bill line is matched on: the item id, else the barcode, else product + size + colour. */
+export type SaleOrderMatchLine = {
+  variantId?: string | null;
+  barcode?: string | null;
+  productId?: string | null;
+  size?: string | null;
+  color?: string | null;
+};
+
+const norm = (v: unknown) => String(v ?? "").trim().toLowerCase();
+
+/** Every key a line can be matched by, most exact first. */
+function matchKeys(line: SaleOrderMatchLine): string[] {
+  const keys: string[] = [];
+  if (line.variantId) keys.push(`v:${line.variantId}`);
+  if (norm(line.barcode)) keys.push(`b:${norm(line.barcode)}`);
+  if (line.productId) keys.push(`p:${line.productId}|${norm(line.size)}|${norm(line.color)}`);
+  return keys;
+}
+
+export type SaleOrderQtyNeed = {
+  /** The key both the order line and the bill lines resolve to (for adding up billed qty). */
+  key: string;
+  /** Still to deliver: the pending quantity once part was delivered, else the ordered quantity. */
+  required: number;
+  ordered: number;
+  delivered: number;
+};
+
+/**
+ * Lookup from bill line to the linked order's quantity for that item. Order lines with the
+ * same item are added up. Returns null for a bill line the order does not have.
+ */
+export function buildSaleOrderQtyLookup(
+  rows: readonly SaleOrderLineQty[],
+): (line: SaleOrderMatchLine) => SaleOrderQtyNeed | null {
+  const needs = new Map<string, SaleOrderQtyNeed>();
+  const alias = new Map<string, string>();
+  for (const r of rows) {
+    const keys = matchKeys({ variantId: r.variant_id, barcode: r.barcode, productId: r.product_id, size: r.size, color: r.color });
+    if (keys.length === 0) continue;
+    // One order item is stored under its most exact key; its other keys point to it.
+    const main = keys.find((k) => alias.has(k)) ? alias.get(keys.find((k) => alias.has(k))!)! : keys[0];
+    const ordered = Number(r.order_qty) || 0;
+    const delivered = Number(r.fulfilled_qty) || 0;
+    const pending = Math.max(0, Number(r.pending_qty ?? ordered - delivered) || 0);
+    const required = delivered > 0 ? pending : ordered;
+    const prev = needs.get(main);
+    needs.set(main, {
+      key: main,
+      required: (prev?.required ?? 0) + required,
+      ordered: (prev?.ordered ?? 0) + ordered,
+      delivered: (prev?.delivered ?? 0) + delivered,
+    });
+    for (const k of keys) if (!alias.has(k)) alias.set(k, main);
+  }
+  return (line) => {
+    for (const k of matchKeys(line)) {
+      const main = alias.get(k);
+      if (main) return needs.get(main) ?? null;
+    }
+    return null;
+  };
+}
+
+/** Short note under the ORDER QTY number: how the bill's total for that item compares. */
+export function saleOrderQtyHint(required: number, billed: number): { text: string; tone: "short" | "extra" | "match" } {
+  const diff = Math.round((billed - required) * 1000) / 1000;
+  if (diff < 0) return { text: `${-diff} short`, tone: "short" };
+  if (diff > 0) return { text: `${diff} extra`, tone: "extra" };
+  return { text: "matches", tone: "match" };
+}
