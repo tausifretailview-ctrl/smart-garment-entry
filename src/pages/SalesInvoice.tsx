@@ -5576,11 +5576,13 @@ Thank you for choosing us!`;
         <div
           className={cn(
             "grid grid-cols-2 md:grid-cols-3 gap-4 items-start entry-vasy-key-fields",
-            // Industrial mode adds Supply type, godowns add Dispatch from; other shops keep six columns.
+            // One row on desktop: Customer (two tracks, room for its buttons), then narrower Invoice
+            // No and Date, then Tax Type, Salesman, Sale Order No. Industrial mode adds Supply type,
+            // godowns add Dispatch from (one more 1fr track each).
             [
-              "lg:grid-cols-6",
-              "md:grid-cols-4 lg:grid-cols-7 lg:gap-3",
-              "md:grid-cols-4 lg:grid-cols-8 lg:gap-3",
+              "md:grid-cols-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,0.92fr)_repeat(3,minmax(0,1fr))] lg:gap-3",
+              "md:grid-cols-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,0.92fr)_repeat(4,minmax(0,1fr))] lg:gap-3",
+              "md:grid-cols-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,0.92fr)_repeat(5,minmax(0,1fr))] lg:gap-3",
             ][(industrialMode.enabled ? 1 : 0) + (saleGodown.visible ? 1 : 0)],
           )}
         >
@@ -5737,7 +5739,7 @@ Thank you for choosing us!`;
             <Input 
               value={editingInvoiceId ? (savedInvoiceData?.sale_number || '') : nextInvoicePreview} 
               readOnly 
-              className="bg-muted font-mono font-bold text-base h-11"
+              className="bg-muted font-mono font-bold text-base h-11 px-2"
               placeholder="Auto-generated"
             />
           </div>
@@ -5747,8 +5749,8 @@ Thank you for choosing us!`;
             <label className="entry-key-label text-[13px] font-medium text-muted-foreground mb-1 block">Invoice Date</label>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("w-full justify-start text-left font-semibold h-11 text-base")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
+                <Button variant="outline" className={cn("w-full justify-start text-left font-semibold h-11 text-base px-2.5")}>
+                  <CalendarIcon className="mr-1.5 h-4 w-4 shrink-0" />
                   {format(invoiceDate, "dd MMM yyyy")}
                 </Button>
               </PopoverTrigger>
@@ -5790,12 +5792,17 @@ Thank you for choosing us!`;
             </Select>
           </div>
 
-          {/* Sale Order No. (customer's open orders): marks the order Invoiced on save */}
-          {selectedCustomerId && (linkableSaleOrders.length > 0 || linkedSaleOrderId) && (
+          {/* Sale Order No. (customer's open orders): marks the order Invoiced on save. Always in the
+              header row, so it can be found; usable once the customer has an open order. */}
+          {(() => {
+            const canPickOrder = !!selectedCustomerId && (linkableSaleOrders.length > 0 || !!linkedSaleOrderId);
+            const hint = !selectedCustomerId ? "Select customer" : "No open orders";
+            return (
             <div>
               <label className="text-[13px] font-medium text-muted-foreground mb-1 block">Sale Order No.</label>
               <Select
-                value={linkedSaleOrderId || "none"}
+                disabled={!canPickOrder}
+                value={canPickOrder ? linkedSaleOrderId || "none" : ""}
                 onValueChange={(v) => {
                   if (!v) return;
                   const id = v === "none" ? "" : v;
@@ -5804,8 +5811,12 @@ Thank you for choosing us!`;
                   if (order?.salesman && !salesman) setSalesman(order.salesman);
                 }}
               >
-                <SelectTrigger className="h-10 text-sm" data-testid="sale-bill-order-no">
-                  <SelectValue placeholder="Select sale order" />
+                <SelectTrigger
+                  className="h-10 text-sm"
+                  data-testid="sale-bill-order-no"
+                  title={canPickOrder ? undefined : hint}
+                >
+                  <SelectValue placeholder={canPickOrder ? "Select sale order" : hint} />
                 </SelectTrigger>
                 <SelectContent className="z-50">
                   <SelectItem value="none">None</SelectItem>
@@ -5817,7 +5828,8 @@ Thank you for choosing us!`;
                 </SelectContent>
               </Select>
             </div>
-          )}
+            );
+          })()}
 
           {industrialMode.enabled && (
             <SaleSupplyTypeField

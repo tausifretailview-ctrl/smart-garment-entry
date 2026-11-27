@@ -37,14 +37,25 @@ test("Sale Bill: pick the sale order, save, the order becomes Invoiced", async (
   await page.goto(`/${E2E_ORG_SLUG}/sales-invoice`);
   const scan = page.getByPlaceholder("Scan barcode...").filter({ visible: true });
   await expect(scan).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByTestId("sale-bill-order-no")).toHaveCount(0); // no customer yet
+  // Always in the header row, next to Salesman (it was hidden until a customer was picked,
+  // then dropped onto a second row); greyed out until the customer has an open order.
+  const orderField = page.getByTestId("sale-bill-order-no");
+  await expect(orderField).toBeVisible();
+  await expect(orderField).toBeDisabled();
+  await expect(orderField).toContainText("Select customer");
+  const salesmanBox = page.locator("label", { hasText: /^Salesman$/ }).locator("xpath=following-sibling::*[1]");
+  const [orderTop, salesmanTop] = await Promise.all([
+    orderField.boundingBox().then((b) => Math.round(b!.y)),
+    salesmanBox.boundingBox().then((b) => Math.round(b!.y)),
+  ]);
+  expect(orderTop).toBe(salesmanTop);
 
   await page.getByRole("combobox").filter({ hasText: /Search customer by name, phone/ }).click();
   await page.getByPlaceholder("Search by name, phone, email...").fill("MILAN");
   await page.getByRole("option", { name: /MILAN SHOES/ }).click();
 
   const orderBox = page.getByTestId("sale-bill-order-no");
-  await expect(orderBox).toBeVisible();
+  await expect(orderBox).toBeEnabled();
   await orderBox.click();
   await page.getByRole("option", { name: /SO\/26-27\/2017/ }).click();
   await expect(orderBox).toContainText("SO/26-27/2017");
