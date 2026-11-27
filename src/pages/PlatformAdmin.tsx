@@ -40,6 +40,10 @@ import { CloudUsageWidget } from "@/components/dashboard/CloudUsageWidget";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { formatDateDMY, formatDateTimeDMY } from "@/lib/dateDisplay";
+import { fetchAllRows } from "@/lib/data/fetchInIdBatches";
+
+/** Most shops the platform admin can create (raised from 100 to 1000, Nov 2026). */
+const MAX_ORGANIZATIONS = 1000;
 
 const WHATSAPP_SITE_URL = ((import.meta.env.VITE_WHATSAPP_SITE_URL as string | undefined)?.trim() || "").replace(/\/+$/, "");
 
@@ -586,12 +590,14 @@ export default function PlatformAdmin() {
   const { data: organizations = [], isLoading: orgsLoading } = useQuery({
     queryKey: ["platform-organizations"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("organizations")
-        .select("*")
-        .order("created_at", { ascending: false });
-      
-      if (error) throw error;
+      // The server returns at most 1,000 rows per read: read in pages so every shop is counted.
+      const data = await fetchAllRows(() =>
+        supabase
+          .from("organizations")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true }),
+      );
       return data as Organization[];
     },
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
@@ -601,14 +607,13 @@ export default function PlatformAdmin() {
   const { data: members = [] } = useQuery({
     queryKey: ["platform-members"],
     queryFn: async () => {
-      const [{ data: memberRows, error: membersError }, { data: orgRows, error: orgsError }] =
-        await Promise.all([
-          supabase.from("organization_members").select("organization_id, user_id, role"),
-          supabase.from("organizations").select("id, name"),
-        ]);
-
-      if (membersError) throw membersError;
-      if (orgsError) throw orgsError;
+      // Paged: more than 1,000 members or shops must not be cut off silently.
+      const [memberRows, orgRows] = await Promise.all([
+        fetchAllRows(() =>
+          supabase.from("organization_members").select("organization_id, user_id, role").order("id", { ascending: true }),
+        ),
+        fetchAllRows(() => supabase.from("organizations").select("id, name").order("id", { ascending: true })),
+      ]);
 
       const orgById = new Map((orgRows ?? []).map((o) => [o.id, o.name]));
       const userIds = [
@@ -899,8 +904,8 @@ export default function PlatformAdmin() {
       toast.error("Organization name is required");
       return;
     }
-    if (organizations.length >= 100) {
-      toast.error("Maximum 100 organizations allowed");
+    if (organizations.length >= MAX_ORGANIZATIONS) {
+      toast.error(`Maximum ${MAX_ORGANIZATIONS} organizations allowed`);
       return;
     }
     if (isSlugAvailable === false) {
@@ -1067,9 +1072,9 @@ export default function PlatformAdmin() {
               <Building2 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{orgCount} / 100</div>
+              <div className="text-2xl font-bold">{orgCount} / {MAX_ORGANIZATIONS}</div>
               <p className="text-xs text-muted-foreground">
-                {100 - orgCount} slots remaining
+                {Math.max(0, MAX_ORGANIZATIONS - orgCount)} slots remaining
               </p>
             </CardContent>
           </Card>
@@ -1179,7 +1184,7 @@ export default function PlatformAdmin() {
                     className="pl-9"
                   />
                 </div>
-              <Button disabled={orgCount >= 100} onClick={() => openCreateOrg("business")}>
+              <Button disabled={orgCount >= MAX_ORGANIZATIONS} onClick={() => openCreateOrg("business")}>
                 <Plus className="h-4 w-4 mr-2" />
                 Create Organization
               </Button>
