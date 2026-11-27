@@ -139,6 +139,12 @@ export function InvoiceTemplateSelectItems({
             Motas — Premium A4 tax invoice
           </span>
         </SelectItem>
+        <SelectItem value="krunal-a4">
+          <span className="flex items-center gap-2">
+            <span className="text-slate-800 font-bold text-xs w-5">KRN</span>
+            Krunal A4 — Original + Duplicate, Bill To / Ship To
+          </span>
+        </SelectItem>
         <SelectItem value="a4-electronic">A4 Electronic</SelectItem>
         <SelectItem value="retail">
           <span className="flex items-center gap-2">

@@ -27,6 +27,7 @@ export type InvoiceTemplateId =
   | 'klear-a4'
   | 'wholesale-size-a4'
   | 'motas-a4'
+  | 'krunal-a4'
   | 'kids-80mm'
   | 'kids-camp-80mm'
   | 'retail-pos-80mm'
@@ -68,6 +69,7 @@ export const A4_ONLY_INVOICE_TEMPLATES = new Set([
   'klear-a4',
   'wholesale-size-a4',
   'motas-a4',
+  'krunal-a4',
 ]);
 
 /**
@@ -362,6 +364,7 @@ export const FULL_PAGE_INVOICE_TEMPLATES = new Set([
   'klear-a4',
   'wholesale-size-a4',
   'motas-a4',
+  'krunal-a4',
   'a4-electronic',
   'retail',
   'retail-erp',

@@ -92,7 +92,10 @@ export function applyWappConnectInvoicePdfCloneFixes(
   if (
     clonedElement.classList.contains("motas-a4-page") ||
     clonedElement.classList.contains("motas-a4-invoice-root") ||
-    clonedElement.querySelector(".motas-a4-invoice-root")
+    clonedElement.querySelector(".motas-a4-invoice-root") ||
+    clonedElement.classList.contains("krunal-a4-page") ||
+    clonedElement.classList.contains("krunal-a4-invoice-root") ||
+    clonedElement.querySelector(".krunal-a4-invoice-root")
   ) {
     return;
   }

@@ -26,6 +26,7 @@ import { KrishnaMobileA5Template } from './invoice-templates/KrishnaMobileA5Temp
 import { WholesaleGstA4Template } from './invoice-templates/WholesaleGstA4Template';
 import { KlearA4Template } from './invoice-templates/KlearA4Template';
 import { MotasA4Template } from './invoice-templates/MotasA4Template';
+import { KrunalA4Template } from './invoice-templates/KrunalA4Template';
 import { A5HorizontalBillFormat } from './A5HorizontalBillFormat';
 import { ThermalPrint80mm } from './ThermalPrint80mm';
 import { ThermalReceiptCompact } from './ThermalReceiptCompact';
@@ -231,7 +232,7 @@ interface InvoiceWrapperProps {
 }
 
 /** Invoice formats with a separate "Shipped To" box next to Billed To. */
-const SHIP_TO_BOX_TEMPLATES = new Set(['a4-gst-classic', 'a4-electronic', 'gift_tally', 'modern-wholesale', 'wholesale-size-a4']);
+const SHIP_TO_BOX_TEMPLATES = new Set(['a4-gst-classic', 'a4-electronic', 'gift_tally', 'modern-wholesale', 'wholesale-size-a4', 'krunal-a4']);
 
 export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperProps>(
   (props, ref) => {
@@ -487,7 +488,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
         templateForFormat === 'wholesale-gst-a4' ||
         templateForFormat === 'klear-a4' ||
         templateForFormat === 'wholesale-size-a4' ||
-        templateForFormat === 'motas-a4')
+        templateForFormat === 'motas-a4' ||
+        templateForFormat === 'krunal-a4')
     ) {
       format = 'a4';
     }
@@ -629,7 +631,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       templateForFormat === 'wholesale-gst-a4' ||
       templateForFormat === 'klear-a4' ||
       templateForFormat === 'wholesale-size-a4' ||
-      templateForFormat === 'motas-a4'
+      templateForFormat === 'motas-a4' ||
+      templateForFormat === 'krunal-a4'
         ? receivingBankDetails || settings?.sale_settings?.bank_details
         : settings?.sale_settings?.bank_details;
     const resolvedShowBankDetails =
@@ -637,7 +640,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       templateForFormat === 'wholesale-gst-a4' ||
       templateForFormat === 'klear-a4' ||
       templateForFormat === 'wholesale-size-a4' ||
-      templateForFormat === 'motas-a4'
+      templateForFormat === 'motas-a4' ||
+      templateForFormat === 'krunal-a4'
         ? !!(receivingBankDetails || settings?.sale_settings?.bank_details)
         : showBankDetails;
 
@@ -1232,6 +1236,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           return <KlearA4Template {...commonProps} />;
         case 'motas-a4':
           return <MotasA4Template {...commonProps} />;
+        case 'krunal-a4':
+          return <KrunalA4Template {...commonProps} />;
         case 'a4-electronic':
           return <A4ElectronicTemplate {...commonProps} />;
         case 'krishna-mobile-a5':

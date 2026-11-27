@@ -1548,6 +1548,7 @@ export const WhatsAppAPISettings = () => {
                     <SelectItem value="klear-a4">Klear A4</SelectItem>
                     <SelectItem value="wholesale-size-a4">Wholesale Size-wise A4</SelectItem>
                     <SelectItem value="motas-a4">Motas A4</SelectItem>
+                    <SelectItem value="krunal-a4">Krunal A4</SelectItem>
                     <SelectItem value="gift_tally">Gift Tally A4</SelectItem>
                   </SelectContent>
                 </Select>
