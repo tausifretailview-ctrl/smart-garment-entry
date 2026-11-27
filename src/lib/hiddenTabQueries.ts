@@ -74,6 +74,17 @@ function watchCache(client: QueryClient): void {
   });
 }
 
+/**
+ * Queries that went out of date while no screen showed them (a closed screen, or a hidden window
+ * tab): reload each once, as soon as a screen shows it again. Screens with `refetchOnMount: false`
+ * would otherwise open with the old data (liveStockRefresh.ts).
+ */
+export function reloadWhenShownAgain(client: QueryClient, queries: readonly Query[]): void {
+  if (queries.length === 0) return;
+  watchCache(client);
+  for (const query of queries) owed.add(query as AnyQuery);
+}
+
 /** Queries some screen is showing right now. Take this just before a tab's screens let go. */
 export function snapshotScreenQueries(client: QueryClient): AnyQuery[] {
   return client.getQueryCache().getAll().filter((query) => query.observers.length > 0 && !hasNoScreenObserver(query));

@@ -12,6 +12,8 @@ import { WhatsAppMessageNotifier } from "@/components/WhatsAppMessageNotifier";
 import { ShopChatHost } from "@/components/shop-chat/ShopChatHost";
 import { StorefrontEnquiryNotifier } from "@/components/StorefrontEnquiryNotifier";
 import { CustomerReviewNotifier } from "@/components/CustomerReviewNotifier";
+import { OrgMoneyRealtimeInvalidation } from "@/hooks/useOrgMoneyRealtimeInvalidation";
+import { LiveStockRefresh } from "@/hooks/useLiveStockRefresh";
 import { AlertPopupHost } from "@/components/alert-popups/AlertPopupHost";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { MobileScanProvider } from "@/contexts/MobileScanContext";
@@ -77,6 +79,11 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
             <ShopChatHost />
             <StorefrontEnquiryNotifier />
             <CustomerReviewNotifier />
+            {/* Live money + stock across tabs and computers. The page layouts that mount these
+                (Layout, FullScreenLayout) return early inside this shared shell, so on desktop
+                they never ran. */}
+            <OrgMoneyRealtimeInvalidation />
+            <LiveStockRefresh />
             <IdleMount>
               <AlertPopupHost />
             </IdleMount>

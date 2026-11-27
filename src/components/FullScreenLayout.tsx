@@ -33,6 +33,7 @@ import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { OrgMoneyRealtimeInvalidation } from "@/hooks/useOrgMoneyRealtimeInvalidation";
+import { LiveStockRefresh } from "@/hooks/useLiveStockRefresh";
 import { cn } from "@/lib/utils";
 
 interface FullScreenLayoutProps {
@@ -152,6 +153,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
             <StorefrontEnquiryNotifier />
             <CustomerReviewNotifier />
             <OrgMoneyRealtimeInvalidation />
+            <LiveStockRefresh />
             <IdleMount>
               <div className="hidden lg:contents">
                 <LazyFloatingChatButton />
