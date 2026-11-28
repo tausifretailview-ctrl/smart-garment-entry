@@ -298,6 +298,8 @@ export const productEntryFields: TargetField[] = [
   { key: 'barcode', label: 'Barcode', type: 'text' },
   { key: 'default_pur_price', label: 'Purchase Price', type: 'number' },
   { key: 'default_sale_price', label: 'Sale Price', type: 'number' },
+  // Supermarket go-live (Nov 2026): MRP was read on import but could not be mapped.
+  { key: 'mrp', label: 'MRP', type: 'number' },
   { key: 'opening_qty', label: 'Opening Qty', type: 'number' },
 ];
 
@@ -979,6 +981,17 @@ export const parseExcelDate = (value: any): Date | null => {
   return isPlausibleBillDate(parsed) ? parsed : null;
 };
 
+/**
+ * Supermarket / grocery item master: the company barcode (EAN-13), no sizes or colours,
+ * loose items sold by KG. Settings → Product → Business type "Supermarket" picks this sample.
+ */
+export const productEntrySupermarketSampleData = [
+  { product_name: 'Tata Salt 1kg', category: 'Grocery', brand: 'Tata', style: '', color: '', hsn_code: '2501', gst_per: 0, uom: 'NOS', size: '', barcode: '8901058000016', default_pur_price: 24, default_sale_price: 28, mrp: 28, opening_qty: 120 },
+  { product_name: 'Parle-G 250g', category: 'Biscuits', brand: 'Parle', style: '', color: '', hsn_code: '1905', gst_per: 18, uom: 'NOS', size: '', barcode: '8901725001230', default_pur_price: 21.5, default_sale_price: 25, mrp: 25, opening_qty: 200 },
+  { product_name: 'Sugar (loose)', category: 'Staples', brand: '', style: '', color: '', hsn_code: '1701', gst_per: 5, uom: 'KG', size: '', barcode: '', default_pur_price: 38, default_sale_price: 44, mrp: 46, opening_qty: 250.5 },
+  { product_name: 'Surf Excel 1kg', category: 'Detergent', brand: 'HUL', style: '', color: '', hsn_code: '3402', gst_per: 18, uom: 'NOS', size: '', barcode: '8902020000454', default_pur_price: 118, default_sale_price: 132, mrp: 140, opening_qty: 48 },
+];
+
 export const productEntrySampleData = [
   { product_name: 'Cotton Shirt', category: 'Shirts', brand: 'ABC', style: 'Casual', color: 'Blue', hsn_code: '6206', gst_per: 12, uom: 'NOS', size: 'M', barcode: '', default_pur_price: 495, default_sale_price: 899, opening_qty: 50 },
   { product_name: 'Cotton Shirt', category: 'Shirts', brand: 'ABC', style: 'Casual', color: 'Blue', hsn_code: '6206', gst_per: 12, uom: 'NOS', size: 'L', barcode: '', default_pur_price: 495, default_sale_price: 899, opening_qty: 45 },
@@ -1045,3 +1058,26 @@ export const studentMasterSampleData = [
   { admission_number: 'ADM0002', student_name: 'Priya Patel', class_name: '9-B', division: 'B', roll_number: '2', date_of_birth: '2011-08-22', gender: 'female', parent_name: 'Meena Patel', parent_phone: '9123456789', parent_email: 'meena@email.com', parent_relation: 'mother', address: '456 Park Avenue, Town', emergency_contact: '9123456788', admission_date: '2024-04-01', status: 'active' },
   { admission_number: 'ADM0003', student_name: 'Amit Kumar', class_name: '8-A', division: 'A', roll_number: '3', date_of_birth: '2012-01-10', gender: 'male', parent_name: 'Raj Kumar', parent_phone: '9988776655', parent_email: '', parent_relation: 'father', address: '789 School Lane, Metro', emergency_contact: '', admission_date: '2024-06-15', status: 'active' },
 ];
+/**
+ * Unit typed in an item-master sheet → the app's unit code (Nov 2026: the Unit column was
+ * read but never saved, so loose items sold by KG came in as pieces). Unknown units → NOS.
+ */
+const IMPORT_UOM_ALIASES: Record<string, string> = {
+  NOS: "NOS", NO: "NOS", NUMBERS: "NOS", PCS: "PCS", PC: "PCS", PIECE: "PCS", PIECES: "PCS", EACH: "NOS", EA: "NOS",
+  KG: "KG", KGS: "KG", KILO: "KG", KILOS: "KG", KILOGRAM: "KG", KILOGRAMS: "KG",
+  G: "GMS", GM: "GMS", GMS: "GMS", GRAM: "GMS", GRAMS: "GMS", GRM: "GMS",
+  L: "LTR", LT: "LTR", LTR: "LTR", LTRS: "LTR", LITRE: "LTR", LITRES: "LTR", LITER: "LTR", LITERS: "LTR",
+  MTR: "MTR", MTRS: "MTR", M: "MTR", METRE: "MTR", METER: "MTR",
+  DZN: "DZN", DOZEN: "DZN", BOX: "BOX", BOXES: "BOX", SET: "SET", PAIR: "PAIR", ROLL: "ROLL",
+  PKT: "PKT", PACKET: "PKT", PACK: "PKT",
+};
+
+export function normalizeImportUom(raw: unknown): string {
+  const key = String(raw ?? "").trim().toUpperCase().replace(/[.\s]/g, "");
+  return IMPORT_UOM_ALIASES[key] ?? "NOS";
+}
+
+/** Size cell of an item-master row; blank (supermarket items) → "None", like Add Product. */
+export function importRowSize(raw: unknown): string {
+  return String(raw ?? "").trim() || "None";
+}

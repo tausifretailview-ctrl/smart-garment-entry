@@ -1,5 +1,12 @@
 import { useState, useEffect, useRef, Suspense, type ReactNode } from "react";
 import { kickCashDrawer } from "@/hooks/useCashDrawer";
+import {
+  BUSINESS_TYPE_OPTIONS,
+  SUPERMARKET_SETUP_ITEMS,
+  applySupermarketSetup,
+  readBusinessType,
+  type BusinessType,
+} from "@/lib/businessType";
 import { useLocation } from "react-router-dom";
 import { lazyWithRetry, pauseBackgroundPrefetch, scheduleIdleWork } from "@/lib/chunkLoadRetry";
 import { createSettingsPanel } from "@/components/settings/lazySettingsPanel";
@@ -206,6 +213,8 @@ interface MobileERPConfig {
 }
 
 interface ProductSettings {
+  /** Settings → Product → Business type (src/lib/businessType.ts). Default garment. */
+  business_type?: BusinessType;
   default_margin?: number;
   low_stock_threshold?: number;
   sku_format?: string;
@@ -1924,6 +1933,54 @@ export default function Settings() {
                       }
                       placeholder="e.g., 10"
                     />
+                  </SettingsField>
+                  <SettingsField
+                    label="Business type"
+                    htmlFor="business_type"
+                    help="Supermarket: no sizes or colours, company barcodes (EAN), MRP on every item"
+                  >
+                    <Select
+                      value={readBusinessType(settings)}
+                      onValueChange={(value: BusinessType) =>
+                        setSettings({
+                          ...settings,
+                          product_settings: { ...settings.product_settings, business_type: value },
+                        })
+                      }
+                    >
+                      <SelectTrigger id="business_type" data-testid="business-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BUSINESS_TYPE_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {readBusinessType(settings) === "supermarket" ? (
+                      <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-900" data-testid="supermarket-setup">
+                        <p className="font-semibold">Supermarket setup changes:</p>
+                        <ul className="mt-1 list-disc list-inside space-y-0.5">
+                          {SUPERMARKET_SETUP_ITEMS.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="mt-2"
+                          data-testid="apply-supermarket-setup"
+                          onClick={() => {
+                            setSettings(applySupermarketSetup(settings));
+                            toast({ title: "Supermarket setup applied", description: "Press Save Settings to keep it." });
+                          }}
+                        >
+                          Apply supermarket setup
+                        </Button>
+                      </div>
+                    ) : null}
                   </SettingsField>
                   <SettingsField label="Default Size Group" htmlFor="default_size_group" help="Add Product starts with this size group">
                     <Select
