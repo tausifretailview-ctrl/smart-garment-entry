@@ -1,4 +1,5 @@
 import { installAuthRefreshGuard } from "@/lib/authRefreshGuard";
+import { installStockWriteWatch } from "@/lib/liveStockRefresh";
 import { reportUnhandledRejection } from "@/lib/unhandledRejectionReport";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
@@ -16,6 +17,8 @@ import { initMainThreadViolationProbe } from "@/lib/mainThreadViolationProbe";
 import { recordPageLoad } from "@/lib/reloadReason";
 
 recordPageLoad();
+// Stock screens in other browser tabs follow this tab's saves (liveStockRefresh.ts).
+installStockWriteWatch();
 recoverElectronOAuthErrorPage();
 initMainThreadViolationProbe();
 

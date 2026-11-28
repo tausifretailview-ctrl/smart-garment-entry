@@ -33,6 +33,7 @@ import { isFillHeightDashboardPath, isHideGlobalHeaderPath, isMainDashboardPath,
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { ActivityCenterProvider } from "@/contexts/ActivityCenterContext";
 import { OrgMoneyRealtimeInvalidation } from "@/hooks/useOrgMoneyRealtimeInvalidation";
+import { LiveStockRefresh } from "@/hooks/useLiveStockRefresh";
 
 interface LayoutProps {
   children: ReactNode;
@@ -149,6 +150,7 @@ export const Layout = ({ children }: LayoutProps) => {
               <AlertPopupHost />
             </IdleMount>
             <OrgMoneyRealtimeInvalidation />
+            <LiveStockRefresh />
             <IdleMount>
               <div className="hidden lg:contents">
                 <FloatingWhatsAppInbox />

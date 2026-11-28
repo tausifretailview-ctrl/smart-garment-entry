@@ -39,6 +39,7 @@ export const PRINT_DOCUMENT_ROOT_SELECTORS = [
   ".klear-a4-invoice-root",
   ".wholesale-size-a4-invoice-root",
   ".motas-a4-invoice-root",
+  ".krunal-a4-invoice-root",
   ".print-document",
 ] as const;
 

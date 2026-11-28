@@ -124,7 +124,8 @@ export function SettingsInvoicePreview<T extends SettingsLike>({
           previewTemplate === "wholesale-gst-a4" ||
           previewTemplate === "klear-a4" ||
           previewTemplate === "wholesale-size-a4" ||
-          previewTemplate === "motas-a4"
+          previewTemplate === "motas-a4" ||
+          previewTemplate === "krunal-a4"
         ? "a4"
         : (previewPaper as "a4" | "a5-vertical" | "a5-horizontal" | "thermal");
   const previewScale =
@@ -133,7 +134,8 @@ export function SettingsInvoicePreview<T extends SettingsLike>({
       : previewTemplate === "klear-a4" ||
           previewTemplate === "wholesale-size-a4" ||
           previewTemplate === "wholesale-gst-a4" ||
-          previewTemplate === "motas-a4"
+          previewTemplate === "motas-a4" ||
+          previewTemplate === "krunal-a4"
         ? "scale(0.78)"
         : previewFormat === "a4"
           ? "scale(0.6)"

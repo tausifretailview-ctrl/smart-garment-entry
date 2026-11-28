@@ -17,6 +17,7 @@ import {
   invalidateSupplierPaymentViews,
   isSupplierVoucherRealtimeChange,
 } from "@/utils/supplierPaymentViews";
+import { requestLiveStockRefresh } from "@/lib/liveStockRefresh";
 
 const MONEY_REALTIME_TABLES = [
   "sales",
@@ -115,10 +116,14 @@ export function useOrgMoneyRealtimeInvalidation() {
           table,
           filter: `organization_id=eq.${orgId}`,
         },
-        (payload) =>
+        (payload) => {
           scheduleInvalidate(
             table === "voucher_entries" && isSupplierVoucherRealtimeChange(payload as any),
-          ),
+          );
+          // A bill or return saved on another computer changed stock: stock screens follow
+          // (liveStockRefresh.ts; at most one reload per few seconds, only screens on show).
+          if (table === "sales" || table === "sale_returns") requestLiveStockRefresh(queryClient, orgId);
+        },
       );
     }
     channel.subscribe();
@@ -131,7 +136,7 @@ export function useOrgMoneyRealtimeInvalidation() {
       debounceRef.current = null;
       supabase.removeChannel(channel);
     };
-  }, [orgId, applyStoredFreshness, flushInvalidate, scheduleInvalidate]);
+  }, [orgId, queryClient, applyStoredFreshness, flushInvalidate, scheduleInvalidate]);
 }
 
 /** Mount once under Layout (org context available). */

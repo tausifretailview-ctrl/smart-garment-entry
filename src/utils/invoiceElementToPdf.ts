@@ -116,8 +116,11 @@ async function capturePagedInvoiceTemplatesToPdfBlob(
   wappConnectPdf = false,
 ): Promise<Blob | null> {
   const pageEls = Array.from(
-    element.querySelectorAll<HTMLElement>(".retail-erp-invoice-template, .motas-a4-page, .modern-wholesale-page"),
-  );
+    element.querySelectorAll<HTMLElement>(
+      ".retail-erp-invoice-template, .motas-a4-page, .modern-wholesale-page, .krunal-a4-page",
+    ),
+    // Print-only copies (Krunal A4 DUPLICATE FOR SUPPLIER): the customer's PDF is the original.
+  ).filter((el) => el.dataset.pdfSkip !== "true");
   if (pageEls.length === 0) return null;
 
   const jsPdfFormat = pageFormat === "a5" ? "a5" : "a4";
