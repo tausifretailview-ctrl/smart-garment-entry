@@ -50,6 +50,7 @@ import {
   CustomerAccountPage,
   SupplierMaster,
   TransportMaster,
+  ProductMaster,
   EmployeeMaster,
   PurchaseReportBySupplier,
   SalesReportByCustomer,
@@ -1161,6 +1162,16 @@ export function AppRoutes() {
                   <SupplierMaster />
                 </FullScreenLayout>
               </RoleProtectedRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="product-master"
+          element={
+            <ProtectedRoute>
+              <FullScreenLayout>
+                <ProductMaster />
+              </FullScreenLayout>
             </ProtectedRoute>
           }
         />

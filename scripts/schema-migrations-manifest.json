@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-11-27",
-  "count": 980,
-  "fileCount": 998,
+  "generatedAt": "2026-11-28",
+  "count": 984,
+  "fileCount": 1002,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -983,7 +983,11 @@
     "20270601120000",
     "20270602120000",
     "20270603120000",
-    "20270604120000"
+    "20270604120000",
+    "20270605120000",
+    "20270606120000",
+    "20270607120000",
+    "20270608120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1983,7 +1987,11 @@
     "20270601120000_fk_indexes_big_tables.sql",
     "20270602120000_search_sales_header_ids.sql",
     "20270603120000_stock_transfer_accept_sender_price.sql",
-    "20270604120000_transferred_price_gaps.sql"
+    "20270604120000_transferred_price_gaps.sql",
+    "20270605120000_customer_points_atomic.sql",
+    "20270606120000_variant_barcodes.sql",
+    "20270607120000_repack_stock.sql",
+    "20270608120000_product_attribute_values.sql"
   ],
   "duplicateVersions": [
     {

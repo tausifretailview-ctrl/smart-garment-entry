@@ -60,6 +60,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   silentPrint: (options) => ipcRenderer.invoke('silent-print', options),
   printToPdf: (options) => ipcRenderer.invoke('print-to-pdf', options),
   printHtml: (options) => ipcRenderer.invoke('print-html', options),
+  /** Raw ESC/POS bytes (base64) to a printer — cash drawer kick. Desktop app 2026-11 and later. */
+  printRaw: (options) => ipcRenderer.invoke('print-raw', options),
 
   /** Full page reload — same as Ctrl+R / File → Refresh App. */
   reloadApp: () => ipcRenderer.invoke('reload-app'),

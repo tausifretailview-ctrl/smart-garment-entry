@@ -23,7 +23,7 @@ async function printReceipt(page: import("@playwright/test").Page) {
   await expect(scan).toBeVisible({ timeout: 60_000 });
   await scan.fill("100001");
   await scan.press("Enter");
-  await expect(page.locator("tr", { hasText: "100001" })).toHaveCount(1);
+  await expect(page.locator("[data-pos-cart-row]", { hasText: "100001" }).filter({ visible: true })).toHaveCount(1);
   await page.keyboard.press("F1");
   const saved = page.getByRole("alertdialog", { name: "Invoice Saved!" });
   await expect(saved).toBeVisible();

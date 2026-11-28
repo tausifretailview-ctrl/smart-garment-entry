@@ -43,14 +43,14 @@ test("POS: hold a bill, resume it, pay Cash: the Hold count clears", async ({ pa
 
   await scan.fill("100001");
   await scan.press("Enter");
-  await expect(page.locator("tr", { hasText: "100001" })).toHaveCount(1);
+  await expect(page.locator("[data-pos-cart-row]", { hasText: "100001" }).filter({ visible: true })).toHaveCount(1);
 
   // F7 asks first; Enter holds. The cart is parked and the red count shows 1.
   await page.keyboard.press("F7");
   await expect(page.getByTestId("pos-hold-confirm")).toBeVisible();
   await expect(page.getByTestId("pos-hold-confirm-yes")).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page.locator("tr", { hasText: "100001" })).toHaveCount(0);
+  await expect(page.locator("[data-pos-cart-row]", { hasText: "100001" }).filter({ visible: true })).toHaveCount(0);
   const heldRow = (backend.tables.sales ?? [])[0];
   expect(heldRow).toMatchObject({ sale_number: "Hold/26-27/1", payment_status: "hold" });
   const redCount = holdButton.locator("span.bg-red-500");
@@ -59,7 +59,7 @@ test("POS: hold a bill, resume it, pay Cash: the Hold count clears", async ({ pa
   // Resume from the hold panel: the cart comes back.
   await holdButton.click();
   await page.getByRole("button", { name: "Resume Bill" }).first().click();
-  await expect(page.locator("tr", { hasText: "100001" })).toHaveCount(1);
+  await expect(page.locator("[data-pos-cart-row]", { hasText: "100001" }).filter({ visible: true })).toHaveCount(1);
   // A cashier takes a moment before paying.
   await page.waitForTimeout(2_000);
 
@@ -91,7 +91,7 @@ test("POS: a stray F7 or Hold click does not park the bill until the cashier say
   await expect(scan).toBeVisible({ timeout: 60_000 });
   await scan.fill("100001");
   await scan.press("Enter");
-  const line = page.locator("tr", { hasText: "100001" });
+  const line = page.locator("[data-pos-cart-row]", { hasText: "100001" }).filter({ visible: true });
   await expect(line).toHaveCount(1);
 
   // F7 then Esc: nothing held, the cart stays (Esc must not also clear the cart).

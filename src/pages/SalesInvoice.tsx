@@ -3,6 +3,12 @@ import { saveSaleEditWithLines, SaleLinesNotRestoredError } from "@/lib/data/sav
 import { SaleLineStockBadge } from "@/components/sales/SaleLineStockBadge";
 import { SaleBillLineRow, type SaleBillRowActions } from "@/components/sales-invoice/SaleBillLineRow";
 import { LIVE_STOCK_REFRESH_MS, fetchVariantStock, qtyByVariant, saleLineLiveStock } from "@/lib/saleLineLiveStock";
+import {
+  parseScaleBarcode,
+  readScaleBarcodeConfig,
+  scaleItemBarcodeCandidates,
+  scaleQuantity,
+} from "@/lib/scaleBarcode";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import { describeLines, duplicableSaleItems, linesWithNoStock } from "@/lib/saleDuplicateInvoice";
 import {
@@ -35,6 +41,8 @@ import { fetchQuotationWithItems } from "@/utils/quotationListQueries";
 import type { Json } from "@/integrations/supabase/types";
 import { flushSync } from "react-dom";
 import { allowsDecimalQty, clampQty, minQtyForUom, parseQtyValue } from "@/utils/qtyInput";
+import { isDecimalUOM } from "@/constants/uom";
+import { findVariantIdByExtraBarcode, type VariantBarcodesDb } from "@/lib/data/variantBarcodes";
 import { fetchProductQtyMeta } from "@/utils/productQtyMeta";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -2285,6 +2293,34 @@ export default function SalesInvoice() {
         .order('stock_qty', { ascending: false })
         .limit(50);
 
+      // Weighing-scale label (Settings → Sale → Weighing scale): item code + weight / price in
+      // the barcode. Not a scale label, or item not found → the normal lookup below.
+      const scaleScan = parseScaleBarcode(
+        searchTerm.trim(),
+        readScaleBarcodeConfig((settingsData as { sale_settings?: unknown } | null)?.sale_settings),
+      );
+      if (scaleScan) {
+        const { data: scaleRows } = await lookupByBarcode((q) =>
+          q.in('barcode', scaleItemBarcodeCandidates(scaleScan.itemCode)),
+        );
+        type ScaleRow = { products?: Record<string, unknown> | null; sale_price?: unknown; mrp?: unknown };
+        const scaleRow = ((scaleRows || []) as ScaleRow[]).find((row) => row?.products);
+        if (scaleRow) {
+          const rate = Number(scaleRow.sale_price) || Number(scaleRow.mrp) || 0;
+          const qty = scaleQuantity(scaleScan, rate);
+          if (qty != null) {
+            playSuccessBeep();
+            await addProductToInvoice(scaleRow.products, scaleRow, undefined, {
+              skipSizeGrid: true,
+              skipQtyDialog: true,
+              quantity: qty,
+            });
+            setSearchInput("");
+            return;
+          }
+        }
+      }
+
       let { data: dbVariants, error: dbError } = await lookupByBarcode((q) =>
         q.eq('barcode', searchTerm.trim()),
       );
@@ -2299,6 +2335,18 @@ export default function SalesInvoice() {
 
       if (dbError) {
         console.error('Barcode lookup failed:', dbError);
+      }
+
+      // Extra barcode of an item (Product Dashboard → Extra barcodes): only after a miss.
+      if (!dbError && (dbVariants || []).length === 0) {
+        const extraVariantId = await findVariantIdByExtraBarcode(
+          supabase as unknown as VariantBarcodesDb,
+          currentOrganization.id,
+          searchTerm.trim(),
+        );
+        if (extraVariantId) {
+          ({ data: dbVariants, error: dbError } = await lookupByBarcode((q) => q.eq('id', extraVariantId)));
+        }
       }
 
       const rows = (dbVariants || []).filter((row: any) => row?.products);
@@ -2467,6 +2515,7 @@ export default function SalesInvoice() {
     editingInvoiceId,
     originalItemsForEdit,
     allowNegativeStock,
+    settingsData,
   ]);
   searchAndAddProductRef.current = searchAndAddProduct;
 
@@ -2579,7 +2628,9 @@ export default function SalesInvoice() {
       const alreadyStaged = stagedQtyByVariantRef.current.get(variant.id) || 0;
       // Qty from the Qty window counts in full (it used to check stock for one piece only).
       const addingQty =
-        options?.quantity && options.quantity > 0 && !isServiceProduct ? Math.max(1, Math.floor(options.quantity)) : 1;
+        options?.quantity && options.quantity > 0 && !isServiceProduct
+          ? clampQty(options.quantity, { uom: product?.uom, productType: product?.product_type })
+          : 1;
       const requestedQty = alreadyStaged + addingQty;
       stagedQtyByVariantRef.current.set(variant.id, requestedQty);
       stockReservation = { variantId: variant.id, previousQty: alreadyStaged };
@@ -2678,7 +2729,8 @@ export default function SalesInvoice() {
       options?.quantity && options.quantity > 0
         ? isServiceProduct
           ? clampQty(options.quantity, { productType: "service" })
-          : Math.max(1, Math.floor(options.quantity))
+          : // KG / LTR goods keep their decimals (a scale label's 0.250 kg); pieces stay whole.
+            clampQty(options.quantity, { uom: product?.uom, productType: product?.product_type })
         : 1;
     const descNote = (options?.description || "").trim();
     const displayName = descNote
@@ -3211,7 +3263,8 @@ export default function SalesInvoice() {
     : 0;
   const quickQtyDialogValues = {
     defaultQuantity: quickQtyIsGoods ? 1 : serviceDefaultQty,
-    allowDecimalQty: !quickQtyIsGoods,
+    // Goods sold by KG / LTR / MTR take decimals too (0.250 kg; supermarket go-live, Nov 2026).
+    allowDecimalQty: !quickQtyIsGoods || isDecimalUOM(quickServiceProductForAdd?.product?.uom),
     defaultMrp: quickServiceProductForAdd?.variant
       ? quickQtyIsGoods
         ? quickQtyGoodsDefaultPrice

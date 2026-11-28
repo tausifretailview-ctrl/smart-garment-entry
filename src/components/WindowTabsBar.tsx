@@ -38,6 +38,7 @@ const QUICK_OPEN_PAGES = [
   { path: "products", label: "Products", icon: "Layers", category: "Masters" },
   { path: "customers", label: "Customers", icon: "Users", category: "Masters" },
   { path: "suppliers", label: "Suppliers", icon: "Building2", category: "Masters" },
+  { path: "product-master", label: "Product Master", icon: "Package", category: "Masters" },
   { path: "transporters", label: "Transport Master", icon: "Truck", category: "Masters" },
   { path: "employees", label: "Employees", icon: "UserCheck", category: "Masters" },
   { path: "stock-report", label: "Stock Report", icon: "BarChart3", category: "Reports" },

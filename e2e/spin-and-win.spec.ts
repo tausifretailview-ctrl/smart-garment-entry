@@ -162,7 +162,7 @@ test.describe("POS takes the prize code", () => {
 
     await scan.fill("100001");
     await scan.press("Enter");
-    await expect(page.locator("tr", { hasText: "100001" })).toHaveCount(1);
+    await expect(page.locator("[data-pos-cart-row]", { hasText: "100001" }).filter({ visible: true })).toHaveCount(1);
     await scan.fill("SW-7K3QX");
     await scan.press("Enter");
     await expect(page.getByText("Spin & Win: ₹100 OFF").first()).toBeVisible();

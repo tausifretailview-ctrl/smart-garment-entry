@@ -87,6 +87,7 @@ export const BACK_MAP: Record<string, string> = {
   "customers":                "/",
   "suppliers":                "/",
   "transporters":             "/",
+  "product-master":           "/",
   "employees":                "/",
   // Settings / Tools → Dashboard
   "settings":                 "/",

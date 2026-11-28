@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { fetchProductAttributeLists, type AttributeListsDb } from "@/lib/data/productAttributeLists";
 import { cleanProductName } from "@/utils/productNameMerge";
 import { useQueryClient } from "@tanstack/react-query";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
@@ -1560,6 +1561,21 @@ export const ProductEntryDialog = ({
       uniqueColors = mergeSortedUnique(uniqueColors, variantColors);
     } catch {
       anyFailed = true;
+    }
+
+    // Product Master lists (Master → Product Master): values set up before any item uses them.
+    try {
+      const lists = await fetchProductAttributeLists(supabase as unknown as AttributeListsDb, orgId);
+      if (lists) {
+        uniqueProductNames = mergeSortedUnique(uniqueProductNames, lists.product_name);
+        uniqueCategories = mergeSortedUnique(uniqueCategories, lists.category);
+        uniqueBrands = mergeSortedUnique(uniqueBrands, lists.brand);
+        uniqueHsnCodes = mergeSortedUnique(uniqueHsnCodes, lists.hsn);
+        uniqueStyles = mergeSortedUnique(uniqueStyles, lists.style);
+        uniqueColors = mergeSortedUnique(uniqueColors, lists.color);
+      }
+    } catch {
+      // Lists are extra suggestions; the values on items above still show.
     }
 
     setPreviousValuesError(anyFailed ? "Couldn't load suggestions" : null);

@@ -1,4 +1,5 @@
 import { adjustVariantStock } from "@/lib/data/adjustVariantStock";
+import { ExtraBarcodesDialog } from "@/components/products/ExtraBarcodesDialog";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isStatementTimeout } from "@/utils/statementTimeout";
@@ -192,6 +193,7 @@ const ProductDashboard = () => {
   useNavPerfPage(PERF_PATH);
   const industrialMode = useIndustrialMode();
   const [showReorderLevels, setShowReorderLevels] = useState(false);
+  const [extraBarcodesFor, setExtraBarcodesFor] = useState<{ productId: string; productName: string } | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { navigate } = useOrgNavigation();
@@ -1634,6 +1636,16 @@ const ProductDashboard = () => {
                 Edit Product
               </DropdownMenuItem>
               <DropdownMenuItem
+                onClick={() =>
+                  setExtraBarcodesFor({
+                    productId: row.original.product_id,
+                    productName: String(row.original.product_name ?? ""),
+                  })
+                }
+              >
+                Extra barcodes
+              </DropdownMenuItem>
+              <DropdownMenuItem
                 className="text-destructive"
                 onClick={() => {
                   void runDeletePrecheck([row.original.product_id]);
@@ -1820,6 +1832,17 @@ const ProductDashboard = () => {
 
   return (
     <>
+    {extraBarcodesFor && currentOrganization?.id ? (
+      <ExtraBarcodesDialog
+        open
+        onOpenChange={(open) => {
+          if (!open) setExtraBarcodesFor(null);
+        }}
+        organizationId={currentOrganization.id}
+        productId={extraBarcodesFor.productId}
+        productName={extraBarcodesFor.productName}
+      />
+    ) : null}
     <div className="product-dashboard-workspace flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3">
       <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
         <div className="grid shrink-0 grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">

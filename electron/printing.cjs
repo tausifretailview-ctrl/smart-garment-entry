@@ -2,6 +2,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { BrowserWindow, dialog, ipcMain } = require('electron');
+const { sendRawToPrinter } = require('./rawPrint.cjs');
 
 let getMainWindow = () => null;
 let getTargetWindow = () => null;
@@ -350,6 +351,18 @@ ipcMain.handle('print-html', async (_event, payload = {}) => {
 });
 
 
+
+// Raw ESC/POS bytes to a printer (cash drawer kick through the receipt printer).
+ipcMain.handle('print-raw', async (_event, payload = {}) => {
+  try {
+    return await sendRawToPrinter({
+      printerName: payload && payload.printerName,
+      base64: payload && payload.base64,
+    });
+  } catch (err) {
+    return { success: false, error: String(err && err.message ? err.message : err) };
+  }
+});
 
 function registerPrintingIpc() {
   // Handlers registered at module load above (same as original top-level ipcMain.handle).

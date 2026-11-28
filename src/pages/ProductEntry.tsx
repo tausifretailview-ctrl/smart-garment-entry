@@ -3,6 +3,8 @@ import { warnTransferredPriceGaps } from "@/utils/transferredPriceWarning";
 import { cleanProductName } from "@/utils/productNameMerge";
 import { NO_SIZE_GROUP_ID, resolveDefaultSizeGroupId, sizeGroupIdForSave } from "@/utils/defaultSizeGroup";
 import { classifyBarcodeSource } from "@/utils/barcodeChecksum";
+import { isSupermarket, type BusinessTypeSettings } from "@/lib/businessType";
+import { fetchProductAttributeLists, mergeSuggestions, type AttributeListsDb } from "@/lib/data/productAttributeLists";
 import { useLocation } from "react-router-dom";
 import { productEntryReturnPath } from "@/utils/productEntryReturn";
 import { useQueryClient } from "@tanstack/react-query";
@@ -47,7 +49,14 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Loader2, Package, Barcode, Upload, X, FileSpreadsheet, Plus, Edit, Trash2, Lock, Search, Copy } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
-import { productEntryFields, productEntrySampleData, parseLocalizedNumber } from "@/utils/excelImportUtils";
+import {
+  importRowSize,
+  normalizeImportUom,
+  parseLocalizedNumber,
+  productEntryFields,
+  productEntrySampleData,
+  productEntrySupermarketSampleData,
+} from "@/utils/excelImportUtils";
 import { validateProduct } from "@/lib/validations";
 import {
   findBarcodeConflictsInOrg,
@@ -160,6 +169,8 @@ const ProductEntry = () => {
   /** The edited product came back with the step-7 columns (SQL has been run). */
   const [loadedHasItemColumns, setLoadedHasItemColumns] = useState(false);
   const [fieldSettings, setFieldSettings] = useState<any>(null);
+  // Settings → Product → Business type: a supermarket gets the grocery sample import sheet.
+  const [isSupermarketShop, setIsSupermarketShop] = useState(false);
   const [showMrp, setShowMrp] = useState(false);
   const [garmentGstSettings, setGarmentGstSettings] = useState<GarmentGstRuleSettings>({});
   // Settings > Purchase "Default Tax Rate" — used for Excel import rows with a blank GST cell.
@@ -442,16 +453,21 @@ const ProductEntry = () => {
       .eq("organization_id", currentOrganization.id)
       .is("deleted_at", null);
 
+    // Product Master lists (Master → Product Master) join the values already on items.
+    const lists = await fetchProductAttributeLists(
+      supabase as unknown as AttributeListsDb,
+      currentOrganization.id,
+    ).catch(() => null);
     if (!error && data) {
-      const uniqueCategories = [...new Set(data.map(p => p.category).filter(Boolean) as string[])].sort();
-      const uniqueBrands = [...new Set(data.map(p => p.brand).filter(Boolean) as string[])].sort();
-      const uniqueHsnCodes = [...new Set(data.map(p => p.hsn_code).filter(Boolean) as string[])].sort();
-      const uniqueStyles = [...new Set(data.map(p => p.style).filter(Boolean) as string[])].sort();
-      
-      setCategories(uniqueCategories);
-      setBrands(uniqueBrands);
-      setHsnCodes(uniqueHsnCodes);
-      setStyles(uniqueStyles);
+      setCategories(mergeSuggestions(lists?.category, data.map(p => p.category).filter(Boolean) as string[]));
+      setBrands(mergeSuggestions(lists?.brand, data.map(p => p.brand).filter(Boolean) as string[]));
+      setHsnCodes(mergeSuggestions(lists?.hsn, data.map(p => p.hsn_code).filter(Boolean) as string[]));
+      setStyles(mergeSuggestions(lists?.style, data.map(p => p.style).filter(Boolean) as string[]));
+    } else if (lists) {
+      setCategories(lists.category);
+      setBrands(lists.brand);
+      setHsnCodes(lists.hsn);
+      setStyles(lists.style);
     }
   };
 
@@ -465,6 +481,7 @@ const ProductEntry = () => {
       if (settings.fields) {
         setFieldSettings(settings.fields);
       }
+      setIsSupermarketShop(isSupermarket(data as BusinessTypeSettings));
     }
   };
 
@@ -1357,7 +1374,8 @@ const ProductEntry = () => {
     if (!validateForm()) return;
 
     let industrialItem: IndustrialItemDetails | null = null;
-    if (industrialMode.enabled && (!editingProductId || loadedHasItemColumns)) {
+    // Units & reorder: Industrial mode, and supermarkets (buy in cases, sell in pieces).
+    if ((industrialMode.enabled || isSupermarketShop) && (!editingProductId || loadedHasItemColumns)) {
       let parsed: IndustrialItemDetails | Error;
       try {
         parsed = parseIndustrialItemForm(industrialItemForm, formData.uom || DEFAULT_UOM);
@@ -1869,12 +1887,13 @@ const ProductEntry = () => {
 
     // Filter valid rows (must have product_name and size)
     const validRows = mappedData
-      .filter(row => row.product_name?.toString().trim() && row.size?.toString().trim())
+      // A blank size (supermarket items) is "None", like Add Product with no size group.
+      .filter(row => row.product_name?.toString().trim())
       .map((row): (typeof mappedData)[number] => {
         const typed = cleanProductName(row.product_name?.toString());
         const k = productNameMatchKey(typed);
         if (!nameByKey.has(k)) nameByKey.set(k, typed);
-        return { ...row, product_name: nameByKey.get(k) };
+        return { ...row, product_name: nameByKey.get(k), size: importRowSize(row.size) };
       });
 
     // Group rows by product attributes
@@ -1947,6 +1966,8 @@ const ProductEntry = () => {
                 sale_gst_percent: resolveImportGstPercent(firstRow.sale_gst_percent, importGst),
                 default_pur_price: parseLocalizedNumber(firstRow.default_pur_price) || 0,
                 default_sale_price: parseLocalizedNumber(firstRow.default_sale_price) || 0,
+                // The Unit column was read but never saved (loose KG items came in as pieces).
+                uom: normalizeImportUom(firstRow.uom),
                 status: 'active',
                 // Imports have no per-row IMEI control: reuse the last-remembered
                 // default for the category instead of inheriting the DB default (true).
@@ -2010,7 +2031,13 @@ const ProductEntry = () => {
               stock_qty: openingQty,
               opening_qty: openingQty,
               active: true,
-              ...(barcodeWasGenerated ? { barcode_source: "generated" as const } : {}),
+              // A company barcode (EAN) is marked external, so a later purchase at a new MRP
+              // keeps the same barcode instead of printing a new one.
+              barcode_source: barcodeWasGenerated
+                ? ("generated" as const)
+                : classifyBarcodeSource(barcode, {
+                    organizationNumber: (currentOrganization as { organization_number?: number } | null)?.organization_number,
+                  }).source,
             });
 
             existingSizes.add(size.toLowerCase());
@@ -2693,7 +2720,7 @@ const ProductEntry = () => {
                 </Select>
               </div>
 
-              {industrialMode.enabled && (!editingProductId || loadedHasItemColumns) && (
+              {(industrialMode.enabled || isSupermarketShop) && (!editingProductId || loadedHasItemColumns) && (
                 <IndustrialItemFields
                   value={industrialItemForm}
                   onChange={setIndustrialItemForm}
@@ -3516,8 +3543,8 @@ const ProductEntry = () => {
           targetFields={productEntryFields}
           onImport={handleExcelImport}
           title="Import Products from Excel"
-          sampleData={productEntrySampleData}
-          sampleFileName="Product_Entry_Sample.xlsx"
+          sampleData={isSupermarketShop ? productEntrySupermarketSampleData : productEntrySampleData}
+          sampleFileName={isSupermarketShop ? "Supermarket_Items_Sample.xlsx" : "Product_Entry_Sample.xlsx"}
         />
 
         {/* Quick Settings Modal */}
