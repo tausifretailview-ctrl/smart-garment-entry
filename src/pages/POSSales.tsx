@@ -193,6 +193,13 @@ import { useCustomerPoints, useCustomerPointsBalance } from "@/hooks/useCustomer
 import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 import { useBeepSound } from "@/hooks/useBeepSound";
 import { useCashDrawer } from "@/hooks/useCashDrawer";
+import { isDecimalUOM } from "@/constants/uom";
+import {
+  parseScaleBarcode,
+  readScaleBarcodeConfig,
+  scaleItemBarcodeCandidates,
+  scaleQuantity,
+} from "@/lib/scaleBarcode";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { waitForPrintReady } from "@/utils/printReady";
 import {
@@ -3778,6 +3785,36 @@ export default function POSSales() {
         return;
       }
 
+      // Weighing-scale label (Settings → Sale → Weighing scale): item code + weight / price
+      // inside the barcode. Not a scale label, or item code not found → the normal lookup below.
+      const scaleScan = parseScaleBarcode(
+        trimmedTerm,
+        readScaleBarcodeConfig((settingsData as { sale_settings?: unknown } | null)?.sale_settings),
+      );
+      if (scaleScan) {
+        let scaleHit: Awaited<ReturnType<typeof fetchPosVariantByBarcode>> = null;
+        for (const candidate of scaleItemBarcodeCandidates(scaleScan.itemCode)) {
+          scaleHit = await fetchPosVariantByBarcode(orgId, candidate, mobileERP, POS_BARCODE_CART_LOOKUP_EXACT);
+          if (scaleHit) break;
+        }
+        if (scaleHit) {
+          const rate = Number(scaleHit.variant.sale_price) || Number(scaleHit.variant.mrp) || 0;
+          const qty = scaleQuantity(scaleScan, rate);
+          if (qty == null) {
+            playErrorBeep();
+            toast.error("Scale label: no rate on this item", {
+              description: `${scaleHit.product.product_name}: set its sale price to bill a price label.`,
+            });
+          } else {
+            await addWeighedItemToCart(scaleHit.product, scaleHit.variant, qty);
+            recordPosBarcodeScanSuccess(trimmedTerm);
+          }
+          setSearchInput("");
+          focusBarcodeScanInput();
+          return;
+        }
+      }
+
       // Lookup barcode first. Non-serialized accessories (shared EAN) must add/merge
       // even when org IMEI min-length would reject a 13-digit retail code.
       // Branded EANs may exist at multiple MRP tiers — ask the cashier to pick.
@@ -4525,6 +4562,53 @@ export default function POSSales() {
     setOpenProductSearch(false);
     setSearchInput("");
     focusBarcodeScanInput();
+  };
+
+  /**
+   * Add a weighed item from a scale label: the weight is the quantity (merges onto the same
+   * item's line). Skips the qty window and price prompts — the label already says how much.
+   */
+  const addWeighedItemToCart = async (product: PosProductRow, variant: PosVariantRow, weight: number) => {
+    if (blockSettlementLockedVariant(variant, product.product_name || "Product", variant.barcode || "")) return;
+    const beforeIdx = findPosGoodsMergeIndex(itemsRef.current, variant.id, "");
+    const beforeQty = beforeIdx >= 0 ? itemsRef.current[beforeIdx].quantity : 0;
+    const targetQty = Math.round((beforeQty + weight) * 1000) / 1000;
+    if (isStockTrackedPosProduct(product)) {
+      const stockQtyNeeded = posCartQtyForVariant(itemsRef.current, variant.id) - beforeQty + targetQty;
+      const stockCheck = await checkStock(
+        variant.id,
+        stockQtyNeeded,
+        editFreedQty(variant.id),
+        posJustReadVariantStock(product, variant),
+      );
+      if (!stockCheck.isAvailable) {
+        openStockIssueDialog(
+          buildInsufficientStockIssue(stockCheck.productName, stockCheck.size, stockQtyNeeded, stockCheck.availableStock),
+          stockCheck.availableStock <= 0 ? { productId: product.id, productName: stockCheck.productName } : undefined,
+        );
+        return;
+      }
+    }
+    hasManuallyAddedNewItemRef.current = true;
+    if (beforeIdx < 0) {
+      billingAddLine({
+        product,
+        variant,
+        brandDiscountPercent: getBrandDiscountForProduct(String(product.brand ?? ""), String(product.product_name ?? "")),
+      });
+    }
+    const lineIdx = findPosGoodsMergeIndex(itemsRef.current, variant.id, "");
+    if (lineIdx < 0) {
+      playErrorBeep();
+      return;
+    }
+    if (itemsRef.current[lineIdx].quantity !== targetQty) billingUpdateQty(lineIdx, targetQty);
+    const lineId = itemsRef.current[lineIdx]?.id;
+    if (lineId) {
+      if (beforeIdx < 0) stampDefaultSalesmanOnLine(lineId);
+      bumpCartHighlight(lineId);
+    }
+    playSuccessBeep();
   };
 
   const handlePosProductPick = useCallback(
@@ -9576,7 +9660,9 @@ export default function POSSales() {
           }
           allowDecimalQty={
             quickServiceProductForAdd == null ||
-            quickServiceProductForAdd.product?.product_type === "service"
+            quickServiceProductForAdd.product?.product_type === "service" ||
+            // Loose goods sold by KG / LTR / MTR: 0.250 kg (supermarket go-live, Nov 2026).
+            isDecimalUOM(quickServiceProductForAdd.product?.uom)
           }
           onAdd={handleQuickServiceAdd}
         />

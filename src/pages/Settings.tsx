@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, Suspense, type ReactNode } from "react";
 import { kickCashDrawer } from "@/hooks/useCashDrawer";
+import { ScaleBarcodeSettings } from "@/components/settings/ScaleBarcodeSettings";
+import type { ScaleBarcodeConfig } from "@/lib/scaleBarcode";
 import {
   BUSINESS_TYPE_OPTIONS,
   SUPERMARKET_SETUP_ITEMS,
@@ -299,6 +301,8 @@ interface EInvoiceSettings {
 }
 
 interface SaleSettings {
+  /** Weighing-scale label barcodes (src/lib/scaleBarcode.ts). */
+  scale_barcode?: ScaleBarcodeConfig;
   /** Home opens on the app-icon launcher (Wholesale Dashboard). Default off. */
   wholesale_dashboard?: boolean;
   /** Settings > Product: Industrial mode (Platform Admin feature `industrial_mode` + this switch). */
@@ -5190,6 +5194,15 @@ export default function Settings() {
                   settings={settings}
                   setSettings={setSettings}
                   onFocusPosPreview={() => setInvoicePreviewChannel("pos")}
+                />
+                <ScaleBarcodeSettings
+                  saleSettings={settings.sale_settings}
+                  onChange={(scale_barcode) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      sale_settings: { ...prev.sale_settings, scale_barcode },
+                    }))
+                  }
                 />
                 <SettingsSection
                   title="POS screen extras"
