@@ -12,6 +12,8 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   products: "product_dashboard",
   "product-dashboard": "product_dashboard",
   "product-entry": "product_entry",
+  // Product Master (field lists + Create products) is product entry work.
+  "product-master": "product_entry",
   "orphaned-products": "orphaned_products",
   customers: "customer_master",
   suppliers: "supplier_master",

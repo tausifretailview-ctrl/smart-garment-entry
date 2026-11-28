@@ -37,6 +37,7 @@ export const CustomerMaster = lazyWithRetry(() => import("@/pages/CustomerMaster
 export const CustomerAccountPage = lazyWithRetry(() => import("@/pages/CustomerAccountPage"));
 export const SupplierMaster = lazyWithRetry(() => import("@/pages/SupplierMaster"));
 export const TransportMaster = lazyWithRetry(() => import("@/pages/TransportMaster"));
+export const ProductMaster = lazyWithRetry(() => import("@/pages/ProductMaster"));
 export const EmployeeMaster = lazyWithRetry(() => import("@/pages/EmployeeMaster"));
 export const PurchaseReportBySupplier = lazyWithRetry(() => import("@/pages/PurchaseReportBySupplier"));
 export const SalesReportByCustomer = lazyWithRetry(() => import("@/pages/SalesReportByCustomer"));

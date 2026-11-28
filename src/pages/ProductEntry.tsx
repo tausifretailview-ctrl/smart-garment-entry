@@ -4,6 +4,7 @@ import { cleanProductName } from "@/utils/productNameMerge";
 import { NO_SIZE_GROUP_ID, resolveDefaultSizeGroupId, sizeGroupIdForSave } from "@/utils/defaultSizeGroup";
 import { classifyBarcodeSource } from "@/utils/barcodeChecksum";
 import { isSupermarket, type BusinessTypeSettings } from "@/lib/businessType";
+import { fetchProductAttributeLists, mergeSuggestions, type AttributeListsDb } from "@/lib/data/productAttributeLists";
 import { useLocation } from "react-router-dom";
 import { productEntryReturnPath } from "@/utils/productEntryReturn";
 import { useQueryClient } from "@tanstack/react-query";
@@ -452,16 +453,21 @@ const ProductEntry = () => {
       .eq("organization_id", currentOrganization.id)
       .is("deleted_at", null);
 
+    // Product Master lists (Master → Product Master) join the values already on items.
+    const lists = await fetchProductAttributeLists(
+      supabase as unknown as AttributeListsDb,
+      currentOrganization.id,
+    ).catch(() => null);
     if (!error && data) {
-      const uniqueCategories = [...new Set(data.map(p => p.category).filter(Boolean) as string[])].sort();
-      const uniqueBrands = [...new Set(data.map(p => p.brand).filter(Boolean) as string[])].sort();
-      const uniqueHsnCodes = [...new Set(data.map(p => p.hsn_code).filter(Boolean) as string[])].sort();
-      const uniqueStyles = [...new Set(data.map(p => p.style).filter(Boolean) as string[])].sort();
-      
-      setCategories(uniqueCategories);
-      setBrands(uniqueBrands);
-      setHsnCodes(uniqueHsnCodes);
-      setStyles(uniqueStyles);
+      setCategories(mergeSuggestions(lists?.category, data.map(p => p.category).filter(Boolean) as string[]));
+      setBrands(mergeSuggestions(lists?.brand, data.map(p => p.brand).filter(Boolean) as string[]));
+      setHsnCodes(mergeSuggestions(lists?.hsn, data.map(p => p.hsn_code).filter(Boolean) as string[]));
+      setStyles(mergeSuggestions(lists?.style, data.map(p => p.style).filter(Boolean) as string[]));
+    } else if (lists) {
+      setCategories(lists.category);
+      setBrands(lists.brand);
+      setHsnCodes(lists.hsn);
+      setStyles(lists.style);
     }
   };
 
