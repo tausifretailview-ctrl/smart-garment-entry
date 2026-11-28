@@ -16,6 +16,7 @@ export const POS_USER_PERMISSIONS_PRESET = {
     pos_dashboard: false,
     price_history: false,
     product_entry: false,
+    product_master: false,
     purchase_bill: false,
     sale_analysis: false,
     sales_invoice: false,

@@ -172,4 +172,16 @@ describe("menuPermissions", () => {
     expect(shown.supplier_party_balances).toBe(false);
     expect(shown.customer_reviews).toBe(true);
   });
+
+  it("shows Product Master to older saved rights that could see or add products, until User Rights saves its box", () => {
+    const main = { master: true, inventory: true };
+    const can = (menu: Record<string, boolean>) => isMenuPermissionGranted({ menu, mainMenu: main }, "product_master");
+    expect(can({ product_dashboard: true })).toBe(true);
+    expect(can({ product_entry: true })).toBe(true);
+    expect(can({ customer_master: true })).toBe(false);
+    expect(can({ product_entry: true, product_master: false })).toBe(false);
+    expect(can({ product_master: true })).toBe(true);
+    expect(getMenuPermissionForPath("/product-master")).toBe("product_master");
+    expect(applyMenuFallbacksWhenUnset({ product_dashboard: true }).product_master).toBe(true);
+  });
 });

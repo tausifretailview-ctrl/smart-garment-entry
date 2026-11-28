@@ -31,7 +31,7 @@ import {
   toggleFavourite,
   visibleLauncherTiles,
 } from "./wholesaleLauncher";
-import { getMenuPermissionForPath } from "./menuPermissions";
+import { getMenuPermissionForPath, isMenuPermissionGranted } from "./menuPermissions";
 import { WholesaleLauncher } from "@/components/dashboard/WholesaleLauncher";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -56,7 +56,18 @@ describe("Wholesale Dashboard (app launcher)", () => {
     expect(new Set(LAUNCHER_TILES.map((t) => t.path)).size).toBe(LAUNCHER_TILES.length);
     const salesOnly = visibleLauncherTiles((id) => id === "sales_invoice" || id === "customer_master", false);
     expect(salesOnly.map((t) => t.path)).toEqual(["sales-invoice", "customers", "transporters"]);
-    expect(visibleLauncherTiles(() => false, true)).toHaveLength(LAUNCHER_TILES.length);
+    expect(visibleLauncherTiles(() => false, true, undefined, "admin")).toHaveLength(LAUNCHER_TILES.length);
+  });
+
+  it("shows Expiry to shop admins and managers only, and Product Master from the product rights", () => {
+    const saved = { menu: { stock_report: true, product_dashboard: true }, mainMenu: { inventory: true } };
+    const stockAndProducts = (id: string) => isMenuPermissionGranted(saved, id);
+    const paths = (role: string) => visibleLauncherTiles(stockAndProducts, false, undefined, role).map((t) => t.path);
+    expect(paths("manager")).toContain("expiry-report");
+    expect(paths("user")).not.toContain("expiry-report");
+    expect(paths("user")).toContain("product-master");
+    expect(visibleLauncherTiles(() => false, true, undefined, "admin").map((t) => t.path)).toContain("expiry-report");
+    expect(visibleLauncherTiles(() => true, false).map((t) => t.path)).not.toContain("expiry-report");
   });
 
   it("search finds by name first, then by group and other words", () => {
