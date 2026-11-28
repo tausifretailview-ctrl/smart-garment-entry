@@ -85,6 +85,8 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   "stock-wastage": "stock_report",
   // Reorder ends in a purchase order.
   reorder: "purchase_order_entry",
+  // Expiry is a stock report; its write-off is wastage.
+  "expiry-report": "stock_report",
   "stock-transfer": "stock_transfer",
   "stock-transfer-entry": "stock_transfer",
   "stock-settlement": "stock_settlement",

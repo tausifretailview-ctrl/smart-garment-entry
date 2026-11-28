@@ -260,7 +260,14 @@ import {
   PurchaseLinesTableHeader,
   PurchaseLinesTotalRow,
   type PurchaseLineEditableField,
+  type PurchaseLineTextField,
 } from "@/components/purchase/PurchaseLineRow";
+import {
+  linesHaveBatchInfo,
+  readExpirySettings,
+  setPurchaseLineBatches,
+  type BatchExpiryDb,
+} from "@/lib/data/batchExpiry";
 import { PurchaseDcWarning, PurchaseSerialHint } from "@/components/purchase/PurchaseSerialHint";
 import { previewNextPurchaseBillNo } from "@/utils/purchaseBillNoPreview";
 import {
@@ -417,6 +424,9 @@ interface LineItem {
   requires_imei?: boolean;
   /** User chose "Use existing product" — keep sku_id even when line price tier differs. */
   linkExistingSku?: boolean;
+  /** Batch & expiry (SQL 74); written after the bill saves (set_purchase_line_batches). */
+  batch_no?: string;
+  expiry_date?: string;
 }
 
 function normalizeItemCompareString(val: string | null | undefined): string | null {
@@ -1463,6 +1473,21 @@ const PurchaseEntry = () => {
     ],
   );
 
+  /** Batch / expiry go in after the bill (the save itself is unchanged); a failure only warns. */
+  const saveLineBatches = async (billId: string, lines: readonly LineItem[], hadBatchInfoBefore: boolean) => {
+    const orgId = currentOrganization?.id;
+    if (!orgId || !billId) return;
+    try {
+      await setPurchaseLineBatches(supabase as unknown as BatchExpiryDb, orgId, billId, lines, hadBatchInfoBefore);
+    } catch (err) {
+      toast({
+        title: "Bill saved — batch / expiry not saved",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    }
+  };
+
   const finalizeSuccessfulPurchaseSave = useCallback(
     async (saved?: {
       billId: string;
@@ -2336,6 +2361,7 @@ const PurchaseEntry = () => {
 
   /** Org flag only — drives search grouping MRP splits (independent of column visibility). */
   const purchaseShowMrp = (settings?.purchase_settings as any)?.show_mrp === true;
+  const trackBatchExpiry = readExpirySettings(settings).trackOnPurchase;
   const showMrp = purchaseShowMrp && showPurCol.mrp;
   const accountingEngineOn = isAccountingEngineEnabled(settings as { accounting_engine_enabled?: boolean } | null);
   
@@ -2693,6 +2719,8 @@ const PurchaseEntry = () => {
           uom,
           line_total: Number(item.line_total),
           requires_imei: productDetails?.requires_imei !== false,
+          batch_no: item.batch_no || '',
+          expiry_date: item.expiry_date ? String(item.expiry_date).slice(0, 10) : '',
         } as LineItem;
         const mult = getMtrMultiplier(base);
         const sub = mult * base.pur_price;
@@ -6838,6 +6866,7 @@ const PurchaseEntry = () => {
         await purchaseGodown.syncAfterSave(editingBillId, true);
 
         const savedSupplierInv = billData.supplier_invoice_no.trim();
+        await saveLineBatches(editingBillId, billLinesForSave, linesHaveBatchInfo(originalLineItems));
         await finalizeSuccessfulPurchaseSave({
           billId: editingBillId,
           softwareBillNo: softwareBillNo.trim(),
@@ -7288,6 +7317,7 @@ const PurchaseEntry = () => {
         }
 
         posSaveMark("post_save_updates");
+        await saveLineBatches(billDataResult.id, billLinesForSave, false);
         await finalizeSuccessfulPurchaseSave({
           billId: billDataResult.id,
           softwareBillNo: savedSwNo,
@@ -7326,6 +7356,7 @@ const PurchaseEntry = () => {
       if (committedCreateSnapshot && currentOrganization?.id) {
         console.error("[PurchaseEntry] Post-commit step failed after bill was saved:", error);
         await purchaseGodown.syncAfterSave(committedCreateSnapshot.billId, false);
+        await saveLineBatches(committedCreateSnapshot.billId, billLinesForSave, false);
         try {
           await finalizeSuccessfulPurchaseSave({
             billId: committedCreateSnapshot.billId,
@@ -7666,6 +7697,9 @@ const PurchaseEntry = () => {
     [],
   );
   const removeLineItemStable = useCallback((tempId: string) => void lineHandlersRef.current.removeLineItem(tempId), []);
+  const updateLineTextStable = useCallback((tempId: string, field: PurchaseLineTextField, value: string) => {
+    setLineItems((prev) => prev.map((li) => (li.temp_id === tempId ? { ...li, [field]: value } : li)));
+  }, []);
   const toggleSelectAllStable = useCallback(() => lineHandlersRef.current.toggleSelectAll(), []);
   const handleImeiCorrectionStable = useCallback(
     (item: LineItem, rawBarcode: string) => void lineHandlersRef.current.handleImeiCorrection(item, rawBarcode),
@@ -9110,6 +9144,8 @@ const PurchaseEntry = () => {
                       onRemove={removeLineItemStable}
                       onOpenEdit={openEditPanel}
                       onImeiCorrection={handleImeiCorrectionStable}
+                      showBatchExpiry={trackBatchExpiry}
+                      onUpdateText={updateLineTextStable}
                     />
                   ))}
                   

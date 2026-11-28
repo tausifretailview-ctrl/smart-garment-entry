@@ -171,6 +171,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { expiredStockGate, readExpirySettings, type BatchExpiryDb } from "@/lib/data/batchExpiry";
+import { istCalendarYmd } from "@/lib/localDayBounds";
 import { useOpenSettlementVariantIds, SETTLEMENT_LOCK_TOAST_DURATION_MS, settlementLockedAddToast, getSettlementLockedCartItems, settlementLockedSaveToast } from "@/hooks/useOpenSettlementVariantIds";
 import { useStockValidation } from "@/hooks/useStockValidation";
 import {
@@ -2519,6 +2521,7 @@ export default function SalesInvoice() {
   ]);
   searchAndAddProductRef.current = searchAndAddProduct;
 
+  const expiryGateOn = readExpirySettings(settingsData).action !== "off";
   const addProductToInvoice = async (
     product: any,
     variant: any,
@@ -2550,6 +2553,25 @@ export default function SalesInvoice() {
     recordProductBrand(product?.id, product?.brand);
 
     const isServiceProduct = product.product_type === "service";
+
+    // Batch & expiry: warn (default) or block when the stock that sells next has expired.
+    if (!isServiceProduct && expiryGateOn && variant?.id) {
+      const allowed = await expiredStockGate({
+        db: supabase as unknown as BatchExpiryDb,
+        orgId: currentOrganization?.id,
+        settings: settingsData,
+        variantId: variant.id,
+        productName: `${product.product_name || buildProductDisplayName(product)}${variant.size && variant.size !== "None" ? ` ${variant.size}` : ""}`,
+        todayYmd: istCalendarYmd(),
+        notify: (kind, message) =>
+          toast({
+            title: kind === "block" ? "Expired stock" : "Expired stock — check the item",
+            description: message,
+            variant: kind === "block" ? "destructive" : undefined,
+          }),
+      });
+      if (!allowed) return;
+    }
 
     // Service products: same as POS — ask qty/price unless Settings turns the dialog off
     // and a master price already exists.

@@ -45,6 +45,7 @@ import {
 } from "@/components/settings/settingsChrome";
 import { normalizeServiceDefaultQty } from "@/utils/serviceDefaultQty";
 import { isPhotoImportEnabled } from "@/utils/purchasePhotoImport";
+import { readExpirySettings, type ExpiredStockAction } from "@/lib/data/batchExpiry";
 import { SETTINGS_TAB_LIST_CLASS, SETTINGS_TAB_TRIGGER_CLASS, SettingsField, SettingsGrid, SettingsSection, SettingsToggle } from "@/components/settings/settingsLayout";
 import { OwnerAlertsSettings } from "@/components/settings/OwnerAlertsSettings";
 import { cn } from "@/lib/utils";
@@ -262,6 +263,8 @@ interface PurchaseSettings {
   godown_module_enabled?: boolean;
   barcode_mode?: 'auto' | 'scan';
   same_barcode_series?: boolean;
+  /** Batch no + expiry date boxes on purchase lines (SQL 74). Default off; Supermarket setup turns it on. */
+  track_batch_expiry?: boolean;
   auto_focus_search?: boolean;
   size_grid_review_mode?: boolean;
   roll_wise_mtr_entry?: boolean;
@@ -301,6 +304,8 @@ interface EInvoiceSettings {
 }
 
 interface SaleSettings {
+  /** Selling stock whose next lot has expired: warn (default when batch & expiry is on), block, or off. */
+  expired_stock_action?: 'off' | 'warn' | 'block';
   /** Weighing-scale label barcodes (src/lib/scaleBarcode.ts). */
   scale_barcode?: ScaleBarcodeConfig;
   /** Home opens on the app-icon launcher (Wholesale Dashboard). Default off. */
@@ -3003,6 +3008,47 @@ export default function Settings() {
                       })
                     }
                   />
+                  <SettingsToggle
+                    id="track_batch_expiry"
+                    label="Batch & expiry on purchase lines"
+                    description="Each purchase line gets a batch no and an expiry date. Inventory → Expiry lists stock that is expiring or expired."
+                    checked={settings.purchase_settings?.track_batch_expiry === true}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          track_batch_expiry: checked,
+                        },
+                      })
+                    }
+                  />
+                  {settings.purchase_settings?.track_batch_expiry === true ? (
+                    <SettingsField
+                      label="Expired stock at billing"
+                      htmlFor="expired_stock_action"
+                      help="When the stock that sells next (oldest purchase first) has expired: warn the cashier, or stop the sale"
+                    >
+                      <Select
+                        value={readExpirySettings(settings).action}
+                        onValueChange={(value: ExpiredStockAction) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: { ...settings.sale_settings, expired_stock_action: value },
+                          })
+                        }
+                      >
+                        <SelectTrigger id="expired_stock_action" data-testid="expired-stock-action">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="warn">Warn</SelectItem>
+                          <SelectItem value="block">Block the sale</SelectItem>
+                          <SelectItem value="off">Off</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </SettingsField>
+                  ) : null}
                   <SettingsToggle
                     id="roll_wise_mtr_entry"
                     label="Roll-wise entry for MTR"

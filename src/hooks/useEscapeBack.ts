@@ -40,6 +40,7 @@ export const BACK_MAP: Record<string, string> = {
   "stock-adjustment":         "stock-report",
   "stock-wastage":            "stock-report",
   "reorder":                  "/",
+  "expiry-report":            "stock-report",
   "duplicate-purchase-bills": "purchase-bills",
   "stock-transfer":           "/",
   "stock-transfer-entry":     "stock-transfer",

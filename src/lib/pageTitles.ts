@@ -40,6 +40,7 @@ export const PAGE_TITLE_CONFIG: Record<string, { label: string; icon: string }> 
   "stock-adjustment": { label: "Stock Adjustment", icon: "Package" },
   "stock-wastage": { label: "Wastage / Damage", icon: "Package" },
   reorder: { label: "Reorder", icon: "Package" },
+  "expiry-report": { label: "Expiry", icon: "Package" },
   "duplicate-purchase-bills": { label: "Duplicate Purchase Bills", icon: "Package" },
   "stock-transfer": { label: "Stock Transfer", icon: "Package" },
   "stock-transfer-entry": { label: "Stock Transfer Entry", icon: "ArrowLeftRight" },
