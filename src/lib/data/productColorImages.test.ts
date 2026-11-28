@@ -68,4 +68,32 @@ describe("colour photo filters", () => {
     expect(await fetchColorFilterOptions("o1")).toEqual({ brand: ["RED CHEIF", "A WALK"], category: [], color: ["BK"] });
     spy.mockRestore();
   });
+
+  it("SQL 79 cards: every size product of the card is kept; older cards stand for their own product", async () => {
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { fetchColorCards } = await import("./productColorImages");
+    const spy = vi.spyOn(supabase, "rpc").mockImplementation((() =>
+      Promise.resolve({
+        data: [
+          { product_id: "a6", product_name: "1490 (3095)", color: "BLACK", product_ids: ["a6", "a7"], photo_count: 1, image_url: "https://x/y.jpg", total_count: 2 },
+          { product_id: "b1", product_name: "MR50", color: "TAN", image_url: "https://x/z.jpg", total_count: 2 },
+        ],
+        error: null,
+      })) as never);
+    const page = await fetchColorCards("o1");
+    expect(page?.cards.map((c) => [c.product_ids, c.photo_count])).toEqual([
+      [["a6", "a7"], 1],
+      [["b1"], 1],
+    ]);
+    spy.mockRestore();
+  });
+
+  it("import: a file named by article finds the card whose name carries the MRP in brackets", () => {
+    const cards = [
+      { product_name: "1490 (3095)", style: null, color: "BLACK" },
+      { product_name: "1490 (3095)", style: null, color: "TAN" },
+    ];
+    expect(findCardForGuess(cards, { article: "1490", color: "TAN" })).toBe(cards[1]);
+    expect(findCardForGuess(cards, { article: "1490 3095", color: "BLACK" })).toBe(cards[0]);
+  });
 });

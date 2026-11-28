@@ -15,6 +15,28 @@ const cards = [
   card("p-rc", "RC 5001", "BLACK", { image_url: "https://cdn.example.com/rc-black.jpg" }),
   card("p-mr", "MR50", "TAN", { brand: "A WALK" }),
 ];
+/** SQL 79 cards of a shop that saves each size as its own product ("1490 (3095) 6 BLACK" …). */
+const sizeProductCards = [
+  card("p-6bk", "1490 (3095)", "BLACK", { product_ids: ["p-6bk", "p-7bk", "p-8bk"], product_count: 3, photo_count: 0, sizes: "6, 7, 8" }),
+  card("p-6tn", "1490 (3095)", "TAN", {
+    product_ids: ["p-6tn", "p-7tn", "p-8tn"], product_count: 3, photo_count: 2, sizes: "6, 7, 8",
+    image_url: "https://cdn.example.com/1490-tan.jpg",
+  }),
+].map((c) => ({ ...c, total_count: 2, all_count: 2, with_photo_count: 1 }));
+
+/** Before SQL 79: the photo-for-all-sizes function is not there yet. */
+async function withoutSql79(page: import("@playwright/test").Page) {
+  const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "POST, OPTIONS" };
+  await page.route(/\/rest\/v1\/rpc\/set_product_color_photo/, (route) =>
+    route.request().method() === "OPTIONS"
+      ? route.fulfill({ status: 200, headers: cors, body: "" })
+      : route.fulfill({
+          status: 404,
+          json: { code: "PGRST202", message: "Could not find the function public.set_product_color_photo in the schema cache" },
+          headers: cors,
+        }),
+  );
+}
 
 /** Storage: uploads succeed; the saved photos are served as a blank image. Registered after the
  * mock backend (it answers every other request) so these routes win. */
@@ -35,9 +57,42 @@ async function stubStorage(page: import("@playwright/test").Page) {
   );
 }
 
-test("Photos tab: a card per colour, add a photo by clicking a card, progress shown", async ({ page, backend }) => {
+test("Each size saved as its own product: one card per article colour, the photo goes on every size", async ({ page, backend }) => {
+  backend.onRpc("get_product_color_cards", () => sizeProductCards);
+  await stubStorage(page);
+  await page.goto(`/${E2E_ORG_SLUG}/product-master`);
+  await page.getByRole("tab", { name: /Photos/ }).filter({ visible: true }).click({ timeout: 60_000 });
+
+  const grid = page.getByTestId("product-color-photos").filter({ visible: true });
+  await expect(grid.getByTestId("color-photo-card")).toHaveCount(2);
+  const black = grid.getByTestId("color-photo-card").filter({ hasText: "BLACK" });
+  await expect(black.getByTestId("color-photo-sizes")).toHaveText("Sizes 6, 7, 8");
+
+  await grid.getByLabel("Photo file 1490 (3095) BLACK").setInputFiles({ name: "black.png", mimeType: "image/png", buffer: PNG });
+  await expect.poll(() => backend.rpcCalls("set_product_color_photo").length).toBe(1);
+  expect(backend.rpcCalls("set_product_color_photo")[0]).toMatchObject({
+    p_org_id: E2E_ORG_ID,
+    p_product_ids: ["p-6bk", "p-7bk", "p-8bk"],
+    p_color: "BLACK",
+    p_image_url: expect.stringContaining(`/product-images/${E2E_ORG_ID}/p-6bk/colour-black-`),
+  });
+  // One step on the server: no row-by-row writes from the page.
+  expect(backend.calls.filter((c) => c.kind === "insert" && c.name.startsWith("product_color_images"))).toHaveLength(0);
+
+  // TAN has the photo on 2 of its 3 sizes (a size added later): one click gives it to all.
+  await grid.getByRole("button", { name: "Use this photo for all sizes 1490 (3095) TAN" }).click();
+  await expect.poll(() => backend.rpcCalls("set_product_color_photo").length).toBe(2);
+  expect(backend.rpcCalls("set_product_color_photo")[1]).toMatchObject({
+    p_product_ids: ["p-6tn", "p-7tn", "p-8tn"],
+    p_color: "TAN",
+    p_image_url: "https://cdn.example.com/1490-tan.jpg",
+  });
+});
+
+test("Photos tab: a card per colour, add a photo by clicking a card, progress shown (before SQL 79)", async ({ page, backend }) => {
   backend.onRpc("get_product_color_cards", () => cards);
   await stubStorage(page);
+  await withoutSql79(page);
   await page.goto(`/${E2E_ORG_SLUG}/product-master`);
   await page.getByRole("tab", { name: /Photos/ }).filter({ visible: true }).click({ timeout: 60_000 });
 
@@ -86,13 +141,10 @@ test("Import photos: file names matched to product colours, then uploaded", asyn
   await expect(rows.nth(2)).toContainText("No product colour with this name");
 
   await dialog.getByRole("button", { name: "Upload 2 photos" }).click();
-  await expect
-    .poll(() => backend.calls.filter((c) => c.kind === "insert" && c.name.startsWith("product_color_images")).length)
-    .toBe(2);
-  const saved = backend.calls
-    .filter((c) => c.kind === "insert" && c.name.startsWith("product_color_images"))
-    .map((c) => (c.body as { product_id: string; color: string }))
-    .map((b) => `${b.product_id}|${b.color}`)
+  await expect.poll(() => backend.rpcCalls("set_product_color_photo").length).toBe(2);
+  const saved = backend
+    .rpcCalls("set_product_color_photo")
+    .map((b) => `${(b.p_product_ids as string[]).join(",")}|${b.p_color}`)
     .sort();
   expect(saved).toEqual(["p-mr|TAN", "p-rc|BROWN"]);
 });
@@ -176,13 +228,11 @@ test("Filters by brand / category / colour, and a photo is edited (turned) and s
   await expect(editor.getByTestId("photo-edit-canvas")).toBeVisible();
   await editor.getByRole("button", { name: "Turn right" }).click();
   await editor.getByRole("button", { name: "Save photo" }).click();
-  await expect
-    .poll(() => backend.calls.filter((c) => c.kind === "insert" && c.name.startsWith("product_color_images")).length)
-    .toBe(1);
-  expect(backend.calls.find((c) => c.kind === "insert" && c.name.startsWith("product_color_images"))!.body).toMatchObject({
-    product_id: "p-rc",
-    color: "BLACK",
-    image_url: expect.stringContaining("/colour-black-"),
+  await expect.poll(() => backend.rpcCalls("set_product_color_photo").length).toBe(1);
+  expect(backend.rpcCalls("set_product_color_photo")[0]).toMatchObject({
+    p_product_ids: ["p-rc"],
+    p_color: "BLACK",
+    p_image_url: expect.stringContaining("/colour-black-"),
   });
   await expect(editor).toHaveCount(0);
   // Change is also always on the card.
