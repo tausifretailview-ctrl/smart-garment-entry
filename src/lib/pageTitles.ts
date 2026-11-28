@@ -38,6 +38,7 @@ export const PAGE_TITLE_CONFIG: Record<string, { label: string; icon: string }> 
   "bulk-product-update": { label: "Bulk Update", icon: "Layers" },
   "stock-settlement": { label: "Stock Settlement", icon: "Package" },
   "stock-adjustment": { label: "Stock Adjustment", icon: "Package" },
+  "stock-wastage": { label: "Wastage / Damage", icon: "Package" },
   "duplicate-purchase-bills": { label: "Duplicate Purchase Bills", icon: "Package" },
   "stock-transfer": { label: "Stock Transfer", icon: "Package" },
   "stock-transfer-entry": { label: "Stock Transfer Entry", icon: "ArrowLeftRight" },
