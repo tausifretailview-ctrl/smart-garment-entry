@@ -42,6 +42,7 @@ import type { Json } from "@/integrations/supabase/types";
 import { flushSync } from "react-dom";
 import { allowsDecimalQty, clampQty, minQtyForUom, parseQtyValue } from "@/utils/qtyInput";
 import { isDecimalUOM } from "@/constants/uom";
+import { findVariantIdByExtraBarcode, type VariantBarcodesDb } from "@/lib/data/variantBarcodes";
 import { fetchProductQtyMeta } from "@/utils/productQtyMeta";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -2334,6 +2335,18 @@ export default function SalesInvoice() {
 
       if (dbError) {
         console.error('Barcode lookup failed:', dbError);
+      }
+
+      // Extra barcode of an item (Product Dashboard → Extra barcodes): only after a miss.
+      if (!dbError && (dbVariants || []).length === 0) {
+        const extraVariantId = await findVariantIdByExtraBarcode(
+          supabase as unknown as VariantBarcodesDb,
+          currentOrganization.id,
+          searchTerm.trim(),
+        );
+        if (extraVariantId) {
+          ({ data: dbVariants, error: dbError } = await lookupByBarcode((q) => q.eq('id', extraVariantId)));
+        }
       }
 
       const rows = (dbVariants || []).filter((row: any) => row?.products);

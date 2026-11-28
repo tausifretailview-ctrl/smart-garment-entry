@@ -194,6 +194,7 @@ import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 import { useBeepSound } from "@/hooks/useBeepSound";
 import { useCashDrawer } from "@/hooks/useCashDrawer";
 import { isDecimalUOM } from "@/constants/uom";
+import { findVariantIdByExtraBarcode, type VariantBarcodesDb } from "@/lib/data/variantBarcodes";
 import {
   parseScaleBarcode,
   readScaleBarcodeConfig,
@@ -681,6 +682,24 @@ async function fetchPosVariantByBarcodeOnce(
       exactRow as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
     );
     if (exact) return exact;
+  }
+
+  // Extra barcode of an item (Product Dashboard → Extra barcodes): only after the main
+  // barcode missed, so a normal scan costs nothing more.
+  const extraVariantId = await findVariantIdByExtraBarcode(
+    supabase as unknown as VariantBarcodesDb,
+    orgId,
+    trimmed,
+  );
+  if (extraVariantId) {
+    const { data: byExtra, error: byExtraError } = await posVariantBaseQuery(orgId)
+      .eq('id', extraVariantId)
+      .limit(1);
+    if (byExtraError) throw byExtraError;
+    const mappedExtra = mapPosVariantLookupRow(
+      byExtra?.[0] as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
+    );
+    if (mappedExtra) return mappedExtra;
   }
 
   const exactOnly = lookupOptions.exactOnly !== false;

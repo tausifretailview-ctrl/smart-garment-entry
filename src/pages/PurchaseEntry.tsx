@@ -1,4 +1,5 @@
 import { posSaveBegin, posSaveMark } from "@/lib/posSaveTiming";
+import { findVariantIdByExtraBarcode, type VariantBarcodesDb } from "@/lib/data/variantBarcodes";
 import { warnTransferredPriceGaps } from "@/utils/transferredPriceWarning";
 import { reportIfFails } from "@/lib/reportIfFails";
 import { lazy, Suspense, useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type ChangeEvent, type ReactNode } from "react";
@@ -3381,7 +3382,20 @@ const PurchaseEntry = () => {
       const orgId = currentOrganization.id;
       // A failed read is treated as "not found" (as before).
       const data = await fetchPurchaseVariantsByBarcode(orgId, barcode).catch(() => [] as PurchaseVariantRow[]);
-      if (!data.length) return [];
+      if (!data.length) {
+        // Extra barcode of an item (Product Dashboard → Extra barcodes): the line takes the
+        // item itself, with its main barcode.
+        const extraVariantId = await findVariantIdByExtraBarcode(
+          supabase as unknown as VariantBarcodesDb,
+          orgId,
+          barcode,
+        );
+        if (!extraVariantId) return [];
+        const row = await readPurchaseVariantById(orgId, extraVariantId).catch(() => null);
+        if (!row) return [];
+        const mainBarcode = String((row as { barcode?: string }).barcode ?? "");
+        return [mapPurchaseVariantRow(row as Record<string, unknown>, mainBarcode)];
+      }
       return data.map((row) => mapPurchaseVariantRow(row as Record<string, unknown>, barcode));
     },
     [currentOrganization?.id, mapPurchaseVariantRow],
