@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, Suspense, type ReactNode } from "react";
+import { kickCashDrawer } from "@/hooks/useCashDrawer";
 import { useLocation } from "react-router-dom";
 import { lazyWithRetry, pauseBackgroundPrefetch, scheduleIdleWork } from "@/lib/chunkLoadRetry";
 import { createSettingsPanel } from "@/components/settings/lazySettingsPanel";
@@ -5761,10 +5762,26 @@ export default function Settings() {
                       <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600 space-y-1">
                         <p className="font-semibold text-slate-700">Needs</p>
                         <ul className="list-disc list-inside space-y-0.5">
-                          <li>QZ Tray installed on the POS computer</li>
+                          <li>EzzyERP desktop app, with the thermal printer chosen in Desktop Print Settings</li>
                           <li>Drawer cabled to the thermal printer (RJ11/RJ12)</li>
                           <li>Printer that supports ESC/POS</li>
+                          <li>In a browser: turn on &quot;Open cash drawer&quot; in the printer&apos;s own Windows settings instead</li>
                         </ul>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="mt-2"
+                          data-testid="test-cash-drawer"
+                          onClick={() =>
+                            void kickCashDrawer(undefined, {
+                              pin: settings.bill_barcode_settings?.cash_drawer_pin || 'pin2',
+                              showToast: true,
+                            })
+                          }
+                        >
+                          Open drawer now (test)
+                        </Button>
                       </div>
                     </SettingsGrid>
                   ) : (

@@ -7,6 +7,9 @@ import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/hooks/useSettings";
 import { useMemo } from "react";
+import { applyCustomerPoints, type PointsDb } from "@/lib/data/customerPoints";
+
+const pointsDb = supabase as unknown as PointsDb;
 
 export interface PointsSettings {
   enable_points_system: boolean;
@@ -113,39 +116,17 @@ export function useCustomerPoints() {
     }
 
     try {
-      // Insert points history record
-      const { error: historyError } = await supabase
-        .from('customer_points_history')
-        .insert({
-          organization_id: currentOrganization.id,
-          customer_id: customerId,
-          sale_id: saleId,
-          transaction_type: 'earned',
-          points: pointsToAward,
-          invoice_amount: netAmount,
-          description: `Points earned from invoice ${saleNumber}`,
-          created_by: user?.id,
-        });
-
-      if (historyError) throw historyError;
-
-      // Fetch current values and update
-      const { data: customer } = await supabase
-        .from('customers')
-        .select('total_points_earned, points_balance')
-        .eq('id', customerId)
-        .single();
-
-      if (customer) {
-        const { error: balanceError } = await supabase
-          .from('customers')
-          .update({
-            total_points_earned: (customer.total_points_earned || 0) + pointsToAward,
-            points_balance: (customer.points_balance || 0) + pointsToAward,
-          })
-          .eq('id', customerId);
-        if (balanceError) throw balanceError;
-      }
+      // One database step: balance + history together, locked against other counters.
+      await applyCustomerPoints(pointsDb, {
+        organizationId: currentOrganization.id,
+        customerId,
+        kind: "earned",
+        points: pointsToAward,
+        saleId,
+        invoiceAmount: netAmount,
+        description: `Points earned from invoice ${saleNumber}`,
+        userId: user?.id,
+      });
 
       return { success: true, pointsAwarded: pointsToAward };
     } catch (error: any) {
@@ -238,39 +219,17 @@ export function useCustomerPoints() {
     try {
       const amountRedeemed = calculateRedemptionValue(pointsToRedeem);
       
-      // Insert points history record for redemption
-      const { error: historyError } = await supabase
-        .from('customer_points_history')
-        .insert({
-          organization_id: currentOrganization.id,
-          customer_id: customerId,
-          sale_id: saleId,
-          transaction_type: 'redeemed',
-          points: -pointsToRedeem, // Negative for redemption
-          invoice_amount: amountRedeemed,
-          description: `Points redeemed for invoice ${saleNumber} (₹${amountRedeemed} discount)`,
-          created_by: user?.id,
-        });
-
-      if (historyError) throw historyError;
-
-      // Update customer's points balance
-      const { data: customer } = await supabase
-        .from('customers')
-        .select('points_balance, points_redeemed')
-        .eq('id', customerId)
-        .single();
-
-      if (customer) {
-        const { error: balanceError } = await supabase
-          .from('customers')
-          .update({
-            points_balance: Math.max(0, (customer.points_balance || 0) - pointsToRedeem),
-            points_redeemed: (customer.points_redeemed || 0) + pointsToRedeem,
-          })
-          .eq('id', customerId);
-        if (balanceError) throw balanceError;
-      }
+      // One database step: balance + history together, locked against other counters.
+      await applyCustomerPoints(pointsDb, {
+        organizationId: currentOrganization.id,
+        customerId,
+        kind: "redeemed",
+        points: pointsToRedeem,
+        saleId,
+        invoiceAmount: amountRedeemed,
+        description: `Points redeemed for invoice ${saleNumber} (₹${amountRedeemed} discount)`,
+        userId: user?.id,
+      });
 
       return { success: true, amountRedeemed };
     } catch (error: any) {
@@ -345,39 +304,16 @@ export function useCustomerPoints() {
         );
       }
 
-      // Update customer points
-      const { data: customer } = await supabase
-        .from('customers')
-        .select('points_balance, points_redeemed')
-        .eq('id', customerId)
-        .single();
-
-      if (customer) {
-        // Checked: otherwise the gift is handed over while the points stay on the customer.
-        const { error: balanceError } = await supabase
-          .from('customers')
-          .update({
-            points_balance: Math.max(0, (customer.points_balance || 0) - pointsRequired),
-            points_redeemed: (customer.points_redeemed || 0) + pointsRequired,
-          })
-          .eq('id', customerId);
-        if (balanceError) throw balanceError;
-
-        // Insert points history for gift redemption
-        await bestEffortWrite(
-          'gift-redeem:points-history',
-          () =>
-            supabase.from('customer_points_history').insert({
-              organization_id: currentOrganization.id,
-              customer_id: customerId,
-              transaction_type: 'redeemed',
-              points: -pointsRequired,
-              description: 'Gift reward redeemed',
-              created_by: user?.id,
-            }),
-          { organizationId: currentOrganization.id, recordId: customerId },
-        );
-      }
+      // Checked: otherwise the gift is handed over while the points stay on the customer.
+      // One database step: balance + history together, locked against other counters.
+      await applyCustomerPoints(pointsDb, {
+        organizationId: currentOrganization.id,
+        customerId,
+        kind: "redeemed",
+        points: pointsRequired,
+        description: "Gift reward redeemed",
+        userId: user?.id,
+      });
 
       return { success: true };
     } catch (error: any) {
