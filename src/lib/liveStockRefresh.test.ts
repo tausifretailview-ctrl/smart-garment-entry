@@ -6,11 +6,14 @@ import {
   STOCK_FRESHNESS_LS_KEY,
   STOCK_WRITE_SETTLE_MS,
   catchUpLiveStock,
+  moneyWriteTarget,
+  noteLocalMoneyWrite,
   noteLocalStockWrite,
   onStockMarkerEvent,
   reloadLiveStockViews,
   requestLiveStockRefresh,
   resetLiveStockStateForTests,
+  setLocalMoneyWriteHandler,
   setLocalStockWriteHandler,
   shouldApplyStockMarker,
   stockWriteTarget,
@@ -38,6 +41,38 @@ describe("which requests change stock", () => {
     expect(stockWriteTarget(`${API}/customers`, "POST")).toBeNull();
     expect(stockWriteTarget("https://abc.supabase.co/auth/v1/token?grant_type=refresh_token", "POST")).toBeNull();
     expect(stockWriteTarget("https://abc.supabase.co/functions/v1/send-whatsapp", "POST")).toBeNull();
+  });
+});
+
+describe("which requests change payments", () => {
+  it("receipts, advances, credit notes, bill saves and settlement functions count", () => {
+    expect(moneyWriteTarget(`${API}/voucher_entries`, "POST")).toEqual({ target: "table:voucher_entries", supplier: true });
+    expect(moneyWriteTarget(`${API}/customer_advances?id=eq.1`, "PATCH")).toEqual({ target: "table:customer_advances", supplier: false });
+    expect(moneyWriteTarget(`${API}/rpc/apply_credit_note_to_sale`, "POST")).toEqual({ target: "rpc:apply_credit_note_to_sale", supplier: false });
+    expect(moneyWriteTarget(`${API}/rpc/save_sale_with_items_numbered`, "POST")?.supplier).toBe(false);
+    expect(moneyWriteTarget(`${API}/rpc/save_purchase_bill_with_items_atomic`, "POST")?.supplier).toBe(true);
+  });
+
+  it("reads and unrelated writes never count", () => {
+    expect(moneyWriteTarget(`${API}/voucher_entries?select=*`, "GET")).toBeNull();
+    expect(moneyWriteTarget(`${API}/rpc/get_customer_financial_snapshot_batch`, "POST")).toBeNull();
+    expect(moneyWriteTarget(`${API}/rpc/compute_sale_settlement`, "POST")).toBeNull();
+    expect(moneyWriteTarget(`${API}/product_variants?id=eq.1`, "PATCH")).toBeNull();
+  });
+
+  it("one save sends one note, supplier if any part of it was", async () => {
+    const handler = vi.fn();
+    const release = setLocalMoneyWriteHandler(handler);
+    noteLocalMoneyWrite(false);
+    noteLocalMoneyWrite(true);
+    noteLocalMoneyWrite(false);
+    await vi.advanceTimersByTimeAsync(STOCK_WRITE_SETTLE_MS);
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith(true);
+    noteLocalMoneyWrite(false);
+    await vi.advanceTimersByTimeAsync(STOCK_WRITE_SETTLE_MS);
+    expect(handler).toHaveBeenLastCalledWith(false);
+    release();
   });
 });
 
@@ -196,6 +231,8 @@ describe("request watch", () => {
       installStockWriteWatch();
       const handler = vi.fn();
       const release = setLocalStockWriteHandler(ORG, handler);
+      const moneyHandler = vi.fn();
+      const releaseMoney = setLocalMoneyWriteHandler(moneyHandler);
 
       await window.fetch(`${API}/product_variants?select=stock_qty`); // read
       await window.fetch(`${API}/rpc/get_stock_report`, { method: "POST" }); // read rpc
@@ -208,8 +245,15 @@ describe("request watch", () => {
       expect(res.status).toBe(200); // the app still gets the response
       await vi.advanceTimersByTimeAsync(STOCK_WRITE_SETTLE_MS);
       expect(handler).toHaveBeenCalledTimes(1);
+      expect(moneyHandler).toHaveBeenCalledTimes(1); // a bill save is both
       expect(base).toHaveBeenCalledTimes(4);
+
+      await window.fetch(`${API}/voucher_entries`, { method: "POST" }); // a receipt: money only
+      await vi.advanceTimersByTimeAsync(STOCK_WRITE_SETTLE_MS);
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(moneyHandler).toHaveBeenCalledTimes(2);
       release();
+      releaseMoney();
     } finally {
       window.fetch = savedFetch;
     }

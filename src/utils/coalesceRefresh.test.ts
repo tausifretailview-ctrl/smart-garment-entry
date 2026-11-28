@@ -81,7 +81,7 @@ describe("coalesceRefresh", () => {
 function fakeClient() {
   const invalidateQueries = vi.fn().mockResolvedValue(undefined);
   const refetchQueries = vi.fn().mockResolvedValue(undefined);
-  return { client: { invalidateQueries, refetchQueries } as unknown as QueryClient, invalidateQueries, refetchQueries };
+  return { client: { invalidateQueries, refetchQueries, getQueryCache: () => ({ findAll: () => [] }) } as unknown as QueryClient, invalidateQueries, refetchQueries };
 }
 
 describe("after one POS bill", () => {

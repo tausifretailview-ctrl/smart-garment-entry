@@ -1,5 +1,5 @@
 /**
- * Live stock across browser tabs and computers (Nov 2026).
+ * Live stock (and payments) across browser tabs and computers (Nov 2026).
  *
  * Shops bill in several browser tabs at once (Sale Bill in one, POS or Stock Report in another).
  * A save refreshed the stock screens only inside the tab that saved it; other tabs kept the old
@@ -92,22 +92,112 @@ export const STOCK_WRITE_RPCS: ReadonlySet<string> = new Set([
   "mfg_save_cutting",
 ]);
 
-/**
- * "rpc:save_sale_with_items_numbered" / "table:sales" when this request changes stock, else null.
- * Reads (GET / HEAD) never count; read functions are not in the list.
- */
-export function stockWriteTarget(url: string, method: string): string | null {
+/** Tables whose insert / update / delete changes a payment, a balance or a bill's payment status. */
+export const MONEY_WRITE_TABLES: ReadonlySet<string> = new Set([
+  "sales",
+  "sale_returns",
+  "voucher_entries",
+  "voucher_items",
+  "customer_advances",
+  "advance_refunds",
+  "credit_notes",
+  "invoice_adjustments",
+  "customer_balance_adjustments",
+  "customer_ledger_entries",
+  "journal_entries",
+  "student_fees",
+  "purchase_bills",
+  "purchase_returns",
+]);
+
+/** Database functions that change payments or balances. Reads are never listed. */
+export const MONEY_WRITE_RPCS: ReadonlySet<string> = new Set([
+  "save_sale_with_items_numbered",
+  "save_sale_with_items_atomic",
+  "save_return_with_items_atomic",
+  "save_purchase_bill_with_items_atomic",
+  "create_exchange_excess_sale_return",
+  "apply_pos_credit",
+  "apply_pos_credit_fifo",
+  "apply_credit_note_to_sale",
+  "apply_customer_advance_to_sale",
+  "adjust_invoice_balance",
+  "adjust_student_fee_balance",
+  "apply_school_fee_receipt",
+  "delete_fee_receipt",
+  "record_online_payment_receipt",
+  "insert_customer_ledger_entry",
+  "release_sale_credit",
+  "reconcile_customer_balances",
+  "repair_customer_floating_adjustments",
+  "recompute_customer_advances_used",
+  "cancel_invoice",
+  "cancel_purchase_bill",
+  "soft_delete_voucher",
+  "restore_voucher",
+  "soft_delete_sale",
+  "restore_sale",
+  "soft_delete_sale_return",
+  "restore_sale_return",
+  "soft_delete_purchase_bill",
+  "restore_purchase_bill",
+  "soft_delete_purchase_return",
+  "restore_purchase_return",
+  "hard_delete_document",
+  "hard_delete_purchase_bill",
+]);
+
+/** Money writes that may be a supplier's (purchase side, or a voucher of either side). */
+const SUPPLIER_MONEY_WRITES: ReadonlySet<string> = new Set([
+  "table:voucher_entries",
+  "table:voucher_items",
+  "table:journal_entries",
+  "table:purchase_bills",
+  "table:purchase_returns",
+  "rpc:save_purchase_bill_with_items_atomic",
+  "rpc:cancel_purchase_bill",
+  "rpc:soft_delete_voucher",
+  "rpc:restore_voucher",
+  "rpc:soft_delete_purchase_bill",
+  "rpc:restore_purchase_bill",
+  "rpc:soft_delete_purchase_return",
+  "rpc:restore_purchase_return",
+  "rpc:hard_delete_document",
+  "rpc:hard_delete_purchase_bill",
+]);
+
+/** "rpc:<name>" / "table:<name>" of a write to the database's REST API, else null (reads, auth, …). */
+function restWriteTarget(url: string, method: string): { kind: "rpc" | "table"; name: string } | null {
   const m = method.toUpperCase();
   if (m === "GET" || m === "HEAD" || m === "OPTIONS") return null;
   const at = url.indexOf("/rest/v1/");
   if (at < 0) return null;
   const path = url.slice(at + "/rest/v1/".length).split(/[?#]/)[0];
   const [first, second] = path.split("/");
-  if (first === "rpc") {
-    // Every rpc is a POST, reads included: only the listed writers count.
-    return second && STOCK_WRITE_RPCS.has(second) ? `rpc:${second}` : null;
-  }
-  return first && STOCK_WRITE_TABLES.has(first) ? `table:${first}` : null;
+  if (first === "rpc") return second ? { kind: "rpc", name: second } : null;
+  return first ? { kind: "table", name: first } : null;
+}
+
+/**
+ * "rpc:save_sale_with_items_numbered" / "table:sales" when this request changes stock, else null.
+ * Reads (GET / HEAD) never count; read functions are not in the list.
+ */
+export function stockWriteTarget(url: string, method: string): string | null {
+  const t = restWriteTarget(url, method);
+  if (!t) return null;
+  // Every rpc is a POST, reads included: only the listed writers count.
+  const listed = t.kind === "rpc" ? STOCK_WRITE_RPCS.has(t.name) : STOCK_WRITE_TABLES.has(t.name);
+  return listed ? `${t.kind}:${t.name}` : null;
+}
+
+/** Same for payments and balances; `supplier` when supplier views may need it too. */
+export function moneyWriteTarget(url: string, method: string): { target: string; supplier: boolean } | null {
+  const t = restWriteTarget(url, method);
+  if (!t) return null;
+  const listed = t.kind === "rpc" ? MONEY_WRITE_RPCS.has(t.name) : MONEY_WRITE_TABLES.has(t.name);
+  if (!listed) return null;
+  const target = `${t.kind}:${t.name}`;
+  return { target, supplier: SUPPLIER_MONEY_WRITES.has(target) };
 }
 
 // ── Marker between browser tabs (localStorage `storage` event) ───────────────────────────────
@@ -203,7 +293,15 @@ export const LIVE_STOCK_REFRESH_GAP_MS = 3000;
  * hidden window tab) reload once when they are shown again.
  */
 export function reloadLiveStockViews(queryClient: QueryClient): void {
-  const matches = queryClient.getQueryCache().findAll({ predicate: isLiveStockQuery });
+  reloadViewsMatching(queryClient, isLiveStockQuery);
+}
+
+/**
+ * Reload the screens whose queries match: those on show now, the rest once when shown again
+ * (also used for payment screens, moneyViewFreshnessInvalidation.ts).
+ */
+export function reloadViewsMatching(queryClient: QueryClient, predicate: (query: Query) => boolean): void {
+  const matches = queryClient.getQueryCache().findAll({ predicate });
   if (matches.length === 0) return;
   const set = new Set<Query>(matches);
   void queryClient.invalidateQueries({ predicate: (q) => set.has(q) }, { cancelRefetch: false }).catch(() => undefined);
@@ -291,6 +389,36 @@ export function noteLocalStockWrite(): void {
   }, STOCK_WRITE_SETTLE_MS);
 }
 
+// ── Payment writes leaving this tab ──────────────────────────────────────────────────────────
+
+type MoneyWriteListener = (supplier: boolean) => void;
+let moneyListener: MoneyWriteListener | null = null;
+let moneyTimer: ReturnType<typeof setTimeout> | null = null;
+let moneySupplier = false;
+
+/**
+ * What to do after this tab changed a payment or balance (useOrgMoneyRealtimeInvalidation tells
+ * the other tabs). Returns the undo, which only clears the handler if it is still this one.
+ */
+export function setLocalMoneyWriteHandler(handler: MoneyWriteListener): () => void {
+  moneyListener = handler;
+  return () => {
+    if (moneyListener !== handler) return;
+    moneyListener = null;
+  };
+}
+
+export function noteLocalMoneyWrite(supplier: boolean): void {
+  if (supplier) moneySupplier = true;
+  if (moneyTimer) return;
+  moneyTimer = setTimeout(() => {
+    moneyTimer = null;
+    const forSupplier = moneySupplier;
+    moneySupplier = false;
+    moneyListener?.(forSupplier);
+  }, STOCK_WRITE_SETTLE_MS);
+}
+
 function requestUrl(input: RequestInfo | URL): string {
   if (typeof input === "string") return input;
   if (input instanceof URL) return input.href;
@@ -305,22 +433,33 @@ function requestMethod(input: RequestInfo | URL, init?: RequestInit): string {
 
 let installed = false;
 
-/** Install once at boot. Wraps fetch: a successful stock-changing request calls noteLocalStockWrite. */
+/**
+ * Install once at boot. Wraps fetch: a successful request that changes stock calls
+ * noteLocalStockWrite; one that changes a payment or balance calls noteLocalMoneyWrite.
+ */
 export function installStockWriteWatch(): void {
   if (installed || typeof window === "undefined" || typeof window.fetch !== "function") return;
   installed = true;
   const original = window.fetch.bind(window);
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const pending = original(input, init);
-    let target: string | null = null;
+    let stock: string | null = null;
+    let money: { supplier: boolean } | null = null;
     try {
-      target = stockWriteTarget(requestUrl(input), requestMethod(input, init));
+      const url = requestUrl(input);
+      const method = requestMethod(input, init);
+      stock = stockWriteTarget(url, method);
+      money = moneyWriteTarget(url, method);
     } catch {
-      target = null;
+      stock = null;
+      money = null;
     }
-    if (!target) return pending;
+    if (!stock && !money) return pending;
     return pending.then((response) => {
-      if (response.ok) noteLocalStockWrite();
+      if (response.ok) {
+        if (stock) noteLocalStockWrite();
+        if (money) noteLocalMoneyWrite(money.supplier);
+      }
       return response;
     });
   };
@@ -333,4 +472,8 @@ export function resetLiveStockStateForTests(): void {
   watchOrganizationId = undefined;
   if (writeTimer) clearTimeout(writeTimer);
   writeTimer = null;
+  moneyListener = null;
+  if (moneyTimer) clearTimeout(moneyTimer);
+  moneyTimer = null;
+  moneySupplier = false;
 }

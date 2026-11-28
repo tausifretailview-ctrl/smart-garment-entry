@@ -7,6 +7,8 @@ import {
 import { ORGANIZATION_RECEIVABLES_QUERY_KEY } from "@/utils/organizationReceivables";
 import { notifyMoneyViewChanged } from "@/utils/posSalesRefresh";
 import { invalidateAndRefetchWithQueryFn } from "@/utils/refetchQueriesWithFn";
+import { reloadViewsMatching } from "@/lib/liveStockRefresh";
+import type { Query } from "@tanstack/react-query";
 
 /** Debounce Realtime / cross-tab bursts so one save does not fan out dozens of refetches. */
 export const MONEY_VIEW_FRESHNESS_DEBOUNCE_MS = 400;
@@ -65,6 +67,51 @@ function runMoneyViewFreshness(
   for (const key of CUSTOMER_LEDGER_DETAIL_QUERY_KEYS) {
     void queryClient.invalidateQueries({ queryKey: [key] });
   }
+  // Payment screens the keys above miss (cashier report, daily tally, outstanding, advances,
+  // receipts, …): those on show reload now, closed ones once when opened again.
+  reloadViewsMatching(queryClient, isLiveMoneyQuery);
+}
+
+/**
+ * First element of the query keys of other screens that show payments, balances or a bill's
+ * payment status. A new such screen adds its key head here.
+ */
+export const LIVE_MONEY_QUERY_HEADS = [
+  "voucher-entries",
+  "journal-vouchers",
+  "customer-receipt-vouchers",
+  "customer-invoices",
+  "customer-invoice-voucher-splits",
+  "unpaid-customer-sales",
+  "settle-pending-invoices",
+  "customer-advance-balance",
+  "customer-opening-balance-remaining",
+  "customer-advances-history",
+  "customer-credit-notes-history",
+  "advance-dashboard",
+  "advance-summary",
+  "outstanding-dashboard",
+  "payment-reconciliation",
+  "todays-collection",
+  "total-receivables",
+  "daily-tally-vouchers",
+  "daily-tally-advances",
+  "daily-tally-advance-refunds",
+  "floating-cashier-report-sales",
+  "rpt-payment-collection",
+  "rpt-customer-balance",
+  "rpt-daily-cashier",
+  "students-fee-collection",
+  "fee-collection-summary",
+  "student-fee-payments-history",
+] as const;
+
+const MONEY_HEADS: ReadonlySet<unknown> = new Set(LIVE_MONEY_QUERY_HEADS);
+
+export function isLiveMoneyQuery(query: Pick<Query, "queryKey">): boolean {
+  const head = query.queryKey[0];
+  // Daily Cashier Report keeps one key per part: cashier-report-sales-v2, -receipts, -advances, …
+  return MONEY_HEADS.has(head) || (typeof head === "string" && head.startsWith("cashier-report-"));
 }
 
 /** Customer Ledger queries that sit beside the "customer-ledger" list query. */
