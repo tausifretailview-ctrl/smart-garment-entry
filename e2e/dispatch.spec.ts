@@ -7,6 +7,7 @@ import { E2E_ORG_ID, E2E_ORG_SLUG } from "./support/mockBackend";
  */
 const base = {
   organization_id: E2E_ORG_ID, customer_id: null, gross_amount: 0, gst_amount: 0, deleted_at: null,
+  discount_amount: 0, flat_discount_amount: 0, flat_discount_percent: 0, round_off: 0, tax_type: "inclusive",
   customer_accepted: true, acceptance_status: "accepted", salesman: "RAJU", status: "pending",
   dispatch_staff: null, dispatch_started_at: null, delivered_at: null,
 };
