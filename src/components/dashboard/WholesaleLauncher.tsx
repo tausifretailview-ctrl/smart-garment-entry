@@ -5,6 +5,7 @@ import {
   BookOpenText,
   Boxes,
   CalendarRange,
+  CalendarX2,
   ChartColumnBig,
   ChartPie,
   ClipboardCheck,
@@ -59,6 +60,7 @@ const ICONS: Record<string, LucideIcon> = {
   BookOpenText,
   Boxes,
   CalendarRange,
+  CalendarX2,
   ChartColumnBig,
   ChartPie,
   ClipboardCheck,
@@ -122,7 +124,7 @@ function Glyph({ tile, size = "lg" }: { tile: LauncherTile; size?: "lg" | "sm" }
  * Only pages the user's rights open are shown. Settings → Company → Home page switches it on.
  */
 export function WholesaleLauncher() {
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, organizationRole } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
   const { isAdmin, hasMenuAccess, permissions, loading } = useUserPermissions();
   const [query, setQuery] = useState("");
@@ -132,9 +134,9 @@ export function WholesaleLauncher() {
   const now = useMemo(() => new Date(), []);
 
   const tiles = useMemo(
-    () => visibleLauncherTiles(hasMenuAccess, isAdmin || permissions === null),
+    () => visibleLauncherTiles(hasMenuAccess, isAdmin || permissions === null, undefined, organizationRole),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- rights object identity changes with permissions
-    [isAdmin, permissions],
+    [isAdmin, permissions, organizationRole],
   );
   const byPath = useMemo(() => new Map(tiles.map((t) => [t.path, t])), [tiles]);
   const results = useMemo(() => searchLauncherTiles(tiles, query), [tiles, query]);

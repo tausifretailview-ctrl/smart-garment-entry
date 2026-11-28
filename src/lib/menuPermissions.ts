@@ -12,8 +12,8 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   products: "product_dashboard",
   "product-dashboard": "product_dashboard",
   "product-entry": "product_entry",
-  // Product Master (field lists + Create products) is product entry work.
-  "product-master": "product_entry",
+  // Product Master has its own right; until User Rights saves it, it follows Product Entry / Product Dashboard.
+  "product-master": "product_master",
   "orphaned-products": "orphaned_products",
   customers: "customer_master",
   suppliers: "supplier_master",
@@ -160,6 +160,8 @@ export const MENU_FALLBACK_WHEN_UNSET: Record<string, string[]> = {
   cn_sr_adjustment_register: ["sale_return_dashboard", "sale_return"],
   expense_salary_report: ["accounting_reports_view"],
   stock_transfer: ["stock_adjustment"],
+  // Older saved rights have no Product Master tick: anyone who could see or add products gets it.
+  product_master: ["product_entry", "product_dashboard"],
 };
 
 function isGrantedInMenu(menu: Record<string, boolean>, id: string, depth = 0): boolean {

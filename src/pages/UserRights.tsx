@@ -31,6 +31,7 @@ const menuStructure = [
     icon: UserCog,
     submenus: [
       { id: "customer_master", name: "Customer Master" },
+      { id: "product_master", name: "Product Master" },
       { id: "supplier_master", name: "Supplier Master" },
       { id: "employee_master", name: "Employee Master" },
     ],
@@ -221,6 +222,7 @@ const defaultBasicPermissions: Record<string, boolean> = {
   main_dashboard: true,
   dashboard_view: true,
   customer_master: true,
+  product_master: true,
   product_dashboard: true,
   pos_sales: true,
   pos_dashboard: true,
@@ -237,6 +239,7 @@ const defaultManagerPermissions: Record<string, boolean> = {
   customer_master: true,
   supplier_master: true,
   employee_master: true,
+  product_master: true,
   product_dashboard: true,
   product_entry: true,
   purchase_order_entry: false,

@@ -27,6 +27,8 @@ export type LauncherTile = {
   to: string;
   /** Extra words that should find it in the search box. */
   keywords?: string;
+  /** Pages only these shop roles open (the route refuses the others). */
+  roles?: Array<"admin" | "manager">;
 };
 
 export const LAUNCHER_TILES: LauncherTile[] = [
@@ -46,6 +48,7 @@ export const LAUNCHER_TILES: LauncherTile[] = [
   { path: "products", label: "Products", group: "Inventory", icon: "Boxes", from: "#8b5cf6", to: "#6366f1", keywords: "items catalogue" },
   { path: "product-entry", label: "Add Product", group: "Inventory", icon: "PackageOpen", from: "#c026d3", to: "#7c3aed", keywords: "new item" },
   { path: "product-master", label: "Product Master", group: "Inventory", icon: "ClipboardList", from: "#7c3aed", to: "#2563eb", keywords: "brands categories colours hsn product list create items" },
+  { path: "expiry-report", label: "Expiry", group: "Inventory", icon: "CalendarX2", from: "#e11d48", to: "#f59e0b", keywords: "expiry expired batch near expiry write off", roles: ["admin", "manager"] },
   { path: "stock-report", label: "Stock", group: "Inventory", icon: "Warehouse", from: "#0891b2", to: "#4f46e5", keywords: "stock report inventory" },
   { path: "stock-analysis", label: "Stock Analysis", group: "Inventory", icon: "ChartPie", from: "#06b6d4", to: "#8b5cf6", keywords: "ageing slow fast" },
   { path: "barcode-printing", label: "Barcodes", group: "Inventory", icon: "Barcode", from: "#334155", to: "#0f172a", keywords: "labels print" },
@@ -67,14 +70,21 @@ export function isWholesaleDashboardEnabled(saleSettings: unknown): boolean {
   return (saleSettings as Record<string, unknown>)[WHOLESALE_DASHBOARD_KEY] === true;
 }
 
-/** Tiles this user may open (admins and users without custom rights see all). */
+/**
+ * Tiles this user may open (admins and users without custom rights see all), leaving out pages
+ * for other shop roles (`roles`); those tiles wait until the role is known.
+ */
 export function visibleLauncherTiles(
   hasMenuAccess: (menuId: string) => boolean,
   isAdmin: boolean,
   tiles: LauncherTile[] = LAUNCHER_TILES,
+  role?: string | null,
 ): LauncherTile[] {
-  if (isAdmin) return tiles;
+  // A tile kept for some roles waits until the role is known (the page itself checks the role too).
+  const roleOk = (t: LauncherTile) => !t.roles || (!!role && (t.roles as string[]).includes(role));
+  if (isAdmin) return tiles.filter(roleOk);
   return tiles.filter((t) => {
+    if (!roleOk(t)) return false;
     const right = getMenuPermissionForPath(t.path);
     return right ? hasMenuAccess(right) : false;
   });

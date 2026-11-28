@@ -82,6 +82,7 @@ export function HeaderMenubar({
     can("purchase_bill") ||
     can("quotation_entry") ||
     can("product_entry") ||
+    can("product_master") ||
     can("settings_view") ||
     can("tally_export");
 
@@ -182,7 +183,7 @@ export function HeaderMenubar({
                 New Product
               </MenubarItem>
             )}
-            {can("product_entry") && (
+            {can("product_master") && (
               <MenubarItem
                 {...tabPrefetchProps("product-master")}
                 onClick={() => orgNavigate("/product-master")}
@@ -408,6 +409,11 @@ export function HeaderMenubar({
             {can("stock_transfer") && (
               <MenubarItem onClick={() => orgNavigate("/stock-transfer")}>
                 Stock Transfer
+              </MenubarItem>
+            )}
+            {(organizationRole === "admin" || organizationRole === "manager") && (
+              <MenubarItem {...tabPrefetchProps("expiry-report")} onClick={() => orgNavigate("/expiry-report")}>
+                Expiry
               </MenubarItem>
             )}
             {godownsOn && (organizationRole === "admin" || organizationRole === "manager") && (

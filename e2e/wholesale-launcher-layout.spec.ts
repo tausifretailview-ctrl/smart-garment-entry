@@ -36,6 +36,8 @@ for (const { width, columns } of [{ width: 1440, columns: 2 }, { width: 1920, co
     expect(lefts.length).toBe(columns);
     // Product Master is for every shop, next to Add Product.
     await expect(sections.getByRole("region", { name: "Inventory" })).toContainText("Product Master");
+    // Batch expiry is opened from Inventory too (shop admins and managers).
+    await expect(sections.getByRole("region", { name: "Inventory" })).toContainText("Expiry");
     await page.screenshot({ path: testInfo.outputPath(`apps-${width}.png`) });
   });
 }
