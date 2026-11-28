@@ -31,6 +31,7 @@ export const QuotationEntry = lazyWithRetry(() => import("@/pages/QuotationEntry
 export const QuotationDashboard = lazyWithRetry(() => import("@/pages/QuotationDashboard"));
 export const SaleOrderEntry = lazyWithRetry(() => import("@/pages/SaleOrderEntry"));
 export const SaleOrderDashboard = lazyWithRetry(() => import("@/pages/SaleOrderDashboard"));
+export const DispatchDashboard = lazyWithRetry(() => import("@/pages/DispatchDashboard"));
 export const PurchaseOrderEntry = lazyWithRetry(() => import("@/pages/PurchaseOrderEntry"));
 export const PurchaseOrderDashboard = lazyWithRetry(() => import("@/pages/PurchaseOrderDashboard"));
 export const CustomerMaster = lazyWithRetry(() => import("@/pages/CustomerMaster"));

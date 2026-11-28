@@ -44,6 +44,7 @@ import {
   QuotationDashboard,
   SaleOrderEntry,
   SaleOrderDashboard,
+  DispatchDashboard,
   PurchaseOrderEntry,
   PurchaseOrderDashboard,
   CustomerMaster,
@@ -1026,6 +1027,16 @@ export function AppRoutes() {
             <ProtectedRoute>
               <Layout>
                 <SaleOrderDashboard />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="dispatch"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <DispatchDashboard />
               </Layout>
             </ProtectedRoute>
           }

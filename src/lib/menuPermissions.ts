@@ -29,6 +29,8 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   "quotation-dashboard": "quotation_dashboard",
   "sale-order-entry": "sale_order_entry",
   "sale-order-dashboard": "sale_order_dashboard",
+  // Dispatch works on accepted sale orders.
+  dispatch: "sale_order_dashboard",
   "sale-return-entry": "sale_return",
   "sale-returns": "sale_return_dashboard",
   "sale-return-dashboard": "sale_return_dashboard",

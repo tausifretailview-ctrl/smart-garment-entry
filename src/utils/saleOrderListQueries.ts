@@ -25,10 +25,17 @@ const SALE_ORDER_LIST_COLUMNS = [
 /** Qty fields only — enough for list subtext (fulfilled/total items). */
 const SALE_ORDER_ITEM_QTY_EMBED = "order_qty, fulfilled_qty, pending_qty";
 
-export const SALE_ORDER_LIST_SELECT = `${SALE_ORDER_LIST_COLUMNS}, acceptance_status, sale_order_items(${SALE_ORDER_ITEM_QTY_EMBED})`;
-/** Before SQL 75 (acceptance_status) is run. */
-const SALE_ORDER_LIST_SELECT_LEGACY = `${SALE_ORDER_LIST_COLUMNS}, sale_order_items(${SALE_ORDER_ITEM_QTY_EMBED})`;
-let acceptanceColumnMissing = false;
+/** Columns added by later SQL (75 acceptance, 76 dispatch); left out when not run yet. */
+const OPTIONAL_LIST_COLUMNS = [
+  { cols: "acceptance_status", pattern: /acceptance_status/i },
+  { cols: "dispatch_status, dispatch_staff", pattern: /dispatch_/i },
+];
+const missingOptional = new Set<string>();
+function saleOrderListSelect(): string {
+  const extra = OPTIONAL_LIST_COLUMNS.filter((o) => !missingOptional.has(o.cols)).map((o) => o.cols);
+  return [SALE_ORDER_LIST_COLUMNS, ...extra, `sale_order_items(${SALE_ORDER_ITEM_QTY_EMBED})`].join(", ");
+}
+export const SALE_ORDER_LIST_SELECT = saleOrderListSelect();
 
 export type SaleOrderListFilters = {
   statusFilter: string;
@@ -126,10 +133,14 @@ export async function fetchSaleOrderListPage(
     return query.order("created_at", { ascending: false }).range(from, to);
   };
 
-  let { data, error, count } = await run(acceptanceColumnMissing ? SALE_ORDER_LIST_SELECT_LEGACY : SALE_ORDER_LIST_SELECT);
-  if (error && !acceptanceColumnMissing && /acceptance_status/i.test(String(error.message || ""))) {
-    acceptanceColumnMissing = true;
-    ({ data, error, count } = await run(SALE_ORDER_LIST_SELECT_LEGACY));
+  let { data, error, count } = await run(saleOrderListSelect());
+  for (let tries = 0; error && tries < OPTIONAL_LIST_COLUMNS.length; tries += 1) {
+    const missing = OPTIONAL_LIST_COLUMNS.find(
+      (o) => !missingOptional.has(o.cols) && o.pattern.test(String(error?.message || "")),
+    );
+    if (!missing) break;
+    missingOptional.add(missing.cols);
+    ({ data, error, count } = await run(saleOrderListSelect()));
   }
 
   if (error) throw error;

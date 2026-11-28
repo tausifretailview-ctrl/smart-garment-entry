@@ -16,6 +16,7 @@ export const PAGE_TITLE_CONFIG: Record<string, { label: string; icon: string }> 
   "quotation-dashboard": { label: "Quotations", icon: "ClipboardList" },
   "sale-order-entry": { label: "Sale Order", icon: "ClipboardList" },
   "sale-order-dashboard": { label: "Sale Orders", icon: "ClipboardList" },
+  dispatch: { label: "Dispatch", icon: "ClipboardList" },
   "sale-return-entry": { label: "Sale Return", icon: "ArrowLeftRight" },
   "sale-returns": { label: "Sale Returns", icon: "ArrowLeftRight" },
   "sale-return-dashboard": { label: "Sale Returns", icon: "ArrowLeftRight" },

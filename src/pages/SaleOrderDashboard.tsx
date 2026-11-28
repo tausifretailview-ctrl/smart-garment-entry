@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { markSaleOrdersSeen } from "@/lib/data/newSaleOrders";
+import { dispatchStatusLabel } from "@/lib/data/saleOrderDispatch";
 import {
   readSaleOrderAcceptance,
   SALE_ORDER_ACCEPTANCE_OPTIONS,
@@ -1328,6 +1329,18 @@ export default function SaleOrderDashboard() {
                               </Select>
                             );
                           })()}
+                          {readSaleOrderAcceptance(order) === "accepted" && order.dispatch_status ? (
+                            <div
+                              data-testid="sale-order-dispatch-status"
+                              className={cn(
+                                "mt-1 text-xs font-semibold",
+                                order.dispatch_status === "delivered" ? "text-green-700" : order.dispatch_status === "in_process" ? "text-blue-700" : "text-amber-700",
+                              )}
+                            >
+                              Dispatch: {dispatchStatusLabel(order.dispatch_status)}
+                              {order.dispatch_staff ? ` · ${order.dispatch_staff}` : ""}
+                            </div>
+                          ) : null}
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
