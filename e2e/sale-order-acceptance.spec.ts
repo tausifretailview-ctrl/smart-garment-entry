@@ -9,7 +9,7 @@ const base = {
 const orders = [
   { ...base, id: "so-1", order_number: "SO/26-27/2017", customer_name: "MILAN SHOES", net_amount: 18450, created_at: "2026-11-25T09:00:00Z", customer_accepted: false, acceptance_status: null },
   // Accepted the old way (yes / no flag only).
-  { ...base, id: "so-2", order_number: "SO/26-27/2016", customer_name: "STEP IN", net_amount: 9200, created_at: "2026-11-24T09:00:00Z", customer_accepted: true, acceptance_status: null },
+  { ...base, id: "so-2", order_number: "SO/26-27/2016", customer_name: "STEP IN", net_amount: 9200, created_at: "2026-11-24T09:00:00Z", customer_accepted: true, acceptance_status: null, dispatch_status: "in_process", dispatch_staff: "SURESH" },
   { ...base, id: "so-3", order_number: "SO/26-27/2015", customer_name: "FOOT HUB", net_amount: 5100, created_at: "2026-11-23T09:00:00Z", customer_accepted: false, acceptance_status: "hold" },
 ];
 
@@ -20,6 +20,8 @@ test("Sale Order: pick Hold from the acceptance drop-down; saved with the old fl
   await expect(first).toBeVisible({ timeout: 60_000 });
   await expect(first).toContainText("Select");
   await expect(page.getByLabel("Acceptance SO/26-27/2016").filter({ visible: true })).toContainText("Accepted");
+  // Accepted orders show where Dispatch has got to.
+  await expect(page.getByTestId("sale-order-dispatch-status").filter({ visible: true })).toHaveText("Dispatch: Dispatching · SURESH");
   await expect(page.getByLabel("Acceptance SO/26-27/2015").filter({ visible: true })).toContainText("On hold");
 
   await first.click();

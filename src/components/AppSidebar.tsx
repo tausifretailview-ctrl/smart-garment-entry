@@ -1,3 +1,5 @@
+import { useNewSaleOrderCount } from "@/hooks/useNewSaleOrderCount";
+import { badgeText } from "@/lib/data/newSaleOrders";
 import {
   LayoutDashboard,
   Users,
@@ -157,6 +159,10 @@ export function AppSidebar() {
   const industrialOn = useIndustrialMode().enabled;
   const godownsOn = useGodownsEnabled();
   const ewayBillOn = useEwayBillOn();
+  // Orders received since the Sale Order Dashboard was last opened (like missed calls).
+  const newSaleOrders = useNewSaleOrderCount(
+    (isAdminPermissions || hasMainMenuAccess("sales")) && (isAdminPermissions || hasMenuAccess("sale_order_dashboard")),
+  );
   const bulkWhatsAppOn = isBulkWhatsAppEnabled((orgSettings as { sale_settings?: unknown } | null)?.sale_settings);
   const enablePointsSystem = !!(orgSettings as { sale_settings?: { enable_points_system?: boolean } } | null)
     ?.sale_settings?.enable_points_system;
@@ -201,7 +207,7 @@ export function AppSidebar() {
   // Menu structure
   const masterPaths = ["/customers", "/suppliers", "/product-master", "/transporters", "/employees", "/salesman-commission"];
   const inventoryPaths = ["/purchase-bills", "/purchase-returns", "/purchase-entry", "/purchase-orders", "/purchase-order-entry", "/product-entry", "/products", "/orphaned-products", "/bulk-product-update", "/stock-settlement", "/stock-adjustment", "/stock-wastage", "/reorder", "/expiry-report", "/duplicate-purchase-bills", "/customer-reconciliation", "/stock-transfer", "/stock-transfer-entry", "/godowns", "/godown-transfers", "/godown-transfer-entry", "/manufacturing"];
-  const salesPaths = ["/quotation-entry", "/quotation-dashboard", "/sale-order-entry", "/sale-order-dashboard", "/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard", "/sale-return-entry", "/sale-returns", "/delivery-challan-entry", "/delivery-challan-dashboard", "/debit-notes", "/eway-bills", "/advance-booking-dashboard", "/discount-scheme-dashboard", "/spin-and-win"];
+  const salesPaths = ["/quotation-entry", "/quotation-dashboard", "/sale-order-entry", "/sale-order-dashboard", "/dispatch", "/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard", "/sale-return-entry", "/sale-returns", "/delivery-challan-entry", "/delivery-challan-dashboard", "/debit-notes", "/eway-bills", "/advance-booking-dashboard", "/discount-scheme-dashboard", "/spin-and-win"];
   const reportsPaths = ["/reports", "/insights", "/stock-report", "/stock-summary", "/product-catalogue", "/stock-analysis", "/stock-ageing", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/daily-tally", "/account-tally", "/item-wise-sales", "/item-wise-stock", "/price-history", "/gst-reports", "/gst-analysis", "/gst-readiness", "/gst-register", "/tally-export", "/sales-analytics", "/accounting-reports", "/expense-salary-report", "/cn-sr-adjustment-register", "/customer-reviews", "/customer-notifications", "/customer-ledger-report", "/customer-points-report", "/customer-party-balances", "/supplier-party-balances", "/payment-flow", "/customer-account-statement", "/customer-account-statement-audit", "/customer-balance-activity", "/customer-audit-report", "/daily-sale-analysis", "/einvoice-report"];
   const accountsPaths = [
     "/accounts",
@@ -731,6 +737,15 @@ export function AppSidebar() {
                   <div className="flex items-center gap-2">
                     <ShoppingCart className="h-4 w-4 sidebar-icon text-primary" />
                     {open && <span className="font-extrabold text-[0.9375rem] uppercase tracking-wider text-sidebar-foreground group-hover:text-primary">Sales</span>}
+                    {newSaleOrders > 0 ? (
+                      <span
+                        data-testid="new-sale-orders-group-badge"
+                        aria-label={`${newSaleOrders} new sale orders`}
+                        className="min-w-[1.25rem] rounded-full bg-red-600 px-1.5 text-center text-[11px] font-bold leading-5 text-white group-data-[state=open]/collapsible:hidden"
+                      >
+                        {badgeText(newSaleOrders)}
+                      </span>
+                    ) : null}
                   </div>
                   {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 text-sidebar-foreground group-hover:text-primary" />}
                 </CollapsibleTrigger>
@@ -776,6 +791,25 @@ export function AppSidebar() {
                               <NavLink to="/sale-order-dashboard" className="flex items-center gap-2 group">
                                 <BarChart3 className="h-4 w-4 sidebar-icon text-primary" />
                                 <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Sale Order Dashboard</span>
+                                {newSaleOrders > 0 ? (
+                                  <span
+                                    data-testid="new-sale-orders-badge"
+                                    aria-label={`${newSaleOrders} new sale orders`}
+                                    className="ml-auto min-w-[1.25rem] rounded-full bg-red-600 px-1.5 text-center text-[11px] font-bold leading-5 text-white"
+                                  >
+                                    {badgeText(newSaleOrders)}
+                                  </span>
+                                ) : null}
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("sale_order_dashboard")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/dispatch")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
+                              <NavLink to="/dispatch" className="flex items-center gap-2 group">
+                                <Truck className="h-4 w-4 sidebar-icon text-primary" />
+                                <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Dispatch</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>

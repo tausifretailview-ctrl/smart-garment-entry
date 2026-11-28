@@ -116,6 +116,7 @@ export const BACK_MAP: Record<string, string> = {
   "accounts-payments":        "/",
   "quotation-dashboard":      "/",
   "sale-order-dashboard":     "/",
+  "dispatch":                 "sale-order-dashboard",
   "products":                 "/",
   "advance-bookings":         "/",
   "sale-returns":               "/",
