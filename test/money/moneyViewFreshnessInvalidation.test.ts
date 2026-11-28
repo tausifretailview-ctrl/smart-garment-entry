@@ -38,7 +38,7 @@ describe("moneyViewFreshnessInvalidation", () => {
   it("invalidates customer snapshot, POS dashboard, ledger, and org receivables", async () => {
     const invalidateQueries = vi.fn();
     const refetchQueries = vi.fn();
-    const queryClient = { invalidateQueries, refetchQueries } as unknown as QueryClient;
+    const queryClient = { invalidateQueries, refetchQueries, getQueryCache: () => ({ findAll: () => [] }) } as unknown as QueryClient;
     const orgId = "org-abc";
 
     invalidateMoneyViewFreshness(queryClient, orgId);
@@ -88,7 +88,7 @@ describe("moneyViewFreshnessInvalidation", () => {
   it("after mutation broadcasts cross-tab and invalidates money views", () => {
     const invalidateQueries = vi.fn();
     const refetchQueries = vi.fn();
-    const queryClient = { invalidateQueries, refetchQueries } as unknown as QueryClient;
+    const queryClient = { invalidateQueries, refetchQueries, getQueryCache: () => ({ findAll: () => [] }) } as unknown as QueryClient;
     const orgId = "org-abc";
     const customerId = "cust-1";
 

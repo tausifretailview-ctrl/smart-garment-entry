@@ -8,6 +8,7 @@ import {
 } from "@/utils/moneyViewFreshnessInvalidation";
 import {
   MONEY_VIEW_FRESHNESS_LS_KEY,
+  notifyMoneyViewChanged,
   markMoneyFreshnessApplied,
   readAppliedMoneyFreshnessTs,
   readStoredMoneyFreshnessMarker,
@@ -17,7 +18,7 @@ import {
   invalidateSupplierPaymentViews,
   isSupplierVoucherRealtimeChange,
 } from "@/utils/supplierPaymentViews";
-import { requestLiveStockRefresh } from "@/lib/liveStockRefresh";
+import { requestLiveStockRefresh, setLocalMoneyWriteHandler } from "@/lib/liveStockRefresh";
 
 const MONEY_REALTIME_TABLES = [
   "sales",
@@ -35,9 +36,16 @@ export function useOrgMoneyRealtimeInvalidation() {
   // Supplier views (purchase bills paid/status, supplier dues) refresh only when a
   // supplier voucher changed, so POS sales do not refetch the Purchase dashboard.
   const supplierPendingRef = useRef(false);
+  // A browser tab in the background reloads nothing; it catches up when brought to the front.
+  const owedWhileHiddenRef = useRef(false);
 
   const runInvalidate = useCallback(() => {
     if (!orgId) return;
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      owedWhileHiddenRef.current = true;
+      return;
+    }
+    owedWhileHiddenRef.current = false;
     invalidateMoneyViewFreshness(queryClient, orgId);
     if (supplierPendingRef.current) {
       supplierPendingRef.current = false;
@@ -98,10 +106,15 @@ export function useOrgMoneyRealtimeInvalidation() {
       if (document.visibilityState !== "visible") return;
       // A timer started while this Chrome tab was hidden can be delayed for
       // minutes. Flush as soon as the user looks at the tab.
-      if (debounceRef.current) flushInvalidate();
+      if (debounceRef.current || owedWhileHiddenRef.current) flushInvalidate();
       applyStoredFreshness(true);
     };
     applyStoredFreshness(true);
+    // A payment / balance saved in this tab, by any screen: the other tabs on this computer
+    // reload their payment screens even where live updates are blocked (liveStockRefresh.ts).
+    const releaseMoneyWrites = setLocalMoneyWriteHandler((supplierPayments) =>
+      notifyMoneyViewChanged({ organizationId: orgId, supplierPayments }),
+    );
     window.addEventListener("storage", onStorage);
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("pageshow", onVisible);
@@ -129,6 +142,7 @@ export function useOrgMoneyRealtimeInvalidation() {
     channel.subscribe();
 
     return () => {
+      releaseMoneyWrites();
       window.removeEventListener("storage", onStorage);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("pageshow", onVisible);
