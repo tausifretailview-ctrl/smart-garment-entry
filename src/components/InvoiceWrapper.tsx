@@ -69,7 +69,11 @@ import {
   pickDefaultReceivingBankAccount,
 } from '@/utils/organizationBankAccounts';
 import { organizationBankAccountsQueryKey } from '@/hooks/useOrganizationBankAccounts';
-import { formatInvoiceProductDescription, type InvoiceDescriptionSequence } from '@/utils/invoiceProductDescription';
+import {
+  formatInvoiceProductDescription,
+  readInvoiceDescriptionFields,
+  type InvoiceDescriptionSequence,
+} from '@/utils/invoiceProductDescription';
 import { applyPrintFirmToSettings, type PrintFirm } from '@/utils/secondFirm';
 import {
   needsInvoiceCustomerAddressLookup,
@@ -322,11 +326,13 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const saleSettingsForDescription = (settings?.sale_settings ?? {}) as {
       invoice_description_sequence_enabled?: boolean;
       invoice_description_sequence?: string;
+      invoice_description_fields?: unknown;
       invoice_template?: string;
     };
     const descriptionSequenceEnabled = saleSettingsForDescription.invoice_description_sequence_enabled === true;
     const descriptionSequence: InvoiceDescriptionSequence =
       saleSettingsForDescription.invoice_description_sequence === "product_first" ? "product_first" : "brand_first";
+    const descriptionFields = readInvoiceDescriptionFields(saleSettingsForDescription.invoice_description_fields);
     const descriptionTemplate = props.template || saleSettingsForDescription.invoice_template || "";
     // Product Style printed beside the IMEI/Barcode (electronics shops keep warranty in Style).
     // Settings > Product > Warranty row; off unless the shop ticks it.
@@ -703,7 +709,23 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           const product = item.productId
             ? (descriptionProducts ?? []).find((row) => row.id === item.productId)
             : undefined;
-          return { ...item, brand: item.brand || product?.brand || undefined };
+          const brand = item.brand || product?.brand || undefined;
+          if (!descriptionSequenceEnabled || !product) return { ...item, brand };
+          // Colour prints on its own after the description, so it is never part of it here.
+          return {
+            ...item,
+            brand,
+            particulars: formatInvoiceProductDescription(
+              {
+                particulars: item.particulars,
+                productName: product.product_name || item.productName,
+                brand: product.brand || item.brand,
+                category: product.category || item.category,
+                style: product.style || item.style,
+              },
+              { enabled: true, sequence: descriptionSequence, fields: { ...descriptionFields, color: false } },
+            ),
+          };
         }
         if (templateForFormat !== "tally-tax-invoice") return item;
         if (!descriptionSequenceEnabled && !tallyStyleLineEnabled) return item;
@@ -725,7 +747,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               style: styleLine ? undefined : product?.style || item.style,
               color: item.color || product?.color,
             },
-            { enabled: true, sequence: descriptionSequence },
+            { enabled: true, sequence: descriptionSequence, fields: descriptionFields },
           ),
         };
       }),

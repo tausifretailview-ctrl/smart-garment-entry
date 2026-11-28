@@ -46,6 +46,11 @@ import {
 import { normalizeServiceDefaultQty } from "@/utils/serviceDefaultQty";
 import { isPhotoImportEnabled } from "@/utils/purchasePhotoImport";
 import { readExpirySettings, type ExpiredStockAction } from "@/lib/data/batchExpiry";
+import {
+  INVOICE_DESCRIPTION_FIELDS,
+  readInvoiceDescriptionFields,
+  type InvoiceDescriptionFields,
+} from "@/utils/invoiceProductDescription";
 import { SETTINGS_TAB_LIST_CLASS, SETTINGS_TAB_TRIGGER_CLASS, SettingsField, SettingsGrid, SettingsSection, SettingsToggle } from "@/components/settings/settingsLayout";
 import { OwnerAlertsSettings } from "@/components/settings/OwnerAlertsSettings";
 import { cn } from "@/lib/utils";
@@ -418,6 +423,8 @@ interface SaleSettings {
   invoice_description_sequence_enabled?: boolean;
   /** brand_first = brand, then product name. product_first = product name, then brand. */
   invoice_description_sequence?: "product_first" | "brand_first";
+  /** Parts printed with the product name when the sequence is on; false leaves one off. */
+  invoice_description_fields?: InvoiceDescriptionFields;
   /** Show -27% style discount under Rate on printed invoices (Retail ERP, etc.) */
   show_discount_on_rate?: boolean;
   // Invoice column settings
@@ -3830,7 +3837,7 @@ export default function Settings() {
                     <div className="space-y-2">
                       <SettingsToggle
                         label="Invoice description sequence"
-                        description="Tally GST A4 only. Off prints the description already on the bill. On lets you choose the order."
+                        description="Tally GST A4 and Wholesale Size-wise A4. Off prints the description already on the bill. On lets you choose the order and which details print."
                         id="invoice_description_sequence_enabled"
                         checked={(settings.sale_settings as any)?.invoice_description_sequence_enabled === true}
                         onCheckedChange={(checked) =>
@@ -3866,6 +3873,38 @@ export default function Settings() {
                             <SelectItem value="product_first">Product name first, then brand</SelectItem>
                           </SelectContent>
                         </Select>
+                      ) : null}
+                      {settings.sale_settings?.invoice_description_sequence_enabled === true ? (
+                        <div className="space-y-1" data-testid="invoice-description-fields">
+                          <p className="text-xs text-muted-foreground">
+                            Print with the product name (Wholesale Size-wise prints colour on its own):
+                          </p>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1">
+                            {INVOICE_DESCRIPTION_FIELDS.map((f) => {
+                              const fields = readInvoiceDescriptionFields(settings.sale_settings?.invoice_description_fields);
+                              return (
+                                <div key={f.key} className="flex items-center gap-2">
+                                  <Checkbox
+                                    id={`invoice_description_field_${f.key}`}
+                                    checked={fields[f.key] !== false}
+                                    onCheckedChange={(checked) =>
+                                      setSettings({
+                                        ...settings,
+                                        sale_settings: {
+                                          ...settings.sale_settings,
+                                          invoice_description_fields: { ...fields, [f.key]: checked === true },
+                                        },
+                                      })
+                                    }
+                                  />
+                                  <Label htmlFor={`invoice_description_field_${f.key}`} className="font-normal cursor-pointer">
+                                    {f.label}
+                                  </Label>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
                       ) : null}
                     </div>
                   </div>
