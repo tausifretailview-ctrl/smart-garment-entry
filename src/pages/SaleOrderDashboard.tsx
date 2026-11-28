@@ -21,6 +21,8 @@ import { format } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { markSaleOrdersSeen } from "@/lib/data/newSaleOrders";
 import {
   readSaleOrderAcceptance,
   SALE_ORDER_ACCEPTANCE_OPTIONS,
@@ -128,6 +130,7 @@ export default function SaleOrderDashboard() {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
+  const { user } = useAuth();
   const industrialMode = useIndustrialMode();
   const [showPendingItems, setShowPendingItems] = useState(false);
 
@@ -341,6 +344,7 @@ export default function SaleOrderDashboard() {
   const {
     data: listPageData,
     isLoading,
+    dataUpdatedAt: listUpdatedAt,
   } = useQuery({
     queryKey: ["sale-orders-list", currentOrganization?.id, listFilters, currentPage],
     queryFn: () =>
@@ -353,6 +357,11 @@ export default function SaleOrderDashboard() {
     enabled: !!currentOrganization?.id && filtersReady,
     placeholderData: (previous) => previous,
   });
+
+  // Menu badge of new orders (like missed calls): the list on screen has them now.
+  useEffect(() => {
+    if (currentOrganization?.id && user?.id && listUpdatedAt > 0) markSaleOrdersSeen(currentOrganization.id, user.id);
+  }, [currentOrganization?.id, user?.id, listUpdatedAt]);
 
   const listQuietRefreshing = useQuietRefreshActive([
     "sale-orders-list",

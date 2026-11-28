@@ -1,3 +1,5 @@
+import { useNewSaleOrderCount } from "@/hooks/useNewSaleOrderCount";
+import { badgeText } from "@/lib/data/newSaleOrders";
 import {
   LayoutDashboard,
   Users,
@@ -157,6 +159,10 @@ export function AppSidebar() {
   const industrialOn = useIndustrialMode().enabled;
   const godownsOn = useGodownsEnabled();
   const ewayBillOn = useEwayBillOn();
+  // Orders received since the Sale Order Dashboard was last opened (like missed calls).
+  const newSaleOrders = useNewSaleOrderCount(
+    (isAdminPermissions || hasMainMenuAccess("sales")) && (isAdminPermissions || hasMenuAccess("sale_order_dashboard")),
+  );
   const bulkWhatsAppOn = isBulkWhatsAppEnabled((orgSettings as { sale_settings?: unknown } | null)?.sale_settings);
   const enablePointsSystem = !!(orgSettings as { sale_settings?: { enable_points_system?: boolean } } | null)
     ?.sale_settings?.enable_points_system;
@@ -731,6 +737,15 @@ export function AppSidebar() {
                   <div className="flex items-center gap-2">
                     <ShoppingCart className="h-4 w-4 sidebar-icon text-primary" />
                     {open && <span className="font-extrabold text-[0.9375rem] uppercase tracking-wider text-sidebar-foreground group-hover:text-primary">Sales</span>}
+                    {newSaleOrders > 0 ? (
+                      <span
+                        data-testid="new-sale-orders-group-badge"
+                        aria-label={`${newSaleOrders} new sale orders`}
+                        className="min-w-[1.25rem] rounded-full bg-red-600 px-1.5 text-center text-[11px] font-bold leading-5 text-white group-data-[state=open]/collapsible:hidden"
+                      >
+                        {badgeText(newSaleOrders)}
+                      </span>
+                    ) : null}
                   </div>
                   {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 text-sidebar-foreground group-hover:text-primary" />}
                 </CollapsibleTrigger>
@@ -776,6 +791,15 @@ export function AppSidebar() {
                               <NavLink to="/sale-order-dashboard" className="flex items-center gap-2 group">
                                 <BarChart3 className="h-4 w-4 sidebar-icon text-primary" />
                                 <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Sale Order Dashboard</span>
+                                {newSaleOrders > 0 ? (
+                                  <span
+                                    data-testid="new-sale-orders-badge"
+                                    aria-label={`${newSaleOrders} new sale orders`}
+                                    className="ml-auto min-w-[1.25rem] rounded-full bg-red-600 px-1.5 text-center text-[11px] font-bold leading-5 text-white"
+                                  >
+                                    {badgeText(newSaleOrders)}
+                                  </span>
+                                ) : null}
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
