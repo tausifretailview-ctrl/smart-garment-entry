@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Boxes, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Boxes, Images, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProductMasterGrid } from "@/components/products/ProductMasterGrid";
+import { ProductColorPhotos } from "@/components/products/ProductColorPhotos";
 import {
   PRODUCT_ATTRIBUTE_KINDS,
   addAttributeValue,
@@ -30,6 +31,8 @@ import {
  *  - field lists: product names, brands, categories, styles, colours, HSN codes, each added
  *    one by one; Add Product and Purchase then suggest them;
  *  - Create products: a sheet to type items row by row, no Add New Product window.
+ *  - Photos: one photo per product colour (not per size or MRP), for taking orders from
+ *    pictures (ProductColorPhotos).
  * Values typed anywhere else join the lists by themselves.
  */
 const db = supabase as unknown as AttributeListsDb;
@@ -240,6 +243,9 @@ const ProductMaster = () => {
               </TabsTrigger>
             ))}
             <TabsTrigger value="create">Create products</TabsTrigger>
+            <TabsTrigger value="photos" className="gap-1">
+              <Images className="h-3.5 w-3.5" /> Photos
+            </TabsTrigger>
           </TabsList>
           {PRODUCT_ATTRIBUTE_KINDS.map((k) => (
             <TabsContent key={k.kind} value={k.kind}>
@@ -258,6 +264,9 @@ const ProductMaster = () => {
           ))}
           <TabsContent value="create">
             <ProductMasterGrid organizationId={orgId} />
+          </TabsContent>
+          <TabsContent value="photos">
+            <ProductColorPhotos orgId={orgId} />
           </TabsContent>
         </Tabs>
       ) : null}
