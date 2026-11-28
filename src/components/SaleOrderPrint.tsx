@@ -102,8 +102,9 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
     // Wide size matrix does not fit A4 portrait — pick list always prints landscape.
     const isPickListLandscape = isAvailableStock;
 
-    const fmt = (n: number) =>
-      `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    // A missing amount prints as ₹0.00 instead of crashing the whole tab.
+    const fmt = (n: number | null | undefined) =>
+      `₹${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     const fmtDate = (d: Date) =>
       d.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });

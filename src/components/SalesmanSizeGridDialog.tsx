@@ -56,6 +56,8 @@ interface SalesmanSizeGridDialogProps {
    * them filled in and "Update order" replaces them, instead of adding on top.
    */
   initialQty?: Record<string, number>;
+  /** Colour photos (Product Master → Photos), keyed by lower-case colour: shown on each colour card. */
+  colorImages?: Record<string, string>;
 }
 
 export function SalesmanSizeGridDialog({
@@ -68,6 +70,7 @@ export function SalesmanSizeGridDialog({
   validateStock = false,
   title = "Enter Size-wise Quantity",
   initialQty,
+  colorImages,
 }: SalesmanSizeGridDialogProps) {
   const { toast } = useToast();
   
@@ -83,6 +86,8 @@ export function SalesmanSizeGridDialog({
   const [newRate, setNewRate] = useState("");
   const [sizeOrder, setSizeOrder] = useState<string[]>([]);
   const [photoOpen, setPhotoOpen] = useState(false);
+  /** A colour photo opened full screen (null: the product photo, when photoOpen). */
+  const [colorPhoto, setColorPhoto] = useState<{ url: string; label: string } | null>(null);
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const prefilledRef = useRef<Set<string>>(new Set());
@@ -465,6 +470,17 @@ export function SalesmanSizeGridDialog({
                   data-testid="size-colour-card"
                 >
                   <div className="mb-2 flex items-center gap-2">
+                    {colorImages?.[color.trim().toLowerCase()] ? (
+                      <button
+                        type="button"
+                        onClick={() => setColorPhoto({ url: colorImages[color.trim().toLowerCase()], label: `${product.product_name} ${color}`.trim() })}
+                        className="shrink-0 rounded-lg active:opacity-70"
+                        aria-label={`View photo of ${color || product.product_name}`}
+                        data-testid="size-colour-photo"
+                      >
+                        <ProductThumb url={colorImages[color.trim().toLowerCase()]} alt={`${product.product_name} ${color}`} size={56} />
+                      </button>
+                    ) : null}
                     <span className="min-w-0 flex-1 truncate text-sm font-bold uppercase tracking-wide text-slate-800">
                       {color || (hasMultipleColors ? "No colour" : "Sizes")}
                     </span>
@@ -685,9 +701,12 @@ export function SalesmanSizeGridDialog({
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
       <ProductPhotoViewer
-        url={photoOpen ? product.image_url : null}
-        name={product.product_name}
-        onClose={() => setPhotoOpen(false)}
+        url={colorPhoto ? colorPhoto.url : photoOpen ? product.image_url : null}
+        name={colorPhoto ? colorPhoto.label : product.product_name}
+        onClose={() => {
+          setPhotoOpen(false);
+          setColorPhoto(null);
+        }}
       />
     </DialogPrimitive.Root>
   );

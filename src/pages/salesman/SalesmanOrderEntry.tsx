@@ -33,6 +33,7 @@ import { cn, sortSearchResults } from "@/lib/utils";
 import { ProductThumb } from "@/components/ProductThumb";
 import { ProductPhotoViewer } from "@/components/ProductPhotoViewer";
 import { isUsableImageUrl } from "@/lib/productImages";
+import { colorKey, fetchColorImageMap } from "@/lib/data/productColorImages";
 import { SalesmanSizeGridDialog } from "@/components/SalesmanSizeGridDialog";
 import { variantsForSalesmanSizeGrid, salesmanSizeBoxCount } from "@/utils/salesmanOrderSizeGrid";
 import { sizeColorKey, type MergedSizeGridVariant } from "@/utils/mergeSizeColorVariantsForGrid";
@@ -61,6 +62,8 @@ interface Product {
   size_group_id?: string | null;
   /** Product photo (shown in search, size grid and order lines). */
   image_url?: string | null;
+  /** Colour photos (Product Master → Photos), keyed by lower-case colour. */
+  colorImages?: Record<string, string>;
 }
 
 interface Variant {
@@ -421,7 +424,7 @@ const SalesmanOrderEntry = () => {
         .from("product_variants")
         .select(`
           id, size, color, barcode, mrp, sale_price, stock_qty, product_id,
-          products!inner(id, product_name, brand, category, gst_per, organization_id, size_group_id, image_url)
+          products!inner(id, product_name, brand, category, gst_per, organization_id, size_group_id, image_url, color)
         `)
         .eq("organization_id", currentOrganization.id)
         .eq("products.organization_id", currentOrganization.id)
@@ -440,7 +443,7 @@ const SalesmanOrderEntry = () => {
           .from("product_variants")
           .select(`
             id, size, color, barcode, mrp, sale_price, stock_qty, product_id,
-            products!inner(id, product_name, brand, category, gst_per, organization_id, size_group_id, image_url)
+            products!inner(id, product_name, brand, category, gst_per, organization_id, size_group_id, image_url, color)
           `)
           .eq("organization_id", currentOrganization.id)
           .eq("products.organization_id", currentOrganization.id)
@@ -493,6 +496,21 @@ const SalesmanOrderEntry = () => {
           } as Variant);
         }
       });
+
+      // Colour photos: a product with no main photo shows its first colour photo in the list.
+      type VariantWithProduct = { product_id: string; color: string | null; products: { product_name: string; color?: string | null } };
+      const variantsWithProduct = uniqueVariants as VariantWithProduct[];
+      const colorMap = await fetchColorImageMap(
+        currentOrganization.id,
+        [...new Set(variantsWithProduct.map((v) => v.product_id))],
+      );
+      if (colorMap.size > 0) {
+        for (const v of variantsWithProduct) {
+          const entry = productMap.get(v.products.product_name);
+          const url = colorMap.get(colorKey(v.product_id, v.color || v.products?.color || ""));
+          if (entry && url && !entry.product.image_url) entry.product = { ...entry.product, image_url: url };
+        }
+      }
 
       // Apply smart sorting based on product name
       const sortedProducts = sortSearchResults(
@@ -648,8 +666,26 @@ const SalesmanOrderEntry = () => {
         product.size_group_id ||
         productRows.find((row) => row.size_group_id)?.size_group_id ||
         null;
+      // Each colour card in the sheet shows that colour's photo.
+      const colorMap = await fetchColorImageMap(orgId, productIds);
+      if (sizeGridLoadRef.current !== loadId) return;
+      const productColor = new Map(productRows.map((row) => [row.id, row.color ?? ""]));
+      const colorImages: Record<string, string> = {};
+      for (const v of raw) {
+        const col = (v.color || productColor.get(v.product_id) || "").trim();
+        const url = colorMap.get(colorKey(v.product_id, col));
+        if (url && !colorImages[col.toLowerCase()]) colorImages[col.toLowerCase()] = url;
+      }
+      const firstColorPhoto = Object.values(colorImages)[0] ?? null;
       setSelectedProduct((current) =>
-        current?.id === product.id ? { ...current, size_group_id: sizeGroupId } : current,
+        current?.id === product.id
+          ? {
+              ...current,
+              size_group_id: sizeGroupId,
+              colorImages,
+              image_url: current.image_url || firstColorPhoto,
+            }
+          : current,
       );
       setSelectedProductVariants(
         asOrderVariants(
@@ -1045,6 +1081,14 @@ const SalesmanOrderEntry = () => {
               <div className="mt-2.5 space-y-1.5">
                 {group.colors.map(({ color, items }) => (
                   <div key={color || "-"} className="flex items-start gap-2">
+                    {items[0]?.product.colorImages?.[color.trim().toLowerCase()] ? (
+                      <ProductThumb
+                        url={items[0].product.colorImages[color.trim().toLowerCase()]}
+                        alt={`${group.name} ${color}`}
+                        size={32}
+                        onClick={openPhoto(items[0].product.colorImages[color.trim().toLowerCase()], `${group.name} ${color}`)}
+                      />
+                    ) : null}
                     {(color || group.colors.length > 1) && (
                       <span className="mt-1 w-16 shrink-0 truncate text-[11px] font-bold uppercase tracking-wide text-slate-500">
                         {color || "—"}
@@ -1220,6 +1264,7 @@ const SalesmanOrderEntry = () => {
         validateStock={false}
         title="Enter size-wise quantity"
         initialQty={editingQty ?? undefined}
+        colorImages={selectedProduct?.colorImages}
       />
 
       {/* Draft Resume Dialog */}

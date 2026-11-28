@@ -34,6 +34,8 @@ for (const { width, columns } of [{ width: 1440, columns: 2 }, { width: 1920, co
       [...new Set(els.map((e) => Math.round(e.getBoundingClientRect().left)))],
     );
     expect(lefts.length).toBe(columns);
+    // Product Master is for every shop, next to Add Product.
+    await expect(sections.getByRole("region", { name: "Inventory" })).toContainText("Product Master");
     await page.screenshot({ path: testInfo.outputPath(`apps-${width}.png`) });
   });
 }

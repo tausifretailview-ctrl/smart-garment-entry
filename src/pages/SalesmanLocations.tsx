@@ -231,7 +231,7 @@ export default function SalesmanLocations() {
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="lg:sticky lg:top-2 lg:self-start">
           <SalesmanLiveMap
-            className="h-[55vh] min-h-[320px] w-full overflow-hidden rounded-xl border shadow-sm lg:h-[calc(100vh-11rem)]"
+            className="h-[60vh] min-h-[320px] max-h-[720px] w-full overflow-hidden rounded-xl border shadow-sm"
             salesmen={mapSalesmen}
             selectedUserId={openTrail}
             trail={openTrail ? trail : []}

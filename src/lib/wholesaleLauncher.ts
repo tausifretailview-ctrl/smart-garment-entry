@@ -45,6 +45,7 @@ export const LAUNCHER_TILES: LauncherTile[] = [
   { path: "purchase-returns", label: "Purchase Returns", group: "Purchase", icon: "PackageMinus", from: "#ef4444", to: "#f97316", keywords: "debit note return" },
   { path: "products", label: "Products", group: "Inventory", icon: "Boxes", from: "#8b5cf6", to: "#6366f1", keywords: "items catalogue" },
   { path: "product-entry", label: "Add Product", group: "Inventory", icon: "PackageOpen", from: "#c026d3", to: "#7c3aed", keywords: "new item" },
+  { path: "product-master", label: "Product Master", group: "Inventory", icon: "ClipboardList", from: "#7c3aed", to: "#2563eb", keywords: "brands categories colours hsn product list create items" },
   { path: "stock-report", label: "Stock", group: "Inventory", icon: "Warehouse", from: "#0891b2", to: "#4f46e5", keywords: "stock report inventory" },
   { path: "stock-analysis", label: "Stock Analysis", group: "Inventory", icon: "ChartPie", from: "#06b6d4", to: "#8b5cf6", keywords: "ageing slow fast" },
   { path: "barcode-printing", label: "Barcodes", group: "Inventory", icon: "Barcode", from: "#334155", to: "#0f172a", keywords: "labels print" },

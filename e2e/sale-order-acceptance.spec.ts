@@ -35,3 +35,26 @@ test("Sale Order: pick Hold from the acceptance drop-down; saved with the old fl
   const update = backend.calls.find((c) => c.kind === "update" && c.name.startsWith("sale_orders"))!;
   expect(update.body).toEqual({ acceptance_status: "hold", customer_accepted: false });
 });
+
+test("Sale Order: the On Hold card counts held orders and lists only them", async ({ page, backend }) => {
+  backend.addRows("sale_orders", orders);
+  // The mock backend sends no count to the browser: answer the card's count read like the database.
+  await page.route(/\/rest\/v1\/sale_orders\?.*acceptance_status=eq\.hold/, (route) => {
+    if (route.request().method() !== "HEAD") return route.fallback();
+    const n = orders.filter((o) => o.acceptance_status === "hold").length;
+    return route.fulfill({
+      status: 200,
+      body: "",
+      headers: { "content-range": `*/${n}`, "access-control-allow-origin": "*", "access-control-expose-headers": "content-range" },
+    });
+  });
+  await page.goto(`/${E2E_ORG_SLUG}/sale-order-dashboard`);
+  const card = page.getByTestId("sale-order-hold-card").filter({ visible: true });
+  await expect(card.getByTestId("sale-order-hold-count")).toHaveText("1", { timeout: 60_000 });
+  await expect(page.getByLabel("Acceptance SO/26-27/2017").filter({ visible: true })).toBeVisible();
+
+  await card.click();
+  await expect(page.getByLabel("Acceptance SO/26-27/2015").filter({ visible: true })).toContainText("On hold");
+  await expect(page.getByLabel("Acceptance SO/26-27/2017").filter({ visible: true })).toHaveCount(0);
+  await expect(page.getByLabel("Acceptance SO/26-27/2016").filter({ visible: true })).toHaveCount(0);
+});

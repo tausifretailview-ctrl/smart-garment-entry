@@ -51,6 +51,11 @@ const RIDER_CSS = `
 @keyframes ezzy-pulse{0%{transform:scale(.4);opacity:1}100%{transform:scale(1.4);opacity:0}}
 `;
 
+function fitTo(map: L.Map, pts: L.LatLng[]) {
+  if (pts.length === 1) map.setView(pts[0], 16);
+  else if (pts.length > 1) map.fitBounds(L.latLngBounds(pts), { padding: [40, 40], maxZoom: 17 });
+}
+
 /** Glide a marker to its new position (about 1 s), like a delivery app. */
 function glide(marker: L.Marker, to: L.LatLng) {
   const from = marker.getLatLng();
@@ -90,6 +95,10 @@ export function SalesmanLiveMap({
   const riderRef = useRef<L.Marker | null>(null);
   const riderKeyRef = useRef<string>("");
   const fittedKeyRef = useRef<string>("");
+  /** What the map was last zoomed to fit, so a resize can fit it again. */
+  const fitTargetRef = useRef<L.LatLng[] | null>(null);
+  /** The user dragged or zoomed: leave the view alone from then on. */
+  const userMovedRef = useRef(false);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
 
@@ -110,11 +119,25 @@ export function SalesmanLiveMap({
     pinsRef.current = L.layerGroup().addTo(map);
     trailRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
-    // The box can change size (sidebar, window); keep the tiles filling it.
-    const ro = new ResizeObserver(() => map.invalidateSize());
-    ro.observe(boxRef.current);
+    map.on("dragstart", () => {
+      userMovedRef.current = true;
+    });
+    const box = boxRef.current;
+    const onWheel = () => {
+      userMovedRef.current = true;
+    };
+    box.addEventListener("wheel", onWheel, { passive: true });
+    // The box can change size (sidebar, window, a window tab shown after it was drawn hidden):
+    // keep the tiles filling it, and fit the pins / route again until the user moves the map.
+    const ro = new ResizeObserver(() => {
+      map.invalidateSize();
+      const target = fitTargetRef.current;
+      if (target && !userMovedRef.current && box.clientHeight > 0) fitTo(map, target);
+    });
+    ro.observe(box);
     return () => {
       ro.disconnect();
+      box.removeEventListener("wheel", onWheel);
       map.remove();
       mapRef.current = null;
       riderRef.current = null;
@@ -194,8 +217,9 @@ export function SalesmanLiveMap({
     const all = pts.length > 0 ? pts : selectedUserId ? [] : salesmen.map((s) => L.latLng(s.lat, s.lng));
     if (fittedKeyRef.current !== viewKey && all.length > 0) {
       fittedKeyRef.current = viewKey;
-      if (all.length === 1) map.setView(all[0], 16);
-      else map.fitBounds(L.latLngBounds(all), { padding: [40, 40], maxZoom: 17 });
+      fitTargetRef.current = all;
+      userMovedRef.current = false;
+      fitTo(map, all);
     } else if (trailIsToday && pts.length > 0 && !map.getBounds().pad(-0.1).contains(pts[pts.length - 1])) {
       map.panTo(pts[pts.length - 1]);
     }
