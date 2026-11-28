@@ -39,6 +39,7 @@ export const BACK_MAP: Record<string, string> = {
   "product-catalogue":        "/reports",
   "stock-adjustment":         "stock-report",
   "stock-wastage":            "stock-report",
+  "reorder":                  "/",
   "duplicate-purchase-bills": "purchase-bills",
   "stock-transfer":           "/",
   "stock-transfer-entry":     "stock-transfer",

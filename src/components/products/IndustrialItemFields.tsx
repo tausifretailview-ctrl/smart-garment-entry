@@ -90,7 +90,23 @@ export function IndustrialItemFields({ value, onChange, baseUom, className }: Pr
             <span className="shrink-0 text-sm font-semibold text-slate-600">{base}</span>
           </div>
         </div>
-        <p className="col-span-2 self-end pb-2 text-xs text-slate-500 sm:col-span-1">
+        <div>
+          <Label htmlFor="item-max-stock" className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            Max stock
+          </Label>
+          <div className="flex items-center gap-1.5">
+            <Input
+              id="item-max-stock"
+              inputMode="decimal"
+              value={value.max_stock ?? ""}
+              onChange={(e) => set({ max_stock: e.target.value.replace(/[^0-9.]/g, "").slice(0, 12) })}
+              placeholder="Order up to"
+              className="h-9 bg-white text-sm tabular-nums"
+            />
+            <span className="shrink-0 text-sm font-semibold text-slate-600">{base}</span>
+          </div>
+        </div>
+        <p className="col-span-2 self-end pb-2 text-xs text-slate-500 sm:col-span-4">
           {reorderInAlt
             ? `Reorder at ${reorderInAlt}.`
             : value.reorder_level.trim()

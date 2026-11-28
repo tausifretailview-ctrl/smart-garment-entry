@@ -99,6 +99,7 @@ export const DialogA11ySpotCheck = import.meta.env.DEV
   : null;
 export const StockAdjustment = lazyWithRetry(() => import("@/pages/StockAdjustment"));
 export const StockWastage = lazyWithRetry(() => import("@/pages/StockWastage"));
+export const ReorderList = lazyWithRetry(() => import("@/pages/ReorderList"));
 export const DuplicatePurchaseBills = lazyWithRetry(() => import("@/pages/DuplicatePurchaseBills"));
 export const StockTransfer = lazyWithRetry(() => import("@/pages/StockTransfer"));
 export const StockTransferEntry = lazyWithRetry(() => import("@/pages/StockTransferEntry"));

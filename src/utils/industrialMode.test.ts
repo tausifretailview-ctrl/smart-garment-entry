@@ -262,12 +262,21 @@ describe("item alternate unit and reorder level", () => {
       alt_uom: "BOX",
       alt_uom_factor: 12,
       reorder_level: 1200,
+      max_stock: null,
     });
     expect(parseIndustrialItemForm({ alt_uom: "", alt_uom_factor: "12", reorder_level: "" }, "NOS")).toEqual({
       alt_uom: null,
       alt_uom_factor: null,
       reorder_level: null,
+      max_stock: null,
     });
+    // Max stock (Reorder page): order up to it; never under the reorder level.
+    expect(parseIndustrialItemForm({ alt_uom: "", alt_uom_factor: "", reorder_level: "48", max_stock: "240" }, "PCS")).toMatchObject({
+      reorder_level: 48,
+      max_stock: 240,
+    });
+    expect(() => parseIndustrialItemForm({ alt_uom: "", alt_uom_factor: "", reorder_level: "48", max_stock: "20" }, "PCS")).toThrow(/at least/);
+    expect(() => parseIndustrialItemForm({ alt_uom: "", alt_uom_factor: "", reorder_level: "", max_stock: "0" }, "PCS")).toThrow();
   });
 
   it("rejects bad values", () => {
@@ -282,8 +291,9 @@ describe("item alternate unit and reorder level", () => {
       alt_uom: "BOX",
       alt_uom_factor: "12",
       reorder_level: "50",
+      max_stock: "",
     });
-    expect(industrialItemToForm(null)).toEqual({ alt_uom: "", alt_uom_factor: "", reorder_level: "" });
+    expect(industrialItemToForm(null)).toEqual({ alt_uom: "", alt_uom_factor: "", reorder_level: "", max_stock: "" });
   });
 
   it("shows qty in the alternate unit", () => {

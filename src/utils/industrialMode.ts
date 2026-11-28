@@ -557,15 +557,18 @@ export type IndustrialItemDetails = {
   alt_uom: string | null;
   alt_uom_factor: number | null;
   reorder_level: number | null;
+  /** Order up to this (Reorder page, SQL 20270610120000). */
+  max_stock?: number | null;
 };
 
 export type IndustrialItemForm = {
   alt_uom: string;
   alt_uom_factor: string;
   reorder_level: string;
+  max_stock?: string;
 };
 
-export const EMPTY_INDUSTRIAL_ITEM_FORM: IndustrialItemForm = { alt_uom: "", alt_uom_factor: "", reorder_level: "" };
+export const EMPTY_INDUSTRIAL_ITEM_FORM: IndustrialItemForm = { alt_uom: "", alt_uom_factor: "", reorder_level: "", max_stock: "" };
 
 function numText(v: unknown): string {
   const n = Number(v);
@@ -578,6 +581,7 @@ export function industrialItemToForm(raw: unknown): IndustrialItemForm {
     alt_uom: typeof r.alt_uom === "string" ? r.alt_uom : "",
     alt_uom_factor: numText(r.alt_uom_factor),
     reorder_level: numText(r.reorder_level),
+    max_stock: numText(r.max_stock),
   };
 }
 
@@ -604,7 +608,16 @@ export function parseIndustrialItemForm(form: IndustrialItemForm, baseUom: strin
     if (!Number.isFinite(n) || n < 0) throw new Error("Reorder level must be 0 or more");
     reorder_level = Math.round(n * 1000) / 1000;
   }
-  return { alt_uom, alt_uom_factor, reorder_level };
+
+  const maxText = (form.max_stock ?? "").replace(/,/g, "").trim();
+  let max_stock: number | null = null;
+  if (maxText) {
+    const m = Number(maxText);
+    if (!Number.isFinite(m) || m <= 0) throw new Error("Max stock must be more than 0");
+    if (reorder_level !== null && m < reorder_level) throw new Error("Max stock must be at least the reorder level");
+    max_stock = Math.round(m * 1000) / 1000;
+  }
+  return { alt_uom, alt_uom_factor, reorder_level, max_stock };
 }
 
 function trimQty(n: number): string {

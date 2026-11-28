@@ -171,6 +171,7 @@ const ProductEntry = () => {
   const [fieldSettings, setFieldSettings] = useState<any>(null);
   // Settings → Product → Business type: a supermarket gets the grocery sample import sheet.
   const [isSupermarketShop, setIsSupermarketShop] = useState(false);
+  const loadedHasMaxStockRef = useRef(false);
   const [showMrp, setShowMrp] = useState(false);
   const [garmentGstSettings, setGarmentGstSettings] = useState<GarmentGstRuleSettings>({});
   // Settings > Purchase "Default Tax Rate" — used for Excel import rows with a blank GST cell.
@@ -846,6 +847,7 @@ const ProductEntry = () => {
           setMarkdownInput(loadedMd == null ? "" : String(Number(loadedMd)));
         }
         setLoadedHasItemColumns("reorder_level" in product && "alt_uom" in product);
+        loadedHasMaxStockRef.current = "max_stock" in product;
         setIndustrialItemForm(industrialItemToForm(product));
 
         // Set image preview if exists
@@ -1356,9 +1358,10 @@ const ProductEntry = () => {
   // SQL still saves products; a failure here never undoes the product save.
   const saveIndustrialItemDetails = async (productId: string, details: IndustrialItemDetails) => {
     if (!currentOrganization?.id) return;
+    const { max_stock, ...unitsAndLevel } = details;
     const { error } = await supabase
       .from("products")
-      .update(details)
+      .update(unitsAndLevel)
       .eq("id", productId)
       .eq("organization_id", currentOrganization.id);
     if (error) {
@@ -1367,6 +1370,22 @@ const ProductEntry = () => {
         description: "The product is saved. Run the Industrial mode step 7 SQL to keep alternate unit and reorder level.",
         variant: "destructive",
       });
+      return;
+    }
+    // Max stock is its own write: before SQL 73 the column is missing and only it is lost.
+    if (max_stock !== undefined && (max_stock !== null || loadedHasMaxStockRef.current)) {
+      const { error: maxError } = await supabase
+        .from("products")
+        .update({ max_stock } as never)
+        .eq("id", productId)
+        .eq("organization_id", currentOrganization.id);
+      if (maxError) {
+        toast({
+          title: "Max stock not saved",
+          description: "The product is saved. Run SQL 73 (reorder min / max) to keep max stock.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -1387,7 +1406,8 @@ const ProductEntry = () => {
         return;
       }
       // A new item with nothing filled in has nothing to write.
-      industrialItem = !editingProductId && !parsed.alt_uom && parsed.reorder_level === null ? null : parsed;
+      industrialItem =
+        !editingProductId && !parsed.alt_uom && parsed.reorder_level === null && !parsed.max_stock ? null : parsed;
     }
 
     // Validate barcode uniqueness across database

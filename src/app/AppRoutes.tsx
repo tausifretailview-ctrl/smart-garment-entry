@@ -103,6 +103,7 @@ import {
   DialogA11ySpotCheck,
   StockAdjustment,
   StockWastage,
+  ReorderList,
   DuplicatePurchaseBills,
   StockTransfer,
   StockTransferEntry,
@@ -562,6 +563,18 @@ export function AppRoutes() {
               <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                 <Layout>
                   <StockWastage />
+                </Layout>
+              </RoleProtectedRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="reorder"
+          element={
+            <ProtectedRoute>
+              <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                <Layout>
+                  <ReorderList />
                 </Layout>
               </RoleProtectedRoute>
             </ProtectedRoute>
