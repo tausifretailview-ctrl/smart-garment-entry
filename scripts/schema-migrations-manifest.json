@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-11-28",
-  "count": 986,
-  "fileCount": 1004,
+  "count": 988,
+  "fileCount": 1006,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -989,7 +989,9 @@
     "20270607120000",
     "20270608120000",
     "20270609120000",
-    "20270610120000"
+    "20270610120000",
+    "20270611120000",
+    "20270612120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1995,7 +1997,9 @@
     "20270607120000_repack_stock.sql",
     "20270608120000_product_attribute_values.sql",
     "20270609120000_stock_wastage.sql",
-    "20270610120000_reorder_min_max.sql"
+    "20270610120000_reorder_min_max.sql",
+    "20270611120000_batch_expiry.sql",
+    "20270612120000_sale_order_acceptance.sql"
   ],
   "duplicateVersions": [
     {

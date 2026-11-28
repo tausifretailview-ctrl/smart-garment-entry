@@ -184,6 +184,7 @@ import { FloatingSaleReturn } from "@/components/FloatingSaleReturn";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 
 import { toast } from "sonner";
+import { expiredStockGate, readExpirySettings, type BatchExpiryDb } from "@/lib/data/batchExpiry";
 import { useSaveSale } from "@/hooks/useSaveSale";
 import { useOfflinePosSync } from "@/hooks/useOfflinePosSync";
 import { useStockValidation, type KnownVariantStock } from "@/hooks/useStockValidation";
@@ -4361,6 +4362,19 @@ export default function POSSales() {
     focusBarcodeScanInput,
   ]);
 
+  /** Batch & expiry: warn (default) or block when the stock that sells next has expired. Off: no await at all. */
+  const expiryGateOn = readExpirySettings(settingsData).action !== "off";
+  const passExpiredStockGate = (product: { product_name?: string | null; name?: string | null }, variant: { id?: string | null; size?: string | null }) =>
+    expiredStockGate({
+      db: supabase as unknown as BatchExpiryDb,
+      orgId: currentOrganization?.id,
+      settings: settingsData,
+      variantId: variant.id,
+      productName: `${product.product_name || product.name || "Item"}${variant.size && variant.size !== "None" ? ` ${variant.size}` : ""}`,
+      todayYmd: istCalendarYmd(),
+      notify: (kind, message) => (kind === "block" ? toast.error(message, { duration: 6000 }) : toast.warning(message, { duration: 5000 })),
+    });
+
   const addItemToCart = async (
     product: any,
     variant: any,
@@ -4371,6 +4385,7 @@ export default function POSSales() {
     if (blockSettlementLockedVariant(variant, product.product_name || product.name || "Product", variant.barcode || "")) {
       return;
     }
+    if (product.product_type !== 'service' && expiryGateOn && !(await passExpiredStockGate(product, variant))) return;
 
     // Service products: merge same barcode + price into one line; different MRP stays separate (saree pieces).
     const isServiceProduct = product.product_type === 'service';
@@ -4589,6 +4604,7 @@ export default function POSSales() {
    */
   const addWeighedItemToCart = async (product: PosProductRow, variant: PosVariantRow, weight: number) => {
     if (blockSettlementLockedVariant(variant, product.product_name || "Product", variant.barcode || "")) return;
+    if (expiryGateOn && !(await passExpiredStockGate(product, variant))) return;
     const beforeIdx = findPosGoodsMergeIndex(itemsRef.current, variant.id, "");
     const beforeQty = beforeIdx >= 0 ? itemsRef.current[beforeIdx].quantity : 0;
     const targetQty = Math.round((beforeQty + weight) * 1000) / 1000;

@@ -104,6 +104,7 @@ import {
   StockAdjustment,
   StockWastage,
   ReorderList,
+  ExpiryReport,
   DuplicatePurchaseBills,
   StockTransfer,
   StockTransferEntry,
@@ -575,6 +576,18 @@ export function AppRoutes() {
               <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                 <Layout>
                   <ReorderList />
+                </Layout>
+              </RoleProtectedRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="expiry-report"
+          element={
+            <ProtectedRoute>
+              <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                <Layout>
+                  <ExpiryReport />
                 </Layout>
               </RoleProtectedRoute>
             </ProtectedRoute>

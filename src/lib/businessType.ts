@@ -25,6 +25,7 @@ export type BusinessTypeSettings = {
   purchase_settings?: {
     barcode_mode?: "auto" | "scan";
     show_mrp?: boolean;
+    track_batch_expiry?: boolean;
   } | null;
 };
 
@@ -43,6 +44,7 @@ export const SUPERMARKET_SETUP_ITEMS = [
   "Colour and Style fields switched off (Category, Brand and HSN stay)",
   "Purchase: scan the company barcode (EAN) instead of printing our own",
   "Purchase: MRP column on",
+  "Purchase: batch no and expiry date on each line (expired stock warns at billing)",
   "Item import: supermarket sample sheet (EAN, MRP, KG items)",
 ] as const;
 
@@ -70,6 +72,7 @@ export function applySupermarketSetup<T extends BusinessTypeSettings>(settings: 
       ...purchase,
       barcode_mode: "scan",
       show_mrp: true,
+      track_batch_expiry: true,
     },
   };
 }

@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { WholesaleSizeA4Template } from "./WholesaleSizeA4Template";
-import { groupWholesaleSizeRows, wholesaleSizeColumns } from "@/utils/wholesaleSizeInvoice";
+import { groupWholesaleSizeRows, lineAmountBeforeGst, wholesaleSizeColumns } from "@/utils/wholesaleSizeInvoice";
 
 const line = (sr: number, particulars: string, color: string, size: string, qty: number, rate: number, extra: Record<string, unknown> = {}) => ({
   sr, particulars, color, size, qty, rate, total: rate * qty, mrp: 495, hsn: "62121000", gstPercent: 5, brand: "SONARI", barcode: "", sp: rate, ...extra,
@@ -48,7 +48,8 @@ describe("WholesaleSizeA4Template", () => {
         customerGSTIN: "36ADDPM3428Q1Z4",
         b2bDetails: { transporter_name: "LOCAL DELIVERY", vehicle_no: "TS09AB1234", lr_no: "LR-55", lr_date: "2026-11-20", customer_po_no: "00790" },
         taxType: "exclusive",
-        items,
+        // Sale Bill line totals on a GST-exclusive bill carry their GST.
+        items: items.map((it) => ({ ...it, total: Math.round(it.total * 1.05 * 100) / 100 })),
         subtotal: 6458,
         taxableAmount: 6458,
         cgstAmount: 161.45,
@@ -146,5 +147,56 @@ describe("WholesaleSizeA4Template", () => {
     expect(html).toContain("Bill of Supply");
     expect(html).not.toContain('data-testid="wsa4-hsn"');
     expect(html).not.toContain('data-testid="wsa4-group"');
+  });
+
+  it("GST-exclusive bill: rate and amount without GST, GST %, Disc % after Rate, GST in the totals, no Sub Total", () => {
+    // Like the JINDAL bill: 5 pairs at ₹1,168.30 + 5% GST (line total 6,133.58), and a line with 10% off.
+    const html = renderToStaticMarkup(
+      createElement(WholesaleSizeA4Template, {
+        businessName: "JINDAL TRADING COMPANY",
+        address: "WADKI, PUNE",
+        mobile: "9422005324",
+        gstNumber: "27AAEFJ9507H1Z7",
+        invoiceNumber: "INV/26-27/4",
+        invoiceDate: new Date(2026, 10, 28),
+        customerName: "CASH",
+        taxType: "exclusive",
+        items: [
+          line(1, "RC 5001-LEATHER-RED CHEIF-CHAPPAL", "BROWN", "10", 5, 1168.3, { brand: "RED CHEIF", hsn: "", mrp: 0, total: 6133.58 }),
+          line(2, "RC 7002-SANDAL", "BLACK", "9", 2, 1000, { brand: "RED CHEIF", hsn: "", mrp: 0, discountPercent: 10, total: 1890 }),
+        ],
+        subtotal: 7641.5,
+        taxableAmount: 7641.5,
+        cgstAmount: 191.04,
+        sgstAmount: 191.04,
+        roundOff: 0.42,
+        grandTotal: 8024,
+      }),
+    );
+    const rates = [...html.matchAll(/data-testid="wsa4-rate-cell">([^<]*)</g)].map((m) => m[1]);
+    const discs = [...html.matchAll(/data-testid="wsa4-disc-cell">([^<]*)</g)].map((m) => m[1]);
+    const amounts = [...html.matchAll(/data-testid="wsa4-amount-cell">([^<]*)</g)].map((m) => m[1]);
+    const gst = [...html.matchAll(/data-testid="wsa4-gst-cell">([^<]*)</g)].map((m) => m[1]);
+    expect(rates).toEqual(["1,168.30", "1,000.00"]);
+    expect(discs).toEqual(["", "10%"]);
+    expect(amounts).toEqual(["5,841.50", "1,800.00"]);
+    expect(gst).toEqual(["5%", "5%"]);
+    expect(html).not.toContain("1,226.72");
+    // Disc % sits right after Rate.
+    expect(html.indexOf(">Disc %</th>")).toBeGreaterThan(html.indexOf(">Rate</th>"));
+    expect(html.indexOf(">Disc %</th>")).toBeLessThan(html.indexOf(">Amount ₹</th>"));
+    // Items total is the value before GST; GST is added below.
+    expect(html).toMatch(/data-testid="wsa4-total-row"[\s\S]*7,641.50/);
+    const totals = html.slice(html.indexOf('data-testid="wsa4-totals"'));
+    expect(totals).not.toContain("Sub Total");
+    expect(totals).toContain("Taxable Value");
+    expect(totals).toContain("191.04");
+    expect(totals).toContain("8,024.00");
+  });
+
+  it("before-GST value only for exclusive bills", () => {
+    expect(lineAmountBeforeGst(6133.58, 5, true)).toBe(5841.5);
+    expect(lineAmountBeforeGst(6133.58, 5, false)).toBe(6133.58);
+    expect(lineAmountBeforeGst(500, 0, true)).toBe(500);
   });
 });

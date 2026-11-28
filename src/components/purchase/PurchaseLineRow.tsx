@@ -45,7 +45,12 @@ export type PurchaseLineRowItem = {
   color?: string;
   style?: string;
   uom?: string;
+  /** Batch & expiry (Settings → Purchase "Batch & expiry on purchase lines"). */
+  batch_no?: string;
+  expiry_date?: string;
 };
+
+export type PurchaseLineTextField = "batch_no" | "expiry_date";
 
 export type PurchaseLineEditableField = "qty" | "pur_price" | "sale_price" | "mrp" | "gst_per" | "discount_percent";
 
@@ -80,7 +85,52 @@ export type PurchaseLineRowProps<T extends PurchaseLineRowItem> = PurchaseLineCo
   onRemove: (tempId: string) => void;
   onOpenEdit: (index: number, focusField?: string) => void;
   onImeiCorrection: (item: T, rawBarcode: string) => void;
+  /** Batch & expiry boxes under the description; needs onUpdateText (stable). */
+  showBatchExpiry?: boolean;
+  onUpdateText?: (tempId: string, field: PurchaseLineTextField, value: string) => void;
 };
+
+/** Batch no + expiry date under the description; saved on blur / pick so typing does not redraw the bill. */
+function BatchExpiryInputs({
+  tempId,
+  productName,
+  batchNo,
+  expiryDate,
+  onUpdateText,
+}: {
+  tempId: string;
+  productName: string;
+  batchNo: string;
+  expiryDate: string;
+  onUpdateText: (tempId: string, field: PurchaseLineTextField, value: string) => void;
+}) {
+  return (
+    <div className="mt-1 flex items-center gap-1" onDoubleClick={(e) => e.stopPropagation()}>
+      <input
+        key={`batch-${batchNo}`}
+        aria-label={`Batch no ${productName}`}
+        placeholder="Batch"
+        defaultValue={batchNo}
+        maxLength={40}
+        onBlur={(e) => {
+          const v = e.target.value.trim();
+          if (v !== batchNo) onUpdateText(tempId, "batch_no", v);
+        }}
+        className="h-6 w-24 min-w-0 rounded border border-slate-200 bg-white px-1 text-[12px] font-semibold text-slate-700"
+      />
+      <label className="flex items-center gap-1 text-[10px] font-semibold uppercase text-slate-500">
+        Exp
+        <input
+          type="date"
+          aria-label={`Expiry date ${productName}`}
+          value={expiryDate}
+          onChange={(e) => onUpdateText(tempId, "expiry_date", e.target.value)}
+          className="h-6 w-[8.5rem] min-w-0 rounded border border-slate-200 bg-white px-1 text-[12px] font-semibold text-slate-700"
+        />
+      </label>
+    </div>
+  );
+}
 
 /**
  * Small "cases" / "case rate" box under a line's qty or rate. Keeps the typed text while it
@@ -143,6 +193,8 @@ function PurchaseLineRowInner<T extends PurchaseLineRowItem>({
   onRemove,
   onOpenEdit,
   onImeiCorrection,
+  showBatchExpiry,
+  onUpdateText,
 }: PurchaseLineRowProps<T>) {
   const subTotal = computePurchaseLineSubTotal(item);
   const description = formatProductDescription(item);
@@ -166,6 +218,15 @@ function PurchaseLineRowInner<T extends PurchaseLineRowItem>({
         onDoubleClick={() => onOpenEdit(index, "product_name")}
       >
         <div className="entry-line-product-desc text-[15px] leading-snug font-semibold">{description}</div>
+        {showBatchExpiry && onUpdateText ? (
+          <BatchExpiryInputs
+            tempId={item.temp_id}
+            productName={item.product_name}
+            batchNo={item.batch_no ?? ""}
+            expiryDate={item.expiry_date ?? ""}
+            onUpdateText={onUpdateText}
+          />
+        ) : null}
       </TableCell>
       {showSize && (
         <TableCell className="pur-col-size w-[4.5rem] text-center text-[15px] font-bold">

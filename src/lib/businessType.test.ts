@@ -24,7 +24,7 @@ describe("business type", () => {
       low_stock_threshold: 5,
       fields: { color: { label: "Shade", enabled: false }, style: { enabled: false }, brand: { enabled: true } },
     });
-    expect(after.purchase_settings).toEqual({ barcode_mode: "scan", show_mrp: true, default_uom: "NOS" });
+    expect(after.purchase_settings).toEqual({ barcode_mode: "scan", show_mrp: true, track_batch_expiry: true, default_uom: "NOS" });
     expect(after.sale_settings).toBe(before.sale_settings);
     // Input untouched.
     expect(before.product_settings.default_size_group).toBe("abc");

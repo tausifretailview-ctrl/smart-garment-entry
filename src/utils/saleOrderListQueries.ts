@@ -25,7 +25,10 @@ const SALE_ORDER_LIST_COLUMNS = [
 /** Qty fields only — enough for list subtext (fulfilled/total items). */
 const SALE_ORDER_ITEM_QTY_EMBED = "order_qty, fulfilled_qty, pending_qty";
 
-export const SALE_ORDER_LIST_SELECT = `${SALE_ORDER_LIST_COLUMNS}, sale_order_items(${SALE_ORDER_ITEM_QTY_EMBED})`;
+export const SALE_ORDER_LIST_SELECT = `${SALE_ORDER_LIST_COLUMNS}, acceptance_status, sale_order_items(${SALE_ORDER_ITEM_QTY_EMBED})`;
+/** Before SQL 75 (acceptance_status) is run. */
+const SALE_ORDER_LIST_SELECT_LEGACY = `${SALE_ORDER_LIST_COLUMNS}, sale_order_items(${SALE_ORDER_ITEM_QTY_EMBED})`;
+let acceptanceColumnMissing = false;
 
 export type SaleOrderListFilters = {
   statusFilter: string;
@@ -113,17 +116,21 @@ export async function fetchSaleOrderListPage(
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let query = supabase
-    .from("sale_orders")
-    .select(SALE_ORDER_LIST_SELECT, { count: "exact" })
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null);
+  const run = (select: string) => {
+    let query = supabase
+      .from("sale_orders")
+      .select(select, { count: "exact" })
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null);
+    query = applySaleOrderListFilters(query as any, filters) as any;
+    return query.order("created_at", { ascending: false }).range(from, to);
+  };
 
-  query = applySaleOrderListFilters(query as any, filters) as any;
-
-  const { data, error, count } = await query
-    .order("created_at", { ascending: false })
-    .range(from, to);
+  let { data, error, count } = await run(acceptanceColumnMissing ? SALE_ORDER_LIST_SELECT_LEGACY : SALE_ORDER_LIST_SELECT);
+  if (error && !acceptanceColumnMissing && /acceptance_status/i.test(String(error.message || ""))) {
+    acceptanceColumnMissing = true;
+    ({ data, error, count } = await run(SALE_ORDER_LIST_SELECT_LEGACY));
+  }
 
   if (error) throw error;
 

@@ -82,7 +82,8 @@ export function resolveInvoiceSizeColumns(
   return fillNumericGaps(onBill);
 }
 
-function rowKey(item: InvoiceSizePivotLine): string {
+/** Key of the printed row a line falls on (same product, colour, HSN, GST, MRP, discount and rate). */
+export function pivotRowKey(item: InvoiceSizePivotLine): string {
   return [
     item.particulars.trim(),
     (item.color || "").trim(),
@@ -107,7 +108,7 @@ export function pivotSaleItemsBySize(
   const map = new Map<string, InvoiceSizePivotRow>();
 
   items.forEach((item) => {
-    const key = rowKey(item);
+    const key = pivotRowKey(item);
     const sz = sizeMatrixKey(item.size);
     const qty = Number(item.qty || 0);
     const total = Number(item.total || 0);

@@ -21,6 +21,14 @@ import { format } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import {
+  readSaleOrderAcceptance,
+  SALE_ORDER_ACCEPTANCE_OPTIONS,
+  saleOrderAcceptanceLabel,
+  setSaleOrderAcceptance,
+  type SaleOrderAcceptance,
+  type SaleOrderAcceptanceDb,
+} from "@/lib/data/saleOrderAcceptance";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { SaleOrderPrint } from "@/components/SaleOrderPrint";
 import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
@@ -50,7 +58,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
-import { Check, FileText, PackageSearch, X } from "lucide-react";
+import { FileText, PackageSearch, X } from "lucide-react";
 import { useIndustrialMode } from "@/hooks/useIndustrialMode";
 import { SaleOrderPendingItemsDialog } from "@/components/sales/SaleOrderPendingItemsDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
@@ -273,8 +281,7 @@ export default function SaleOrderDashboard() {
     );
   }, [fromDate]);
 
-  const [orderToAccept, setOrderToAccept] = useState<any>(null);
-  const [isAccepting, setIsAccepting] = useState(false);
+  const [acceptanceSaving, setAcceptanceSaving] = useState<string | null>(null);
   
   // Draft save hook
   const { hasDraft, draftData, deleteDraft, lastSaved } = useDraftSave('sale_order');
@@ -820,25 +827,22 @@ export default function SaleOrderDashboard() {
     }
   };
 
-  const handleAcceptOrder = async () => {
-    if (!orderToAccept) return;
-
-    setIsAccepting(true);
+  const handleAcceptanceChange = async (order: { id: string; order_number: string }, value: SaleOrderAcceptance) => {
+    if (!currentOrganization?.id) return;
+    setAcceptanceSaving(order.id);
     try {
-      const { error } = await supabase
-        .from('sale_orders')
-        .update({ customer_accepted: true })
-        .eq('id', orderToAccept.id);
-
-      if (error) throw error;
-
-      toast({ title: "Success", description: `Sale Order ${orderToAccept.order_number} accepted` });
+      await setSaleOrderAcceptance(
+        supabase as unknown as SaleOrderAcceptanceDb,
+        currentOrganization.id,
+        order.id,
+        value,
+      );
+      toast({ title: saleOrderAcceptanceLabel(value), description: `Sale Order ${order.order_number}` });
       invalidateSaleOrderQueries();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Not saved", description: error.message, variant: "destructive" });
     } finally {
-      setIsAccepting(false);
-      setOrderToAccept(null);
+      setAcceptanceSaving(null);
     }
   };
 
@@ -1316,26 +1320,36 @@ export default function SaleOrderDashboard() {
                           ) : null}
                         </TableCell>
                         <TableCell>
-                          {order.customer_accepted ? (
-                            <Button 
-                              variant="secondary" 
-                              size="sm" 
-                              disabled 
-                              className="!bg-gray-500 hover:!bg-gray-500 !text-white !opacity-100 cursor-not-allowed"
-                            >
-                              <Check className="h-4 w-4 mr-1" />
-                              Accepted
-                            </Button>
-                          ) : (
-                            <Button 
-                              variant="default" 
-                              size="sm"
-                              className="bg-blue-800 hover:bg-blue-900 text-white"
-                              onClick={() => setOrderToAccept(order)}
-                            >
-                              Accept
-                            </Button>
-                          )}
+                          {(() => {
+                            const acceptance = readSaleOrderAcceptance(order);
+                            return (
+                              <Select
+                                value={acceptance ?? ""}
+                                onValueChange={(v) => void handleAcceptanceChange(order, v as SaleOrderAcceptance)}
+                                disabled={acceptanceSaving === order.id}
+                              >
+                                <SelectTrigger
+                                  aria-label={`Acceptance ${order.order_number}`}
+                                  data-testid="sale-order-acceptance"
+                                  className={cn(
+                                    "h-8 w-[7.5rem] text-xs font-semibold",
+                                    acceptance === "accepted" && "border-green-600 bg-green-50 text-green-800",
+                                    acceptance === "hold" && "border-amber-500 bg-amber-50 text-amber-800",
+                                    acceptance === "rejected" && "border-red-500 bg-red-50 text-red-700",
+                                  )}
+                                >
+                                  <SelectValue placeholder="Select" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {SALE_ORDER_ACCEPTANCE_OPTIONS.map((o) => (
+                                    <SelectItem key={o.value} value={o.value}>
+                                      {o.value === acceptance ? saleOrderAcceptanceLabel(o.value) : o.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
@@ -1465,23 +1479,7 @@ export default function SaleOrderDashboard() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Accept Dialog */}
-      <AlertDialog open={!!orderToAccept} onOpenChange={() => setOrderToAccept(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Accept Sale Order?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to accept this order ({orderToAccept?.order_number})?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleAcceptOrder} disabled={isAccepting}>
-              {isAccepting ? <Loader2 className="h-4 w-4 animate-spin" /> : "OK"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+
 
       {/* Conversion Dialog */}
       <Dialog

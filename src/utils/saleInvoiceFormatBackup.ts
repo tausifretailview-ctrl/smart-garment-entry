@@ -52,6 +52,7 @@ export const SALE_INVOICE_FORMAT_KEYS = [
   "show_item_mrp",
   "invoice_description_sequence_enabled",
   "invoice_description_sequence",
+  "invoice_description_fields",
 ] as const;
 
 export type SaleInvoiceFormatKey = (typeof SALE_INVOICE_FORMAT_KEYS)[number];

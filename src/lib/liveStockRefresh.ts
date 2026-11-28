@@ -84,6 +84,7 @@ export const STOCK_WRITE_RPCS: ReadonlySet<string> = new Set([
   "reconcile_variant_stock_qty",
   "repack_stock",
   "record_stock_wastage",
+  "write_off_expired_lot",
   "reverse_stock_wastage",
   "merge_products",
   "merge_two_products",
@@ -281,6 +282,7 @@ export const LIVE_STOCK_QUERY_HEADS = [
   "product-catalog",
   "product-dashboard-stats",
   "stock-wastage",
+  "expiry-report",
 ] as const;
 
 const HEADS: ReadonlySet<unknown> = new Set(LIVE_STOCK_QUERY_HEADS);
