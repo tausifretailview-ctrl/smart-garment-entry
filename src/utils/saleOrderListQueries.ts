@@ -37,6 +37,24 @@ function saleOrderListSelect(): string {
 }
 export const SALE_ORDER_LIST_SELECT = saleOrderListSelect();
 
+/** Status filter value for orders put on Hold from the acceptance drop-down. */
+export const SALE_ORDER_HOLD_FILTER = "hold";
+
+/** Orders on Hold (acceptance drop-down); null before SQL 75 is run. */
+export async function fetchSaleOrderHoldCount(organizationId: string): Promise<number | null> {
+  const { count, error } = await supabase
+    .from("sale_orders")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null)
+    .eq("acceptance_status" as never, "hold" as never);
+  if (error) {
+    if (/acceptance_status/i.test(String(error.message || "")) || error.code === "42703") return null;
+    throw error;
+  }
+  return count ?? 0;
+}
+
 export type SaleOrderListFilters = {
   statusFilter: string;
   customerFilter: string;
@@ -73,7 +91,10 @@ export function applySaleOrderListFilters<Q extends FilterableQuery>(
 ): Q {
   let q = query;
 
-  if (filters.statusFilter !== "all") {
+  if (filters.statusFilter === SALE_ORDER_HOLD_FILTER) {
+    // "On hold" is the acceptance drop-down (SQL 75), not the order status.
+    q = q.eq("acceptance_status", "hold") as Q;
+  } else if (filters.statusFilter !== "all") {
     q = q.eq("status", filters.statusFilter) as Q;
   }
 

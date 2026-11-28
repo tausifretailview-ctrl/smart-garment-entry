@@ -37,6 +37,13 @@ function baseFilters(overrides: Partial<SaleOrderListFilters> = {}): SaleOrderLi
 }
 
 describe("applySaleOrderListFilters", () => {
+  it("On Hold filters by the acceptance drop-down, not the order status", () => {
+    const { query, calls } = createFilterRecorder();
+    applySaleOrderListFilters(query, baseFilters({ statusFilter: "hold" }));
+    expect(calls).toContainEqual({ method: "eq", column: "acceptance_status", value: "hold" });
+    expect(calls.filter((c) => c.column === "status")).toEqual([]);
+  });
+
   it("does not constrain order_date when no dates are set (legacy all-time)", () => {
     const { query, calls } = createFilterRecorder();
     applySaleOrderListFilters(query, baseFilters());

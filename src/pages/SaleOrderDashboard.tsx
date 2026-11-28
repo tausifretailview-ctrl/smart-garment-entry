@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
-import { Search, Edit, ChevronDown, ChevronUp, Trash2, Loader2, ClipboardList, ArrowRight, Plus, CheckCircle, AlertTriangle, Printer, Clock, Package, IndianRupee, MessageCircle, CalendarIcon, Download, FileDown } from "lucide-react";
+import { Search, Edit, ChevronDown, ChevronUp, Trash2, Loader2, ClipboardList, ArrowRight, Plus, CheckCircle, AlertTriangle, Printer, Clock, Package, IndianRupee, MessageCircle, CalendarIcon, Download, FileDown, PauseCircle } from "lucide-react";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
@@ -66,6 +66,8 @@ import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import {
   fetchSaleOrderCustomerOptions,
   fetchSaleOrderDashboardStats,
+  fetchSaleOrderHoldCount,
+  SALE_ORDER_HOLD_FILTER,
   fetchSaleOrderLineItems,
   fetchSaleOrderListPage,
   fetchSaleOrderWithItems,
@@ -309,7 +311,16 @@ export default function SaleOrderDashboard() {
     void queryClient.invalidateQueries({ queryKey: ["sale-orders-stats", orgId] });
     void queryClient.invalidateQueries({ queryKey: ["sale-order-customers", orgId] });
     void queryClient.invalidateQueries({ queryKey: ["sale-order-pending-items", orgId] });
+    void queryClient.invalidateQueries({ queryKey: ["sale-orders-hold-count", orgId] });
   }, [currentOrganization?.id, queryClient]);
+
+  // Hold card: orders put on Hold from the acceptance drop-down (hidden before SQL 75).
+  const { data: holdCount } = useQuery({
+    queryKey: ["sale-orders-hold-count", currentOrganization?.id],
+    enabled: !!currentOrganization?.id,
+    staleTime: 30_000,
+    queryFn: () => fetchSaleOrderHoldCount(currentOrganization!.id),
+  });
 
   const {
     data: listPageData,
@@ -1073,7 +1084,12 @@ export default function SaleOrderDashboard() {
         </Card>
       )}
 
-      <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6 lg:gap-3 w-full">
+      <div
+        className={cn(
+          "grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:gap-3 w-full",
+          holdCount != null ? "sm:grid-cols-4 lg:grid-cols-7" : "lg:grid-cols-6",
+        )}
+      >
         <Card 
           className={`cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl min-w-0 ${statusFilter === 'all' ? 'ring-4 ring-white ring-offset-2 ring-offset-slate-100' : ''}`}
           onClick={() => handleCardClick('all')}
@@ -1137,6 +1153,27 @@ export default function SaleOrderDashboard() {
             <p className="text-sm text-white/65 mt-0.5">Completed</p>
           </CardContent>
         </Card>
+
+        {holdCount != null && (
+          <Card
+            data-testid="sale-order-hold-card"
+            className={`cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-slate-600 to-slate-700 border-0 shadow-md rounded-xl min-w-0 ${statusFilter === SALE_ORDER_HOLD_FILTER ? 'ring-4 ring-white ring-offset-2 ring-offset-slate-100' : ''}`}
+            onClick={() => handleCardClick(SALE_ORDER_HOLD_FILTER)}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+              <CardDescription className="text-base font-medium text-white/80">On Hold</CardDescription>
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <PauseCircle className="h-4 w-4 text-white" />
+              </div>
+            </CardHeader>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-2xl font-black text-white tabular-nums" data-testid="sale-order-hold-count">
+                {formatKpiValue(holdCount)}
+              </div>
+              <p className="text-sm text-white/65 mt-0.5">Waiting on the customer</p>
+            </CardContent>
+          </Card>
+        )}
         
         <Card className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-md rounded-xl min-w-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
@@ -1227,6 +1264,7 @@ export default function SaleOrderDashboard() {
               <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="partial">Partial</SelectItem>
               <SelectItem value="confirmed">Confirmed</SelectItem>
+              {holdCount != null ? <SelectItem value={SALE_ORDER_HOLD_FILTER}>On Hold</SelectItem> : null}
               <SelectItem value="invoiced">Invoiced</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
