@@ -2,6 +2,8 @@
  * Colour-wise product photos (Nov 2026, migration 20270614120000): Product Master → Photos.
  * One photo per product and colour (not per size or MRP); Field Sales shows it while booking.
  * Files go to the "product-images" bucket under <organization_id>/<product_id>/.
+ * SQL 79 (20270616120000): one card per article + colour when a shop saves each size as its own
+ * product ("1490 (3095) 6 BLACK", "… 7 BLACK"); the photo is saved for all of them at once.
  */
 import { supabase } from "@/integrations/supabase/client";
 import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
@@ -19,6 +21,10 @@ export type ColorCard = {
   product_image_url: string | null;
   sizes: string | null;
   stock_qty: number;
+  /** Every product of the card (each size saved as its own product); [product_id] before SQL 79. */
+  product_ids: string[];
+  /** How many of product_ids have the colour photo. */
+  photo_count: number;
 };
 
 export type ColorCardPage = { cards: ColorCard[]; total: number; all: number; withPhoto: number };
@@ -87,18 +93,25 @@ export async function fetchColorCards(orgId: string, opts: ColorCardFilters = {}
   const rows = data ?? [];
   const first = rows[0];
   return {
-    cards: rows.map((r) => ({
-      product_id: String(r.product_id),
-      product_name: String(r.product_name ?? ""),
-      brand: (r.brand as string | null) ?? null,
-      category: (r.category as string | null) ?? null,
-      style: (r.style as string | null) ?? null,
-      color: String(r.color ?? ""),
-      image_url: isUsableImageUrl(r.image_url) ? (r.image_url as string) : null,
-      product_image_url: isUsableImageUrl(r.product_image_url) ? (r.product_image_url as string) : null,
-      sizes: (r.sizes as string | null) ?? null,
-      stock_qty: Number(r.stock_qty) || 0,
-    })),
+    cards: rows.map((r) => {
+      const productId = String(r.product_id);
+      const ids = Array.isArray(r.product_ids) && r.product_ids.length > 0 ? (r.product_ids as unknown[]).map(String) : [productId];
+      const imageUrl = isUsableImageUrl(r.image_url) ? (r.image_url as string) : null;
+      return {
+        product_id: productId,
+        product_name: String(r.product_name ?? ""),
+        brand: (r.brand as string | null) ?? null,
+        category: (r.category as string | null) ?? null,
+        style: (r.style as string | null) ?? null,
+        color: String(r.color ?? ""),
+        image_url: imageUrl,
+        product_image_url: isUsableImageUrl(r.product_image_url) ? (r.product_image_url as string) : null,
+        sizes: (r.sizes as string | null) ?? null,
+        stock_qty: Number(r.stock_qty) || 0,
+        product_ids: ids,
+        photo_count: r.photo_count == null ? (imageUrl ? ids.length : 0) : Number(r.photo_count) || 0,
+      };
+    }),
     total: Number(first?.total_count) || 0,
     all: Number(first?.all_count) || 0,
     withPhoto: Number(first?.with_photo_count) || 0,
@@ -178,8 +191,40 @@ async function findRow(orgId: string, productId: string, color: string) {
   return ((data ?? []) as Array<{ id: string; color: string; image_url: string }>)[0] ?? null;
 }
 
-/** Add or replace the photo of one product colour. Returns the new photo URL. */
-export async function saveColorPhoto(orgId: string, card: Pick<ColorCard, "product_id" | "color" | "product_image_url">, file: File): Promise<string> {
+type CardRef = Pick<ColorCard, "product_id" | "color"> & { product_ids?: string[] };
+
+const isMissingFn = (err: DbError) =>
+  ["PGRST202", "42883"].includes(String(err?.code)) || /set_product_color_photo/i.test(String(err?.message || ""));
+
+/**
+ * SQL 79: put one photo (or none) on every product of the card in one step. Returns false before
+ * SQL 79 is run. Old files nothing uses any more are deleted from storage.
+ */
+async function setPhotoForAll(orgId: string, card: CardRef, url: string | null): Promise<boolean> {
+  const ids = card.product_ids?.length ? card.product_ids : [card.product_id];
+  const { data, error } = await rpc("set_product_color_photo", {
+    p_org_id: orgId,
+    p_product_ids: ids,
+    p_color: card.color.trim(),
+    p_image_url: url,
+  });
+  if (error) {
+    if (isMissingFn(error)) return false;
+    throw new Error(error.message || "Photo not saved");
+  }
+  const unused = (data ?? []).map((r) => storagePathFromUrl(String(r.unused_url ?? ""))).filter((x): x is string => !!x);
+  if (unused.length > 0) void supabase.storage.from("product-images").remove(unused);
+  return true;
+}
+
+/** The card already has a photo on some sizes: give the same photo to the others (no upload). */
+export async function applyColorPhotoToAll(orgId: string, card: CardRef & Pick<ColorCard, "image_url">): Promise<void> {
+  if (!card.image_url) return;
+  if (!(await setPhotoForAll(orgId, card, card.image_url))) throw new Error("Run SQL 79 (photos by article) in the database first.");
+}
+
+/** Add or replace the photo of one product colour (all its sizes). Returns the new photo URL. */
+export async function saveColorPhoto(orgId: string, card: CardRef & Pick<ColorCard, "product_image_url">, file: File): Promise<string> {
   const blob = await prepareProductPhoto(file);
   const slug = card.color.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "photo";
   const ext = blob.type === "image/png" ? "png" : blob.type === "image/webp" ? "webp" : "jpg";
@@ -190,6 +235,14 @@ export async function saveColorPhoto(orgId: string, card: Pick<ColorCard, "produ
   if (upErr) throw new Error(upErr.message || "Photo not uploaded");
   const url = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
 
+  try {
+    if (await setPhotoForAll(orgId, card, url)) return url;
+  } catch (e) {
+    void supabase.storage.from("product-images").remove([path]);
+    throw e;
+  }
+
+  // Before SQL 79: this product only.
   const existing = await findRow(orgId, card.product_id, card.color);
   const table = supabase.from("product_color_images" as never);
   const { error } = existing
@@ -222,7 +275,8 @@ export async function saveColorPhoto(orgId: string, card: Pick<ColorCard, "produ
   return url;
 }
 
-export async function removeColorPhoto(orgId: string, card: Pick<ColorCard, "product_id" | "color">): Promise<void> {
+export async function removeColorPhoto(orgId: string, card: CardRef): Promise<void> {
+  if (await setPhotoForAll(orgId, card, null)) return;
   const existing = await findRow(orgId, card.product_id, card.color);
   if (!existing) return;
   const { error } = await supabase.from("product_color_images" as never).delete().eq("id", existing.id);
@@ -286,7 +340,13 @@ export function findCardForGuess<T extends Pick<ColorCard, "product_name" | "sty
 ): T | null {
   const a = squash(guess.article);
   const c = squash(guess.color);
-  const sameArticle = cards.filter((x) => squash(x.product_name) === a || (x.style && squash(x.style) === a));
+  const sameArticle = cards.filter(
+    (x) =>
+      squash(x.product_name) === a ||
+      // "1490 (3095)" is article 1490 at MRP 3095: a file named "1490 BLACK" finds it.
+      squash(x.product_name.replace(/\([^)]*\)/g, " ")) === a ||
+      (x.style && squash(x.style) === a),
+  );
   if (sameArticle.length === 0) return null;
   if (c) return sameArticle.find((x) => squash(x.color) === c) ?? null;
   // No colour in the name: only when the article has one colour.

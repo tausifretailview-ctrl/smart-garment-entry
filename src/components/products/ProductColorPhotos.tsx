@@ -15,6 +15,7 @@ import {
   fetchColorFilterOptions,
   findCardForGuess,
   importNameGuesses,
+  applyColorPhotoToAll,
   removeColorPhoto,
   saveColorPhoto,
   type ColorCard,
@@ -58,6 +59,7 @@ function PhotoCard({
   onRemove,
   onView,
   onEdit,
+  onApplyAll,
 }: {
   card: ColorCard;
   busy: boolean;
@@ -65,6 +67,8 @@ function PhotoCard({
   onRemove: () => void;
   onView: () => void;
   onEdit: () => void;
+  /** Give the photo to the card's sizes that have none (each size saved as its own product). */
+  onApplyAll: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
@@ -156,6 +160,22 @@ function PhotoCard({
         <div className="truncate text-xs text-slate-500">
           {[card.brand, card.category].filter(Boolean).join(" · ") || " "}
         </div>
+        {card.sizes ? (
+          <div className="truncate text-[11px] font-medium text-slate-600" title={`Sizes ${card.sizes}`} data-testid="color-photo-sizes">
+            Sizes {card.sizes}
+          </div>
+        ) : null}
+        {card.image_url && card.photo_count < card.product_ids.length ? (
+          <button
+            type="button"
+            onClick={onApplyAll}
+            disabled={busy}
+            className="rounded-md bg-amber-50 px-2 py-1 text-left text-[11px] font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+            aria-label={`Use this photo for all sizes ${label}`}
+          >
+            Photo on {card.photo_count} of {card.product_ids.length} sizes · Use for all
+          </button>
+        ) : null}
         <div className="mt-auto flex items-center justify-between gap-2 pt-1">
           <ColorChip color={card.color} />
           {card.stock_qty > 0 ? <span className="shrink-0 text-[11px] font-medium text-slate-500">Stock {card.stock_qty}</span> : null}
@@ -590,6 +610,7 @@ export function ProductColorPhotos({ orgId }: { orgId: string }) {
               }}
               onView={() => setViewing(card)}
               onEdit={() => setEditing(card)}
+              onApplyAll={() => void withBusy(card, () => applyColorPhotoToAll(orgId, card), "Photo set for all sizes")}
             />
           ))}
         </div>
