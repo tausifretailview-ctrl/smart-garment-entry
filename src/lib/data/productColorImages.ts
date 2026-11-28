@@ -6,6 +6,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 import { isUsableImageUrl } from "@/lib/productImages";
+import { bestEffortWrite } from "@/lib/rollbackStep";
 
 export type ColorCard = {
   product_id: string;
@@ -149,18 +150,19 @@ export async function saveColorPhoto(orgId: string, card: Pick<ColorCard, "produ
     if (old) void supabase.storage.from("product-images").remove([old]);
   }
   // Screens that show one photo per product (catalogue, reports) get the first colour photo.
-  // (A query runs only when awaited; best effort, the colour photo is already saved.)
+  // Best effort: the colour photo is already saved.
   if (!card.product_image_url) {
-    try {
-      await supabase
-        .from("products")
-        .update({ image_url: url })
-        .eq("id", card.product_id)
-        .eq("organization_id", orgId)
-        .is("image_url", null);
-    } catch {
-      /* the catalogue keeps its placeholder */
-    }
+    await bestEffortWrite(
+      "product-color-photo:main-photo",
+      () =>
+        supabase
+          .from("products")
+          .update({ image_url: url })
+          .eq("id", card.product_id)
+          .eq("organization_id", orgId)
+          .is("image_url", null),
+      { organizationId: orgId, recordId: card.product_id },
+    );
   }
   return url;
 }

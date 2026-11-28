@@ -498,12 +498,14 @@ const SalesmanOrderEntry = () => {
       });
 
       // Colour photos: a product with no main photo shows its first colour photo in the list.
+      type VariantWithProduct = { product_id: string; color: string | null; products: { product_name: string; color?: string | null } };
+      const variantsWithProduct = uniqueVariants as VariantWithProduct[];
       const colorMap = await fetchColorImageMap(
         currentOrganization.id,
-        [...new Set(uniqueVariants.map((v: any) => v.product_id as string))],
+        [...new Set(variantsWithProduct.map((v) => v.product_id))],
       );
       if (colorMap.size > 0) {
-        for (const v of uniqueVariants as any[]) {
+        for (const v of variantsWithProduct) {
           const entry = productMap.get(v.products.product_name);
           const url = colorMap.get(colorKey(v.product_id, v.color || v.products?.color || ""));
           if (entry && url && !entry.product.image_url) entry.product = { ...entry.product, image_url: url };
