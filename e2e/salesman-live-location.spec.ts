@@ -92,15 +92,31 @@ test.describe("salesman phone", () => {
     await expect(notice).toHaveCount(0);
   });
 
-  test("after work hours: nothing asked, nothing sent", async ({ page, backend }) => {
+  test("after work hours: asked once, then nothing is sent until the hours start", async ({ page, backend }) => {
     await page.clock.install({ time: new Date("2026-11-24T21:00:00+05:30") });
     backend.addRows("employees", [salesman]);
     backend.tables.settings[0].sale_settings = { salesman_tracking: { enabled: true, start: "10:00", end: "20:00" } };
     await page.goto(`/${E2E_ORG_SLUG}/salesman`);
-    await expect(page.getByTestId("field-sales-app")).toBeVisible({ timeout: 60_000 });
+    const notice = page.getByTestId("field-sales-location-consent");
+    await expect(notice).toBeVisible({ timeout: 60_000 });
+    await notice.getByRole("button", { name: "Allow" }).click();
+    await expect(notice).toHaveCount(0);
+    await expect(page.getByTestId("field-sales-location-status")).toHaveText("Location from 10:00 AM to 8:00 PM");
     await page.clock.fastForward(61_000);
-    await expect(page.getByTestId("field-sales-location-consent")).toHaveCount(0);
-    await expect(page.getByTestId("field-sales-location-status")).toHaveCount(0);
     expect(backend.rpcCalls("record_salesman_locations")).toHaveLength(0);
+  });
+
+  test("switched on in Settings while the app is open: asked when the app comes back to the front", async ({ page, backend }) => {
+    await page.clock.install({ time: new Date("2026-11-24T12:00:00+05:30") });
+    backend.addRows("employees", [salesman]);
+    backend.tables.settings[0].sale_settings = {};
+    await page.goto(`/${E2E_ORG_SLUG}/salesman`);
+    await expect(page.getByTestId("field-sales-app")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("field-sales-location-consent")).toHaveCount(0);
+
+    // The owner turns it on; the salesman switches back to the app.
+    backend.tables.settings[0].sale_settings = { salesman_tracking: { enabled: true, start: "10:00", end: "20:00" } };
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await expect(page.getByTestId("field-sales-location-consent")).toBeVisible({ timeout: 15_000 });
   });
 });
