@@ -81,6 +81,10 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   backup: "settings_view",
   "barcode-printing": "barcode_printing",
   "stock-adjustment": "stock_adjustment",
+  // Wastage is stock work an inventory user does (admin / manager only, see AppRoutes).
+  "stock-wastage": "stock_report",
+  // Reorder ends in a purchase order.
+  reorder: "purchase_order_entry",
   "stock-transfer": "stock_transfer",
   "stock-transfer-entry": "stock_transfer",
   "stock-settlement": "stock_settlement",

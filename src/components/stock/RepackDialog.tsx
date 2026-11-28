@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -6,115 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { repackStock, repackUnitCost, type RepackDb } from "@/lib/data/repackStock";
+import { VariantPicker as ItemPicker } from "@/components/stock/VariantPicker";
+import { variantPickerLabel as itemLabel, type PickedVariant as Item } from "@/lib/variantPickerLabel";
 
 /**
  * Stock Adjustment → Repack (supermarket go-live, Nov 2026): one 50 kg sack of sugar into
  * 50 packets of 1 kg. Stock goes out of the bulk item and into the packet item in one step;
  * the packets' cost is the bulk used plus packing.
  */
-type Item = {
-  id: string;
-  barcode: string | null;
-  size: string | null;
-  stock_qty: number | null;
-  pur_price: number | null;
-  products: { product_name: string; uom: string | null } | null;
-};
-
-function itemLabel(it: Item): string {
-  const size = it.size && it.size !== "None" ? ` (${it.size})` : "";
-  return `${it.products?.product_name ?? "Item"}${size}`;
-}
-
-function ItemPicker({
-  label,
-  organizationId,
-  value,
-  onChange,
-  testId,
-}: {
-  label: string;
-  organizationId: string;
-  value: Item | null;
-  onChange: (it: Item | null) => void;
-  testId: string;
-}) {
-  const [term, setTerm] = useState("");
-  const [results, setResults] = useState<Item[]>([]);
-
-  useEffect(() => {
-    const q = term.trim();
-    if (q.length < 2) {
-      setResults([]);
-      return;
-    }
-    let live = true;
-    const timer = setTimeout(async () => {
-      const base = () =>
-        supabase
-          .from("product_variants")
-          .select("id, barcode, size, stock_qty, pur_price, products!inner(product_name, uom)")
-          .eq("organization_id", organizationId)
-          .is("deleted_at", null)
-          .is("products.deleted_at", null)
-          .limit(8);
-      const byBarcode = await base().eq("barcode", q);
-      let rows = (byBarcode.data ?? []) as unknown as Item[];
-      if (rows.length === 0) {
-        const byName = await base().ilike("products.product_name", `%${q.replace(/[%_,]/g, "")}%`);
-        rows = (byName.data ?? []) as unknown as Item[];
-      }
-      if (live) setResults(rows);
-    }, 250);
-    return () => {
-      live = false;
-      clearTimeout(timer);
-    };
-  }, [term, organizationId]);
-
-  return (
-    <div className="space-y-1.5" data-testid={testId}>
-      <Label>{label}</Label>
-      {value ? (
-        <div className="flex items-center justify-between rounded-md border bg-slate-50 px-2.5 py-1.5 text-sm">
-          <span>
-            <span className="font-semibold">{itemLabel(value)}</span>
-            <span className="text-muted-foreground">
-              {" "}
-              · stock {Number(value.stock_qty) || 0} {value.products?.uom || ""} · cost ₹{Number(value.pur_price) || 0}
-            </span>
-          </span>
-          <Button type="button" variant="ghost" size="sm" onClick={() => onChange(null)}>
-            Change
-          </Button>
-        </div>
-      ) : (
-        <>
-          <Input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Scan barcode or type item name" />
-          {results.length > 0 ? (
-            <div className="max-h-40 overflow-y-auto rounded-md border">
-              {results.map((it) => (
-                <button
-                  type="button"
-                  key={it.id}
-                  className="block w-full px-2.5 py-1.5 text-left text-sm hover:bg-slate-50"
-                  onClick={() => {
-                    onChange(it);
-                    setTerm("");
-                    setResults([]);
-                  }}
-                >
-                  {itemLabel(it)} <span className="text-muted-foreground">· {it.barcode || "—"} · stock {Number(it.stock_qty) || 0}</span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </>
-      )}
-    </div>
-  );
-}
-
 export function RepackDialog({
   open,
   onOpenChange,
