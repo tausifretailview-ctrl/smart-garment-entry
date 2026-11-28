@@ -1,19 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Expand, ImagePlus, Images, Loader2, RefreshCw, Search, Trash2, UploadCloud, XCircle } from "lucide-react";
+import { CheckCircle2, Crop, Expand, Filter, ImagePlus, Images, Loader2, RefreshCw, Search, Trash2, UploadCloud, X, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { PhotoEditDialog } from "@/components/products/PhotoEditDialog";
 import { cn } from "@/lib/utils";
 import {
+  colorCardFiltersAvailable,
   colorKey,
   fetchColorCards,
+  fetchColorFilterOptions,
   findCardForGuess,
   importNameGuesses,
   removeColorPhoto,
   saveColorPhoto,
   type ColorCard,
+  type PhotoFilter,
 } from "@/lib/data/productColorImages";
 
 /**
@@ -52,12 +57,14 @@ function PhotoCard({
   onFile,
   onRemove,
   onView,
+  onEdit,
 }: {
   card: ColorCard;
   busy: boolean;
   onFile: (f: File) => void;
   onRemove: () => void;
   onView: () => void;
+  onEdit: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
@@ -88,7 +95,7 @@ function PhotoCard({
             <div className="absolute inset-0 flex items-end justify-center gap-2 bg-gradient-to-t from-black/60 via-black/0 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
               {[
                 { icon: Expand, label: "View", onClick: onView, cls: "" },
-                { icon: RefreshCw, label: "Replace", onClick: () => inputRef.current?.click(), cls: "" },
+                { icon: Crop, label: "Adjust", onClick: onEdit, cls: "" },
                 { icon: Trash2, label: "Remove", onClick: onRemove, cls: "text-red-600" },
               ].map(({ icon: Icon, label: what, onClick, cls }) => (
                 <button
@@ -153,6 +160,29 @@ function PhotoCard({
           <ColorChip color={card.color} />
           {card.stock_qty > 0 ? <span className="shrink-0 text-[11px] font-medium text-slate-500">Stock {card.stock_qty}</span> : null}
         </div>
+        {card.image_url ? (
+          // Always on the card (no hover on phones and tablets).
+          <div className="mt-1 grid grid-cols-2 gap-1.5 border-t pt-2">
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              disabled={busy}
+              className="inline-flex items-center justify-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              aria-label={`Change photo ${label}`}
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> Change
+            </button>
+            <button
+              type="button"
+              onClick={onEdit}
+              disabled={busy}
+              className="inline-flex items-center justify-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              aria-label={`Edit photo ${label}`}
+            >
+              <Crop className="h-3.5 w-3.5" /> Edit
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -341,8 +371,12 @@ export function ProductColorPhotos({ orgId }: { orgId: string }) {
   const queryClient = useQueryClient();
   const [searchText, setSearchText] = useState("");
   const [search, setSearch] = useState("");
-  const [onlyMissing, setOnlyMissing] = useState(false);
+  const [photo, setPhoto] = useState<PhotoFilter>("all");
+  const [brand, setBrand] = useState("all");
+  const [category, setCategory] = useState("all");
+  const [color, setColor] = useState("all");
   const [pages, setPages] = useState(1);
+  const [editing, setEditing] = useState<ColorCard | null>(null);
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [viewing, setViewing] = useState<ColorCard | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -355,18 +389,46 @@ export function ProductColorPhotos({ orgId }: { orgId: string }) {
     return () => window.clearTimeout(t);
   }, [searchText]);
 
-  const queryKey = ["product-color-cards", orgId, search, onlyMissing, pages] as const;
+  const pick = (v: string) => (v === "all" ? undefined : v);
+  const queryKey = ["product-color-cards", orgId, search, photo, brand, category, color, pages] as const;
   const { data, isLoading, isFetching, error } = useQuery({
     queryKey,
     enabled: !!orgId,
     placeholderData: (prev) => prev,
-    queryFn: () => fetchColorCards(orgId, { search, onlyMissing, limit: PAGE * pages }),
+    queryFn: () =>
+      fetchColorCards(orgId, {
+        search,
+        photo,
+        brand: pick(brand),
+        category: pick(category),
+        color: pick(color),
+        limit: PAGE * pages,
+      }),
   });
+  // Brand / category / colour lists for the filters (SQL 78); hidden before it is run.
+  const { data: options } = useQuery({
+    queryKey: ["product-color-filter-options", orgId],
+    enabled: !!orgId,
+    staleTime: 5 * 60_000,
+    queryFn: () => fetchColorFilterOptions(orgId),
+  });
+  const filtersOn = brand !== "all" || category !== "all" || color !== "all" || photo !== "all" || !!search;
+  const clearFilters = () => {
+    setBrand("all");
+    setCategory("all");
+    setColor("all");
+    setPhoto("all");
+    setSearchText("");
+    setPages(1);
+  };
   const missingSql = data === null;
   const cards = useMemo(() => data?.cards ?? [], [data]);
   const pct = data && data.all > 0 ? Math.round((data.withPhoto / data.all) * 100) : 0;
 
-  const reload = () => void queryClient.invalidateQueries({ queryKey: ["product-color-cards", orgId] });
+  const reload = () => {
+    void queryClient.invalidateQueries({ queryKey: ["product-color-cards", orgId] });
+    void queryClient.invalidateQueries({ queryKey: ["product-color-filter-options", orgId] });
+  };
 
   const withBusy = async (card: ColorCard, work: () => Promise<unknown>, done: string) => {
     const key = colorKey(card.product_id, card.color);
@@ -428,23 +490,26 @@ export function ProductColorPhotos({ orgId }: { orgId: string }) {
             aria-label="Search photos"
           />
         </div>
-        <div className="inline-flex rounded-lg border bg-white p-0.5">
-          {[
-            { v: false, label: "All" },
-            { v: true, label: "Missing photo" },
-          ].map((o) => (
+        <div className="inline-flex rounded-lg border bg-white p-0.5" role="group" aria-label="Photo filter">
+          {(
+            [
+              { v: "all", label: "All" },
+              ...(options ? [{ v: "with", label: "With photo" }] : []),
+              { v: "missing", label: "Missing photo" },
+            ] as Array<{ v: PhotoFilter; label: string }>
+          ).map((o) => (
             <button
-              key={o.label}
+              key={o.v}
               type="button"
               onClick={() => {
-                setOnlyMissing(o.v);
+                setPhoto(o.v);
                 setPages(1);
               }}
               className={cn(
                 "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                onlyMissing === o.v ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100",
+                photo === o.v ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100",
               )}
-              aria-pressed={onlyMissing === o.v}
+              aria-pressed={photo === o.v}
             >
               {o.label}
             </button>
@@ -452,6 +517,45 @@ export function ProductColorPhotos({ orgId }: { orgId: string }) {
         </div>
         {isFetching && !isLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
       </div>
+
+      {options ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-slate-50/70 p-2" data-testid="photo-filters">
+          <Filter className="ml-1 h-4 w-4 text-slate-500" />
+          {(
+            [
+              { label: "Brand", value: brand, set: setBrand, list: options.brand, all: "All brands" },
+              { label: "Category", value: category, set: setCategory, list: options.category, all: "All categories" },
+              { label: "Colour", value: color, set: setColor, list: options.color, all: "All colours" },
+            ] as const
+          ).map((f) => (
+            <div key={f.label} className="w-44" aria-label={`${f.label} filter`} data-testid={`photo-filter-${f.label.toLowerCase()}`}>
+              <SearchableSelect
+                value={f.value}
+                onValueChange={(v) => {
+                  f.set(v);
+                  setPages(1);
+                }}
+                options={f.list}
+                allLabel={f.all}
+                placeholder={f.label}
+                triggerClassName="h-9"
+              />
+            </div>
+          ))}
+          {filtersOn ? (
+            <Button type="button" variant="ghost" size="sm" onClick={clearFilters} className="text-slate-600">
+              <X className="mr-1 h-4 w-4" /> Clear filters
+            </Button>
+          ) : null}
+          {data ? (
+            <span className="ml-auto pr-1 text-xs font-medium text-slate-500" data-testid="photo-filter-count">
+              {data.total} {data.total === 1 ? "card" : "cards"}
+            </span>
+          ) : null}
+        </div>
+      ) : !missingSql && options === null && colorCardFiltersAvailable() === false ? (
+        <p className="text-xs text-muted-foreground">Run SQL 78 to filter by brand, category and colour.</p>
+      ) : null}
 
       {missingSql ? (
         <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -468,7 +572,7 @@ export function ProductColorPhotos({ orgId }: { orgId: string }) {
       ) : null}
       {!isLoading && !missingSql && cards.length === 0 ? (
         <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {onlyMissing ? "Every colour has a photo." : "No products found."}
+          {photo === "missing" && !filtersOn ? "Every colour has a photo." : "No products match these filters."}
         </div>
       ) : null}
 
@@ -485,6 +589,7 @@ export function ProductColorPhotos({ orgId }: { orgId: string }) {
                 void withBusy(card, () => removeColorPhoto(orgId, card), "Photo removed");
               }}
               onView={() => setViewing(card)}
+              onEdit={() => setEditing(card)}
             />
           ))}
         </div>
@@ -515,6 +620,20 @@ export function ProductColorPhotos({ orgId }: { orgId: string }) {
       </Dialog>
 
       <ImportDialog orgId={orgId} open={importOpen} onOpenChange={setImportOpen} onDone={reload} />
+
+      <PhotoEditDialog
+        open={!!editing}
+        src={editing?.image_url ?? null}
+        title={editing ? `${editing.product_name}${editing.color ? ` · ${editing.color}` : ""}` : ""}
+        onCancel={() => setEditing(null)}
+        onSave={async (blob) => {
+          const card = editing;
+          if (!card) return;
+          setEditing(null);
+          const file = new File([blob], "edited.jpg", { type: "image/jpeg" });
+          await withBusy(card, () => saveColorPhoto(orgId, card, file), `Photo updated: ${card.product_name}${card.color ? ` ${card.color}` : ""}`);
+        }}
+      />
     </div>
   );
 }
