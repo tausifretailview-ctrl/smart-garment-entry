@@ -46,6 +46,7 @@ export interface WholesaleSizeA4TemplateProps {
   b2bDetails?: SaleB2BDetails | null;
   taxType?: GstTaxType | string;
   items: InvoiceItem[];
+  /** Not printed (rate and amount columns already add up to the items value). */
   subtotal?: number;
   discount?: number;
   saleReturnAdjust?: number;
@@ -103,6 +104,12 @@ const printExact: React.CSSProperties = { WebkitPrintColorAdjust: "exact", print
 const money = (n: number) =>
   roundInvoiceMoney(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/** "5%" / "2.5%"; blank when 0. */
+const pct = (n: number | undefined): string => {
+  const v = roundInvoiceMoney(Number(n || 0));
+  return v > 0 ? `${v}%` : "";
+};
+
 const dmy = (date?: Date | string | null): string => {
   if (!date) return "";
   const d = date instanceof Date ? date : new Date(date);
@@ -135,7 +142,6 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
   b2bDetails,
   taxType: taxTypeProp = "inclusive",
   items,
-  subtotal,
   discount = 0,
   saleReturnAdjust = 0,
   taxableAmount,
@@ -162,7 +168,10 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
   const isInterState = igstAmount > 0.005 && cgstAmount < 0.005;
 
   const columns = wholesaleSizeColumns(items, sizeColumnHints);
-  const { groups, columnQtyTotals, totalPcs, totalAmount } = groupWholesaleSizeRows(items, columns);
+  // GST-exclusive bill: rate and amount print without GST; the GST is added in the totals.
+  const { groups, columnQtyTotals, totalPcs, totalAmount } = groupWholesaleSizeRows(items, columns, {
+    gstExclusive: taxType === "exclusive",
+  });
   const showMrp = groups.some((g) => g.rows.some((r) => r.mrp > 0));
   // HSN has its own column; a group row names the brand, once per brand (groups are brand × HSN).
   const showGroupHeaders = groups.some((g) => g.brand);
@@ -202,13 +211,13 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
 
   // Column widths (%): sizes share what the fixed columns leave, description takes the rest.
   const sizeW = columns.length > 0 ? Math.max(2.2, Math.min(4.4, 35 / columns.length)) : 0;
-  const fixed = { sr: 3.6, hsn: 8, gst: 4.4, pcs: 4.8, mrp: showMrp ? 6.4 : 0, rate: 7, amount: 10.2 };
+  const fixed = { sr: 3.6, hsn: 8, gst: 4.4, pcs: 4.8, mrp: showMrp ? 6.4 : 0, rate: 8, disc: 4.4, amount: 10.2 };
   const descW = Math.max(
     11,
     100 - Object.values(fixed).reduce((a, b) => a + b, 0) - sizeW * columns.length,
   );
   const sizeFont = columns.length > 14 ? "9px" : columns.length > 10 ? "10px" : "11px";
-  const colSpanAll = 7 + (showMrp ? 1 : 0) + columns.length;
+  const colSpanAll = 8 + (showMrp ? 1 : 0) + columns.length;
 
   const frame = `1.5px solid ${ACCENT}`;
   const line = `1px solid ${LINE}`;
@@ -435,6 +444,7 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
               <col style={{ width: `${fixed.pcs}%` }} />
               {showMrp ? <col style={{ width: `${fixed.mrp}%` }} /> : null}
               <col style={{ width: `${fixed.rate}%` }} />
+              <col style={{ width: `${fixed.disc}%` }} />
               <col style={{ width: `${fixed.amount}%` }} />
             </colgroup>
             <thead>
@@ -451,6 +461,7 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
                 <th style={th} rowSpan={2}>Pcs</th>
                 {showMrp ? <th style={th} rowSpan={2}>MRP</th> : null}
                 <th style={th} rowSpan={2}>Rate</th>
+                <th style={th} rowSpan={2}>Disc %</th>
                 <th style={th} rowSpan={2}>Amount ₹</th>
               </tr>
               <tr>
@@ -499,7 +510,7 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
                           <td style={{ ...cell, textAlign: "center", fontSize: "10.5px", wordBreak: "break-word" }} data-testid="wsa4-hsn-cell">
                             {g.hsn || ""}
                           </td>
-                          <td style={{ ...cell, textAlign: "center" }}>{row.gstPercent ? `${row.gstPercent}` : ""}</td>
+                          <td style={{ ...cell, textAlign: "center" }} data-testid="wsa4-gst-cell">{pct(row.gstPercent)}</td>
                           {columns.map((sz) => (
                             <td key={sz} style={sizeCell}>
                               {row.qtyBySize[sz] ? row.qtyBySize[sz] : ""}
@@ -507,8 +518,9 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
                           ))}
                           <td style={{ ...num, textAlign: "center", fontWeight: 800 }}>{row.totalPairs}</td>
                           {showMrp ? <td style={num}>{row.mrp > 0 ? money(row.mrp) : ""}</td> : null}
-                          <td style={num}>{money(row.netRate)}</td>
-                          <td style={{ ...num, fontWeight: 700 }}>{money(row.amount)}</td>
+                          <td style={num} data-testid="wsa4-rate-cell">{money(row.listRate)}</td>
+                          <td style={{ ...num, textAlign: "center" }} data-testid="wsa4-disc-cell">{pct(row.discountPercent)}</td>
+                          <td style={{ ...num, fontWeight: 700 }} data-testid="wsa4-amount-cell">{money(row.amount)}</td>
                         </tr>
                       );
                     })}
@@ -530,6 +542,7 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
               <col style={{ width: `${fixed.pcs}%` }} />
               {showMrp ? <col style={{ width: `${fixed.mrp}%` }} /> : null}
               <col style={{ width: `${fixed.rate}%` }} />
+              <col style={{ width: `${fixed.disc}%` }} />
               <col style={{ width: `${fixed.amount}%` }} />
             </colgroup>
             <tbody>
@@ -550,6 +563,7 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
               <col style={{ width: `${fixed.pcs}%` }} />
               {showMrp ? <col style={{ width: `${fixed.mrp}%` }} /> : null}
               <col style={{ width: `${fixed.rate}%` }} />
+              <col style={{ width: `${fixed.disc}%` }} />
               <col style={{ width: `${fixed.amount}%` }} />
             </colgroup>
             <tbody>
@@ -566,6 +580,7 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
                   {totalPcs}
                 </td>
                 {showMrp ? <td style={{ ...cell, borderTop: frame, borderBottom: frame, background: SOFT, ...printExact }} /> : null}
+                <td style={{ ...cell, borderTop: frame, borderBottom: frame, background: SOFT, ...printExact }} />
                 <td style={{ ...cell, borderTop: frame, borderBottom: frame, background: SOFT, ...printExact }} />
                 <td style={{ ...num, borderTop: frame, borderBottom: frame, background: SOFT, fontWeight: 800, ...printExact }}>
                   {money(totalAmount)}
@@ -593,7 +608,7 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
                   {hsnSummary.rows.map((r) => (
                     <tr key={`${r.hsn}|${r.gstPercent}`}>
                       <td style={{ ...cell, textAlign: "center" }}>{r.hsn}</td>
-                      <td style={{ ...cell, textAlign: "center" }}>{r.gstPercent}</td>
+                      <td style={{ ...cell, textAlign: "center" }}>{pct(r.gstPercent)}</td>
                       <td style={num}>{money(r.taxable)}</td>
                       {isInterState ? (
                         <td style={num}>{money(r.igst)}</td>
@@ -658,7 +673,6 @@ export const WholesaleSizeA4Template: React.FC<WholesaleSizeA4TemplateProps> = (
           <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }} data-testid="wsa4-totals">
               <tbody>
-                {subtotal != null && Math.abs(subtotal - grandTotal) > 0.005 ? sumRow("Sub Total", subtotal) : null}
                 {discount > 0.005 ? sumRow("Less: Discount", discount, { minus: true }) : null}
                 {saleReturnAdjust > 0.005 ? sumRow("Less: Sale Return", saleReturnAdjust, { minus: true }) : null}
                 {!isNoGst && taxableAmount != null ? sumRow("Taxable Value", taxableAmount) : null}

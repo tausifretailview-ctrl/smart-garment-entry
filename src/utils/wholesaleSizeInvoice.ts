@@ -4,6 +4,7 @@
  */
 import {
   collectSizesOnBill,
+  pivotRowKey,
   pivotSaleItemsBySize,
   resolveInvoiceSizeColumns,
   type InvoiceSizePivotRow,
@@ -26,7 +27,20 @@ export type WholesaleSizeInvoiceItem = {
   discountPercent?: number;
 };
 
-type Group = { brand: string; hsn: string; rows: InvoiceSizePivotRow[] };
+/** A printed row: `listRate` is the rate before the line discount (the Rate column). */
+export type WholesaleSizeRow = InvoiceSizePivotRow & { listRate: number };
+type Group = { brand: string; hsn: string; rows: WholesaleSizeRow[] };
+
+/**
+ * Line value before GST. A GST-exclusive bill keeps each line total with its GST added
+ * (Sale Bill lineTotal); the wholesale invoice prints rate and amount without GST and adds
+ * the GST at the bottom.
+ */
+export function lineAmountBeforeGst(total: number, gstPercent: number | undefined, gstExclusive: boolean): number {
+  const t = Number(total || 0);
+  const g = Number(gstPercent || 0);
+  return gstExclusive && g > 0 ? roundInvoiceMoney(t / (1 + g / 100)) : t;
+}
 
 /**
  * Size columns in the shop's own size-group order (28 … 42, then M … 3XL), from the first to the
@@ -44,8 +58,15 @@ export function wholesaleSizeColumns(items: WholesaleSizeInvoiceItem[], hintSize
   return hints.slice(Math.min(...at), Math.max(...at) + 1);
 }
 
-/** Product rows grouped under "BRAND · HSN" headers, in first-seen order (like a bill book). */
-export function groupWholesaleSizeRows(items: WholesaleSizeInvoiceItem[], columns: string[]): {
+/**
+ * Product rows grouped under "BRAND · HSN" headers, in first-seen order (like a bill book).
+ * `gstExclusive`: amounts without GST (GST goes in the totals), and no sale price in the MRP column.
+ */
+export function groupWholesaleSizeRows(
+  items: WholesaleSizeInvoiceItem[],
+  columns: string[],
+  opts: { gstExclusive?: boolean } = {},
+): {
   groups: Group[];
   columnQtyTotals: Record<string, number>;
   totalPcs: number;
@@ -69,17 +90,27 @@ export function groupWholesaleSizeRows(items: WholesaleSizeInvoiceItem[], column
         color: item.color,
         hsn: item.hsn,
         gstPercent: item.gstPercent,
-        mrp: item.mrp || item.sp,
+        mrp: opts.gstExclusive ? item.mrp : item.mrp || item.sp,
         discountPercent: item.discountPercent,
         rate: item.rate,
         size: item.size,
         qty: item.qty,
-        total: item.total,
+        total: lineAmountBeforeGst(item.total, item.gstPercent, !!opts.gstExclusive),
       })),
       columns,
     );
     const [brand, hsn] = key.split("||");
-    return { brand, hsn, rows: pivot.rows };
+    // Lines on one printed row share their rate (it is part of the row key).
+    const rateByKey = new Map<string, number>();
+    for (const item of list) {
+      const k = pivotRowKey({ ...item, mrp: opts.gstExclusive ? item.mrp : item.mrp || item.sp });
+      if (!rateByKey.has(k)) rateByKey.set(k, Number(item.rate || 0));
+    }
+    return {
+      brand,
+      hsn,
+      rows: pivot.rows.map((r) => ({ ...r, listRate: rateByKey.get(r.key) || r.netRate })),
+    };
   });
   const columnQtyTotals: Record<string, number> = {};
   columns.forEach((sz) => {
