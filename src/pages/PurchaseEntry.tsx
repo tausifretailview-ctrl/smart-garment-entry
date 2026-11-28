@@ -1,5 +1,9 @@
 import { posSaveBegin, posSaveMark } from "@/lib/posSaveTiming";
 import { findVariantIdByExtraBarcode, type VariantBarcodesDb } from "@/lib/data/variantBarcodes";
+import { packUnitOf, type PackUnit } from "@/lib/packUnits";
+import { isSupermarket, type BusinessTypeSettings } from "@/lib/businessType";
+import { useIndustrialMode } from "@/hooks/useIndustrialMode";
+import { fetchInIdBatches } from "@/lib/data/fetchInIdBatches";
 import { warnTransferredPriceGaps } from "@/utils/transferredPriceWarning";
 import { reportIfFails } from "@/lib/reportIfFails";
 import { lazy, Suspense, useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type ChangeEvent, type ReactNode } from "react";
@@ -2290,6 +2294,45 @@ const PurchaseEntry = () => {
 
   const { data: settings } = useSettings();
   const photoImportOn = isPhotoImportEnabled(settings?.purchase_settings);
+
+  // Buying in cases (supermarket go-live, Nov 2026): the pack unit of each item on the bill
+  // (Product Entry → Units: 1 CASE = 24 PCS). Supermarket shops and Industrial mode only, so
+  // other shops make no extra read. Lines still save pieces and the rate per piece.
+  const industrialModeForPacks = useIndustrialMode();
+  const packUnitsWanted =
+    industrialModeForPacks.enabled || isSupermarket(settings as BusinessTypeSettings | null | undefined);
+  const [packUnitsByProduct, setPackUnitsByProduct] = useState<Record<string, PackUnit | null>>({});
+  const packUnitsRequestedRef = useRef<Set<string>>(new Set());
+  const packUnitsUnavailableRef = useRef(false);
+  useEffect(() => {
+    if (!packUnitsWanted || packUnitsUnavailableRef.current || !currentOrganization?.id) return;
+    const missing = [...new Set(lineItems.map((l) => l.product_id).filter(Boolean))].filter(
+      (id) => !packUnitsRequestedRef.current.has(id),
+    );
+    if (missing.length === 0) return;
+    missing.forEach((id) => packUnitsRequestedRef.current.add(id));
+    const orgId = currentOrganization.id;
+    void fetchInIdBatches<{ id: string; alt_uom: string | null; alt_uom_factor: number | null }>(missing, (batch) =>
+      supabase
+        .from("products")
+        .select("id, alt_uom, alt_uom_factor")
+        .eq("organization_id", orgId)
+        .in("id", batch)
+        .order("id") as never,
+    )
+      .then((rows) => {
+        setPackUnitsByProduct((prev) => {
+          const next = { ...prev };
+          for (const id of missing) next[id] = null;
+          for (const r of rows) next[r.id] = packUnitOf(r);
+          return next;
+        });
+      })
+      .catch(() => {
+        // Columns not there (Industrial SQL not run): no pack units, never an error at entry.
+        packUnitsUnavailableRef.current = true;
+      });
+  }, [packUnitsWanted, lineItems, currentOrganization?.id]);
 
   /** Org flag only — drives search grouping MRP splits (independent of column visibility). */
   const purchaseShowMrp = (settings?.purchase_settings as any)?.show_mrp === true;
@@ -9061,6 +9104,7 @@ const PurchaseEntry = () => {
                       showMrp={showMrp}
                       showGst={showPurCol.gst}
                       showDiscPercent={showPurCol.disc_percent}
+                      packUnit={packUnitsByProduct[item.product_id] ?? null}
                       onToggleSelect={toggleItemSelection}
                       onUpdate={updateLineItemStable}
                       onRemove={removeLineItemStable}

@@ -1,4 +1,4 @@
-import { memo, type ReactNode, type Ref, type RefObject } from "react";
+import { memo, useState, type ReactNode, type Ref, type RefObject } from "react";
 import { AlertTriangle, ChevronDown, Pencil, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getUOMLabel } from "@/constants/uom";
 import { cn } from "@/lib/utils";
+import {
+  packRateFromPieceRate,
+  packsFromPieces,
+  pieceRateFromPackRate,
+  piecesFromPacks,
+  type PackUnit,
+} from "@/lib/packUnits";
 import { computePurchaseLineSubTotal } from "@/utils/excelImportUtils";
 import { formatProductDescription } from "@/utils/purchaseProductDescription";
 import { minQtyForUom } from "@/utils/qtyInput";
@@ -65,6 +72,8 @@ export type PurchaseLineRowProps<T extends PurchaseLineRowItem> = PurchaseLineCo
   imeiEditable: boolean;
   /** Same barcode series on: select the QTY text on focus. */
   selectQtyOnFocus: boolean;
+  /** Pack unit of the item (1 CASE = 24 PCS): the line takes cases and the case rate too. */
+  packUnit?: PackUnit | null;
   /** Handlers must be stable (useCallback) for memo to skip unchanged lines. */
   onToggleSelect: (tempId: string) => void;
   onUpdate: (tempId: string, field: PurchaseLineEditableField, value: number) => void;
@@ -72,6 +81,47 @@ export type PurchaseLineRowProps<T extends PurchaseLineRowItem> = PurchaseLineCo
   onOpenEdit: (index: number, focusField?: string) => void;
   onImeiCorrection: (item: T, rawBarcode: string) => void;
 };
+
+/**
+ * Small "cases" / "case rate" box under a line's qty or rate. Keeps the typed text while it
+ * has focus (so "5." is not snapped back), and shows the figure worked back from the line.
+ */
+function PackFigureInput({
+  label,
+  title,
+  value,
+  onCommit,
+}: {
+  label: string;
+  title: string;
+  value: number;
+  onCommit: (n: number) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = draft ?? (value > 0 ? String(value) : "");
+  return (
+    <label className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-slate-500" title={title}>
+      <input
+        aria-label={title}
+        inputMode="decimal"
+        value={shown}
+        onFocus={(e) => {
+          setDraft(e.target.value);
+          e.target.select();
+        }}
+        onBlur={() => setDraft(null)}
+        onChange={(e) => {
+          const text = e.target.value.replace(/[^0-9.]/g, "");
+          setDraft(text);
+          const n = Number(text);
+          if (text !== "" && Number.isFinite(n)) onCommit(n);
+        }}
+        className="h-6 w-full min-w-0 rounded border border-slate-200 bg-white px-1 text-right text-[12px] font-semibold text-slate-700"
+      />
+      <span className="shrink-0 uppercase">{label}</span>
+    </label>
+  );
+}
 
 function PurchaseLineRowInner<T extends PurchaseLineRowItem>({
   item,
@@ -87,6 +137,7 @@ function PurchaseLineRowInner<T extends PurchaseLineRowItem>({
   showMrp,
   showGst,
   showDiscPercent,
+  packUnit,
   onToggleSelect,
   onUpdate,
   onRemove,
@@ -166,6 +217,14 @@ function PurchaseLineRowInner<T extends PurchaseLineRowItem>({
             <span className="text-[10px] text-muted-foreground whitespace-nowrap">{getUOMLabel(item.uom)}</span>
           )}
         </div>
+        {packUnit ? (
+          <PackFigureInput
+            label={packUnit.uom}
+            title={`${packUnit.uom}s (1 ${packUnit.uom} = ${packUnit.factor} ${getUOMLabel(item.uom)})`}
+            value={packsFromPieces(item.qty, packUnit)}
+            onCommit={(packs) => onUpdate(item.temp_id, "qty", piecesFromPacks(packs, packUnit))}
+          />
+        ) : null}
       </TableCell>
       <TableCell className="pur-col-num w-[6.5rem]">
         <CalculatorInput
@@ -173,6 +232,14 @@ function PurchaseLineRowInner<T extends PurchaseLineRowItem>({
           onChange={(val) => onUpdate(item.temp_id, "pur_price", val)}
           className="w-full text-right text-[16px] bg-green-50 border-green-200 text-green-800 font-bold h-10"
         />
+        {packUnit ? (
+          <PackFigureInput
+            label={`₹/${packUnit.uom}`}
+            title={`Rate per ${packUnit.uom}`}
+            value={packRateFromPieceRate(item.pur_price, packUnit)}
+            onCommit={(rate) => onUpdate(item.temp_id, "pur_price", pieceRateFromPackRate(rate, packUnit))}
+          />
+        ) : null}
       </TableCell>
       <TableCell className="pur-col-num w-[6.5rem]">
         <CalculatorInput

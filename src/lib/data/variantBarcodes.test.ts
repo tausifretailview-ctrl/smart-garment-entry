@@ -20,7 +20,7 @@ function fakeDb(opts: { rows?: Array<{ variant_id: string }>; error?: { code?: s
               return Promise.resolve({ data: opts.error ? null : opts.rows ?? [], error: opts.error ?? null });
             },
           }),
-          in: () => Promise.resolve({ data: [], error: null }),
+          in: () => ({ order: () => ({ range: () => Promise.resolve({ data: [], error: null }) }) }),
         }),
       }),
       insert: (row: Record<string, unknown>) => ({

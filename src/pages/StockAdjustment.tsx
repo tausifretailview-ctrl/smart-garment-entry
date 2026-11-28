@@ -1,4 +1,5 @@
 import { adjustVariantStock } from "@/lib/data/adjustVariantStock";
+import { RepackDialog } from "@/components/stock/RepackDialog";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
@@ -52,6 +53,8 @@ const StockAdjustment = () => {
   const queryClient = useQueryClient();
   
   const [search, setSearch] = useState("");
+  // Repack: bulk stock into packets (supermarket go-live, Nov 2026).
+  const [showRepack, setShowRepack] = useState(false);
   const [filter, setFilter] = useState<"all" | "with-opening" | "with-sales" | "opening-15">("with-opening");
   const [variants, setVariants] = useState<VariantWithMovements[]>([]);
   const [bulkOpeningValue, setBulkOpeningValue] = useState<string>("0");
@@ -428,7 +431,18 @@ const StockAdjustment = () => {
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
+          <Button variant="outline" data-testid="open-repack" onClick={() => setShowRepack(true)}>
+            Repack
+          </Button>
         </div>
+        {currentOrganization?.id ? (
+          <RepackDialog
+            open={showRepack}
+            onOpenChange={setShowRepack}
+            organizationId={currentOrganization.id}
+            onDone={() => void refetch()}
+          />
+        ) : null}
 
         {/* Bulk Actions */}
         <Card>

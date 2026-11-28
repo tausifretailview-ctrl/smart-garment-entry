@@ -1368,7 +1368,8 @@ const ProductEntry = () => {
     if (!validateForm()) return;
 
     let industrialItem: IndustrialItemDetails | null = null;
-    if (industrialMode.enabled && (!editingProductId || loadedHasItemColumns)) {
+    // Units & reorder: Industrial mode, and supermarkets (buy in cases, sell in pieces).
+    if ((industrialMode.enabled || isSupermarketShop) && (!editingProductId || loadedHasItemColumns)) {
       let parsed: IndustrialItemDetails | Error;
       try {
         parsed = parseIndustrialItemForm(industrialItemForm, formData.uom || DEFAULT_UOM);
@@ -2713,7 +2714,7 @@ const ProductEntry = () => {
                 </Select>
               </div>
 
-              {industrialMode.enabled && (!editingProductId || loadedHasItemColumns) && (
+              {(industrialMode.enabled || isSupermarketShop) && (!editingProductId || loadedHasItemColumns) && (
                 <IndustrialItemFields
                   value={industrialItemForm}
                   onChange={setIndustrialItemForm}

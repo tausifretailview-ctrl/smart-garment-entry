@@ -82,6 +82,7 @@ export const STOCK_WRITE_RPCS: ReadonlySet<string> = new Set([
   "fix_stock_discrepancies",
   "reset_stock_from_transactions",
   "reconcile_variant_stock_qty",
+  "repack_stock",
   "merge_products",
   "merge_two_products",
   "mfg_create_lot",

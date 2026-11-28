@@ -8,6 +8,8 @@
  * Until the SQL is run the table does not exist: lookups answer "not found" and remember that
  * for this page load, so a miss does not keep asking.
  */
+import { fetchInIdBatches, type RangeQuery } from "@/lib/data/fetchInIdBatches";
+
 type DbError = { code?: string; message?: string } | null;
 type Res<T> = PromiseLike<{ data: T | null; error: DbError }>;
 
@@ -16,7 +18,7 @@ export type VariantBarcodesDb = {
     select: (cols: string) => {
       eq: (k: string, v: string) => {
         eq: (k: string, v: string) => { limit: (n: number) => Res<Array<{ variant_id: string }>> };
-        in: (k: string, v: string[]) => Res<ExtraBarcodeRow[]>;
+        in: (k: string, v: string[]) => { order: (col: string) => RangeQuery<ExtraBarcodeRow> };
       };
     };
     insert: (row: Record<string, unknown>) => {
@@ -73,19 +75,23 @@ export async function listExtraBarcodes(
   variantIds: string[],
 ): Promise<{ rows: ExtraBarcodeRow[]; missingTable: boolean }> {
   if (variantIds.length === 0) return { rows: [], missingTable: tableMissing };
-  const { data, error } = await db
-    .from("variant_barcodes")
-    .select("id, variant_id, barcode")
-    .eq("organization_id", organizationId)
-    .in("variant_id", variantIds);
-  if (error) {
-    if (isMissingVariantBarcodesTable(error)) {
+  try {
+    const rows = await fetchInIdBatches<ExtraBarcodeRow>(variantIds, (batch) =>
+      db
+        .from("variant_barcodes")
+        .select("id, variant_id, barcode")
+        .eq("organization_id", organizationId)
+        .in("variant_id", batch)
+        .order("id"),
+    );
+    return { rows, missingTable: false };
+  } catch (error) {
+    if (isMissingVariantBarcodesTable(error as DbError)) {
       tableMissing = true;
       return { rows: [], missingTable: true };
     }
     throw error;
   }
-  return { rows: data ?? [], missingTable: false };
 }
 
 /** Add one; a friendly message for a barcode already in use. */
