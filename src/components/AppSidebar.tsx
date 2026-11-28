@@ -1,6 +1,8 @@
 import { useNewSaleOrderCount } from "@/hooks/useNewSaleOrderCount";
+import { usePlannerDueCount } from "@/hooks/usePlannerDueCount";
 import { badgeText } from "@/lib/data/newSaleOrders";
 import {
+  CalendarDays,
   LayoutDashboard,
   Users,
   Truck,
@@ -163,6 +165,9 @@ export function AppSidebar() {
   const newSaleOrders = useNewSaleOrderCount(
     (isAdminPermissions || hasMainMenuAccess("sales")) && (isAdminPermissions || hasMenuAccess("sale_order_dashboard")),
   );
+  // Calendar - Planner: pending work due today or earlier (red badge).
+  const showPlanner = isAdminPermissions || hasMenuAccess("planner");
+  const plannerDue = usePlannerDueCount(showPlanner);
   const bulkWhatsAppOn = isBulkWhatsAppEnabled((orgSettings as { sale_settings?: unknown } | null)?.sale_settings);
   const enablePointsSystem = !!(orgSettings as { sale_settings?: { enable_points_system?: boolean } } | null)
     ?.sale_settings?.enable_points_system;
@@ -288,6 +293,31 @@ export function AppSidebar() {
                   <NavLink to="/" className="flex items-center gap-2 group">
                     <LayoutDashboard className="h-4 w-4 sidebar-icon text-primary" />
                     {open && <span className="font-bold text-sidebar-foreground group-hover:text-primary">Dashboard</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroup>
+        )}
+
+        {/* Calendar - Planner */}
+        {showPlanner && (
+          <SidebarGroup className="pt-0">
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/planner")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
+                  <NavLink to="/planner" className="flex items-center gap-2 group">
+                    <CalendarDays className="h-4 w-4 sidebar-icon text-primary" />
+                    {open && <span className="font-bold text-sidebar-foreground group-hover:text-primary">Calendar - Planner</span>}
+                    {plannerDue > 0 ? (
+                      <span
+                        data-testid="planner-due-badge"
+                        aria-label={`${plannerDue} pending in planner`}
+                        className="ml-auto min-w-[1.25rem] rounded-full bg-red-600 px-1.5 text-center text-[11px] font-bold leading-5 text-white"
+                      >
+                        {badgeText(plannerDue)}
+                      </span>
+                    ) : null}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>

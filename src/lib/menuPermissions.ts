@@ -14,6 +14,8 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   "product-entry": "product_entry",
   // Product Master has its own right; until User Rights saves it, it follows Product Entry / Product Dashboard.
   "product-master": "product_master",
+  // Calendar - Planner: on for everyone until User Rights unticks it.
+  planner: "planner",
   "orphaned-products": "orphaned_products",
   customers: "customer_master",
   suppliers: "supplier_master",
@@ -140,6 +142,7 @@ export function normalizeStoredMenuPermissions(
 const DEFAULT_ON_MENU_IDS = new Set([
   "business_insights",
   "customer_reviews",
+  "planner",
 ]);
 
 /**

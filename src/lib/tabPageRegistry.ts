@@ -263,6 +263,8 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
     layout: "layout",
     roles: ["admin", "manager"],
   },
+  // Calendar - Planner: every shop role (staff see the work they are tagged on).
+  planner: { loader: () => import("@/pages/Planner"), layout: "layout" },
   "expiry-report": {
     loader: () => import("@/pages/ExpiryReport"),
     layout: "layout",

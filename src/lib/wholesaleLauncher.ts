@@ -57,6 +57,7 @@ export const LAUNCHER_TILES: LauncherTile[] = [
   { path: "transporters", label: "Transporters", group: "Parties", icon: "Container", from: "#64748b", to: "#0ea5e9", keywords: "transport master courier" },
   { path: "customer-party-balances", label: "Receivables", group: "Parties", icon: "HandCoins", from: "#16a34a", to: "#65a30d", keywords: "outstanding due customer balance" },
   { path: "supplier-party-balances", label: "Payables", group: "Parties", icon: "Banknote", from: "#dc2626", to: "#ea580c", keywords: "outstanding supplier balance" },
+  { path: "planner", label: "Planner", group: "Accounts", icon: "CalendarDays", from: "#e11d48", to: "#f97316", keywords: "calendar task reminder collection cheque deposit staff diary" },
   { path: "accounts", label: "Accounts", group: "Accounts", icon: "Landmark", from: "#4f46e5", to: "#7c3aed", keywords: "ledger vouchers" },
   { path: "payments-dashboard", label: "Payments", group: "Accounts", icon: "Wallet", from: "#0d9488", to: "#22c55e", keywords: "receipts payments" },
   { path: "customer-ledger-report", label: "Customer Ledger", group: "Accounts", icon: "BookOpenText", from: "#2563eb", to: "#0891b2", keywords: "statement ledger" },

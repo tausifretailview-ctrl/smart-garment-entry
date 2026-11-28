@@ -22,6 +22,7 @@ import {
   Percent,
   Ticket,
   Workflow,
+  CalendarDays,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -88,6 +89,7 @@ export function HeaderMenubar({
 
   const showView =
     can("main_dashboard") ||
+    can("planner") ||
     can("pos_dashboard") ||
     can("sales_invoice_dashboard") ||
     can("purchase_dashboard") ||
@@ -242,6 +244,12 @@ export function HeaderMenubar({
                 <LayoutGrid className="h-3.5 w-3.5 mr-2 opacity-60" />
                 Dashboard
                 <MenubarShortcut>Alt+D</MenubarShortcut>
+              </MenubarItem>
+            )}
+            {can("planner") && (
+              <MenubarItem {...tabPrefetchProps("planner")} onClick={() => orgNavigate("/planner")}>
+                <CalendarDays className="h-3.5 w-3.5 mr-2 opacity-60" />
+                Calendar - Planner
               </MenubarItem>
             )}
             {can("pos_dashboard") && (

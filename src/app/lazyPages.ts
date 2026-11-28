@@ -102,6 +102,7 @@ export const StockAdjustment = lazyWithRetry(() => import("@/pages/StockAdjustme
 export const StockWastage = lazyWithRetry(() => import("@/pages/StockWastage"));
 export const ReorderList = lazyWithRetry(() => import("@/pages/ReorderList"));
 export const ExpiryReport = lazyWithRetry(() => import("@/pages/ExpiryReport"));
+export const Planner = lazyWithRetry(() => import("@/pages/Planner"));
 export const DuplicatePurchaseBills = lazyWithRetry(() => import("@/pages/DuplicatePurchaseBills"));
 export const StockTransfer = lazyWithRetry(() => import("@/pages/StockTransfer"));
 export const StockTransferEntry = lazyWithRetry(() => import("@/pages/StockTransferEntry"));

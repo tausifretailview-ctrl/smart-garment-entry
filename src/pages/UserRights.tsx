@@ -23,6 +23,7 @@ const menuStructure = [
       { id: "main_dashboard", name: "Main Dashboard" },
       { id: "dashboard_view", name: "View Dashboard" },
       { id: "dashboard_customize", name: "Customize Dashboard" },
+      { id: "planner", name: "Calendar - Planner" },
     ],
   },
   {

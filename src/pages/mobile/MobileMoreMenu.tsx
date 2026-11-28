@@ -21,6 +21,7 @@ import {
   Database,
   History,
   BellRing,
+  CalendarDays,
 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { ContactSupportSheet } from "@/components/support/ContactSupportSheet";
@@ -34,6 +35,7 @@ import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { cn } from "@/lib/utils";
 import { useOwnerAlertUnreadCount } from "@/hooks/useOwnerAlertHistory";
+import { usePlannerDueCount } from "@/hooks/usePlannerDueCount";
 import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
 import { MobileThemeToggle } from "@/components/mobile/MobileThemeToggle";
 import { MobileDcToggle } from "@/components/mobile/MobileDcToggle";
@@ -68,6 +70,8 @@ export default function MobileMoreMenu() {
   const canSeeActivityLog = (isAdmin || isManager) && hasSpecialPermission("audit_logs");
   const canAccessWebsite = isAdmin || isAdminPermissions || hasMenuAccess("website_settings");
   const { canSee: canSeeNotifications, unread: unreadNotifications } = useOwnerAlertUnreadCount();
+  const canSeePlanner = isAdminPermissions || hasMenuAccess("planner");
+  const plannerDue = usePlannerDueCount(canSeePlanner);
   const queryClient = useQueryClient();
   const { scrollRef, isRefreshing, pullHandlers } = usePullToRefresh(
     useCallback(() => invalidateActiveHubQueries(queryClient), [queryClient]),
@@ -86,6 +90,9 @@ export default function MobileMoreMenu() {
         { icon: ShoppingCart, label: "POS Bill", path: MOBILE_POS_PATH, color: "text-primary" },
         { icon: ShoppingBag, label: "Purchase Bill", path: MOBILE_PURCHASE_ENTRY_PATH, color: "text-orange-500" },
         { icon: IndianRupee, label: "Sales list", path: MOBILE_SALES_PATH, color: "text-emerald-500" },
+        ...(canSeePlanner
+          ? [{ icon: CalendarDays, label: "Planner", path: "/planner", color: "text-rose-500", badge: plannerDue } satisfies MenuItem]
+          : []),
         ...(canSeeNotifications
           ? [
               {

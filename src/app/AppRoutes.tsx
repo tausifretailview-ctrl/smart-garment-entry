@@ -106,6 +106,7 @@ import {
   StockWastage,
   ReorderList,
   ExpiryReport,
+  Planner,
   DuplicatePurchaseBills,
   StockTransfer,
   StockTransferEntry,
@@ -579,6 +580,16 @@ export function AppRoutes() {
                   <ReorderList />
                 </Layout>
               </RoleProtectedRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="planner"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <Planner />
+              </Layout>
             </ProtectedRoute>
           }
         />
