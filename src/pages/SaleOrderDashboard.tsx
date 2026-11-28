@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsRestoring, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { bestEffortWrite } from "@/lib/rollbackStep";
 import { useSettings } from "@/hooks/useSettings";
@@ -328,10 +328,15 @@ export default function SaleOrderDashboard() {
     placeholderData: (previous) => previous,
   });
 
-  // Menu badge of new orders (like missed calls): the list on screen has them now.
+  // Menu badge of new orders (like missed calls): cleared while this screen is on show — when
+  // it opens, when a kept-open window tab comes back to the front, and when the list reloads.
+  // A hidden window tab reads as "restoring" (HiddenTabQueryPause).
+  const tabHidden = useIsRestoring();
   useEffect(() => {
-    if (currentOrganization?.id && user?.id && listUpdatedAt > 0) markSaleOrdersSeen(currentOrganization.id, user.id);
-  }, [currentOrganization?.id, user?.id, listUpdatedAt]);
+    if (!tabHidden && currentOrganization?.id && user?.id && listUpdatedAt > 0) {
+      markSaleOrdersSeen(currentOrganization.id, user.id);
+    }
+  }, [tabHidden, currentOrganization?.id, user?.id, listUpdatedAt]);
 
   const listQuietRefreshing = useQuietRefreshActive([
     "sale-orders-list",

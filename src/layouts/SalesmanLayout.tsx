@@ -33,7 +33,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { FIELD_SALES_SAFE_BOTTOM, FIELD_SALES_SAFE_TOP, useFieldSalesShell } from "@/hooks/useFieldSalesShell";
-import { useSettings } from "@/hooks/useSettings";
+import { refreshOrgSettingsCache, useSettings } from "@/hooks/useSettings";
 import { useSalesmanLocationTracker } from "@/hooks/useSalesmanLocationTracker";
 import { formatHhmm, resolveTrackingWindow, DEFAULT_TRACKING_END, DEFAULT_TRACKING_START } from "@/lib/salesmanTracking";
 
@@ -79,6 +79,36 @@ const SalesmanLayout = () => {
     isSalesman: hasAccess,
     window: trackingWindow,
   });
+  const trackingFrom = formatHhmm(trackingHours.start || DEFAULT_TRACKING_START);
+  const trackingTo = formatHhmm(trackingHours.end || DEFAULT_TRACKING_END);
+  const locationStatusText =
+    liveLocation.status === "on"
+      ? "Location on (work hours)"
+      : liveLocation.status === "starting"
+        ? "Location: finding you…"
+        : liveLocation.status === "outside-hours"
+          ? `Location from ${trackingFrom} to ${trackingTo}`
+          : liveLocation.status === "denied"
+            ? "Location blocked: allow it in phone settings"
+            : liveLocation.status === "unavailable"
+              ? "Location not available on this phone"
+              : null;
+  // The app stays open for days on a salesman's phone: read the shop's settings again when it
+  // comes back to the front (and every 10 minutes while in front), so a switch turned on in
+  // Settings (live location, etc.) reaches the phone without a restart.
+  useEffect(() => {
+    const orgId = currentOrganization?.id;
+    if (!orgId) return;
+    const refresh = () => {
+      if (document.visibilityState === "visible") void refreshOrgSettingsCache(queryClient, orgId);
+    };
+    document.addEventListener("visibilitychange", refresh);
+    const timer = window.setInterval(refresh, 10 * 60_000);
+    return () => {
+      document.removeEventListener("visibilitychange", refresh);
+      window.clearInterval(timer);
+    };
+  }, [currentOrganization?.id, queryClient]);
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   // Dashboard "Install App" opens /salesman?install=1 — always show the banner then.
   const installRequested = new URLSearchParams(location.search).get("install") === "1";
@@ -330,16 +360,16 @@ const SalesmanLayout = () => {
               <p className="truncate text-[11px] leading-tight text-white/80">
                 Field Sales{currentOrganization?.name ? ` · ${currentOrganization.name}` : ""}
               </p>
-              {liveLocation.status === "on" || liveLocation.status === "denied" ? (
+              {locationStatusText ? (
                 <p
                   className={cn(
                     "mt-0.5 flex items-center gap-1 text-[10px] font-semibold leading-tight",
-                    liveLocation.status === "on" ? "text-white" : "text-yellow-200",
+                    liveLocation.status === "denied" || liveLocation.status === "unavailable" ? "text-yellow-200" : "text-white",
                   )}
                   data-testid="field-sales-location-status"
                 >
                   <MapPin className="h-3 w-3" />
-                  {liveLocation.status === "on" ? "Location on (work hours)" : "Location blocked: allow it in phone settings"}
+                  {locationStatusText}
                 </p>
               ) : null}
             </div>
@@ -463,8 +493,8 @@ const SalesmanLayout = () => {
             <AlertDialogDescription className="space-y-2 text-left">
               <span className="block">
                 {currentOrganization?.name || "Your shop"} sees which area you are in between{" "}
-                <b>{formatHhmm(trackingHours.start || DEFAULT_TRACKING_START)}</b> and{" "}
-                <b>{formatHhmm(trackingHours.end || DEFAULT_TRACKING_END)}</b>, also when the phone is locked.
+                <b>{trackingFrom}</b> and{" "}
+                <b>{trackingTo}</b>, also when the phone is locked.
               </span>
               <span className="block">
                 Nothing is shared outside these hours. While it is on, the phone shows a "sharing location"

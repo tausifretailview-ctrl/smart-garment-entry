@@ -11,11 +11,11 @@ import {
   type NewSaleOrdersDb,
 } from "@/lib/data/newSaleOrders";
 
-const POLL_MS = 2 * 60 * 1000;
+const POLL_MS = 60 * 1000;
 
 /**
  * Sale orders received since the dashboard was last opened (menu badge). One small count read
- * every 2 minutes while the browser tab is in front (React Query does not poll hidden tabs),
+ * every minute while the browser tab is in front (React Query does not poll hidden tabs),
  * and when the window comes back into focus. 0 when `enabled` is false.
  */
 export function useNewSaleOrderCount(enabled: boolean): number {

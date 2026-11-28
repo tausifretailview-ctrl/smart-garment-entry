@@ -11,9 +11,9 @@ beforeEach(() => {
 });
 
 describe("new sale orders badge", () => {
-  it("first time counts from now; opening the dashboard moves the mark", () => {
+  it("first time counts from the start of today (India time); opening the dashboard moves the mark", () => {
     const first = readSaleOrdersSeenAt("o1", "u1", new Date("2026-11-28T08:00:00Z"));
-    expect(first).toBe("2026-11-28T08:00:00.000Z");
+    expect(first).toBe("2026-11-27T18:30:00.000Z");
     expect(readSaleOrdersSeenAt("o1", "u1", new Date("2026-11-29T08:00:00Z"))).toBe(first);
     markSaleOrdersSeen("o1", "u1", new Date("2026-11-28T09:00:00Z"));
     expect(readSaleOrdersSeenAt("o1", "u1")).toBe("2026-11-28T09:00:00.000Z");

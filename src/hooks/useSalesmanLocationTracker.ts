@@ -22,7 +22,20 @@ const BackgroundGeolocation = registerPlugin<BackgroundGeolocationPlugin>("Backg
 const SEND_EVERY_MS = 60_000;
 const SEND_AT_POINTS = 10;
 
-export type TrackerStatus = "off" | "needs-consent" | "declined" | "on" | "denied" | "unavailable";
+/**
+ * off: tracking is not switched on for this salesman. needs-consent: asked once as soon as the
+ * shop switches it on (any time of day). outside-hours: accepted, waits for the work hours.
+ * starting: accepted, inside work hours, waiting for the first position.
+ */
+export type TrackerStatus =
+  | "off"
+  | "needs-consent"
+  | "declined"
+  | "outside-hours"
+  | "starting"
+  | "on"
+  | "denied"
+  | "unavailable";
 
 const consentKey = (orgId: string, userId: string) => `ezzy_salesman_location_consent:${orgId}:${userId}`;
 const queueKey = (orgId: string, userId: string) => `ezzy_salesman_location_queue:${orgId}:${userId}`;
@@ -108,7 +121,10 @@ export function useSalesmanLocationTracker(opts: {
     return () => window.clearInterval(id);
   }, [trackingWindow]);
 
-  const wanted = !!organizationId && !!userId && isSalesman && !!trackingWindow && inHours;
+  // The shop switched tracking on for this salesman: the notice is asked at once (any time of
+  // day); positions are only taken inside the work hours.
+  const enabled = !!organizationId && !!userId && isSalesman && !!trackingWindow;
+  const wanted = enabled && inHours;
 
   const accept = useCallback(() => {
     if (!organizationId || !userId) return;
@@ -136,7 +152,7 @@ export function useSalesmanLocationTracker(opts: {
   const sendingRef = useRef(false);
 
   useEffect(() => {
-    if (!wanted) {
+    if (!enabled) {
       setStatus("off");
       return;
     }
@@ -148,6 +164,12 @@ export function useSalesmanLocationTracker(opts: {
       setStatus("needs-consent");
       return;
     }
+    if (!wanted) {
+      setStatus("outside-hours");
+      return;
+    }
+    // The notice closes at once; "on" follows with the first position.
+    setStatus("starting");
     const orgId = organizationId as string;
     const qKey = queueKey(orgId, userId as string);
     queueRef.current = readJson<LocationPoint[]>(qKey, []);
@@ -234,7 +256,7 @@ export function useSalesmanLocationTracker(opts: {
       removeWatcher?.();
       void flush();
     };
-  }, [wanted, consent, organizationId, userId]);
+  }, [enabled, wanted, consent, organizationId, userId]);
 
   return { status, wanted, accept, decline };
 }

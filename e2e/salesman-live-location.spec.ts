@@ -8,6 +8,8 @@ import { E2E_ORG_ID, E2E_ORG_SLUG, E2E_USER_ID } from "./support/mockBackend";
  *  - Salesman phone (browser fallback here): inside work hours a one-time notice, then points
  *    are sent; after work hours nothing is asked and nothing is sent.
  */
+const BLANK_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
 const nominatimAnswer = (lat: number) => ({
   address: lat > 19.05 ? { suburb: "Bandra West", city: "Mumbai" } : { suburb: "Dadar West", city: "Mumbai" },
 });
@@ -33,6 +35,13 @@ test.describe("owner screen", () => {
       return route.fulfill({ json: nominatimAnswer(Number(url.searchParams.get("lat"))) });
     });
 
+    // Map tiles: a blank image instead of OpenStreetMap.
+    const tiles: string[] = [];
+    await page.route("https://tile.openstreetmap.org/**", (route) => {
+      tiles.push(route.request().url());
+      return route.fulfill({ contentType: "image/png", body: Buffer.from(BLANK_PNG, "base64") });
+    });
+
     await page.goto(`/${E2E_ORG_SLUG}/salesman-locations`);
     const rows = page.getByTestId("salesman-location-row");
     await expect(rows).toHaveCount(3, { timeout: 60_000 });
@@ -50,8 +59,19 @@ test.describe("owner screen", () => {
     await expect(amit.getByTestId("salesman-area")).toHaveText("Bandra West, Mumbai");
     await expect(rows.filter({ hasText: "NEW BOY" })).toContainText("No location yet");
 
-    await rahul.getByRole("button", { name: /Day's places/ }).click();
+    // Map: everyone with a position has a name pin (NEW BOY has none); tiles are loaded.
+    const map = page.getByTestId("salesman-live-map");
+    await expect(map.getByTestId("map-salesman")).toHaveCount(2);
+    await expect.poll(() => tiles.length).toBeGreaterThan(0);
+    await expect(map.getByTestId("map-rider")).toHaveCount(0);
+
+    // Tapping RAHUL on the map opens his day: the route, stop times, and where he is now.
+    await map.locator('[data-testid="map-salesman"][data-user="u1"]').click();
     const trail = rahul.getByTestId("salesman-trail");
+    await expect(trail).toBeVisible();
+    await expect(map.getByTestId("map-rider")).toHaveCount(1);
+    await expect(map.locator("path.leaflet-interactive").first()).toBeVisible();
+    await expect(trail.getByTestId("salesman-stop-duration").first()).toHaveText("10 min");
     await expect(trail.locator("li")).toHaveCount(2); // the two close points are one place
     await expect(trail.locator("li").first()).toContainText("Dadar West, Mumbai");
     await expect(trail.getByRole("link", { name: /Route in Google Maps/ })).toHaveAttribute("href", /maps\/dir\/\?api=1/);
@@ -92,15 +112,31 @@ test.describe("salesman phone", () => {
     await expect(notice).toHaveCount(0);
   });
 
-  test("after work hours: nothing asked, nothing sent", async ({ page, backend }) => {
+  test("after work hours: asked once, then nothing is sent until the hours start", async ({ page, backend }) => {
     await page.clock.install({ time: new Date("2026-11-24T21:00:00+05:30") });
     backend.addRows("employees", [salesman]);
     backend.tables.settings[0].sale_settings = { salesman_tracking: { enabled: true, start: "10:00", end: "20:00" } };
     await page.goto(`/${E2E_ORG_SLUG}/salesman`);
-    await expect(page.getByTestId("field-sales-app")).toBeVisible({ timeout: 60_000 });
+    const notice = page.getByTestId("field-sales-location-consent");
+    await expect(notice).toBeVisible({ timeout: 60_000 });
+    await notice.getByRole("button", { name: "Allow" }).click();
+    await expect(notice).toHaveCount(0);
+    await expect(page.getByTestId("field-sales-location-status")).toHaveText("Location from 10:00 AM to 8:00 PM");
     await page.clock.fastForward(61_000);
-    await expect(page.getByTestId("field-sales-location-consent")).toHaveCount(0);
-    await expect(page.getByTestId("field-sales-location-status")).toHaveCount(0);
     expect(backend.rpcCalls("record_salesman_locations")).toHaveLength(0);
+  });
+
+  test("switched on in Settings while the app is open: asked when the app comes back to the front", async ({ page, backend }) => {
+    await page.clock.install({ time: new Date("2026-11-24T12:00:00+05:30") });
+    backend.addRows("employees", [salesman]);
+    backend.tables.settings[0].sale_settings = {};
+    await page.goto(`/${E2E_ORG_SLUG}/salesman`);
+    await expect(page.getByTestId("field-sales-app")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("field-sales-location-consent")).toHaveCount(0);
+
+    // The owner turns it on; the salesman switches back to the app.
+    backend.tables.settings[0].sale_settings = { salesman_tracking: { enabled: true, start: "10:00", end: "20:00" } };
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await expect(page.getByTestId("field-sales-location-consent")).toBeVisible({ timeout: 15_000 });
   });
 });
