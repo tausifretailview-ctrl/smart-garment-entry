@@ -56,6 +56,7 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
   "quotation-dashboard": { loader: () => import("@/pages/QuotationDashboard"), layout: "layout" },
   "sale-order-entry": { loader: () => import("@/pages/SaleOrderEntry"), layout: "fullscreen" },
   "sale-order-dashboard": { loader: () => import("@/pages/SaleOrderDashboard"), layout: "layout" },
+  dispatch: { loader: () => import("@/pages/DispatchDashboard"), layout: "layout" },
   "sale-return-entry": { loader: () => import("@/pages/SaleReturnEntry"), layout: "fullscreen" },
   "sale-returns": { loader: () => import("@/pages/SaleReturnDashboard"), layout: "layout" },
   "sale-return-dashboard": { loader: () => import("@/pages/SaleReturnDashboard"), layout: "layout" },
@@ -242,6 +243,28 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
   },
   "spin-and-win": {
     loader: () => import("@/pages/SpinAndWin"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
+  "salesman-locations": {
+    loader: () => import("@/pages/SalesmanLocations"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
+  // Product Master keeps typed rows when another window tab is opened.
+  "product-master": { loader: () => import("@/pages/ProductMaster"), layout: "fullscreen" },
+  "stock-wastage": {
+    loader: () => import("@/pages/StockWastage"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
+  reorder: {
+    loader: () => import("@/pages/ReorderList"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
+  "expiry-report": {
+    loader: () => import("@/pages/ExpiryReport"),
     layout: "layout",
     roles: ["admin", "manager"],
   },

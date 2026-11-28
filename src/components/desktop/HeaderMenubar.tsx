@@ -182,6 +182,15 @@ export function HeaderMenubar({
                 New Product
               </MenubarItem>
             )}
+            {can("product_entry") && (
+              <MenubarItem
+                {...tabPrefetchProps("product-master")}
+                onClick={() => orgNavigate("/product-master")}
+              >
+                <BoxIcon className="h-3.5 w-3.5 mr-2 opacity-60" />
+                Product Master
+              </MenubarItem>
+            )}
             {(can("sales_invoice") || can("purchase_bill")) && (
               <>
                 <MenubarSeparator />

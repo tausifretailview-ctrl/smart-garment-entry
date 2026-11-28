@@ -22,5 +22,6 @@ test("Reorder: Parle-G at 30 under its level 48 → 9 cases into a purchase orde
 
   await group.getByRole("button", { name: "Create PO" }).click();
   await expect(page).toHaveURL(/purchase-order-entry/);
-  await expect(page.getByText("PARLE-G 250G").filter({ visible: true }).first()).toBeVisible();
+  // The purchase order opens with the line: 216 pieces at the purchase rate.
+  await expect(page.getByRole("row", { name: /PARLE-G 250G.*216/ }).filter({ visible: true }).first()).toBeVisible();
 });
