@@ -36,21 +36,50 @@ export function isMissingColorPhotoSql(err: DbError): boolean {
 export const colorKey = (productId: string, color: string | null | undefined) =>
   `${productId}|${String(color ?? "").trim().toLowerCase()}`;
 
-/** null before SQL 77 is run. */
-export async function fetchColorCards(
-  orgId: string,
-  opts: { search?: string; onlyMissing?: boolean; limit?: number; offset?: number } = {},
-): Promise<ColorCardPage | null> {
-  const { data, error } = await (supabase.rpc as unknown as (fn: string, args: Record<string, unknown>) => PromiseLike<{
-    data: Array<Record<string, unknown>> | null;
-    error: DbError;
-  }>)("get_product_color_cards", {
+export type PhotoFilter = "all" | "missing" | "with";
+
+export type ColorCardFilters = {
+  search?: string;
+  /** Exact brand / category / colour (case ignored); empty = any. Needs SQL 78. */
+  brand?: string;
+  category?: string;
+  color?: string;
+  photo?: PhotoFilter;
+  limit?: number;
+  offset?: number;
+};
+
+type Rpc = (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: Array<Record<string, unknown>> | null; error: DbError }>;
+const rpc = (fn: string, args: Record<string, unknown>) => (supabase.rpc as unknown as Rpc)(fn, args);
+
+/** Set once a call with the SQL 78 filters was refused: later calls use the SQL 77 form. */
+let filtersMissing = false;
+export const colorCardFiltersAvailable = () => !filtersMissing;
+
+/** null before SQL 77 is run. Before SQL 78, brand / category / colour / "with photo" are ignored. */
+export async function fetchColorCards(orgId: string, opts: ColorCardFilters = {}): Promise<ColorCardPage | null> {
+  const base = {
     p_org_id: orgId,
     p_search: opts.search?.trim() || null,
-    p_only_missing: !!opts.onlyMissing,
+    p_only_missing: opts.photo === "missing",
     p_limit: opts.limit ?? 60,
     p_offset: opts.offset ?? 0,
-  });
+  };
+  const wantsFilters = !!(opts.brand || opts.category || opts.color || opts.photo === "with");
+  let { data, error } =
+    wantsFilters && !filtersMissing
+      ? await rpc("get_product_color_cards", {
+          ...base,
+          p_brand: opts.brand || null,
+          p_category: opts.category || null,
+          p_color: opts.color || null,
+          p_photo: opts.photo ?? "all",
+        })
+      : await rpc("get_product_color_cards", base);
+  if (error && wantsFilters && !filtersMissing && ["PGRST202", "42883"].includes(String(error.code))) {
+    filtersMissing = true;
+    ({ data, error } = await rpc("get_product_color_cards", base));
+  }
   if (error) {
     if (isMissingColorPhotoSql(error)) return null;
     throw new Error(error.message || "Could not load products");
@@ -74,6 +103,32 @@ export async function fetchColorCards(
     all: Number(first?.all_count) || 0,
     withPhoto: Number(first?.with_photo_count) || 0,
   };
+}
+
+export type ColorFilterOptions = { brand: string[]; category: string[]; color: string[] };
+
+/** Brands, categories and colours of the shop's cards (most cards first); null before SQL 78. */
+export async function fetchColorFilterOptions(orgId: string): Promise<ColorFilterOptions | null> {
+  const { data, error } = await rpc("get_product_color_filter_options", { p_org_id: orgId });
+  if (error) {
+    if (["PGRST202", "42883"].includes(String(error.code)) || /get_product_color_filter_options/i.test(String(error.message))) {
+      filtersMissing = true;
+      return null;
+    }
+    throw new Error(error.message || "Could not load filters");
+  }
+  const out: ColorFilterOptions = { brand: [], category: [], color: [] };
+  const rows = [...(data ?? [])].sort((a, b) => (Number(b.cards) || 0) - (Number(a.cards) || 0) || String(a.value).localeCompare(String(b.value)));
+  for (const r of rows) {
+    const k = String(r.kind) as keyof ColorFilterOptions;
+    if (k in out && r.value) out[k].push(String(r.value));
+  }
+  return out;
+}
+
+/** Tests only. */
+export function resetColorCardFiltersForTests() {
+  filtersMissing = false;
 }
 
 const MAX_SIDE = 1600;

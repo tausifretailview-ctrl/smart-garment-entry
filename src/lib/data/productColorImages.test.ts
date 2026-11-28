@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { colorKey, findCardForGuess, importNameGuesses, normalizeName } from "./productColorImages";
 
 const card = (product_name: string, color: string, style: string | null = null) => ({ product_name, color, style });
@@ -27,5 +27,45 @@ describe("colour photos: import names", () => {
     expect(findCardForGuess(cards, { article: "RC 5001", color: "" })).toBeNull();
     expect(findCardForGuess(cards, { article: "MR50", color: "" })).toBe(cards[2]);
     expect(findCardForGuess(cards, { article: "KURTI 9", color: "" })).toBe(cards[3]);
+  });
+});
+
+describe("colour photo filters", () => {
+  it("sends the filters; before SQL 78 retries without them", async () => {
+    const calls: Array<Record<string, unknown>> = [];
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { fetchColorCards, colorCardFiltersAvailable, resetColorCardFiltersForTests } = await import("./productColorImages");
+    resetColorCardFiltersForTests();
+    const spy = vi.spyOn(supabase, "rpc").mockImplementation(((_fn: string, args: Record<string, unknown>) => {
+      calls.push(args);
+      return Promise.resolve(
+        "p_brand" in args
+          ? { data: null, error: { code: "PGRST202", message: "Could not find the function" } }
+          : { data: [{ product_id: "p1", product_name: "MR50", color: "TAN", total_count: 1, all_count: 1, with_photo_count: 0 }], error: null },
+      );
+    }) as never);
+    const page = await fetchColorCards("o1", { brand: "A WALK", photo: "missing" });
+    expect(calls[0]).toMatchObject({ p_brand: "A WALK", p_photo: "missing", p_only_missing: true });
+    expect(calls[1]).not.toHaveProperty("p_brand");
+    expect(page?.cards[0]).toMatchObject({ product_name: "MR50", color: "TAN" });
+    expect(colorCardFiltersAvailable()).toBe(false);
+    spy.mockRestore();
+    resetColorCardFiltersForTests();
+  });
+
+  it("filter lists: most cards first", async () => {
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { fetchColorFilterOptions } = await import("./productColorImages");
+    const spy = vi.spyOn(supabase, "rpc").mockImplementation((() =>
+      Promise.resolve({
+        data: [
+          { kind: "brand", value: "A WALK", cards: 2 },
+          { kind: "brand", value: "RED CHEIF", cards: 9 },
+          { kind: "color", value: "BK", cards: 4 },
+        ],
+        error: null,
+      })) as never);
+    expect(await fetchColorFilterOptions("o1")).toEqual({ brand: ["RED CHEIF", "A WALK"], category: [], color: ["BK"] });
+    spy.mockRestore();
   });
 });

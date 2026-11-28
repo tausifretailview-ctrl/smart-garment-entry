@@ -30,7 +30,9 @@ async function stubStorage(page: import("@playwright/test").Page) {
     if (method === "GET") return route.fulfill({ contentType: "image/png", body: PNG, headers: cors });
     return route.fulfill({ json: { Key: "product-images/x.jpg", Id: "1" }, headers: cors });
   });
-  await page.route("https://cdn.example.com/**", (route) => route.fulfill({ contentType: "image/png", body: PNG }));
+  await page.route("https://cdn.example.com/**", (route) =>
+    route.fulfill({ contentType: "image/png", body: PNG, headers: { "access-control-allow-origin": "*" } }),
+  );
 }
 
 test("Photos tab: a card per colour, add a photo by clicking a card, progress shown", async ({ page, backend }) => {
@@ -134,3 +136,56 @@ test.describe("Field Sales", () => {
     await expect(sheet.getByTestId("size-colour-card").filter({ hasText: "PISTA" }).getByTestId("size-colour-photo")).toHaveCount(0);
   });
 });
+
+test("Filters by brand / category / colour, and a photo is edited (turned) and saved", async ({ page, backend }) => {
+  const rpcArgs: Array<Record<string, unknown>> = [];
+  backend.onRpc("get_product_color_cards", (args) => {
+    rpcArgs.push(args);
+    const b = String(args.p_brand ?? "").toUpperCase();
+    return b ? cards.filter((c) => c.brand === b).map((c) => ({ ...c, total_count: 1 })) : cards;
+  });
+  backend.onRpc("get_product_color_filter_options", () => [
+    { kind: "brand", value: "RED CHEIF", cards: 2 },
+    { kind: "brand", value: "A WALK", cards: 1 },
+    { kind: "category", value: "CHAPPAL", cards: 3 },
+    { kind: "color", value: "BLACK", cards: 1 },
+  ]);
+  await stubStorage(page);
+  await page.goto(`/${E2E_ORG_SLUG}/product-master`);
+  await page.getByRole("tab", { name: /Photos/ }).filter({ visible: true }).click({ timeout: 60_000 });
+  const grid = page.getByTestId("product-color-photos").filter({ visible: true });
+  await expect(grid.getByTestId("color-photo-card")).toHaveCount(3);
+
+  // Brand filter.
+  await grid.getByTestId("photo-filter-brand").getByRole("combobox").click();
+  await page.getByRole("button", { name: "A WALK" }).filter({ visible: true }).click();
+  await expect(grid.getByTestId("color-photo-card")).toHaveCount(1);
+  await expect(grid.getByTestId("color-photo-card")).toContainText("MR50");
+  await expect.poll(() => rpcArgs[rpcArgs.length - 1]?.p_brand).toBe("A WALK");
+  await grid.getByRole("button", { name: "Clear filters" }).click();
+  await expect(grid.getByTestId("color-photo-card")).toHaveCount(3);
+
+  // "With photo" is there once the filters SQL has been run.
+  await grid.getByRole("button", { name: "With photo" }).click();
+  await expect.poll(() => rpcArgs[rpcArgs.length - 1]?.p_photo).toBe("with");
+  await grid.getByRole("button", { name: "All", exact: true }).click();
+
+  // Edit: always on the card (no hover needed), turn right, save.
+  await grid.getByRole("button", { name: "Edit photo RC 5001 BLACK" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit photo" });
+  await expect(editor.getByTestId("photo-edit-canvas")).toBeVisible();
+  await editor.getByRole("button", { name: "Turn right" }).click();
+  await editor.getByRole("button", { name: "Save photo" }).click();
+  await expect
+    .poll(() => backend.calls.filter((c) => c.kind === "insert" && c.name.startsWith("product_color_images")).length)
+    .toBe(1);
+  expect(backend.calls.find((c) => c.kind === "insert" && c.name.startsWith("product_color_images"))!.body).toMatchObject({
+    product_id: "p-rc",
+    color: "BLACK",
+    image_url: expect.stringContaining("/colour-black-"),
+  });
+  await expect(editor).toHaveCount(0);
+  // Change is also always on the card.
+  await expect(grid.getByRole("button", { name: "Change photo RC 5001 BLACK" })).toBeVisible();
+});
+
