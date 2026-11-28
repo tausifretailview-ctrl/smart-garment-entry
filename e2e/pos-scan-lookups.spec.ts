@@ -21,7 +21,7 @@ test("a scan that finds the item reads it once", async ({ page, backend }) => {
   const scan = page.getByPlaceholder(/^Scan barcode or search/).filter({ visible: true });
   await expect(scan).toBeVisible({ timeout: 60_000 });
   await page.waitForLoadState("networkidle");
-  const line = page.locator("tr", { hasText: "100001" });
+  const line = page.locator("[data-pos-cart-row]", { hasText: "100001" }).filter({ visible: true });
 
   let before = backend.readsOf("product_variants").length;
   await scan.fill("100001");
@@ -50,7 +50,7 @@ test("the stock the scan returned still stops an oversell", async ({ page, backe
 
   await scan.fill("100001");
   await scan.press("Enter");
-  await expect(page.locator("tr", { hasText: "100001" })).toHaveCount(1);
+  await expect(page.locator("[data-pos-cart-row]", { hasText: "100001" }).filter({ visible: true })).toHaveCount(1);
 
   // One piece in stock, one already on the bill: the second scan is refused.
   await scan.fill("100001");

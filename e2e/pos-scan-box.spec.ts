@@ -21,7 +21,7 @@ test("scanner-speed keys: each scan adds the item and empties the box", async ({
   await page.goto(`/${E2E_ORG_SLUG}/pos-sales`);
   const scan = page.getByPlaceholder(/^Scan barcode or search/).filter({ visible: true });
   await expect(scan).toBeVisible({ timeout: 60_000 });
-  const line = page.locator("tr", { hasText: "100001" });
+  const line = page.locator("[data-pos-cart-row]", { hasText: "100001" }).filter({ visible: true });
 
   // A scanner types the code a few milliseconds per key and ends with Enter.
   await scan.pressSequentially("100001", { delay: 8 });
@@ -59,6 +59,6 @@ test("typing a name still opens the product list, and picking a row adds it", as
   await expect(row).toBeVisible();
   await expect(scan).toHaveValue("COTT"); // what was typed stays in the box
   await row.click();
-  await expect(page.locator("tr", { hasText: "100001" })).toHaveCount(1);
+  await expect(page.locator("[data-pos-cart-row]", { hasText: "100001" }).filter({ visible: true })).toHaveCount(1);
   await expect(scan).toHaveValue("");
 });

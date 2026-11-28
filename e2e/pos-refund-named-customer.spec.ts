@@ -33,7 +33,7 @@ async function billFor(page: Page, backend: MockBackend, credit: number) {
   await expect(scan).toBeVisible({ timeout: 60_000 });
   await scan.fill("100001");
   await scan.press("Enter");
-  await expect(page.locator("tr", { hasText: "100001" })).toHaveCount(1);
+  await expect(page.locator("[data-pos-cart-row]", { hasText: "100001" }).filter({ visible: true })).toHaveCount(1);
 
   await page.getByPlaceholder("Enter customer name or phone").filter({ visible: true }).fill("RAVI");
   await page.getByRole("option", { name: /RAVI KUMAR/ }).click();
@@ -199,7 +199,7 @@ test("walk-in bill: a typed return above the bill is refunded in cash with F1, n
   await expect(scan).toBeVisible({ timeout: 60_000 });
   await scan.fill("100001");
   await scan.press("Enter");
-  await expect(page.locator("tr", { hasText: "100001" })).toHaveCount(1);
+  await expect(page.locator("[data-pos-cart-row]", { hasText: "100001" }).filter({ visible: true })).toHaveCount(1);
 
   const sr = page.getByTestId("pos-sr-adjust").filter({ visible: true });
   await sr.fill("2400");

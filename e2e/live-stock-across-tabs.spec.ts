@@ -46,7 +46,7 @@ test("a POS sale in one tab updates the Sale Bill stock in the other tab without
   await expect(posScan).toBeVisible({ timeout: 60_000 });
   await posScan.fill("100001");
   await posScan.press("Enter");
-  await expect(pos.locator("tr", { hasText: "100001" })).toHaveCount(1);
+  await expect(pos.locator("[data-pos-cart-row]", { hasText: "100001" }).filter({ visible: true })).toHaveCount(1);
   await pos.keyboard.press("F1");
   await expect(pos.getByRole("alertdialog", { name: "Invoice Saved!" })).toBeVisible();
   expect(backend.tables.product_variants[0].stock_qty).toBe(9);

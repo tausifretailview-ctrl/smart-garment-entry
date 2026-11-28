@@ -6540,7 +6540,11 @@ export default function POSSales() {
   }, [handlePrint, savedInvoiceData]);
 
   const renderPosPrintSource = () => {
-    if (items.length === 0 && !savedInvoiceData) return null;
+    // Only a saved bill or an estimate is ever printed (see handleTriggerBrowserPrint's guard;
+    // every print path sets savedInvoiceData first, with flushSync). Drawing the live cart here
+    // re-rendered the whole invoice template with every line on each scan and keystroke: a
+    // 50–80 line supermarket bill slowed down with every item (Nov 2026).
+    if (!savedInvoiceData) return null;
     return (
       <div
         className={`invoice-print-source-screen invoice-print-source${posBillFormat === 'thermal' ? ' thermal-print-page' : ''}${posBillFormat === 'thermal' && posThermalPaper === '58mm' ? ' thermal-paper-58' : ''}`}

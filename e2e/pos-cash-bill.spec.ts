@@ -52,7 +52,7 @@ test("POS: scan a barcode, save with Cash (F1), bill number shown", async ({ pag
 
   await scan.fill("100001");
   await scan.press("Enter");
-  const line = page.locator("tr", { hasText: "100001" });
+  const line = page.locator("[data-pos-cart-row]", { hasText: "100001" }).filter({ visible: true });
   await expect(line).toHaveCount(1);
   await expect(line).toContainText("COTTON SHIRT");
   await expect(line).toContainText("999.00");
@@ -90,6 +90,6 @@ test("POS: scan a barcode, save with Cash (F1), bill number shown", async ({ pag
 
   await saved.getByRole("button", { name: "Done" }).click();
   await expect(saved).toBeHidden();
-  await expect(page.locator("tr", { hasText: "100001" })).toHaveCount(0);
+  await expect(page.locator("[data-pos-cart-row]", { hasText: "100001" }).filter({ visible: true })).toHaveCount(0);
   await expect(page.getByText("POS/26-27/1").first()).toBeVisible();
 });
