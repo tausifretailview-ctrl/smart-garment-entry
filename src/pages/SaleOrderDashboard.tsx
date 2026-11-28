@@ -1170,7 +1170,7 @@ export default function SaleOrderDashboard() {
               <div className="text-2xl font-black text-white tabular-nums" data-testid="sale-order-hold-count">
                 {formatKpiValue(holdCount)}
               </div>
-              <p className="text-sm text-white/65 mt-0.5">Waiting on the customer</p>
+              <p className="text-sm text-white/65 mt-0.5">Paused orders</p>
             </CardContent>
           </Card>
         )}
