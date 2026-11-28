@@ -106,3 +106,14 @@ it("moves a calendar date by days", () => {
   expect(shiftYmd("2026-03-02", -6)).toBe("2026-02-24");
   expect(shiftYmd("2026-12-31", 1)).toBe("2027-01-01");
 });
+
+describe("stop duration", () => {
+  it("minutes, hours and minutes, blank under a minute", async () => {
+    const { stopDurationLabel } = await import("./salesmanTracking");
+    expect(stopDurationLabel("2026-11-28T10:05:00Z", "2026-11-28T10:40:00Z")).toBe("35 min");
+    expect(stopDurationLabel("2026-11-28T10:00:00Z", "2026-11-28T11:20:00Z")).toBe("1 h 20 min");
+    expect(stopDurationLabel("2026-11-28T10:00:00Z", "2026-11-28T12:00:00Z")).toBe("2 h");
+    expect(stopDurationLabel("2026-11-28T10:00:00Z", "2026-11-28T10:00:20Z")).toBe("");
+  });
+});
+

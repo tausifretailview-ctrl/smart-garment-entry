@@ -123,6 +123,16 @@ export function groupTrailIntoStops(points: readonly TrailPoint[]): TrailStop[] 
   return stops;
 }
 
+/** How long the salesman stayed at a place: "35 min", "1 h 20 min"; "" under a minute. */
+export function stopDurationLabel(fromIso: string, toIso: string): string {
+  const mins = Math.round((Date.parse(toIso) - Date.parse(fromIso)) / 60_000);
+  if (!Number.isFinite(mins) || mins < 1) return "";
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
 /** Google Maps link for one point. */
 export const googleMapsPointUrl = (lat: number, lng: number) =>
   `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(6)},${lng.toFixed(6)}`;

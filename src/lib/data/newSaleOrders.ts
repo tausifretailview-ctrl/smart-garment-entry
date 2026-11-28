@@ -1,6 +1,7 @@
 /**
  * New sale orders badge (Nov 2026): like missed calls on a phone, the Sale Order Dashboard menu
- * shows how many orders came in since this user last opened the dashboard on this browser.
+ * shows how many orders came in since this user last opened the dashboard on this browser
+ * (first time: since the start of today).
  * Orders the user booked themselves are not counted. Opening the dashboard clears it (all tabs).
  */
 const KEY = (orgId: string, userId: string) => `saleOrdersSeenAt:${orgId}:${userId}`;
@@ -22,11 +23,20 @@ function safeSet(key: string, value: string): void {
   }
 }
 
-/** When the user last opened the dashboard. First time on this browser: from now (no flood of old orders). */
+/** Midnight India time of the day `now` falls on. */
+function istDayStart(now: Date): Date {
+  const ist = new Date(now.getTime() + 330 * 60_000);
+  return new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate()) - 330 * 60_000);
+}
+
+/**
+ * When the user last opened the dashboard. First time on this browser: from the start of today
+ * (India time), so today's orders show at once and older ones do not flood the count.
+ */
 export function readSaleOrdersSeenAt(orgId: string, userId: string, now = new Date()): string {
   const saved = safeGet(KEY(orgId, userId));
   if (saved && !Number.isNaN(Date.parse(saved))) return saved;
-  const iso = now.toISOString();
+  const iso = istDayStart(now).toISOString();
   safeSet(KEY(orgId, userId), iso);
   return iso;
 }

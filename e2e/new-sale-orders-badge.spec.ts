@@ -56,3 +56,32 @@ test("Sale Order Dashboard menu shows new orders like missed calls; opening it c
   const saved = await page.evaluate((k) => localStorage.getItem(k), `saleOrdersSeenAt:${E2E_ORG_ID}:${E2E_USER_ID}`);
   expect(saved && saved > seenAt).toBe(true);
 });
+
+test("an order booked while the page is open shows within a minute; first use counts today's orders", async ({ page, backend }) => {
+  await page.clock.install({ time: new Date("2026-11-28T10:00:00+05:30") });
+  // Booked this morning by a salesman, before this browser ever opened the app.
+  const live: Array<{ created_at: string; created_by: string | null }> = [
+    { created_at: "2026-11-28T03:00:00.000Z", created_by: "salesman-1" },
+    { created_at: "2026-11-27T12:00:00.000Z", created_by: "salesman-1" },
+  ];
+  await page.route(/\/rest\/v1\/sale_orders\?.*created_at=gt\./, (route) => {
+    const url = new URL(route.request().url());
+    const since = (url.searchParams.get("created_at") || "").replace(/^gt\./, "");
+    const n = live.filter((o) => o.created_at > since && o.created_by !== E2E_USER_ID).length;
+    return route.fulfill({
+      status: 200,
+      body: "",
+      headers: { "content-range": `*/${n}`, "access-control-allow-origin": "*", "access-control-expose-headers": "content-range" },
+    });
+  });
+  backend.addRows("sale_orders", []); // the mock backend answers the rest of the app
+
+  await page.goto(`/${E2E_ORG_SLUG}/sales-invoice-dashboard`);
+  const badge = page.getByTestId("new-sale-orders-badge").filter({ visible: true });
+  // Today's order counts on first use; yesterday's does not.
+  await expect(badge).toHaveText("1", { timeout: 60_000 });
+
+  live.push({ created_at: "2026-11-28T04:31:00.000Z", created_by: "salesman-2" });
+  await page.clock.fastForward(65_000);
+  await expect(badge).toHaveText("2", { timeout: 20_000 });
+});
